@@ -30,18 +30,18 @@ export default function BookingModal() {
     <>
       <Script src={GHL_FORM_EMBED_SRC} strategy="lazyOnload" />
       <div
-        className="fixed inset-0 z-[200] flex items-center justify-center"
-        style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}
+        className="fixed inset-0 z-[200] flex items-start justify-center pt-8 pb-8"
+        style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', overflowY: 'auto' }}
         onClick={(e) => { if (e.target === e.currentTarget) setOpen(false) }}
       >
         <div
-          className="relative w-[90%] max-w-2xl max-h-[90vh] overflow-y-auto rounded-sm"
+          className="relative w-[90%] max-w-2xl rounded-sm"
           style={{ background: '#161616', border: '1px solid rgba(201,169,110,0.2)' }}
         >
           {/* Header */}
           <div
-            className="flex items-center justify-between px-8 py-6"
-            style={{ borderBottom: '1px solid rgba(201,169,110,0.1)' }}
+            className="flex items-center justify-between px-8 py-6 sticky top-0 z-10 rounded-t-sm"
+            style={{ background: '#161616', borderBottom: '1px solid rgba(201,169,110,0.1)' }}
           >
             <h3 className="font-serif font-light text-2xl text-cream">
               Book a Free Consultation
@@ -55,12 +55,17 @@ export default function BookingModal() {
             </button>
           </div>
 
-          {/* GHL Calendar Embed */}
-          <div className="p-8">
+          {/* GHL Calendar Embed — tall enough to show full calendar */}
+          <div className="p-6">
             <iframe
               src={GHL_BOOKING_URL}
-              style={{ width: '100%', height: '600px', border: 'none', overflow: 'hidden' }}
-              scrolling="no"
+              style={{
+                width: '100%',
+                height: '800px',
+                border: 'none',
+                display: 'block',
+              }}
+              scrolling="yes"
               id="8x5NwSvRLVwZk3TBTVmF_modal"
             />
           </div>
