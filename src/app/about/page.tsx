@@ -39,7 +39,7 @@ export default function About() {
             </div>
           </div>
           <div className="relative">
-            <Image src={IMAGES.melinee} alt="All Financial Freedom team" width={560} height={560} className="object-cover object-top w-full rounded-sm" style={{ height: '560px' }} />
+            <Image src={IMAGES.melinee} alt="All Financial Freedom team" width={560} height={560} className="object-cover w-full rounded-sm" style={{ height: '560px', objectPosition: 'center 15%' }} />
           </div>
         </div>
       </section>
