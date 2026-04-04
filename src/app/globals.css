@@ -1,0 +1,87 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --gold: #C9A96E;
+  --gold-light: #E8D5B0;
+  --dark: #0D0D0D;
+  --dark-2: #161616;
+  --dark-3: #1E1E1E;
+  --muted: #8A8580;
+  --cream: #FAFAF8;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--dark);
+  color: var(--cream);
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-weight: 300;
+  overflow-x: hidden;
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-block bg-gold text-dark px-8 py-3 text-xs font-medium tracking-widest uppercase rounded-sm transition-colors hover:bg-gold-light;
+  }
+
+  .btn-ghost {
+    @apply inline-block bg-transparent text-cream px-8 py-3 text-xs font-normal tracking-widest uppercase rounded-sm border border-gold/40 transition-colors hover:border-gold hover:text-gold;
+  }
+
+  .btn-dark {
+    @apply inline-block bg-dark text-gold px-8 py-3 text-xs font-medium tracking-widest uppercase rounded-sm transition-colors hover:bg-dark-3 whitespace-nowrap;
+  }
+
+  .section-label {
+    @apply text-gold text-xs tracking-[0.28em] uppercase mb-4;
+  }
+
+  .section-title {
+    @apply font-serif font-light text-cream;
+    font-size: clamp(2rem, 3.5vw, 3rem);
+    line-height: 1.15;
+  }
+
+  .section-title em {
+    font-style: italic;
+    color: var(--gold);
+  }
+
+  .rich-text {
+    @apply text-sm leading-relaxed text-cream/75;
+    line-height: 1.85;
+  }
+
+  .rich-text strong {
+    @apply text-cream font-medium;
+  }
+
+  .page-section {
+    @apply px-16 py-24;
+  }
+
+  .gold-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    margin: 0 4rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .page-section {
+    padding: 4rem 1.5rem;
+  }
+}
