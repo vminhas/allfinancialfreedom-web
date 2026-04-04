@@ -1,12 +1,8 @@
-import type { Metadata } from 'next'
+'use client'
+
 import { SERVICES } from '@/lib/constants'
 import CTABanner from '@/components/CTABanner'
 import Footer from '@/components/Footer'
-
-export const metadata: Metadata = {
-  title: 'Services — All Financial Freedom',
-  description: 'Explore our full range of financial services including wealth building, asset protection, insurance, retirement, and legacy planning.',
-}
 
 const icons: Record<string, React.ReactNode> = {
   layers: <svg viewBox="0 0 24 24" className="w-6 h-6" stroke="currentColor" fill="none" strokeWidth="1.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>,
@@ -20,25 +16,21 @@ const icons: Record<string, React.ReactNode> = {
 export default function Services() {
   return (
     <main className="pt-20">
-      {/* Page Hero */}
       <section className="page-section" style={{ background: '#161616', borderBottom: '1px solid rgba(201,169,110,0.1)' }}>
         <p className="section-label">What We Offer</p>
         <h1 className="section-title">Comprehensive strategies for<br /><em>every chapter</em> of your life.</h1>
         <p className="text-muted mt-4 max-w-lg leading-relaxed">
-          From your first budget to your lasting legacy — we&apos;re with you at every step.
+          From your first budget to your lasting legacy — we are with you at every step.
         </p>
       </section>
 
-      {/* Services Grid */}
       <section className="page-section" style={{ background: '#0D0D0D' }}>
         <div className="grid md:grid-cols-3 gap-px" style={{ background: 'rgba(201,169,110,0.1)' }}>
           {SERVICES.map((service) => (
             <div
               key={service.title}
-              className="p-10 transition-colors duration-300"
+              className="p-10 transition-colors duration-300 hover:bg-dark-3"
               style={{ background: '#161616' }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = '#1E1E1E')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = '#161616')}
             >
               <div
                 className="w-14 h-14 flex items-center justify-center text-gold rounded-sm mb-6"
@@ -60,7 +52,7 @@ export default function Services() {
         </div>
       </section>
 
-      <CTABanner heading="Not sure where to start? Let's figure it out together." />
+      <CTABanner heading="Not sure where to start? Let us figure it out together." />
       <Footer />
     </main>
   )
