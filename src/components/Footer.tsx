@@ -21,24 +21,23 @@ export default function Footer() {
       <footer
         className="grid gap-12 px-16 py-16"
         style={{
-          background: '#161616',
-          borderTop: '1px solid rgba(201,169,110,0.1)',
+          background: '#1B3A5C',
           gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
         }}
       >
         <div>
           <Image src={IMAGES.logo} alt="All Financial Freedom" width={160} height={50} className="h-10 w-auto mb-4" />
-          <p className="text-sm text-muted leading-relaxed max-w-xs">
+          <p className="text-sm leading-relaxed max-w-xs" style={{ color: 'rgba(235,244,255,0.7)' }}>
             Empowering individuals and families to build wealth, protect assets, and create lasting legacies.
           </p>
         </div>
 
         <div>
-          <h4 className="text-gold text-xs tracking-[0.2em] uppercase mb-5">Navigate</h4>
+          <h4 className="text-xs tracking-widest uppercase mb-5 font-medium" style={{ color: '#5B9FE8' }}>Navigate</h4>
           <ul className="space-y-2">
             {navLinks.map((link) => (
               <li key={link.href}>
-                <Link href={link.href} className="text-muted text-sm hover:text-cream transition-colors">
+                <Link href={link.href} className="text-sm transition-colors hover:text-white" style={{ color: 'rgba(235,244,255,0.65)' }}>
                   {link.label}
                 </Link>
               </li>
@@ -47,11 +46,11 @@ export default function Footer() {
         </div>
 
         <div>
-          <h4 className="text-gold text-xs tracking-[0.2em] uppercase mb-5">Services</h4>
+          <h4 className="text-xs tracking-widest uppercase mb-5 font-medium" style={{ color: '#5B9FE8' }}>Services</h4>
           <ul className="space-y-2">
             {services.map((s) => (
               <li key={s}>
-                <Link href="/services" className="text-muted text-sm hover:text-cream transition-colors">
+                <Link href="/services" className="text-sm transition-colors hover:text-white" style={{ color: 'rgba(235,244,255,0.65)' }}>
                   {s}
                 </Link>
               </li>
@@ -60,24 +59,24 @@ export default function Footer() {
         </div>
 
         <div>
-          <h4 className="text-gold text-xs tracking-[0.2em] uppercase mb-5">Connect</h4>
+          <h4 className="text-xs tracking-widest uppercase mb-5 font-medium" style={{ color: '#5B9FE8' }}>Connect</h4>
           <ul className="space-y-2">
-            <li><a href="#" className="text-muted text-sm hover:text-cream transition-colors">Book a Call</a></li>
-            <li><a href="mailto:info@allfinancialfreedom.com" className="text-muted text-sm hover:text-cream transition-colors">Contact Us</a></li>
-            <li><a href="#" className="text-muted text-sm hover:text-cream transition-colors">Instagram</a></li>
-            <li><a href="#" className="text-muted text-sm hover:text-cream transition-colors">LinkedIn</a></li>
+            <li><a href="#" className="text-sm transition-colors hover:text-white" style={{ color: 'rgba(235,244,255,0.65)' }}>Book a Call</a></li>
+            <li><a href="mailto:vick@allfinancialfreedom.com" className="text-sm transition-colors hover:text-white" style={{ color: 'rgba(235,244,255,0.65)' }}>Contact Us</a></li>
+            <li><a href="#" className="text-sm transition-colors hover:text-white" style={{ color: 'rgba(235,244,255,0.65)' }}>Instagram</a></li>
+            <li><a href="#" className="text-sm transition-colors hover:text-white" style={{ color: 'rgba(235,244,255,0.65)' }}>LinkedIn</a></li>
           </ul>
         </div>
       </footer>
 
       <div
         className="flex flex-col md:flex-row justify-between items-center gap-2 px-16 py-4"
-        style={{ background: '#161616', borderTop: '1px solid rgba(255,255,255,0.05)' }}
+        style={{ background: '#142D48', borderTop: '1px solid rgba(255,255,255,0.06)' }}
       >
-        <p className="text-xs" style={{ color: 'rgba(138,133,128,0.6)' }}>
+        <p className="text-xs" style={{ color: 'rgba(235,244,255,0.4)' }}>
           © {new Date().getFullYear()} All Financial Freedom. All rights reserved.
         </p>
-        <p className="text-xs" style={{ color: 'rgba(138,133,128,0.6)' }}>
+        <p className="text-xs" style={{ color: 'rgba(235,244,255,0.4)' }}>
           Privacy Policy · Terms of Service
         </p>
       </div>

@@ -9,14 +9,17 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        navy: '#1B3A5C',
+        'navy-light': '#2A5280',
+        blue: '#3B7EC8',
+        'blue-light': '#5B9FE8',
+        sky: '#EBF4FF',
+        'sky-2': '#F5F9FF',
+        cream: '#FAFCFF',
+        muted: '#6B8299',
         gold: '#C9A96E',
         'gold-light': '#E8D5B0',
-        dark: '#0D0D0D',
-        'dark-2': '#161616',
         'dark-3': '#1E1E1E',
-        mid: '#2A2A2A',
-        muted: '#8A8580',
-        cream: '#FAFAF8',
       },
       fontFamily: {
         serif: ['Cormorant Garamond', 'Georgia', 'serif'],

@@ -11,12 +11,12 @@ export default function CTABanner({ heading, buttonText = 'Book a Free Consultat
   return (
     <section
       className="flex flex-col md:flex-row items-center justify-between gap-6 px-16 py-16"
-      style={{ background: '#C9A96E' }}
+      style={{ background: 'linear-gradient(135deg, #1B3A5C 0%, #2A5280 100%)' }}
     >
-      <h2 className="font-serif font-light text-3xl text-dark text-center md:text-left">
+      <h2 className="font-serif font-light text-3xl text-white text-center md:text-left">
         {heading}
       </h2>
-      <button onClick={openBooking} className="btn-dark">
+      <button onClick={openBooking} className="btn-navy" style={{ background: 'white', color: '#1B3A5C' }}>
         {buttonText}
       </button>
     </section>

@@ -26,34 +26,32 @@ export default function Navbar() {
   }, [])
 
   const openBooking = () => {
-    const event = new CustomEvent('open-booking')
-    window.dispatchEvent(event)
+    window.dispatchEvent(new CustomEvent('open-booking'))
     setMenuOpen(false)
   }
 
   return (
     <nav
-      className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-16 py-5 transition-all duration-300"
+      className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between transition-all duration-300"
       style={{
-        background: scrolled ? 'rgba(13,13,13,0.97)' : 'rgba(13,13,13,0.85)',
+        padding: '1rem 4rem',
+        background: scrolled ? 'rgba(255,255,255,0.97)' : 'rgba(255,255,255,0.92)',
         backdropFilter: 'blur(12px)',
-        borderBottom: '1px solid rgba(201,169,110,0.12)',
+        borderBottom: scrolled ? '1px solid rgba(59,126,200,0.12)' : '1px solid transparent',
+        boxShadow: scrolled ? '0 2px 20px rgba(27,58,92,0.08)' : 'none',
       }}
     >
       <Link href="/" className="flex items-center gap-3">
         <Image src={IMAGES.logo} alt="All Financial Freedom" width={140} height={44} className="h-11 w-auto" />
       </Link>
 
-      {/* Desktop links */}
       <ul className="hidden md:flex gap-10 list-none">
         {navLinks.map((link) => (
           <li key={link.href}>
             <Link
               href={link.href}
-              className="text-xs tracking-widest uppercase transition-colors duration-200"
-              style={{
-                color: pathname === link.href ? '#C9A96E' : 'rgba(240,237,232,0.75)',
-              }}
+              className="text-xs tracking-widest uppercase transition-colors duration-200 font-medium"
+              style={{ color: pathname === link.href ? '#3B7EC8' : '#1B3A5C' }}
             >
               {link.label}
             </Link>
@@ -65,35 +63,31 @@ export default function Navbar() {
         Book a Call
       </button>
 
-      {/* Mobile hamburger */}
       <button
         className="md:hidden flex flex-col gap-1.5 p-2"
         onClick={() => setMenuOpen(!menuOpen)}
         aria-label="Toggle menu"
       >
-        <span className="block w-6 h-px bg-cream transition-all" style={{ transform: menuOpen ? 'rotate(45deg) translateY(4px)' : '' }} />
-        <span className="block w-6 h-px bg-cream transition-all" style={{ opacity: menuOpen ? 0 : 1 }} />
-        <span className="block w-6 h-px bg-cream transition-all" style={{ transform: menuOpen ? 'rotate(-45deg) translateY(-4px)' : '' }} />
+        <span className="block w-6 h-px transition-all" style={{ background: '#1B3A5C', transform: menuOpen ? 'rotate(45deg) translateY(4px)' : '' }} />
+        <span className="block w-6 h-px transition-all" style={{ background: '#1B3A5C', opacity: menuOpen ? 0 : 1 }} />
+        <span className="block w-6 h-px transition-all" style={{ background: '#1B3A5C', transform: menuOpen ? 'rotate(-45deg) translateY(-4px)' : '' }} />
       </button>
 
-      {/* Mobile menu */}
       {menuOpen && (
-        <div className="absolute top-full left-0 right-0 bg-dark-2 border-t border-gold/10 md:hidden">
+        <div className="absolute top-full left-0 right-0 bg-white border-t border-blue/10 md:hidden shadow-lg">
           {navLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
-              className="block px-6 py-4 text-xs tracking-widest uppercase border-b border-gold/5"
-              style={{ color: pathname === link.href ? '#C9A96E' : 'rgba(240,237,232,0.75)' }}
+              className="block px-6 py-4 text-xs tracking-widest uppercase border-b border-blue/5 font-medium"
+              style={{ color: pathname === link.href ? '#3B7EC8' : '#1B3A5C' }}
               onClick={() => setMenuOpen(false)}
             >
               {link.label}
             </Link>
           ))}
           <div className="p-6">
-            <button onClick={openBooking} className="btn-primary w-full text-center">
-              Book a Call
-            </button>
+            <button onClick={openBooking} className="btn-primary w-full text-center">Book a Call</button>
           </div>
         </div>
       )}
