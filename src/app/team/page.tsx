@@ -122,7 +122,7 @@ export default function Team() {
           <span className="section-label">The Team</span>
           <h2 className="section-title"><em>Senior Associates</em></h2>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 max-w-5xl mx-auto">
           {ASSOCIATES.map(assoc => (
             <div key={assoc.name} className="card-premium text-center group overflow-hidden">
               {/* Photo or initials avatar */}
