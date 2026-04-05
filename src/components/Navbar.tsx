@@ -20,6 +20,9 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false)
   const pathname = usePathname()
 
+  // On non-home pages there's no dark hero, so always use the solid navbar
+  const solid = scrolled || pathname !== '/'
+
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 60)
     window.addEventListener('scroll', handleScroll)
@@ -35,17 +38,17 @@ export default function Navbar() {
     <nav
       className="fixed top-0 left-0 right-0 z-50 transition-all duration-300"
       style={{
-        background: scrolled ? 'rgba(255,255,255,0.98)' : 'rgba(255,255,255,0.0)',
-        backdropFilter: scrolled ? 'blur(16px)' : 'none',
-        borderBottom: scrolled ? '1px solid rgba(201,169,110,0.15)' : '1px solid transparent',
-        boxShadow: scrolled ? '0 2px 24px rgba(27,58,92,0.08)' : 'none',
+        background: solid ? 'rgba(255,255,255,0.98)' : 'rgba(255,255,255,0.0)',
+        backdropFilter: solid ? 'blur(16px)' : 'none',
+        borderBottom: solid ? '1px solid rgba(201,169,110,0.15)' : '1px solid transparent',
+        boxShadow: solid ? '0 2px 24px rgba(27,58,92,0.08)' : 'none',
       }}
     >
       {/* Gold top accent bar, visible on scroll */}
       <div style={{
         height: 2,
         background: 'linear-gradient(90deg, transparent, #C9A96E, transparent)',
-        opacity: scrolled ? 1 : 0,
+        opacity: solid ? 1 : 0,
         transition: 'opacity 0.3s',
       }} />
 
@@ -58,8 +61,8 @@ export default function Navbar() {
             height={44}
             className="w-auto transition-all duration-300"
             style={{
-              height: scrolled ? '38px' : '44px',
-              filter: scrolled ? 'brightness(0)' : 'brightness(0) invert(1)',
+              height: solid ? '38px' : '44px',
+              filter: solid ? 'brightness(0)' : 'brightness(0) invert(1)',
             }}
           />
         </Link>
@@ -74,7 +77,7 @@ export default function Navbar() {
                   href={link.href}
                   className="text-xs tracking-widest uppercase transition-colors duration-200 font-medium relative group"
                   style={{
-                    color: scrolled
+                    color: solid
                       ? (isActive ? '#C9A96E' : '#1B3A5C')
                       : (isActive ? '#C9A96E' : 'rgba(235,244,255,0.88)'),
                   }}
@@ -98,7 +101,7 @@ export default function Navbar() {
         <div className="hidden md:flex items-center gap-3">
           <Link href="/join"
             className="text-xs tracking-widest uppercase font-medium transition-colors duration-200"
-            style={{ color: scrolled ? '#C9A96E' : 'rgba(201,169,110,0.9)' }}>
+            style={{ color: solid ? '#C9A96E' : 'rgba(201,169,110,0.9)' }}>
             Join the Team
           </Link>
           <button onClick={openBooking} className="btn-gold" style={{ padding: '0.6rem 1.5rem' }}>
@@ -113,15 +116,15 @@ export default function Navbar() {
           aria-label="Toggle menu"
         >
           <span className="block w-6 h-px transition-all duration-300" style={{
-            background: scrolled ? '#1B3A5C' : 'white',
+            background: solid ? '#1B3A5C' : 'white',
             transform: menuOpen ? 'rotate(45deg) translateY(5px)' : ''
           }} />
           <span className="block w-6 h-px transition-all duration-300" style={{
-            background: scrolled ? '#1B3A5C' : 'white',
+            background: solid ? '#1B3A5C' : 'white',
             opacity: menuOpen ? 0 : 1
           }} />
           <span className="block w-6 h-px transition-all duration-300" style={{
-            background: scrolled ? '#1B3A5C' : 'white',
+            background: solid ? '#1B3A5C' : 'white',
             transform: menuOpen ? 'rotate(-45deg) translateY(-5px)' : ''
           }} />
         </button>
