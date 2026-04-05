@@ -78,7 +78,19 @@
       "Bash(sed -i 's/ — /, /g' content/drafts/ARTICLE-SOP.md)",
       "Bash(sed -i 's/money —<br/money,<br/g' src/app/page.tsx)",
       "Bash(sed -i 's/and legacy —/and legacy,/g' src/app/page.tsx)",
-      "Bash(curl -s -X GET 'https://services.leadconnectorhq.com/contacts/?locationId=tDxu4bUObV7zIes3OGOS&limit=1' -H 'Authorization: Bearer pit-03ce3527-9e3f-4120-a093-ccd34ecfcab4' -H 'Version: 2021-07-28')"
+      "Bash(curl -s -X GET 'https://services.leadconnectorhq.com/contacts/?locationId=tDxu4bUObV7zIes3OGOS&limit=1' -H 'Authorization: Bearer pit-03ce3527-9e3f-4120-a093-ccd34ecfcab4' -H 'Version: 2021-07-28')",
+      "Bash(curl -s -X GET 'https://services.leadconnectorhq.com/contacts/?locationId=tDxu4bUObV7zIes3OGOS&limit=1' -H 'Authorization: Bearer pit-3413ea2a-3a3f-460b-98c3-6ab3b77153ee' -H 'Version: 2021-07-28')",
+      "Bash(curl -s -X GET 'https://services.leadconnectorhq.com/opportunities/pipelines?locationId=tDxu4bUObV7zIes3OGOS' -H 'Authorization: Bearer pit-3413ea2a-3a3f-460b-98c3-6ab3b77153ee' -H 'Version: 2021-07-28')",
+      "Bash(python3 -c ':*)",
+      "Bash(node -e ':*)",
+      "Bash(node -e \"const d=[];process.stdin.on\\('data',c=>d.push\\(c\\)\\);process.stdin.on\\('end',\\(\\)=>{const r=JSON.parse\\(d.join\\(''\\)\\);console.log\\('Contact ID:', r.contact?.id ?? JSON.stringify\\(r\\)\\)}\\)\")",
+      "Bash(curl -s -X POST https://rest.gohighlevel.com/v1/pipelines/ -H 'Authorization: Bearer pit-3413ea2a-3a3f-460b-98c3-6ab3b77153ee' -H 'Content-Type: application/json' -d '{\"name\":\"Client Pipeline\",\"locationId\":\"tDxu4bUObV7zIes3OGOS\"}')",
+      "Bash(curl -s -X GET 'https://services.leadconnectorhq.com/contacts/?locationId=tDxu4bUObV7zIes3OGOS&limit=5&sortBy=dateAdded&sortOrder=desc' -H 'Authorization: Bearer pit-3413ea2a-3a3f-460b-98c3-6ab3b77153ee' -H 'Version: 2021-07-28')",
+      "Bash(curl -s -X GET 'https://services.leadconnectorhq.com/contacts/?locationId=tDxu4bUObV7zIes3OGOS&limit=5' -H 'Authorization: Bearer pit-3413ea2a-3a3f-460b-98c3-6ab3b77153ee' -H 'Version: 2021-07-28')",
+      "Bash(curl -s -X GET 'https://services.leadconnectorhq.com/opportunities/search?location_id=tDxu4bUObV7zIes3OGOS&pipeline_id=mnZ9OIMMkjGo30LAxLDj' -H 'Authorization: Bearer pit-3413ea2a-3a3f-460b-98c3-6ab3b77153ee' -H 'Version: 2021-07-28')",
+      "Bash(curl -s -X GET 'https://services.leadconnectorhq.com/contacts/?locationId=tDxu4bUObV7zIes3OGOS&query=minhas' -H 'Authorization: Bearer pit-3413ea2a-3a3f-460b-98c3-6ab3b77153ee' -H 'Version: 2021-07-28')",
+      "Bash(curl -s -X GET 'https://services.leadconnectorhq.com/conversations/?locationId=tDxu4bUObV7zIes3OGOS&limit=1' -H 'Authorization: Bearer pit-3413ea2a-3a3f-460b-98c3-6ab3b77153ee' -H 'Version: 2021-07-28')",
+      "Bash(curl -s -X GET 'https://services.leadconnectorhq.com/conversations/search?locationId=tDxu4bUObV7zIes3OGOS&limit=1' -H 'Authorization: Bearer pit-3413ea2a-3a3f-460b-98c3-6ab3b77153ee' -H 'Version: 2021-07-28')"
     ]
   }
 }

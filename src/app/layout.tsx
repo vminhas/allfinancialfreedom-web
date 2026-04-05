@@ -3,6 +3,7 @@ import Script from 'next/script'
 import './globals.css'
 import Navbar from '@/components/Navbar'
 import BookingModal from '@/components/BookingModal'
+import JoinModal from '@/components/JoinModal'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 
@@ -38,6 +39,7 @@ export default function RootLayout({
       <body>
         <Navbar />
         <BookingModal />
+        <JoinModal />
         {children}
         <Analytics />
         <SpeedInsights />

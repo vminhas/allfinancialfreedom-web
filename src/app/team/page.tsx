@@ -3,6 +3,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { TEAM, DIRECTORS, ASSOCIATES } from '@/lib/constants'
 import CTABanner from '@/components/CTABanner'
+import OpenJoinButton from '@/components/OpenJoinButton'
 import Footer from '@/components/Footer'
 
 export const metadata: Metadata = {
@@ -174,7 +175,7 @@ export default function Team() {
             <p className="rich-text-light mb-8">
               If you have the drive to help families build wealth and the ambition to build something of your own, we want to meet you.
             </p>
-            <Link href="/join" className="btn-gold">Apply to Join</Link>
+            <OpenJoinButton className="btn-gold">Apply to Join</OpenJoinButton>
           </div>
           <div className="grid grid-cols-2 gap-4">
             {[
@@ -193,7 +194,7 @@ export default function Team() {
         </div>
       </section>
 
-      <CTABanner heading="Want to join the movement?" buttonText="Start the Conversation" />
+      <CTABanner heading="Want to join the movement?" buttonText="Apply Now" action="join" />
       <Footer />
     </main>
   )
