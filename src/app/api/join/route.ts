@@ -134,8 +134,19 @@ export async function POST(req: NextRequest) {
               </table>
             </div>
 
+            <!-- Calendar CTA -->
+            <div style="background:#142D48;border-radius:4px;padding:32px 36px;margin:0 0 32px;text-align:center;">
+              <p style="color:#C9A96E;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;font-weight:600;margin:0 0 10px;">Skip the Wait</p>
+              <p style="color:#ffffff;font-size:18px;font-weight:300;margin:0 0 8px;line-height:1.4;">Ready to talk now?</p>
+              <p style="color:rgba(235,244,255,0.6);font-size:13px;margin:0 0 24px;line-height:1.6;">Pick a time that works for you and we will come prepared to answer every question you have.</p>
+              <a href="https://api.leadconnectorhq.com/widget/booking/ZOedxdwvtOnTS6Sg5n7Z"
+                style="display:inline-block;background:#C9A96E;color:#142D48;text-decoration:none;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;padding:14px 32px;border-radius:3px;">
+                Schedule Your Discovery Call
+              </a>
+            </div>
+
             <p style="color:#4B5563;font-size:15px;line-height:1.85;margin:0 0 32px;">
-              Should you have any questions before we connect, our team is available at
+              If you have any questions before we connect, our team is available at
               <a href="mailto:contact@allfinancialfreedom.com" style="color:#1B3A5C;text-decoration:underline;font-weight:500;">contact@allfinancialfreedom.com</a>.
               We look forward to learning more about you.
             </p>
