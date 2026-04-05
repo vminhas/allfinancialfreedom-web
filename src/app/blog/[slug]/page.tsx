@@ -41,8 +41,8 @@ function parseInline(text: string): React.ReactNode {
   let m: RegExpExecArray | null
   while ((m = regex.exec(text)) !== null) {
     if (m.index > last) parts.push(text.slice(last, m.index))
-    if (m[2]) parts.push(<strong key={m.index} style={{ color: '#1A2B3C', fontWeight: 600 }}>{m[2]}</strong>)
-    else if (m[3]) parts.push(<em key={m.index} style={{ fontStyle: 'italic', color: '#1B3A5C' }}>{m[3]}</em>)
+    if (m[2]) parts.push(<strong key={m.index} style={{ color: '#1A2B3C', fontWeight: 600 }}>{parseInline(m[2])}</strong>)
+    else if (m[3]) parts.push(<em key={m.index} style={{ fontStyle: 'italic', color: '#1B3A5C' }}>{parseInline(m[3])}</em>)
     else if (m[4]) parts.push(<code key={m.index} style={{ background: '#EBF4FF', padding: '1px 5px', borderRadius: 3, fontSize: '0.88em', color: '#1B3A5C' }}>{m[4]}</code>)
     else if (m[5] && m[6]) parts.push(<a key={m.index} href={m[6]} style={{ color: '#3B7EC8', textDecoration: 'underline' }}>{m[5]}</a>)
     last = m.index + m[0].length
