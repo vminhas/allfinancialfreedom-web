@@ -30,17 +30,21 @@ export default function BookingModal() {
     <>
       <Script src={GHL_FORM_EMBED_SRC} strategy="lazyOnload" />
       <div
-        className="fixed inset-0 z-[200] flex items-start justify-center pt-8 pb-8"
-        style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', overflowY: 'auto' }}
+        className="fixed inset-0 z-[200] flex items-center justify-center p-4 md:p-8"
+        style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}
         onClick={(e) => { if (e.target === e.currentTarget) setOpen(false) }}
       >
         <div
-          className="relative w-[90%] max-w-2xl rounded-sm"
-          style={{ background: '#161616', border: '1px solid rgba(201,169,110,0.2)' }}
+          className="relative w-[90%] max-w-2xl rounded-sm flex flex-col"
+          style={{
+            background: '#161616',
+            border: '1px solid rgba(201,169,110,0.2)',
+            maxHeight: '90vh',
+          }}
         >
-          {/* Header */}
+          {/* Header — always visible */}
           <div
-            className="flex items-center justify-between px-8 py-6 sticky top-0 z-10 rounded-t-sm"
+            className="flex items-center justify-between px-8 py-6 shrink-0 rounded-t-sm"
             style={{ background: '#161616', borderBottom: '1px solid rgba(201,169,110,0.1)' }}
           >
             <h3 className="font-serif font-light text-2xl text-cream">
@@ -55,8 +59,8 @@ export default function BookingModal() {
             </button>
           </div>
 
-          {/* GHL Calendar Embed, tall enough to show full calendar */}
-          <div className="p-6">
+          {/* Scrollable content area */}
+          <div className="overflow-y-auto p-6">
             <iframe
               src={GHL_BOOKING_URL}
               style={{

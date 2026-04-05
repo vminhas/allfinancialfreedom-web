@@ -7,7 +7,7 @@ const RECRUIT_STAGE_ID = '21995b1a-d5f7-45e0-9897-b8e22dd494c6' // Application R
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const { firstName, lastName, email, phone, licensed, message } = body
+  const { firstName, lastName, email, phone, licensed, pathway, message } = body
 
   if (!firstName || !lastName || !email || !phone) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -32,6 +32,7 @@ export async function POST(req: NextRequest) {
         tags: ['join-applicant', licensed === 'yes' ? 'licensed' : 'unlicensed'],
         customFields: [
           { key: 'licensed', field_value: licensed },
+          { key: 'pathway', field_value: pathway },
           { key: 'join_message', field_value: message },
         ],
       }),
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
           pipelineId: RECRUIT_PIPELINE_ID,
           pipelineStageId: RECRUIT_STAGE_ID,
           locationId: GHL_LOCATION_ID,
-          name: `${firstName} ${lastName} - Application`,
+          name: `${firstName} ${lastName}${pathway ? ` - ${pathway}` : ' - Application'}`,
           contactId,
           status: 'open',
         }),

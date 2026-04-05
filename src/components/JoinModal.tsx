@@ -108,16 +108,20 @@ export default function JoinModal() {
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-start justify-center pt-8 pb-8"
-      style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', overflowY: 'auto' }}
+      className="fixed inset-0 z-[200] flex items-center justify-center p-4 md:p-8"
+      style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}
       onClick={(e) => { if (e.target === e.currentTarget) setOpen(false) }}
     >
       <div
-        className="relative w-[90%] max-w-xl rounded-sm"
-        style={{ background: '#161616', border: '1px solid rgba(201,169,110,0.2)' }}
+        className="relative w-[90%] max-w-xl rounded-sm flex flex-col"
+        style={{
+          background: '#161616',
+          border: '1px solid rgba(201,169,110,0.2)',
+          maxHeight: '90vh',
+        }}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-8 py-6 sticky top-0 z-10 rounded-t-sm"
+        {/* Header — always visible */}
+        <div className="flex items-center justify-between px-8 py-6 shrink-0 rounded-t-sm"
           style={{ background: '#161616', borderBottom: '1px solid rgba(201,169,110,0.1)' }}>
           <div>
             <p style={{ fontSize: '0.65rem', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: '4px' }}>
@@ -135,8 +139,8 @@ export default function JoinModal() {
           </button>
         </div>
 
-        {/* Body */}
-        <div className="p-8">
+        {/* Scrollable body */}
+        <div className="overflow-y-auto p-8">
           {submitted ? (
             <div style={{ textAlign: 'center', padding: '2rem 0' }}>
               <div style={{ fontSize: '3rem', marginBottom: '1rem', color: '#C9A96E' }}>✓</div>

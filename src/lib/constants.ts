@@ -4,7 +4,7 @@ export const IMAGES = {
   strip1: 'https://images.squarespace-cdn.com/content/v1/681101f55b106572fa6b7718/f752d5b1-bf53-4ebf-935d-87530ec1662d/pexels-sagui-andrea-200115-618833.jpg',
   strip2: 'https://images.squarespace-cdn.com/content/v1/681101f55b106572fa6b7718/408de877-03f2-4351-8680-78162b2e6baf/pexels-cottonbro-7232037.jpg',
   strip3: 'https://images.squarespace-cdn.com/content/v1/681101f55b106572fa6b7718/b451a0f8-aacd-4f57-9d1f-f340ab9646d3/pexels-karolina-grabowska-7876672.jpg',
-  wealthGap: 'https://images.squarespace-cdn.com/content/v1/681101f55b106572fa6b7718/ef39a342-4829-4807-8a0f-8fceaa8e44a9/pexels-dziana-hasanbekava-8213228.jpg',
+  wealthGap: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=1200&q=90&fm=jpg&fit=crop',
   vick: '/team/vick.jpg',
   melinee: '/team/melinee.jpg',
   jeremy: '/team/jeremy.jpg',

@@ -97,7 +97,7 @@ export default function Home() {
         </div>
 
         {/* Content */}
-        <div className="relative z-10 page-section w-full max-w-5xl mx-auto">
+        <div className="relative z-10 page-section w-full max-w-5xl mx-auto pt-24 md:pt-0">
           <h1 className="font-serif font-light text-white mb-6"
             style={{ fontSize: 'clamp(2.6rem, 5vw, 4.8rem)', lineHeight: 1.08, maxWidth: '780px' }}>
             It&apos;s not just about money,<br />

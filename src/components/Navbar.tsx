@@ -99,12 +99,12 @@ export default function Navbar() {
         </ul>
 
         <div className="hidden md:flex items-center gap-3">
-          <button
-            onClick={() => window.dispatchEvent(new CustomEvent('open-join'))}
+          <Link
+            href="/join"
             className="text-xs tracking-widest uppercase font-medium transition-colors duration-200"
-            style={{ color: solid ? '#C9A96E' : 'rgba(201,169,110,0.9)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            style={{ color: solid ? '#C9A96E' : 'rgba(201,169,110,0.9)' }}>
             Join the Team
-          </button>
+          </Link>
           <button onClick={openBooking} className="btn-gold" style={{ padding: '0.6rem 1.5rem' }}>
             Schedule a Call
           </button>

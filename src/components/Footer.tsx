@@ -89,7 +89,7 @@ export default function Footer() {
               </li>
               <li>
                 <a href="mailto:contact@allfinancialfreedom.com" className="text-sm transition-colors hover:text-white"
-                  style={{ color: 'rgba(235,244,255,0.55)' }}>
+                  style={{ color: 'rgba(235,244,255,0.55)', wordBreak: 'break-all', display: 'block' }}>
                   contact@allfinancialfreedom.com
                 </a>
               </li>
