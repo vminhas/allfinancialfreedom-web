@@ -198,7 +198,7 @@ export default function Services() {
         </div>
         <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
           {supporting.map(service => (
-            <div key={service.title} id={service.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')} style={{ scrollMarginTop: '80px' }} className="card-premium p-8">
+            <div key={service.title} id={service.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')} style={{ scrollMarginTop: '80px' }} className="card-premium p-8 flex flex-col">
               <div className="w-12 h-12 mb-5 flex items-center justify-center rounded-full text-white"
                 style={{ background: 'linear-gradient(135deg, #1B3A5C, #2A5280)' }}>
                 {service.icon}
@@ -214,11 +214,13 @@ export default function Services() {
                   </li>
                 ))}
               </ul>
-              {service.readMore && (
-                <Link href={service.readMore.href} style={{ fontSize: '0.68rem', color: '#6B8299', textDecoration: 'underline', textUnderlineOffset: 3, display: 'inline-block' }}>
-                  Read more &rarr;
-                </Link>
-              )}
+              <div className="mt-auto pt-2">
+                {service.readMore && (
+                  <Link href={service.readMore.href} style={{ fontSize: '0.68rem', color: '#6B8299', textDecoration: 'underline', textUnderlineOffset: 3, display: 'inline-block' }}>
+                    Read more &rarr;
+                  </Link>
+                )}
+              </div>
             </div>
           ))}
         </div>
