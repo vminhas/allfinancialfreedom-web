@@ -274,7 +274,7 @@ export default function Home() {
               { name: 'OneAmerica Financial', logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/bf/Oneamericalogo.jpg/250px-Oneamericalogo.jpg', textStyle: {} },
               { name: 'American National', logo: 'https://americannational.com/content/dam/anico/brand/logos/AN_Logo_Stacked_2color.svg', textStyle: {} },
               { name: 'Allianz', logo: '/brand/allianz.svg', textStyle: {} },
-              { name: 'F&G Annuities & Life', logo: null, textStyle: { fontWeight: 600, fontSize: '0.68rem', letterSpacing: '0.04em', lineHeight: 1.4 } },
+              { name: 'F&G Annuities & Life', logo: '/brand/fg-annuities.svg', textStyle: {} },
             ].map(carrier => (
               <div
                 key={carrier.name}

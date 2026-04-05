@@ -1,14 +1,15 @@
-<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-  <!-- Outer ring -->
-  <circle cx="100" cy="100" r="98" fill="#003781"/>
-  <circle cx="100" cy="100" r="74" fill="white"/>
+<svg viewBox="0 0 420 110" xmlns="http://www.w3.org/2000/svg">
+  <!-- Allianz wordmark -->
+  <text x="8" y="82" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="72" fill="#003DA5" letter-spacing="-2">Allianz</text>
 
-  <!-- Left bar with notch cut from top-right -->
-  <polygon points="44,162 44,72 62,72 62,80 68,80 68,162" fill="#003781"/>
+  <!-- Circle ring -->
+  <circle cx="382" cy="55" r="34" fill="none" stroke="#003DA5" stroke-width="5"/>
 
-  <!-- Center bar (tallest) with notch cut from top-left -->
-  <polygon points="72,162 72,54 78,54 78,62 96,62 96,162" fill="#003781"/>
-
-  <!-- Right bar with notch cut from top-left -->
-  <polygon points="100,162 100,80 106,80 106,72 124,72 124,162" fill="#003781"/>
+  <!-- Three bars with notch cuts -->
+  <!-- Left bar: notch cut from top-right -->
+  <polygon points="360,82 360,34 368,34 368,42 374,42 374,82" fill="#003DA5"/>
+  <!-- Center bar: tallest -->
+  <polygon points="378,82 378,24 386,24 386,82" fill="#003DA5"/>
+  <!-- Right bar: notch cut from top-left -->
+  <polygon points="390,82 390,42 396,42 396,34 404,34 404,82" fill="#003DA5"/>
 </svg>
