@@ -105,6 +105,7 @@ const supporting = [
     icon: <svg viewBox="0 0 24 24" className="w-6 h-6" stroke="currentColor" fill="none" strokeWidth="1.5"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>,
     description: 'Nursing home care averages $9,000/month. Without a plan, one health event can erase decades of savings. We help families protect against it.',
     bullets: ['Long-term care insurance options', 'Hybrid life & LTC policies', 'Preservation of retirement assets'],
+    readMore: { href: '/blog/long-term-care-planning-protect-retirement', label: 'The $9,000-a-month risk nobody plans for in retirement' },
   },
 ]
 
