@@ -43,6 +43,12 @@ export default function RootLayout({
         {children}
         <Analytics />
         <SpeedInsights />
+        <Script
+          src="https://widgets.leadconnectorhq.com/loader.js"
+          data-resources-url="https://widgets.leadconnectorhq.com/chat-widget/loader.js"
+          data-widget-id="69d2adf80515dd97c01d5508"
+          strategy="lazyOnload"
+        />
       </body>
     </html>
   )
