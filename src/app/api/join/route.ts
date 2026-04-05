@@ -188,6 +188,7 @@ export async function POST(req: NextRequest) {
           emailFrom: 'contact@allfinancialfreedom.com',
           emailFromName: 'All Financial Freedom',
           emailTo: email,
+          subject: `We received your application, ${firstName}.`,
           emailSubject: `We received your application, ${firstName}.`,
           html: emailHtml,
         }),
