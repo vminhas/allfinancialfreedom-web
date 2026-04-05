@@ -8,6 +8,7 @@ export const IMAGES = {
   vick: '/team/vick.jpg',
   melinee: '/team/melinee.jpg',
   jeremy: '/team/jeremy.jpg',
+  movement: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=1200&q=80&fm=jpg&fit=crop',
 }
 
 export const GHL_BOOKING_URL = 'https://api.leadconnectorhq.com/widget/booking/ZOedxdwvtOnTS6Sg5n7Z'
@@ -46,7 +47,6 @@ export const ASSOCIATES = [
   { name: 'Doug Morrison', initials: 'DM', specialty: 'Wealth Building', location: 'Dallas, TX', image: '/team/doug.jpg' },
   { name: 'Heather Cullum', initials: 'HC', specialty: 'Retirement Planning', location: 'Charlotte, NC', image: '/team/heather.jpg' },
   { name: 'Sam Yonce', initials: 'SY', specialty: 'Asset Protection', location: 'Phoenix, AZ', image: '/team/sam.jpg' },
-  { name: 'Amber Simpson', initials: 'AS', specialty: 'Legacy Planning', location: 'Houston, TX', image: '/team/amber.jpg' },
 ]
 
 export const GHL_JOIN_FORM_URL = '' // Add your GHL join/team-prospect form embed URL here

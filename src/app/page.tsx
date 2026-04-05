@@ -81,9 +81,11 @@ export default function Home() {
 
       {/* ── HERO ── */}
       <section className="relative flex items-end pb-20 md:items-center md:pb-0" style={{ height: '100vh', minHeight: 680 }}>
-        {/* Background */}
-        <div className="absolute inset-0">
-          <Image src={IMAGES.heroBg} alt="Financial freedom" fill className="object-cover" priority />
+        {/* Background with Ken Burns slow motion effect */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="hero-bg-animate">
+            <Image src={IMAGES.heroBg} alt="Financial freedom" fill className="object-cover" priority />
+          </div>
           <div className="absolute inset-0" style={{
             background: 'linear-gradient(110deg, rgba(20,45,72,0.92) 45%, rgba(20,45,72,0.55) 100%)'
           }} />
@@ -246,39 +248,62 @@ export default function Home() {
 
       {/* ── CARRIER PARTNERS ── */}
       <section className="py-14 px-5 md:px-12 lg:px-20 bg-white-section">
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-6xl mx-auto">
           <div className="text-center mb-10">
             <span className="section-label">Our Carrier Partners</span>
             <p className="text-sm text-muted-blue mt-2">
               We work with North America&apos;s most trusted insurance and financial institutions — so you always have access to the best solutions.
             </p>
           </div>
-          <div className="flex flex-wrap items-center justify-center gap-x-12 gap-y-8">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4 items-center">
             {[
-              'Nationwide',
-              'Transamerica',
-              'Mutual of Omaha',
-              'North American',
-              'Global Atlantic',
-              'Foresters Financial',
-              'American Equity',
-              'Pacific Life',
-            ].map(name => (
-              <div key={name} style={{
-                fontFamily: "'Cormorant Garamond', serif",
-                fontSize: '1.05rem',
-                fontWeight: 400,
-                color: '#6B8299',
-                letterSpacing: '0.04em',
-                opacity: 0.75,
-                transition: 'opacity 0.2s, color 0.2s',
-                cursor: 'default',
-                userSelect: 'none' as const,
-              }}
-              onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = '#1B3A5C'; }}
-              onMouseLeave={e => { e.currentTarget.style.opacity = '0.75'; e.currentTarget.style.color = '#6B8299'; }}
+              { name: 'Ethos', logo: null, textStyle: { fontWeight: 700, letterSpacing: '0.18em', fontSize: '1.1rem' } },
+              { name: 'North American', logo: null, textStyle: { fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.06em', lineHeight: 1.3 } },
+              { name: 'Corebridge Financial', logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/9/9c/Corebridge_financial_logo.svg/250px-Corebridge_financial_logo.svg.png', textStyle: {} },
+              { name: 'Mutual of Omaha', logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/e/e1/Logo_of_Mutual_of_Omaha.svg/250px-Logo_of_Mutual_of_Omaha.svg.png', textStyle: {} },
+              { name: 'AuguStar Financial', logo: null, textStyle: { fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.04em', lineHeight: 1.3 } },
+              { name: 'SILAC', logo: null, textStyle: { fontWeight: 700, letterSpacing: '0.2em', fontSize: '1rem', border: '1.5px solid currentColor', padding: '4px 8px' } },
+              { name: 'Prudential', logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/7/7e/Prudential_Financial.svg/250px-Prudential_Financial.svg.png', textStyle: {} },
+              { name: 'John Hancock', logo: 'https://upload.wikimedia.org/wikipedia/commons/5/56/John_Hancock_Insurance_Logo.svg', textStyle: {} },
+              { name: 'Banner Life', logo: 'https://www.bannerlife.com/images/default-source/logos/banner-life-william-penn-color.png?sfvrsn=f7531d89_1', textStyle: {} },
+              { name: 'Ameritas', logo: null, textStyle: { fontWeight: 500, fontSize: '1rem', fontStyle: 'italic', letterSpacing: '0.02em' } },
+              { name: 'Foresters Financial', logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Foresters_Financial_Logo.svg/250px-Foresters_Financial_Logo.svg.png', textStyle: {} },
+              { name: 'BMI', logo: null, textStyle: { fontWeight: 800, fontSize: '1.3rem', letterSpacing: '0.08em' } },
+              { name: 'Securian Financial', logo: 'https://assetlibrary.securian.com/content/dam/securian/content-assets/cse/sf-logo-rgb-bk-wordmark.svg', textStyle: {} },
+              { name: 'Nassau', logo: null, textStyle: { fontWeight: 600, fontSize: '0.85rem', letterSpacing: '0.12em' } },
+              { name: 'OneAmerica Financial', logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/bf/Oneamericalogo.jpg/250px-Oneamericalogo.jpg', textStyle: {} },
+              { name: 'American National', logo: 'https://americannational.com/content/dam/anico/brand/logos/AN_Logo_Stacked_2color.svg', textStyle: {} },
+            ].map(carrier => (
+              <div
+                key={carrier.name}
+                className="flex items-center justify-center p-3"
+                style={{
+                  filter: 'grayscale(100%) opacity(0.55)',
+                  transition: 'filter 0.3s ease',
+                  minHeight: 64,
+                  cursor: 'default',
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.filter = 'grayscale(0%) opacity(1)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.filter = 'grayscale(100%) opacity(0.55)' }}
               >
-                {name}
+                {carrier.logo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={carrier.logo}
+                    alt={carrier.name}
+                    style={{ maxHeight: 44, maxWidth: '100%', width: 'auto', objectFit: 'contain' }}
+                  />
+                ) : (
+                  <span style={{
+                    color: '#1B3A5C',
+                    fontFamily: "'DM Sans', sans-serif",
+                    textAlign: 'center' as const,
+                    display: 'block',
+                    ...carrier.textStyle,
+                  }}>
+                    {carrier.name}
+                  </span>
+                )}
               </div>
             ))}
           </div>
