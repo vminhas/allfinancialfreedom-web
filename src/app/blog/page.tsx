@@ -139,10 +139,7 @@ export default function BlogPage({
                 <div className="grid md:grid-cols-3 gap-6">
                   {rest.map(article => (
                     <Link key={article.slug} href={`/blog/${article.slug}`} className="group block">
-                      <div className="flex flex-col h-full overflow-hidden rounded-sm"
-                        style={{ border: '1px solid rgba(201,169,110,0.12)', transition: 'box-shadow 0.2s', boxShadow: '0 2px 12px rgba(20,45,72,0.04)' }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 6px 24px rgba(20,45,72,0.1)' }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 12px rgba(20,45,72,0.04)' }}>
+                      <div className="insight-card flex flex-col h-full overflow-hidden rounded-sm">
                         {/* Cover */}
                         <div className="relative overflow-hidden" style={{ height: 188 }}>
                           {article.coverImage ? (
