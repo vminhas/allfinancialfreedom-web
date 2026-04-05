@@ -7,8 +7,16 @@ import OpenJoinButton from '@/components/OpenJoinButton'
 import Footer from '@/components/Footer'
 
 export const metadata: Metadata = {
-  title: 'Team | All Financial Freedom',
-  description: 'Meet the mission-driven leaders behind All Financial Freedom.',
+  title: 'Our Team | All Financial Freedom',
+  description: 'Meet the mission-driven leaders and licensed financial professionals behind All Financial Freedom. Led by Vick and Melinee Minhas with over 55 years of combined experience.',
+  keywords: 'financial freedom team, licensed financial advisors, Vick Minhas CEO, Melinee Minhas COO, financial professionals, insurance agents, wealth advisors',
+  openGraph: {
+    title: 'Our Team | All Financial Freedom',
+    description: 'Meet the mission-driven leaders and licensed financial professionals behind All Financial Freedom.',
+    url: 'https://allfinancialfreedom.com/team',
+    siteName: 'All Financial Freedom',
+    type: 'website',
+  },
 }
 
 export default function Team() {

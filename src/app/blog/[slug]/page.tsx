@@ -19,6 +19,16 @@ export async function generateMetadata({
   return {
     title: `${article.title} | All Financial Freedom Insights`,
     description: article.excerpt,
+    keywords: article.tags?.join(', '),
+    openGraph: {
+      title: `${article.title} | All Financial Freedom`,
+      description: article.excerpt,
+      url: `https://allfinancialfreedom.com/blog/${article.slug}`,
+      siteName: 'All Financial Freedom',
+      type: 'article',
+      publishedTime: article.date,
+      authors: ['All Financial Freedom'],
+    },
   }
 }
 

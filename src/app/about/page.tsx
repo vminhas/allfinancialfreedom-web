@@ -6,8 +6,16 @@ import CTABanner from '@/components/CTABanner'
 import Footer from '@/components/Footer'
 
 export const metadata: Metadata = {
-  title: 'About | All Financial Freedom',
-  description: 'Learn about our mission to close the wealth gap and empower 100 million families to achieve financial independence.',
+  title: 'About Us | All Financial Freedom',
+  description: 'Learn about our mission to close the wealth gap and empower 100 million families to achieve financial independence. Meet Vick and Melinee Minhas and the All Financial Freedom story.',
+  keywords: 'about all financial freedom, financial freedom mission, close the wealth gap, Vick Minhas, Melinee Minhas, financial services team, wealth gap, financial literacy',
+  openGraph: {
+    title: 'About Us | All Financial Freedom',
+    description: 'Our mission is to close the wealth gap and empower 100 million families to achieve financial independence.',
+    url: 'https://allfinancialfreedom.com/about',
+    siteName: 'All Financial Freedom',
+    type: 'website',
+  },
 }
 
 export default function About() {

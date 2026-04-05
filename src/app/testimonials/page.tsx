@@ -5,7 +5,15 @@ import Footer from '@/components/Footer'
 
 export const metadata: Metadata = {
   title: 'Client Stories | All Financial Freedom',
-  description: 'Hear from the individuals and families whose financial lives have been transformed.',
+  description: 'Hear from the individuals, families, and business owners whose financial lives have been transformed by All Financial Freedom. Real stories, real results.',
+  keywords: 'financial advisor reviews, insurance agent testimonials, wealth building success stories, financial planning results, client reviews, financial freedom testimonials',
+  openGraph: {
+    title: 'Client Stories | All Financial Freedom',
+    description: 'Real stories from individuals and families who have transformed their financial lives with All Financial Freedom.',
+    url: 'https://allfinancialfreedom.com/testimonials',
+    siteName: 'All Financial Freedom',
+    type: 'website',
+  },
 }
 
 export default function Testimonials() {

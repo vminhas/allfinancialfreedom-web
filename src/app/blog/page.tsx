@@ -5,8 +5,16 @@ import Footer from '@/components/Footer'
 import CTABanner from '@/components/CTABanner'
 
 export const metadata: Metadata = {
-  title: 'Insights | All Financial Freedom',
-  description: 'Financial insights, industry news, and wealth-building strategies from the All Financial Freedom team.',
+  title: 'Financial Insights | All Financial Freedom',
+  description: 'Financial insights, industry news, wealth-building strategies, and insurance guidance from the All Financial Freedom team. Stay informed and take control of your financial future.',
+  keywords: 'financial insights, wealth building tips, life insurance advice, retirement planning guide, financial literacy, money management, financial education, insurance news',
+  openGraph: {
+    title: 'Financial Insights | All Financial Freedom',
+    description: 'Wealth-building strategies, insurance guidance, and financial education from licensed professionals at All Financial Freedom.',
+    url: 'https://allfinancialfreedom.com/blog',
+    siteName: 'All Financial Freedom',
+    type: 'website',
+  },
 }
 
 export default function BlogPage({
