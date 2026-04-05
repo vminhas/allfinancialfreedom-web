@@ -255,7 +255,7 @@ export default function Home() {
               We work with North America&apos;s most trusted insurance and financial institutions, so you always have access to the best solutions.
             </p>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4 items-center">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-4 items-center">
             {[
               { name: 'Ethos', logo: null, textStyle: { fontWeight: 700, letterSpacing: '0.18em', fontSize: '1.1rem' } },
               { name: 'North American', logo: null, textStyle: { fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.06em', lineHeight: 1.3 } },
@@ -273,6 +273,8 @@ export default function Home() {
               { name: 'Nassau', logo: null, textStyle: { fontWeight: 600, fontSize: '0.85rem', letterSpacing: '0.12em' } },
               { name: 'OneAmerica Financial', logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/bf/Oneamericalogo.jpg/250px-Oneamericalogo.jpg', textStyle: {} },
               { name: 'American National', logo: 'https://americannational.com/content/dam/anico/brand/logos/AN_Logo_Stacked_2color.svg', textStyle: {} },
+              { name: 'Allianz', logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/14/Allianz_logo.svg/250px-Allianz_logo.svg.png', textStyle: {} },
+              { name: 'F&G Annuities & Life', logo: null, textStyle: { fontWeight: 600, fontSize: '0.68rem', letterSpacing: '0.04em', lineHeight: 1.4 } },
             ].map(carrier => (
               <div
                 key={carrier.name}
