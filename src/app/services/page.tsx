@@ -120,7 +120,7 @@ export default function Services() {
       {/* FEATURED SERVICES — alternating image/text */}
       <section className="bg-white-section">
         {featured.map((service, i) => (
-          <div key={service.title}>
+          <div key={service.title} id={service.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')} style={{ scrollMarginTop: '80px' }}>
             <div className={`grid md:grid-cols-2 items-stretch max-w-none ${i % 2 === 1 ? 'md:[&>*:first-child]:order-2' : ''}`}>
 
               {/* Image */}
@@ -183,7 +183,7 @@ export default function Services() {
         </div>
         <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
           {supporting.map(service => (
-            <div key={service.title} className="card-premium p-8">
+            <div key={service.title} id={service.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')} style={{ scrollMarginTop: '80px' }} className="card-premium p-8">
               <div className="w-12 h-12 mb-5 flex items-center justify-center rounded-full text-white"
                 style={{ background: 'linear-gradient(135deg, #1B3A5C, #2A5280)' }}>
                 {service.icon}

@@ -15,12 +15,12 @@ const navLinks = [
 ]
 
 const services = [
-  'Wealth Building',
-  'Asset Protection',
-  'Insurance Planning',
-  'Budgeting & Planning',
-  'Retirement Planning',
-  'Legacy Planning',
+  { label: 'Wealth Building',      anchor: 'wealth-building' },
+  { label: 'Asset Protection',     anchor: 'asset-protection' },
+  { label: 'Insurance Planning',   anchor: 'insurance-planning' },
+  { label: 'Budgeting & Planning', anchor: 'budgeting-planning' },
+  { label: 'Retirement Planning',  anchor: 'retirement-planning' },
+  { label: 'Legacy Planning',      anchor: 'legacy-planning' },
 ]
 
 export default function Footer() {
@@ -65,10 +65,10 @@ export default function Footer() {
             <h4 className="text-xs tracking-widest uppercase mb-5 font-medium" style={{ color: '#C9A96E' }}>Services</h4>
             <ul className="space-y-2.5">
               {services.map(s => (
-                <li key={s}>
-                  <Link href="/services" className="text-sm transition-colors hover:text-white"
+                <li key={s.label}>
+                  <Link href={`/services#${s.anchor}`} className="text-sm transition-colors hover:text-white"
                     style={{ color: 'rgba(235,244,255,0.55)' }}>
-                    {s}
+                    {s.label}
                   </Link>
                 </li>
               ))}
