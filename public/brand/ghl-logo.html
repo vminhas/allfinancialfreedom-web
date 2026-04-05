@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a0a; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+
+  .logo {
+    width: 350px;
+    height: 180px;
+    background: #142D48;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Subtle top gold bar */
+  .logo::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, #C9A96E, transparent);
+  }
+
+  /* Subtle bottom gold bar */
+  .logo::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, #C9A96E, transparent);
+  }
+
+  .eyebrow {
+    font-family: 'Georgia', serif;
+    font-size: 8.5px;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: #C9A96E;
+    margin-bottom: 10px;
+    font-weight: 400;
+  }
+
+  .wordmark {
+    font-family: 'Georgia', 'Times New Roman', serif;
+    font-size: 28px;
+    font-weight: 400;
+    color: #ffffff;
+    letter-spacing: 0.04em;
+    line-height: 1;
+    text-align: center;
+  }
+
+  .divider {
+    width: 48px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #C9A96E, transparent);
+    margin: 12px auto;
+  }
+
+  .tagline {
+    font-family: 'Georgia', serif;
+    font-size: 7.5px;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: rgba(201, 169, 110, 0.65);
+    font-weight: 400;
+  }
+</style>
+<!-- Google Fonts for better rendering -->
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  .wordmark { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 30px; font-weight: 300; }
+  .eyebrow, .tagline { font-family: 'DM Sans', Arial, sans-serif; }
+</style>
+</head>
+<body>
+  <div class="logo" id="logo">
+    <span class="eyebrow">Est. 2024 &nbsp;·&nbsp; Financial Services</span>
+    <div class="wordmark">All Financial Freedom</div>
+    <div class="divider"></div>
+    <span class="tagline">Wealth &nbsp;·&nbsp; Protection &nbsp;·&nbsp; Legacy</span>
+  </div>
+</body>
+</html>

@@ -18,6 +18,7 @@ const featured = [
       'Entity structuring guidance',
     ],
     bestFor: 'Business owners, high earners, and families with real estate or growing assets.',
+    readMore: { href: '/blog/asset-protection-lawsuit-financial-plan', label: 'Why lawsuit protection belongs in every financial plan' },
   },
   {
     title: 'Retirement Planning',
@@ -31,6 +32,7 @@ const featured = [
       'Tax-efficient withdrawal sequencing',
     ],
     bestFor: 'Adults at any stage of their career who want clarity on when and how they can retire.',
+    readMore: { href: '/blog/social-security-changes-retirement-2025', label: 'What the latest Social Security changes mean for your plan' },
   },
   {
     title: 'Wealth Building',
@@ -44,6 +46,7 @@ const featured = [
       'Long-term wealth accumulation planning',
     ],
     bestFor: 'Individuals and families ready to stop surviving paycheck to paycheck and start building.',
+    readMore: { href: '/blog/wealth-transfer-who-gets-rich', label: 'How the $68 trillion wealth transfer is reshaping who gets rich' },
   },
 ]
 
@@ -53,42 +56,49 @@ const supporting = [
     icon: <svg viewBox="0 0 24 24" className="w-6 h-6" stroke="currentColor" fill="none" strokeWidth="1.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>,
     description: 'Life, health, and disability solutions that protect your family\'s income and future regardless of what happens.',
     bullets: ['Term & whole life insurance', 'Indexed universal life (IUL)', 'Disability & income protection'],
+    readMore: { href: '/blog/term-vs-whole-vs-iul-life-insurance', label: 'Term vs. Whole vs. IUL: which is right for you?' },
   },
   {
     title: 'Budgeting & Planning',
     icon: <svg viewBox="0 0 24 24" className="w-6 h-6" stroke="currentColor" fill="none" strokeWidth="1.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>,
     description: 'Practical systems that transform how you manage money, turning everyday decisions into long-term wealth.',
     bullets: ['Cash flow analysis & optimization', 'Debt elimination strategies', 'Emergency fund planning'],
+    readMore: { href: '/blog/budgeting-framework-high-inflation-2025', label: 'A budgeting framework that works in a high-inflation economy' },
   },
   {
     title: 'Legacy Planning',
     icon: <svg viewBox="0 0 24 24" className="w-6 h-6" stroke="currentColor" fill="none" strokeWidth="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>,
     description: 'Ensure the wealth you build outlasts you, passing to the people and causes you care about, on your terms.',
     bullets: ['Estate planning & will guidance', 'Generational wealth transfer', 'Charitable giving strategies'],
+    readMore: { href: '/blog/no-will-wealth-killer', label: 'Why dying without a plan is a wealth killer' },
   },
   {
     title: 'Mortgage Protection',
     icon: <svg viewBox="0 0 24 24" className="w-6 h-6" stroke="currentColor" fill="none" strokeWidth="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
     description: 'Your home is your largest asset. Mortgage protection ensures your family keeps it, no matter what happens to your income.',
     bullets: ['Mortgage payoff protection', 'Income replacement coverage', 'Disability & critical illness riders'],
+    readMore: { href: '/blog/mortgage-protection-what-happens', label: 'What happens to your mortgage if you die or become disabled?' },
   },
   {
     title: 'Business Owner Strategies',
     icon: <svg viewBox="0 0 24 24" className="w-6 h-6" stroke="currentColor" fill="none" strokeWidth="1.5"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>,
     description: 'Business owners face unique risks and opportunities. We protect your business, reward key people, and plan your exit.',
     bullets: ['Buy-sell agreement funding', 'Key person insurance', 'Executive bonus & deferred comp'],
+    readMore: { href: '/blog/key-person-insurance-business-owners', label: 'Key person insurance: coverage every business owner needs' },
   },
   {
     title: 'Family Banking',
     icon: <svg viewBox="0 0 24 24" className="w-6 h-6" stroke="currentColor" fill="none" strokeWidth="1.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>,
     description: 'Use whole life insurance as your own private banking system, borrow against cash value and build wealth outside Wall Street.',
     bullets: ['Infinite banking concept (IBC)', 'Tax-free cash value growth', 'Self-directed family liquidity'],
+    readMore: { href: '/blog/infinite-banking-concept-explained', label: 'How to become your own bank using life insurance' },
   },
   {
     title: 'Kids Head Start Plans',
     icon: <svg viewBox="0 0 24 24" className="w-6 h-6" stroke="currentColor" fill="none" strokeWidth="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
     description: 'Give your children a financial head start most adults never had, guaranteed growth and lifelong coverage starting now.',
     bullets: ['Juvenile whole life policies', 'Locked-in insurability for life', 'Cash value for college or first home'],
+    readMore: { href: '/blog/life-insurance-for-kids-head-start', label: 'Why smart parents buy life insurance for their kids' },
   },
   {
     title: 'Long-Term Care Planning',
@@ -161,8 +171,13 @@ export default function Services() {
                   <span style={{ color: '#C9A96E', fontWeight: 500, display: 'block', marginBottom: 2, letterSpacing: '0.1em', textTransform: 'uppercase', fontSize: '0.6rem' }}>Best for</span>
                   {service.bestFor}
                 </div>
-                <div>
+                <div className="flex items-center gap-5 flex-wrap">
                   <button onClick={openBooking} className="btn-gold">Schedule a Free Call</button>
+                  {service.readMore && (
+                    <Link href={service.readMore.href} style={{ fontSize: '0.72rem', color: '#6B8299', textDecoration: 'underline', textUnderlineOffset: 3 }}>
+                      Read more &rarr;
+                    </Link>
+                  )}
                 </div>
               </div>
             </div>
@@ -191,7 +206,7 @@ export default function Services() {
               <span className="gold-rule" />
               <h3 className="font-serif text-xl text-navy mb-3">{service.title}</h3>
               <p className="text-sm leading-relaxed text-muted-blue mb-5">{service.description}</p>
-              <ul className="space-y-2">
+              <ul className="space-y-2 mb-4">
                 {service.bullets.map(bullet => (
                   <li key={bullet} className="flex items-start gap-2 text-xs text-muted-blue">
                     <span style={{ color: '#C9A96E', flexShrink: 0, marginTop: 1, fontSize: '0.65rem' }}>◆</span>
@@ -199,6 +214,11 @@ export default function Services() {
                   </li>
                 ))}
               </ul>
+              {service.readMore && (
+                <Link href={service.readMore.href} style={{ fontSize: '0.68rem', color: '#6B8299', textDecoration: 'underline', textUnderlineOffset: 3, display: 'inline-block' }}>
+                  Read more &rarr;
+                </Link>
+              )}
             </div>
           ))}
         </div>
