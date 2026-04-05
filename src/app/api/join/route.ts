@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const GHL_API_KEY = process.env.GHL_API_KEY ?? 'pit-03ce3527-9e3f-4120-a093-ccd34ecfcab4'
+const GHL_API_KEY = process.env.GHL_API_KEY ?? 'pit-3413ea2a-3a3f-460b-98c3-6ab3b77153ee'
 const GHL_LOCATION_ID = process.env.GHL_LOCATION_ID ?? 'tDxu4bUObV7zIes3OGOS'
 
 export async function POST(req: NextRequest) {
