@@ -76,5 +76,5 @@ export function getArticle(slug: string): Article | null {
 
 export function getAllCategories(): string[] {
   const articles = getAllArticles()
-  return [...new Set(articles.map(a => a.category))].sort()
+  return Array.from(new Set(articles.map(a => a.category))).sort()
 }
