@@ -219,7 +219,7 @@ export default function Home() {
           <h2 className="section-title">Comprehensive strategies for<br /><em>every stage</em> of your journey.</h2>
         </div>
         <div className="grid md:grid-cols-3 gap-6 max-w-6xl mx-auto">
-          {SERVICES.map(s => (
+          {SERVICES.slice(0, 6).map(s => (
             <div key={s.title} className="card p-8 group">
               <div className="w-12 h-12 mb-5 flex items-center justify-center rounded-full text-white"
                 style={{ background: 'linear-gradient(135deg, #1B3A5C, #2A5280)' }}>
