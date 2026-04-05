@@ -28,7 +28,7 @@ export const TEAM = [
     title: 'Chief Operations Officer',
     credentials: 'MBA, EMD',
     image: IMAGES.melinee,
-    bio: 'Driven by purpose and powered by strategy, Melinee brings heart, hustle, and vision to every financial journey. As COO, she\'s the steady hand behind our systems — making sure every client and partner feels seen, supported, and set up to win.',
+    bio: 'Driven by purpose and powered by strategy, Melinee brings heart, hustle, and vision to every financial journey. As COO, she\'s the steady hand behind our systems, making sure every client and partner feels seen, supported, and set up to win.',
   },
 ]
 
@@ -91,7 +91,7 @@ export const SERVICES = [
   {
     title: 'Mortgage Protection',
     icon: 'home',
-    description: 'Your home is likely your largest asset. Mortgage protection ensures your family keeps it — no matter what happens to your income.',
+    description: 'Your home is likely your largest asset. Mortgage protection ensures your family keeps it, no matter what happens to your income.',
     bullets: ['Mortgage payoff protection', 'Income replacement coverage', 'Disability & critical illness riders'],
   },
   {
@@ -103,7 +103,7 @@ export const SERVICES = [
   {
     title: 'Family Banking',
     icon: 'bank',
-    description: 'Use whole life insurance to create your own private banking system — borrow against your cash value, pay yourself back, and build wealth without Wall Street.',
+    description: 'Use whole life insurance to create your own private banking system, borrow against your cash value, pay yourself back, and build wealth without Wall Street.',
     bullets: ['Infinite banking concept (IBC)', 'Tax-free cash value growth', 'Self-directed family liquidity'],
   },
   {
@@ -115,10 +115,10 @@ export const SERVICES = [
 ]
 
 export const TESTIMONIALS = [
-  { text: 'Working with All Financial Freedom completely changed how I think about money. For the first time, I have a real plan — not just a savings account. Within 6 months I paid off $18,000 in debt and started building real wealth.', name: 'Marcus J.', meta: 'Small Business Owner · Atlanta, GA', initials: 'MJ' },
-  { text: 'Vick and the team took the time to actually understand my situation. No jargon, no pressure — just real guidance. I now have a life insurance policy and a retirement strategy I actually understand and believe in.', name: 'Tanya W.', meta: 'Registered Nurse · Dallas, TX', initials: 'TW' },
-  { text: 'I thought financial planning was only for wealthy people. All Financial Freedom showed me that\'s exactly backwards — planning is how you become wealthy. Game changer for my whole family.', name: 'David R.', meta: 'Teacher · Chicago, IL', initials: 'DR' },
+  { text: 'Working with All Financial Freedom completely changed how I think about money. For the first time, I have a real plan, not just a savings account. Within 6 months I paid off $18,000 in debt and started building real wealth.', name: 'Marcus J.', meta: 'Small Business Owner · Atlanta, GA', initials: 'MJ' },
+  { text: 'Vick and the team took the time to actually understand my situation. No jargon, no pressure, just real guidance. I now have a life insurance policy and a retirement strategy I actually understand and believe in.', name: 'Tanya W.', meta: 'Registered Nurse · Dallas, TX', initials: 'TW' },
+  { text: 'I thought financial planning was only for wealthy people. All Financial Freedom showed me that\'s exactly backwards, planning is how you become wealthy. Game changer for my whole family.', name: 'David R.', meta: 'Teacher · Chicago, IL', initials: 'DR' },
   { text: 'I\'m a first-generation wealth builder and I had so many questions. The patience and knowledge this team brings is unreal. Couldn\'t be more grateful.', name: 'Amara P.', meta: 'Entrepreneur · Houston, TX', initials: 'AP' },
-  { text: 'Our family now has a full financial roadmap — protection, retirement, and a legacy plan for our kids. We sleep better at night knowing we\'re covered.', name: 'Kevin & Sandra L.', meta: 'Couple · Phoenix, AZ', initials: 'KS' },
-  { text: 'I\'ve worked with other financial advisors before and always felt like a number. Here I felt like a priority. They asked about my goals, my family, my fears — and built a plan around all of it.', name: 'Nicole B.', meta: 'Corporate Executive · Los Angeles, CA', initials: 'NB' },
+  { text: 'Our family now has a full financial roadmap, protection, retirement, and a legacy plan for our kids. We sleep better at night knowing we\'re covered.', name: 'Kevin & Sandra L.', meta: 'Couple · Phoenix, AZ', initials: 'KS' },
+  { text: 'I\'ve worked with other financial advisors before and always felt like a number. Here I felt like a priority. They asked about my goals, my family, my fears, and built a plan around all of it.', name: 'Nicole B.', meta: 'Corporate Executive · Los Angeles, CA', initials: 'NB' },
 ]

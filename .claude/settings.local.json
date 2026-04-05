@@ -74,7 +74,10 @@
       "WebFetch(domain:www.bmifinancialgroup.com)",
       "WebFetch(domain:www.pexels.com)",
       "WebFetch(domain:coverr.co)",
-      "WebFetch(domain:www.americannational.com)"
+      "WebFetch(domain:www.americannational.com)",
+      "Bash(sed -i 's/ — /, /g' content/drafts/ARTICLE-SOP.md)",
+      "Bash(sed -i 's/money —<br/money,<br/g' src/app/page.tsx)",
+      "Bash(sed -i 's/and legacy —/and legacy,/g' src/app/page.tsx)"
     ]
   }
 }

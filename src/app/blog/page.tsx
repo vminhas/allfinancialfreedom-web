@@ -5,7 +5,7 @@ import Footer from '@/components/Footer'
 import CTABanner from '@/components/CTABanner'
 
 export const metadata: Metadata = {
-  title: 'Insights — All Financial Freedom',
+  title: 'Insights | All Financial Freedom',
   description: 'Financial insights, industry news, and wealth-building strategies from the All Financial Freedom team.',
 }
 
@@ -33,7 +33,7 @@ export default function BlogPage({
             Industry intelligence.<br /><em>Real strategies. Real results.</em>
           </h1>
           <p className="rich-text-light">
-            Wealth-building guides, insurance intelligence, and financial strategies from our team — published regularly to keep you ahead of the market.
+            Wealth-building guides, insurance intelligence, and financial strategies from our team, published regularly to keep you ahead of the market.
           </p>
         </div>
       </section>

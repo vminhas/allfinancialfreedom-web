@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Footer from '@/components/Footer'
 
 export const metadata: Metadata = {
-  title: 'Terms of Service — All Financial Freedom',
+  title: 'Terms of Service | All Financial Freedom',
   description: 'Terms of use for the All Financial Freedom website and services.',
 }
 
@@ -35,7 +35,7 @@ export default function TermsPage() {
 
           <h2 className="font-serif text-xl text-navy mb-3 mt-8">2. Not Financial Advice</h2>
           <p className="mb-6">
-            The content on this Site — including articles, guides, and educational materials — is provided for informational purposes only and does not constitute personalized financial, investment, insurance, tax, or legal advice. Always consult with a qualified licensed professional before making financial decisions. Past performance does not guarantee future results.
+            The content on this Site, including articles, guides, and educational materials, is provided for informational purposes only and does not constitute personalized financial, investment, insurance, tax, or legal advice. Always consult with a qualified licensed professional before making financial decisions. Past performance does not guarantee future results.
           </p>
 
           <h2 className="font-serif text-xl text-navy mb-3 mt-8">3. Insurance Services</h2>
@@ -45,7 +45,7 @@ export default function TermsPage() {
 
           <h2 className="font-serif text-xl text-navy mb-3 mt-8">4. Intellectual Property</h2>
           <p className="mb-6">
-            All content on this Site — including text, graphics, logos, and design — is the property of All Financial Freedom or its licensors and is protected by applicable intellectual property laws. You may not reproduce, distribute, or create derivative works without express written permission.
+            All content on this Site, including text, graphics, logos, and design, is the property of All Financial Freedom or its licensors and is protected by applicable intellectual property laws. You may not reproduce, distribute, or create derivative works without express written permission.
           </p>
 
           <h2 className="font-serif text-xl text-navy mb-3 mt-8">5. Third-Party Links</h2>

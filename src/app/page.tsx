@@ -100,14 +100,14 @@ export default function Home() {
         <div className="relative z-10 page-section w-full max-w-5xl mx-auto">
           <h1 className="font-serif font-light text-white mb-6"
             style={{ fontSize: 'clamp(2.6rem, 5vw, 4.8rem)', lineHeight: 1.08, maxWidth: '780px' }}>
-            It&apos;s not just about money —<br />
+            It&apos;s not just about money,<br />
             it&apos;s about building a future<br />
             you feel{' '}
             <em style={{ fontStyle: 'italic', color: '#C9A96E' }}>confident</em> in.
           </h1>
 
           <p className="mb-10 max-w-lg leading-relaxed" style={{ color: 'rgba(235,244,255,0.78)', fontSize: '1.02rem' }}>
-            Personalized strategies for wealth-building, protection, and legacy —
+            Personalized strategies for wealth-building, protection, and legacy,
             designed for real people, from every background.
           </p>
 
@@ -133,17 +133,17 @@ export default function Home() {
             {
               num: '01',
               title: 'What We Stand For',
-              text: 'We believe everyone deserves access to clear, empowering financial guidance — no matter their background, income, or starting point.',
+              text: 'We believe everyone deserves access to clear, empowering financial guidance, no matter their background, income, or starting point.',
             },
             {
               num: '02',
               title: 'What We Do',
-              text: 'We offer personalized strategies in wealth-building, protection, insurance, budgeting, and planning — designed to help individuals, families, and businesses create lasting financial freedom.',
+              text: 'We offer personalized strategies in wealth-building, protection, insurance, budgeting, and planning, designed to help individuals, families, and businesses create lasting financial freedom.',
             },
             {
               num: '03',
               title: 'Why It Matters',
-              text: "Because real freedom starts with financial confidence, and we're here to make that possible — one empowered client at a time.",
+              text: "Because real freedom starts with financial confidence, and we're here to make that possible, one empowered client at a time.",
             },
           ].map(card => (
             <div key={card.num} className="card-premium p-8">
@@ -252,7 +252,7 @@ export default function Home() {
           <div className="text-center mb-10">
             <span className="section-label">Our Carrier Partners</span>
             <p className="text-sm text-muted-blue mt-2">
-              We work with North America&apos;s most trusted insurance and financial institutions — so you always have access to the best solutions.
+              We work with North America&apos;s most trusted insurance and financial institutions, so you always have access to the best solutions.
             </p>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4 items-center">

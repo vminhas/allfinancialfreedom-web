@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Footer from '@/components/Footer'
 
 export const metadata: Metadata = {
-  title: 'Privacy Policy — All Financial Freedom',
+  title: 'Privacy Policy | All Financial Freedom',
   description: 'How All Financial Freedom collects, uses, and protects your personal information.',
 }
 
@@ -31,9 +31,9 @@ export default function PrivacyPage() {
           <h2 className="font-serif text-xl text-navy mb-3 mt-8">1. Information We Collect</h2>
           <p className="mb-3">We may collect the following types of information:</p>
           <ul className="space-y-2 mb-6 ml-4">
-            <li className="flex gap-2"><span style={{ color: '#C9A96E', flexShrink: 0 }}>→</span><span><strong>Contact information</strong> — name, email address, phone number when you submit a form or book a call</span></li>
-            <li className="flex gap-2"><span style={{ color: '#C9A96E', flexShrink: 0 }}>→</span><span><strong>Usage data</strong> — pages visited, time spent, browser type, IP address (collected automatically via analytics)</span></li>
-            <li className="flex gap-2"><span style={{ color: '#C9A96E', flexShrink: 0 }}>→</span><span><strong>Communications</strong> — any information you provide when contacting us by email or phone</span></li>
+            <li className="flex gap-2"><span style={{ color: '#C9A96E', flexShrink: 0 }}>→</span><span><strong>Contact information</strong>, name, email address, phone number when you submit a form or book a call</span></li>
+            <li className="flex gap-2"><span style={{ color: '#C9A96E', flexShrink: 0 }}>→</span><span><strong>Usage data</strong>, pages visited, time spent, browser type, IP address (collected automatically via analytics)</span></li>
+            <li className="flex gap-2"><span style={{ color: '#C9A96E', flexShrink: 0 }}>→</span><span><strong>Communications</strong>, any information you provide when contacting us by email or phone</span></li>
           </ul>
 
           <h2 className="font-serif text-xl text-navy mb-3 mt-8">2. How We Use Your Information</h2>

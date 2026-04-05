@@ -55,14 +55,14 @@ const pillars = [
 const steps = [
   { num: '01', title: 'Apply', desc: 'Fill out the form below. Tell us a little about yourself and what drives you.' },
   { num: '02', title: 'Discovery Call', desc: 'We\'ll schedule a 30-minute call to answer your questions and see if we\'re a fit.' },
-  { num: '03', title: 'Get Licensed', desc: 'We walk you through the licensing process — fully supported, typically completed in 2–4 weeks.' },
+  { num: '03', title: 'Get Licensed', desc: 'We walk you through the licensing process, fully supported, typically completed in 2–4 weeks.' },
   { num: '04', title: 'Start Building', desc: 'Join the team, complete onboarding, and start your first week with a clear action plan.' },
 ]
 
 const faqs = [
   {
     q: 'Do I need experience in finance or insurance?',
-    a: 'No. Our top performers come from all backgrounds — teachers, nurses, sales professionals, stay-at-home parents. We provide full training. What we look for is coachability, work ethic, and a genuine desire to help people.',
+    a: 'No. Our top performers come from all backgrounds, teachers, nurses, sales professionals, stay-at-home parents. We provide full training. What we look for is coachability, work ethic, and a genuine desire to help people.',
   },
   {
     q: 'Is this full-time or can I start part-time?',
@@ -95,7 +95,7 @@ export default function JoinPage() {
             Build your own<br /><em>financial legacy.</em>
           </h1>
           <p className="rich-text-light max-w-lg mb-8">
-            This isn&apos;t a job. It&apos;s a business — with training, mentorship, professional backing, and a clear path to building your own licensed team.
+            This isn&apos;t a job. It&apos;s a business, with training, mentorship, professional backing, and a clear path to building your own licensed team.
           </p>
           <div className="flex gap-4">
             <a href="#apply" className="btn-gold">Apply Now</a>
@@ -174,7 +174,7 @@ export default function JoinPage() {
               What can you actually<br /><em>earn here?</em>
             </h2>
             <p className="rich-text-light mb-4">
-              Your income is tied directly to the value you create for clients and the team you build. There&apos;s no ceiling — but also no guarantees. This is a business, and it rewards effort.
+              Your income is tied directly to the value you create for clients and the team you build. There&apos;s no ceiling, but also no guarantees. This is a business, and it rewards effort.
             </p>
             <p className="rich-text-light mb-8">
               Here&apos;s what the typical journey looks like for agents who follow the system:
@@ -230,7 +230,7 @@ export default function JoinPage() {
         </div>
         <div className="max-w-2xl mx-auto">
           <div className="card-premium p-8">
-            {/* GHL Form Embed — replace the data-form attribute with your GHL join form ID */}
+            {/* GHL Form Embed, replace the data-form attribute with your GHL join form ID */}
             <div
               className="ghl-form"
               data-form="join-team-form"
@@ -241,7 +241,7 @@ export default function JoinPage() {
                 <p style={{ color: '#6B8299', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
                   Application form loading… If it doesn&apos;t appear, please email us directly.
                 </p>
-                <a href="mailto:contact@allfinancialfreedom.com?subject=Join the Team — Application"
+                <a href="mailto:contact@allfinancialfreedom.com?subject=Join the Team, Application"
                   className="btn-gold">
                   Apply via Email
                 </a>

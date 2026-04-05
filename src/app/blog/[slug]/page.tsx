@@ -165,7 +165,7 @@ function renderMarkdown(content: string): React.ReactNode[] {
     // Empty line
     else if (trimmed === '') {
       flushList()
-      // Don't add node — paragraph spacing handled by margins
+      // Don't add node, paragraph spacing handled by margins
     }
     // Regular paragraph
     else {

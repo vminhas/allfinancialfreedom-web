@@ -41,7 +41,7 @@ export default function Navbar() {
         boxShadow: scrolled ? '0 2px 24px rgba(27,58,92,0.08)' : 'none',
       }}
     >
-      {/* Gold top accent bar — visible on scroll */}
+      {/* Gold top accent bar, visible on scroll */}
       <div style={{
         height: 2,
         background: 'linear-gradient(90deg, transparent, #C9A96E, transparent)',

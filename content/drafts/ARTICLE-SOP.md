@@ -1,8 +1,8 @@
-# Article Publishing SOP — All Financial Freedom
+# Article Publishing SOP, All Financial Freedom
 
 ## How Articles Get Published
 
-Articles in `content/drafts/` are automatically published to `content/blog/` by a GitHub Actions workflow that runs **Tuesday and Friday at 9am ET**. It picks the oldest draft, updates the date to today, and moves it live — triggering a Vercel redeploy.
+Articles in `content/drafts/` are automatically published to `content/blog/` by a GitHub Actions workflow that runs **Tuesday and Friday at 9am ET**. It picks the oldest draft, updates the date to today, and moves it live, triggering a Vercel redeploy.
 
 To queue an article for publishing, place the finished `.mdx` file in `content/drafts/`. Order of publish = alphabetical by filename, so prefix with a number if order matters (e.g. `01-article-title.mdx`).
 
@@ -31,9 +31,9 @@ schema:
 | Field | Rule |
 |-------|------|
 | `title` | Sentence case. Use a number or strong hook. Max 70 characters for SEO. |
-| `date` | Set to today or leave as placeholder — the auto-publisher updates it on publish. |
+| `date` | Set to today or leave as placeholder, the auto-publisher updates it on publish. |
 | `category` | Must match exactly one of: `Wealth Building`, `Insurance Planning`, `Budgeting & Planning`, `Retirement Planning`, `Asset Protection`, `Legacy Planning` |
-| `author` | Always `"All Financial Freedom"` — never an individual name |
+| `author` | Always `"All Financial Freedom"`, never an individual name |
 | `excerpt` | Under 160 characters. This shows on Google. Write it like a headline, not a summary. |
 | `coverImage` | **Required.** See Cover Image SOP below. |
 | `tags` | 3–6 tags, lowercase, descriptive. Used for SEO. |
@@ -43,16 +43,16 @@ schema:
 
 ## Cover Image SOP
 
-Every article must have a cover image. No exceptions — articles without one show a plain navy placeholder on the blog index.
+Every article must have a cover image. No exceptions, articles without one show a plain navy placeholder on the blog index.
 
-### Step 1 — Find an image
+### Step 1, Find an image
 
 Use **Unsplash** (free, commercial license, no attribution required):
 - Go to [unsplash.com](https://unsplash.com)
-- Search for a concept matching the article (not literal — "wealth transfer" → search "family legacy" or "generational")
+- Search for a concept matching the article (not literal, "wealth transfer" → search "family legacy" or "generational")
 - Pick a horizontal/landscape photo that works cropped to roughly 1200×630
 
-### Step 2 — Download optimized
+### Step 2, Download optimized
 
 Use this URL format to get a pre-compressed version directly from Unsplash:
 ```
@@ -66,7 +66,7 @@ Full download URL: `https://images.unsplash.com/photo-abc123def?w=1200&q=75&fm=j
 
 Target file size: **under 200KB**. Reduce `q=` value (try 60) if over.
 
-### Step 3 — Save locally
+### Step 3, Save locally
 
 Save to: `public/blog/your-descriptive-name.jpg`
 
@@ -74,7 +74,7 @@ Name it after the article topic, not the Unsplash ID:
 - ✅ `retirement-planning.jpg`
 - ❌ `photo-1554224155-6726b3ff858f.jpg`
 
-### Step 4 — Add to frontmatter
+### Step 4, Add to frontmatter
 
 ```yaml
 coverImage: "/blog/your-descriptive-name.jpg"
@@ -85,25 +85,25 @@ coverImage: "/blog/your-descriptive-name.jpg"
 ## Article Format & Style
 
 ### Tone
-- Direct, confident, educational — never condescending
+- Direct, confident, educational, never condescending
 - Write for someone who is smart but not a financial expert
 - No jargon without explanation
-- No fluff — every paragraph earns its place
+- No fluff, every paragraph earns its place
 
 ### Structure
 Every article should follow:
-1. **Hook** — open with a stat, question, or counterintuitive statement (no H1 needed — the title is the H1)
-2. **Problem** — establish what's at stake or what most people get wrong
-3. **Body** — 3–6 H2 sections, each covering one key point
-4. **Conclusion** — what to do next (the CTA block handles the booking prompt)
+1. **Hook**, open with a stat, question, or counterintuitive statement (no H1 needed, the title is the H1)
+2. **Problem**, establish what's at stake or what most people get wrong
+3. **Body**, 3–6 H2 sections, each covering one key point
+4. **Conclusion**, what to do next (the CTA block handles the booking prompt)
 
 ### Markdown supported
-- `## H2` — gets a gold rule above it automatically
-- `### H3` — subheadings
+- `## H2`, gets a gold rule above it automatically
+- `### H3`, subheadings
 - `**bold**`, `*italic*`
 - `- bullet lists` (renders with gold ◆ icon)
 - `1. numbered lists`
-- `> blockquote` — gold left border, italic
+- `> blockquote`, gold left border, italic
 - Tables with `|` syntax
 - `---` horizontal rule
 

@@ -55,7 +55,7 @@ export default function BookingModal() {
             </button>
           </div>
 
-          {/* GHL Calendar Embed — tall enough to show full calendar */}
+          {/* GHL Calendar Embed, tall enough to show full calendar */}
           <div className="p-6">
             <iframe
               src={GHL_BOOKING_URL}

@@ -10,7 +10,7 @@ const featured = [
     title: 'Asset Protection',
     label: 'Shield What You\'ve Built',
     image: '/services/asset-protection.jpg',
-    description: 'Most families spend decades building assets — and almost no time protecting them. Asset protection isn\'t just for the ultra-wealthy. It\'s for anyone who has something worth keeping. We design comprehensive strategies that shield your family, your business, and your future from life\'s inevitable risks.',
+    description: 'Most families spend decades building assets, and almost no time protecting them. Asset protection isn\'t just for the ultra-wealthy. It\'s for anyone who has something worth keeping. We design comprehensive strategies that shield your family, your business, and your future from life\'s inevitable risks.',
     bullets: [
       'Risk assessment & liability gap analysis',
       'Business & personal asset shielding',
@@ -23,7 +23,7 @@ const featured = [
     title: 'Retirement Planning',
     label: 'Design the Life You\'ve Earned',
     image: '/services/retirement-planning.jpg',
-    description: 'Retirement isn\'t an age — it\'s a number. The right plan gets you there faster and keeps you there longer. We work backwards from the lifestyle you want to build a strategy that maximizes growth, minimizes taxes, and ensures your income outlasts your expenses — no matter how long you live.',
+    description: 'Retirement isn\'t an age, it\'s a number. The right plan gets you there faster and keeps you there longer. We work backwards from the lifestyle you want to build a strategy that maximizes growth, minimizes taxes, and ensures your income outlasts your expenses, no matter how long you live.',
     bullets: [
       '401(k), IRA & Roth optimization',
       'Social Security timing strategy',
@@ -36,7 +36,7 @@ const featured = [
     title: 'Wealth Building',
     label: 'Turn Income Into Legacy',
     image: '/services/wealth-building.jpg',
-    description: 'Income pays the bills. Wealth changes your family\'s trajectory — for generations. We help you convert your earnings into assets that grow, compound, and provide security beyond your working years. Our strategies are built around your income, timeline, and goals — not a generic template.',
+    description: 'Income pays the bills. Wealth changes your family\'s trajectory, for generations. We help you convert your earnings into assets that grow, compound, and provide security beyond your working years. Our strategies are built around your income, timeline, and goals, not a generic template.',
     bullets: [
       'Investment strategy & portfolio guidance',
       'Index funds, annuities & IUL vehicles',
@@ -57,19 +57,19 @@ const supporting = [
   {
     title: 'Budgeting & Planning',
     icon: <svg viewBox="0 0 24 24" className="w-6 h-6" stroke="currentColor" fill="none" strokeWidth="1.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>,
-    description: 'Practical systems that transform how you manage money — turning everyday decisions into long-term wealth.',
+    description: 'Practical systems that transform how you manage money, turning everyday decisions into long-term wealth.',
     bullets: ['Cash flow analysis & optimization', 'Debt elimination strategies', 'Emergency fund planning'],
   },
   {
     title: 'Legacy Planning',
     icon: <svg viewBox="0 0 24 24" className="w-6 h-6" stroke="currentColor" fill="none" strokeWidth="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>,
-    description: 'Ensure the wealth you build outlasts you — passing to the people and causes you care about, on your terms.',
+    description: 'Ensure the wealth you build outlasts you, passing to the people and causes you care about, on your terms.',
     bullets: ['Estate planning & will guidance', 'Generational wealth transfer', 'Charitable giving strategies'],
   },
   {
     title: 'Mortgage Protection',
     icon: <svg viewBox="0 0 24 24" className="w-6 h-6" stroke="currentColor" fill="none" strokeWidth="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
-    description: 'Your home is your largest asset. Mortgage protection ensures your family keeps it — no matter what happens to your income.',
+    description: 'Your home is your largest asset. Mortgage protection ensures your family keeps it, no matter what happens to your income.',
     bullets: ['Mortgage payoff protection', 'Income replacement coverage', 'Disability & critical illness riders'],
   },
   {
@@ -81,13 +81,13 @@ const supporting = [
   {
     title: 'Family Banking',
     icon: <svg viewBox="0 0 24 24" className="w-6 h-6" stroke="currentColor" fill="none" strokeWidth="1.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>,
-    description: 'Use whole life insurance as your own private banking system — borrow against cash value and build wealth outside Wall Street.',
+    description: 'Use whole life insurance as your own private banking system, borrow against cash value and build wealth outside Wall Street.',
     bullets: ['Infinite banking concept (IBC)', 'Tax-free cash value growth', 'Self-directed family liquidity'],
   },
   {
     title: 'Kids Head Start Plans',
     icon: <svg viewBox="0 0 24 24" className="w-6 h-6" stroke="currentColor" fill="none" strokeWidth="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
-    description: 'Give your children a financial head start most adults never had — guaranteed growth and lifelong coverage starting now.',
+    description: 'Give your children a financial head start most adults never had, guaranteed growth and lifelong coverage starting now.',
     bullets: ['Juvenile whole life policies', 'Locked-in insurability for life', 'Cash value for college or first home'],
   },
   {
@@ -112,12 +112,12 @@ export default function Services() {
             Comprehensive strategies for<br /><em>every chapter</em> of your life.
           </h1>
           <p className="rich-text-light max-w-md">
-            From your first budget to your lasting legacy — we are with you at every step.
+            From your first budget to your lasting legacy, we are with you at every step.
           </p>
         </div>
       </section>
 
-      {/* FEATURED SERVICES — alternating image/text */}
+      {/* FEATURED SERVICES, alternating image/text */}
       <section className="bg-white-section">
         {featured.map((service, i) => (
           <div key={service.title} id={service.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')} style={{ scrollMarginTop: '80px' }}>
@@ -222,7 +222,7 @@ export default function Services() {
               {
                 step: '02',
                 title: 'Get Your Plan',
-                text: 'We build a personalized strategy covering protection, growth, and legacy — tailored to your life.',
+                text: 'We build a personalized strategy covering protection, growth, and legacy, tailored to your life.',
               },
               {
                 step: '03',

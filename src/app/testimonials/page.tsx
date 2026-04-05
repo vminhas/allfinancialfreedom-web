@@ -4,7 +4,7 @@ import CTABanner from '@/components/CTABanner'
 import Footer from '@/components/Footer'
 
 export const metadata: Metadata = {
-  title: 'Client Stories — All Financial Freedom',
+  title: 'Client Stories | All Financial Freedom',
   description: 'Hear from the individuals and families whose financial lives have been transformed.',
 }
 

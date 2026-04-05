@@ -12,7 +12,7 @@ export default function BookingCTA() {
         Ready to put this into action?
       </h3>
       <p style={{ color: 'rgba(235,244,255,0.68)', fontSize: '0.95rem', lineHeight: 1.8, marginBottom: '1.5rem', maxWidth: '480px' }}>
-        Understanding the strategy is step one. Step two is building your personal plan. Connect with a member of our team — no pressure, no jargon, just a clear path forward for you and your family.
+        Understanding the strategy is step one. Step two is building your personal plan. Connect with a member of our team, no pressure, no jargon, just a clear path forward for you and your family.
       </p>
       <button
         onClick={() => window.dispatchEvent(new CustomEvent('open-booking'))}

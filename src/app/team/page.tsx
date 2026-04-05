@@ -6,7 +6,7 @@ import CTABanner from '@/components/CTABanner'
 import Footer from '@/components/Footer'
 
 export const metadata: Metadata = {
-  title: 'Team — All Financial Freedom',
+  title: 'Team | All Financial Freedom',
   description: 'Meet the mission-driven leaders behind All Financial Freedom.',
 }
 
@@ -32,7 +32,7 @@ export default function Team() {
         <div className="max-w-4xl">
           <span className="gold-rule" />
           <p className="font-serif font-light leading-relaxed" style={{ fontSize: 'clamp(1.15rem, 2vw, 1.4rem)', color: '#1B3A5C', lineHeight: 1.75 }}>
-            At All Financial Freedom, our team is more than a group of professionals — we are a movement of mission-driven leaders, educators, and entrepreneurs passionate about transforming lives through financial empowerment. What unites us is a commitment to mentorship, collaboration, and impact.
+            At All Financial Freedom, our team is more than a group of professionals, we are a movement of mission-driven leaders, educators, and entrepreneurs passionate about transforming lives through financial empowerment. What unites us is a commitment to mentorship, collaboration, and impact.
             <br /><br />
             <em style={{ color: '#C9A96E' }}>We are not just building careers… we are building futures.</em>
           </p>
@@ -169,7 +169,7 @@ export default function Team() {
               Ready to lead your own<br /><em>financial movement?</em>
             </h2>
             <p className="rich-text-light mb-4">
-              All Financial Freedom isn&apos;t just a team — it&apos;s a launchpad. Our best associates go on to build their own teams, create their own brands, and lead their own movements — fully backed by our infrastructure and mentorship.
+              All Financial Freedom isn&apos;t just a team, it&apos;s a launchpad. Our best associates go on to build their own teams, create their own brands, and lead their own movements, fully backed by our infrastructure and mentorship.
             </p>
             <p className="rich-text-light mb-8">
               If you have the drive to help families build wealth and the ambition to build something of your own, we want to meet you.
