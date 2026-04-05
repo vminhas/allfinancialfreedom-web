@@ -1,0 +1,14 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Outer ring -->
+  <circle cx="100" cy="100" r="98" fill="#003781"/>
+  <circle cx="100" cy="100" r="74" fill="white"/>
+
+  <!-- Left bar with notch cut from top-right -->
+  <polygon points="44,162 44,72 62,72 62,80 68,80 68,162" fill="#003781"/>
+
+  <!-- Center bar (tallest) with notch cut from top-left -->
+  <polygon points="72,162 72,54 78,54 78,62 96,62 96,162" fill="#003781"/>
+
+  <!-- Right bar with notch cut from top-left -->
+  <polygon points="100,162 100,80 106,80 106,72 124,72 124,162" fill="#003781"/>
+</svg>
