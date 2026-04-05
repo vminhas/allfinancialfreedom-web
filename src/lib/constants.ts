@@ -8,7 +8,7 @@ export const IMAGES = {
   vick: '/team/vick.jpg',
   melinee: '/team/melinee.jpg',
   jeremy: '/team/jeremy.jpg',
-  movement: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=1200&q=80&fm=jpg&fit=crop',
+  movement: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=1600&q=90&fm=jpg&fit=crop',
 }
 
 export const GHL_BOOKING_URL = 'https://api.leadconnectorhq.com/widget/booking/ZOedxdwvtOnTS6Sg5n7Z'

@@ -53,7 +53,7 @@ export default function About() {
               width={560}
               height={560}
               className="object-cover w-full"
-              style={{ height: 560, objectPosition: 'center top', borderRadius: 4 }}
+              style={{ height: 560, objectPosition: 'center center', borderRadius: 4 }}
             />
             <div className="absolute inset-0 -z-10" style={{
               transform: 'translate(12px, 12px)',
