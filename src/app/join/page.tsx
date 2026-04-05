@@ -1,9 +1,7 @@
 'use client'
 
-import type { Metadata } from 'next'
 import Link from 'next/link'
-import { GHL_FORM_EMBED_SRC } from '@/lib/constants'
-import Script from 'next/script'
+import { useState } from 'react'
 import Footer from '@/components/Footer'
 
 const pillarIcons: Record<string, React.ReactNode> = {
@@ -82,10 +80,84 @@ const faqs = [
   },
 ]
 
+function ApplicationForm() {
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', licensed: '', message: '' })
+  const [status, setStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle')
+
+  const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setStatus('sending')
+    try {
+      const res = await fetch('/api/join', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+      setStatus(res.ok ? 'success' : 'error')
+    } catch {
+      setStatus('error')
+    }
+  }
+
+  const inputStyle = {
+    width: '100%', padding: '0.75rem 1rem', fontSize: '0.875rem',
+    border: '1px solid rgba(107,130,153,0.25)', borderRadius: 3,
+    color: '#1A2B3C', background: '#fff', outline: 'none',
+    fontFamily: "'DM Sans', sans-serif",
+  }
+  const labelStyle = { display: 'block', fontSize: '0.68rem', letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: '#6B8299', marginBottom: '0.4rem', fontWeight: 500 }
+
+  if (status === 'success') return (
+    <div style={{ textAlign: 'center', padding: '3rem 2rem' }}>
+      <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>✓</div>
+      <h3 className="font-serif text-2xl text-navy mb-3">Application Received</h3>
+      <p className="text-sm text-muted-blue">We review every application personally. Expect to hear from us within 24-48 hours to schedule your discovery call.</p>
+    </div>
+  )
+
+  return (
+    <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+        <div>
+          <label style={labelStyle}>First Name *</label>
+          <input required style={inputStyle} value={form.firstName} onChange={e => set('firstName', e.target.value)} placeholder="First name" />
+        </div>
+        <div>
+          <label style={labelStyle}>Last Name *</label>
+          <input required style={inputStyle} value={form.lastName} onChange={e => set('lastName', e.target.value)} placeholder="Last name" />
+        </div>
+      </div>
+      <div>
+        <label style={labelStyle}>Email *</label>
+        <input required type="email" style={inputStyle} value={form.email} onChange={e => set('email', e.target.value)} placeholder="your@email.com" />
+      </div>
+      <div>
+        <label style={labelStyle}>Phone *</label>
+        <input required type="tel" style={inputStyle} value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="(555) 000-0000" />
+      </div>
+      <div>
+        <label style={labelStyle}>Are you currently licensed?</label>
+        <select style={inputStyle} value={form.licensed} onChange={e => set('licensed', e.target.value)}>
+          <option value="">Select one</option>
+          <option value="yes">Yes, I am licensed</option>
+          <option value="in-progress">In progress</option>
+          <option value="no">No, not yet</option>
+        </select>
+      </div>
+      <div>
+        <label style={labelStyle}>Why do you want to join All Financial Freedom?</label>
+        <textarea rows={4} style={{ ...inputStyle, resize: 'vertical' }} value={form.message} onChange={e => set('message', e.target.value)} placeholder="Tell us what drives you..." />
+      </div>
+      {status === 'error' && <p style={{ color: '#c0392b', fontSize: '0.8rem' }}>Something went wrong. Please email us at contact@allfinancialfreedom.com</p>}
+      <button type="submit" disabled={status === 'sending'} className="btn-gold" style={{ opacity: status === 'sending' ? 0.7 : 1 }}>
+        {status === 'sending' ? 'Submitting...' : 'Submit Application'}
+      </button>
+      <p style={{ fontSize: '0.68rem', color: '#9BB0C4', textAlign: 'center' }}>We review every application personally and respond within 24-48 hours.</p>
+    </form>
+  )
+}
+
 export default function JoinPage() {
   return (
     <main className="pt-20">
-      <Script src={GHL_FORM_EMBED_SRC} strategy="lazyOnload" />
 
       {/* HERO */}
       <section className="page-section bg-navy-grad">
@@ -230,23 +302,7 @@ export default function JoinPage() {
         </div>
         <div className="max-w-2xl mx-auto">
           <div className="card-premium p-8">
-            {/* GHL Form Embed, replace the data-form attribute with your GHL join form ID */}
-            <div
-              className="ghl-form"
-              data-form="join-team-form"
-              style={{ minHeight: 400 }}
-            >
-              {/* Placeholder until GHL join form is configured */}
-              <div style={{ textAlign: 'center', padding: '3rem 2rem' }}>
-                <p style={{ color: '#6B8299', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-                  Application form loading… If it doesn&apos;t appear, please email us directly.
-                </p>
-                <a href="mailto:contact@allfinancialfreedom.com?subject=Join the Team, Application"
-                  className="btn-gold">
-                  Apply via Email
-                </a>
-              </div>
-            </div>
+            <ApplicationForm />
           </div>
         </div>
       </section>

@@ -77,7 +77,8 @@
       "WebFetch(domain:www.americannational.com)",
       "Bash(sed -i 's/ — /, /g' content/drafts/ARTICLE-SOP.md)",
       "Bash(sed -i 's/money —<br/money,<br/g' src/app/page.tsx)",
-      "Bash(sed -i 's/and legacy —/and legacy,/g' src/app/page.tsx)"
+      "Bash(sed -i 's/and legacy —/and legacy,/g' src/app/page.tsx)",
+      "Bash(curl -s -X GET 'https://services.leadconnectorhq.com/contacts/?locationId=tDxu4bUObV7zIes3OGOS&limit=1' -H 'Authorization: Bearer pit-03ce3527-9e3f-4120-a093-ccd34ecfcab4' -H 'Version: 2021-07-28')"
     ]
   }
 }
