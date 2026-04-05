@@ -50,6 +50,11 @@ export default function RootLayout({
           data-widget-id="69d2cc18a3eb88e277500144"
           strategy="lazyOnload"
         />
+        <Script
+          src="https://links.allfinancialfreedom.com/js/external-tracking.js"
+          data-tracking-id="tk_fbb004d6eb2548739118db929f32df21"
+          strategy="lazyOnload"
+        />
       </body>
     </html>
   )
