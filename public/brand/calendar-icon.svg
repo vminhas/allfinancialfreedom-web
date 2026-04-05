@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="180" height="180">
+  <!-- Background -->
+  <rect width="180" height="180" rx="28" fill="#142D48"/>
+
+  <!-- Gold top bar on calendar -->
+  <rect x="28" y="38" width="124" height="32" rx="8" fill="#C9A96E"/>
+
+  <!-- Calendar body -->
+  <rect x="28" y="58" width="124" height="86" rx="8" fill="#1B3A5C"/>
+  <rect x="28" y="58" width="124" height="16" fill="#1B3A5C"/>
+
+  <!-- Binding rings -->
+  <rect x="58" y="28" width="10" height="24" rx="5" fill="#0E2035"/>
+  <rect x="112" y="28" width="10" height="24" rx="5" fill="#0E2035"/>
+
+  <!-- Calendar grid dots - row 1 -->
+  <rect x="44" y="90" width="14" height="12" rx="3" fill="rgba(235,244,255,0.15)"/>
+  <rect x="66" y="90" width="14" height="12" rx="3" fill="rgba(235,244,255,0.15)"/>
+  <rect x="88" y="90" width="14" height="12" rx="3" fill="#C9A96E"/>
+  <rect x="110" y="90" width="14" height="12" rx="3" fill="rgba(235,244,255,0.15)"/>
+  <rect x="132" y="90" width="14" height="12" rx="3" fill="rgba(235,244,255,0.15)"/>
+
+  <!-- Calendar grid dots - row 2 -->
+  <rect x="44" y="108" width="14" height="12" rx="3" fill="rgba(235,244,255,0.15)"/>
+  <rect x="66" y="108" width="14" height="12" rx="3" fill="rgba(235,244,255,0.15)"/>
+  <rect x="88" y="108" width="14" height="12" rx="3" fill="rgba(235,244,255,0.15)"/>
+  <rect x="110" y="108" width="14" height="12" rx="3" fill="rgba(235,244,255,0.15)"/>
+  <rect x="132" y="108" width="14" height="12" rx="3" fill="rgba(235,244,255,0.15)"/>
+
+  <!-- Calendar grid dots - row 3 -->
+  <rect x="44" y="126" width="14" height="12" rx="3" fill="rgba(235,244,255,0.15)"/>
+  <rect x="66" y="126" width="14" height="12" rx="3" fill="rgba(235,244,255,0.15)"/>
+  <rect x="88" y="126" width="14" height="12" rx="3" fill="rgba(235,244,255,0.15)"/>
+  <rect x="110" y="126" width="14" height="12" rx="3" fill="rgba(235,244,255,0.15)"/>
+  <rect x="132" y="126" width="14" height="12" rx="3" fill="rgba(235,244,255,0.15)"/>
+
+  <!-- Month label area (white text sim) -->
+  <rect x="44" y="64" width="60" height="8" rx="2" fill="rgba(235,244,255,0.6)"/>
+</svg>

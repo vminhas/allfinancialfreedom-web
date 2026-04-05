@@ -1,0 +1,58 @@
+name: Auto-Publish Scheduled Article
+
+on:
+  schedule:
+    # Runs every Tuesday and Friday at 9am ET (1pm UTC)
+    - cron: '0 13 * * 2,5'
+  workflow_dispatch: # Also allows manual trigger from GitHub Actions tab
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check for scheduled drafts
+        id: check
+        run: |
+          # Look for the next unpublished draft (alphabetically first = oldest queued)
+          DRAFT=$(ls content/drafts/*.mdx 2>/dev/null | head -1)
+          if [ -z "$DRAFT" ]; then
+            echo "No drafts found. Nothing to publish."
+            echo "has_draft=false" >> $GITHUB_OUTPUT
+          else
+            echo "Found draft: $DRAFT"
+            echo "has_draft=true" >> $GITHUB_OUTPUT
+            echo "draft_file=$DRAFT" >> $GITHUB_OUTPUT
+            echo "draft_name=$(basename $DRAFT)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Move draft to published
+        if: steps.check.outputs.has_draft == 'true'
+        run: |
+          DRAFT="${{ steps.check.outputs.draft_file }}"
+          NAME="${{ steps.check.outputs.draft_name }}"
+
+          # Update the date frontmatter to today
+          TODAY=$(date +%Y-%m-%d)
+          sed -i "s/^date:.*$/date: \"$TODAY\"/" "$DRAFT"
+
+          # Move to published blog directory
+          mv "$DRAFT" "content/blog/$NAME"
+          echo "Published: content/blog/$NAME"
+
+      - name: Commit and push
+        if: steps.check.outputs.has_draft == 'true'
+        run: |
+          git config user.name "AFF Auto Publisher"
+          git config user.email "vick@allfinancialfreedom.com"
+          git add content/blog/ content/drafts/
+          git commit -m "publish: auto-publish ${{ steps.check.outputs.draft_name }}"
+          git push
+        # Vercel will automatically redeploy on push to main

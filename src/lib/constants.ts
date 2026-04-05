@@ -5,12 +5,13 @@ export const IMAGES = {
   strip2: 'https://images.squarespace-cdn.com/content/v1/681101f55b106572fa6b7718/408de877-03f2-4351-8680-78162b2e6baf/pexels-cottonbro-7232037.jpg',
   strip3: 'https://images.squarespace-cdn.com/content/v1/681101f55b106572fa6b7718/b451a0f8-aacd-4f57-9d1f-f340ab9646d3/pexels-karolina-grabowska-7876672.jpg',
   wealthGap: 'https://images.squarespace-cdn.com/content/v1/681101f55b106572fa6b7718/ef39a342-4829-4807-8a0f-8fceaa8e44a9/pexels-dziana-hasanbekava-8213228.jpg',
-  vick: 'https://images.squarespace-cdn.com/content/v1/681101f55b106572fa6b7718/c886ac26-9fb1-42c3-81ef-0fc6b9255e3f/DSC_0216+copy.jpg',
-  melinee: 'https://images.squarespace-cdn.com/content/v1/681101f55b106572fa6b7718/c9daeced-21a1-4287-a605-f69cae93298b/DSC_3866+copy.jpg',
+  vick: '/team/vick.jpg',
+  melinee: '/team/melinee.jpg',
+  jeremy: '/team/jeremy.jpg',
 }
 
-export const GHL_BOOKING_URL = 'https://link.divinereach.pro/widget/booking/8x5NwSvRLVwZk3TBTVmF'
-export const GHL_FORM_EMBED_SRC = 'https://link.divinereach.pro/js/form_embed.js'
+export const GHL_BOOKING_URL = 'https://api.leadconnectorhq.com/widget/booking/ZOedxdwvtOnTS6Sg5n7Z'
+export const GHL_FORM_EMBED_SRC = 'https://link.msgsndr.com/js/form_embed.js'
 
 // Only Vick and Melinee on the team page
 export const TEAM = [
@@ -19,7 +20,7 @@ export const TEAM = [
     title: 'Chief Executive Officer',
     credentials: 'MBA, EMD',
     image: IMAGES.vick,
-    bio: 'With over 15 years of experience in the financial services industry, Vick brings a powerful blend of expertise, vision, and unwavering dedication to our mission. A natural educator and driven leader, he\'s passionate about breaking down complex financial concepts into actionable strategies that create long-term success.',
+    bio: 'With over 16 years of experience in the financial services industry, Vick brings a powerful blend of expertise, vision, and unwavering dedication to our mission. A natural educator and driven leader, he\'s passionate about breaking down complex financial concepts into actionable strategies that create long-term success.',
   },
   {
     name: 'Melinee Minhas',
@@ -30,13 +31,25 @@ export const TEAM = [
   },
 ]
 
-export const ASSOCIATES = [
-  { name: 'Kiirah Washington', initials: 'KW' },
-  { name: 'Doug Morrison', initials: 'DM' },
-  { name: 'Heather Cullum', initials: 'HC' },
-  { name: 'Sam Yonce', initials: 'SY' },
-  { name: 'Amber Simpson', initials: 'AS' },
+export const DIRECTORS = [
+  {
+    name: 'Dr. Jeremy Davis',
+    title: 'Marketing Director',
+    credentials: 'PhD',
+    image: IMAGES.jeremy,
+    bio: 'Dr. Davis brings a rare combination of academic depth and real-world marketing insight to the All Financial Freedom team. His strategic approach to brand building, community outreach, and client education helps ensure our message reaches the families who need it most.',
+  },
 ]
+
+export const ASSOCIATES = [
+  { name: 'Kiirah Washington', initials: 'KW', specialty: 'Insurance Planning', location: 'Atlanta, GA', image: '/team/kiirah.jpg' },
+  { name: 'Doug Morrison', initials: 'DM', specialty: 'Wealth Building', location: 'Dallas, TX', image: '/team/doug.jpg' },
+  { name: 'Heather Cullum', initials: 'HC', specialty: 'Retirement Planning', location: 'Charlotte, NC', image: '/team/heather.jpg' },
+  { name: 'Sam Yonce', initials: 'SY', specialty: 'Asset Protection', location: 'Phoenix, AZ', image: '/team/sam.jpg' },
+  { name: 'Amber Simpson', initials: 'AS', specialty: 'Legacy Planning', location: 'Houston, TX', image: '/team/amber.jpg' },
+]
+
+export const GHL_JOIN_FORM_URL = '' // Add your GHL join/team-prospect form embed URL here
 
 export const SERVICES = [
   {
@@ -74,6 +87,30 @@ export const SERVICES = [
     icon: 'users',
     description: 'Build a lasting legacy through estate planning, generational wealth strategies, and giving structures that preserve your impact.',
     bullets: ['Estate planning & will guidance', 'Generational wealth transfer', 'Charitable giving strategies'],
+  },
+  {
+    title: 'Mortgage Protection',
+    icon: 'home',
+    description: 'Your home is likely your largest asset. Mortgage protection ensures your family keeps it — no matter what happens to your income.',
+    bullets: ['Mortgage payoff protection', 'Income replacement coverage', 'Disability & critical illness riders'],
+  },
+  {
+    title: 'Business Owner Strategies',
+    icon: 'briefcase',
+    description: 'Business owners face unique financial risks and opportunities. We build strategies that protect your business, reward key employees, and create an exit plan.',
+    bullets: ['Buy-sell agreement funding', 'Key person insurance', 'Executive bonus & deferred comp plans'],
+  },
+  {
+    title: 'Family Banking',
+    icon: 'bank',
+    description: 'Use whole life insurance to create your own private banking system — borrow against your cash value, pay yourself back, and build wealth without Wall Street.',
+    bullets: ['Infinite banking concept (IBC)', 'Tax-free cash value growth', 'Self-directed family liquidity'],
+  },
+  {
+    title: 'Kids Head Start Plans',
+    icon: 'star',
+    description: 'Give your children a financial head start that most adults never had. Start their wealth-building journey early with guaranteed growth and lifelong coverage.',
+    bullets: ['Juvenile whole life policies', 'Locked-in insurability for life', 'Cash value for college or first home'],
   },
 ]
 

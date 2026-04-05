@@ -1,0 +1,26 @@
+ALL FINANCIAL FREEDOM — BRAND COLORS
+=====================================
+
+PRIMARY PALETTE
+  Navy Deep      #142D48   (darkest navy — backgrounds, footers)
+  Navy           #1B3A5C   (main navy — headings, nav)
+  Navy Medium    #2A5280   (gradient midpoint)
+  Blue           #3B7EC8   (accent blue — links, highlights)
+  Gold           #C9A96E   (primary accent — buttons, rules, labels)
+  Gold Dark      #A8834A   (gold hover state)
+
+NEUTRAL / BACKGROUND
+  Sky Blue       #EBF4FF   (light section backgrounds)
+  Sky 2          #F5F9FF   (card backgrounds, email bg)
+  Muted Blue     #6B8299   (body text, secondary text)
+  White          #FFFFFF
+
+GRADIENTS
+  Primary (hero/nav):  linear-gradient(135deg, #142D48 0%, #1B3A5C 50%, #2A5280 100%)
+  Short navy:          linear-gradient(135deg, #142D48, #1B3A5C)
+  Blue:                linear-gradient(135deg, #2A5280, #3B7EC8)
+
+FONTS
+  Headings:  Cormorant Garamond (Google Fonts) — weights 300, 400, 600
+  Body:      DM Sans (Google Fonts) — weights 300, 400, 500, 600
+  Fallbacks: Georgia (serif), Arial (sans-serif)

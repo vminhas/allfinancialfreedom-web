@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>All Financial Freedom — Brand Kit</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'DM Sans', sans-serif; background: #F5F9FF; color: #1A2B3C; }
+
+    .header {
+      background: linear-gradient(135deg, #142D48 0%, #1B3A5C 50%, #2A5280 100%);
+      padding: 4rem 5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header h1 { font-family: 'Cormorant Garamond', serif; font-weight: 300; font-size: 2.5rem; color: white; }
+    .header p { color: rgba(235,244,255,0.6); font-size: 0.8rem; letter-spacing: 0.2em; text-transform: uppercase; margin-top: 0.5rem; }
+    .logo-preview { height: 48px; }
+
+    .section { padding: 3rem 5rem; border-bottom: 1px solid rgba(201,169,110,0.15); }
+    .section:last-child { border-bottom: none; }
+    h2 { font-family: 'Cormorant Garamond', serif; font-weight: 300; font-size: 1.8rem; color: #1B3A5C; margin-bottom: 0.4rem; }
+    .sub { font-size: 0.72rem; letter-spacing: 0.2em; text-transform: uppercase; color: #C9A96E; margin-bottom: 2rem; display: block; }
+
+    /* Colors */
+    .color-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1rem; }
+    .color-card { border-radius: 6px; overflow: hidden; border: 1px solid rgba(0,0,0,0.06); }
+    .color-swatch { height: 80px; }
+    .color-info { padding: 0.75rem; background: white; }
+    .color-name { font-weight: 500; font-size: 0.78rem; }
+    .color-hex { font-size: 0.7rem; color: #6B8299; font-family: monospace; margin-top: 2px; }
+    .copy-btn {
+      display: inline-block; margin-top: 6px; font-size: 0.6rem; letter-spacing: 0.12em;
+      text-transform: uppercase; background: #EBF4FF; color: #1B3A5C;
+      border: none; border-radius: 2px; padding: 3px 8px; cursor: pointer;
+    }
+    .copy-btn:hover { background: #C9A96E; color: #142D48; }
+
+    /* Typography */
+    .type-sample { margin-bottom: 2rem; padding: 1.5rem; background: white; border-radius: 6px; border: 1px solid rgba(201,169,110,0.15); }
+    .type-label { font-size: 0.62rem; letter-spacing: 0.2em; text-transform: uppercase; color: #C9A96E; margin-bottom: 0.75rem; }
+    .type-spec { font-size: 0.7rem; color: #6B8299; margin-top: 0.5rem; font-family: monospace; }
+
+    /* Buttons */
+    .btn-grid { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
+    .btn-gold {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: #C9A96E; color: #142D48;
+      padding: 0.8rem 2.25rem; font-size: 0.72rem; font-weight: 600;
+      letter-spacing: 0.12em; text-transform: uppercase; border-radius: 2px;
+      border: none; cursor: pointer; text-decoration: none;
+    }
+    .btn-navy {
+      display: inline-flex; align-items: center;
+      background: #1B3A5C; color: white;
+      padding: 0.8rem 2.25rem; font-size: 0.72rem; font-weight: 500;
+      letter-spacing: 0.12em; text-transform: uppercase; border-radius: 2px;
+      border: none; cursor: pointer; text-decoration: none;
+    }
+    .btn-ghost {
+      display: inline-flex; align-items: center;
+      background: transparent; color: #1B3A5C;
+      padding: 0.8rem 2.25rem; font-size: 0.72rem; font-weight: 500;
+      letter-spacing: 0.12em; text-transform: uppercase; border-radius: 2px;
+      border: 1px solid #1B3A5C; cursor: pointer; text-decoration: none;
+    }
+
+    /* Logo section */
+    .logo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    .logo-box {
+      padding: 2.5rem; border-radius: 6px; display: flex;
+      flex-direction: column; align-items: flex-start; gap: 1rem;
+    }
+    .logo-box.dark { background: linear-gradient(135deg, #142D48, #1B3A5C); }
+    .logo-box.light { background: #F5F9FF; border: 1px solid rgba(201,169,110,0.2); }
+    .logo-box img { height: 40px; }
+    .logo-box .logo-dark { filter: brightness(0); }
+    .logo-note { font-size: 0.7rem; color: rgba(235,244,255,0.5); }
+    .logo-note.on-light { color: #6B8299; }
+
+    /* Text styles */
+    .text-samples { display: grid; gap: 1rem; }
+    .text-sample { padding: 1.5rem; background: white; border-radius: 6px; border: 1px solid rgba(201,169,110,0.12); }
+
+    /* Gradients */
+    .gradient-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
+    .gradient-card { height: 100px; border-radius: 6px; display: flex; align-items: flex-end; padding: 0.75rem; }
+    .gradient-label { font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase; color: rgba(255,255,255,0.7); }
+    .gradient-css { font-size: 0.6rem; color: rgba(255,255,255,0.45); font-family: monospace; margin-top: 2px; }
+
+    /* Copy table */
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th { text-align: left; padding: 0.75rem 1rem; background: #142D48; color: #C9A96E; font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; }
+    td { padding: 0.75rem 1rem; border-bottom: 1px solid rgba(201,169,110,0.1); color: #374151; vertical-align: top; }
+    tr:nth-child(even) td { background: rgba(235,244,255,0.4); }
+    td code { font-family: monospace; font-size: 0.78rem; background: #EBF4FF; padding: 2px 6px; border-radius: 2px; color: #1B3A5C; }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div>
+    <h1>All Financial Freedom</h1>
+    <p>Brand Kit — GoHighLevel &amp; Marketing Assets</p>
+  </div>
+  <img class="logo-preview" src="https://images.squarespace-cdn.com/content/v1/681101f55b106572fa6b7718/206e8496-0da1-4777-a74d-02f2784a5035/Company+Logo+White.png?format=1500w" alt="All Financial Freedom Logo" />
+</div>
+
+<!-- LOGO -->
+<div class="section">
+  <span class="sub">01 — Logo</span>
+  <h2>Logo Usage</h2>
+  <div style="margin-top: 1.5rem;" class="logo-grid">
+    <div class="logo-box dark">
+      <img src="https://images.squarespace-cdn.com/content/v1/681101f55b106572fa6b7718/206e8496-0da1-4777-a74d-02f2784a5035/Company+Logo+White.png?format=1500w" alt="Logo White" />
+      <span class="logo-note">White version — use on dark / navy backgrounds</span>
+    </div>
+    <div class="logo-box light">
+      <img class="logo-dark" src="https://images.squarespace-cdn.com/content/v1/681101f55b106572fa6b7718/206e8496-0da1-4777-a74d-02f2784a5035/Company+Logo+White.png?format=1500w" alt="Logo Dark" />
+      <span class="logo-note on-light">Dark version (CSS filter: brightness(0)) — use on white / light backgrounds</span>
+    </div>
+  </div>
+  <div style="margin-top: 1.5rem; padding: 1.25rem 1.5rem; background: white; border-radius: 6px; border: 1px solid rgba(201,169,110,0.15); font-size: 0.82rem; color: #374151; line-height: 1.8;">
+    <strong>Logo URL (for GHL email templates / pages):</strong><br />
+    <code style="font-family: monospace; font-size: 0.75rem; background: #EBF4FF; padding: 4px 8px; border-radius: 3px; color: #1B3A5C; display: inline-block; margin-top: 6px;">https://images.squarespace-cdn.com/content/v1/681101f55b106572fa6b7718/206e8496-0da1-4777-a74d-02f2784a5035/Company+Logo+White.png?format=1500w</code>
+  </div>
+</div>
+
+<!-- COLORS -->
+<div class="section">
+  <span class="sub">02 — Colors</span>
+  <h2>Brand Colors</h2>
+  <div style="margin-top: 1.5rem;" class="color-grid">
+    <div class="color-card">
+      <div class="color-swatch" style="background: #142D48;"></div>
+      <div class="color-info">
+        <div class="color-name">Navy Deep</div>
+        <div class="color-hex">#142D48</div>
+        <button class="copy-btn" onclick="navigator.clipboard.writeText('#142D48')">Copy</button>
+      </div>
+    </div>
+    <div class="color-card">
+      <div class="color-swatch" style="background: #1B3A5C;"></div>
+      <div class="color-info">
+        <div class="color-name">Navy</div>
+        <div class="color-hex">#1B3A5C</div>
+        <button class="copy-btn" onclick="navigator.clipboard.writeText('#1B3A5C')">Copy</button>
+      </div>
+    </div>
+    <div class="color-card">
+      <div class="color-swatch" style="background: #2A5280;"></div>
+      <div class="color-info">
+        <div class="color-name">Navy Medium</div>
+        <div class="color-hex">#2A5280</div>
+        <button class="copy-btn" onclick="navigator.clipboard.writeText('#2A5280')">Copy</button>
+      </div>
+    </div>
+    <div class="color-card">
+      <div class="color-swatch" style="background: #3B7EC8;"></div>
+      <div class="color-info">
+        <div class="color-name">Blue</div>
+        <div class="color-hex">#3B7EC8</div>
+        <button class="copy-btn" onclick="navigator.clipboard.writeText('#3B7EC8')">Copy</button>
+      </div>
+    </div>
+    <div class="color-card">
+      <div class="color-swatch" style="background: #C9A96E;"></div>
+      <div class="color-info">
+        <div class="color-name">Gold</div>
+        <div class="color-hex">#C9A96E</div>
+        <button class="copy-btn" onclick="navigator.clipboard.writeText('#C9A96E')">Copy</button>
+      </div>
+    </div>
+    <div class="color-card">
+      <div class="color-swatch" style="background: #A8834A;"></div>
+      <div class="color-info">
+        <div class="color-name">Gold Dark</div>
+        <div class="color-hex">#A8834A</div>
+        <button class="copy-btn" onclick="navigator.clipboard.writeText('#A8834A')">Copy</button>
+      </div>
+    </div>
+    <div class="color-card">
+      <div class="color-swatch" style="background: #EBF4FF; border: 1px solid #E0ECF8;"></div>
+      <div class="color-info">
+        <div class="color-name">Sky Blue</div>
+        <div class="color-hex">#EBF4FF</div>
+        <button class="copy-btn" onclick="navigator.clipboard.writeText('#EBF4FF')">Copy</button>
+      </div>
+    </div>
+    <div class="color-card">
+      <div class="color-swatch" style="background: #6B8299;"></div>
+      <div class="color-info">
+        <div class="color-name">Muted Blue</div>
+        <div class="color-hex">#6B8299</div>
+        <button class="copy-btn" onclick="navigator.clipboard.writeText('#6B8299')">Copy</button>
+      </div>
+    </div>
+    <div class="color-card">
+      <div class="color-swatch" style="background: #FFFFFF; border: 1px solid #EEE;"></div>
+      <div class="color-info">
+        <div class="color-name">White</div>
+        <div class="color-hex">#FFFFFF</div>
+        <button class="copy-btn" onclick="navigator.clipboard.writeText('#FFFFFF')">Copy</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gradients -->
+  <h3 style="font-family: 'Cormorant Garamond', serif; font-weight: 300; font-size: 1.3rem; color: #1B3A5C; margin: 2.5rem 0 1rem;">Gradients</h3>
+  <div class="gradient-grid">
+    <div class="gradient-card" style="background: linear-gradient(135deg, #142D48 0%, #1B3A5C 50%, #2A5280 100%);">
+      <div>
+        <div class="gradient-label">Navy Gradient (Primary)</div>
+        <div class="gradient-css">135deg, #142D48 → #1B3A5C → #2A5280</div>
+      </div>
+    </div>
+    <div class="gradient-card" style="background: linear-gradient(135deg, #142D48, #1B3A5C);">
+      <div>
+        <div class="gradient-label">Navy Gradient (Short)</div>
+        <div class="gradient-css">135deg, #142D48 → #1B3A5C</div>
+      </div>
+    </div>
+    <div class="gradient-card" style="background: linear-gradient(135deg, #2A5280, #3B7EC8);">
+      <div>
+        <div class="gradient-label">Blue Gradient</div>
+        <div class="gradient-css">135deg, #2A5280 → #3B7EC8</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TYPOGRAPHY -->
+<div class="section">
+  <span class="sub">03 — Typography</span>
+  <h2>Fonts</h2>
+
+  <div style="margin-top: 1.5rem; display: grid; gap: 1.5rem;">
+    <div class="text-sample">
+      <div class="type-label">Heading Font — Cormorant Garamond</div>
+      <div style="font-family: 'Cormorant Garamond', serif; font-size: 3rem; font-weight: 300; color: #1B3A5C; line-height: 1.1;">
+        Build Wealth.<br /><em style="color: #C9A96E;">Protect Your Legacy.</em>
+      </div>
+      <div class="type-spec">Google Fonts: Cormorant Garamond | Weights: 300, 400, 600 | GHL import: fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400</div>
+    </div>
+    <div class="text-sample">
+      <div class="type-label">Body Font — DM Sans</div>
+      <div style="font-family: 'DM Sans', sans-serif; font-size: 1rem; font-weight: 300; color: #374151; line-height: 1.85;">
+        We are a team of passionate professionals on a mission to make financial empowerment accessible to everyone. We believe wealth is not just about numbers — it is about freedom, confidence, and peace of mind.
+      </div>
+      <div class="type-spec">Google Fonts: DM Sans | Weights: 300, 400, 500, 600 | GHL import: fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600</div>
+    </div>
+  </div>
+
+  <h3 style="font-family: 'Cormorant Garamond', serif; font-weight: 300; font-size: 1.3rem; color: #1B3A5C; margin: 2.5rem 0 1rem;">Type Scale</h3>
+  <table>
+    <thead><tr><th>Style</th><th>Font</th><th>Size</th><th>Weight</th><th>Color</th><th>Use For</th></tr></thead>
+    <tbody>
+      <tr><td>Page Title</td><td>Cormorant Garamond</td><td>clamp(2.1rem, 3.5vw, 3.2rem)</td><td>300</td><td>#1B3A5C or white</td><td>Hero headings</td></tr>
+      <tr><td>Section Heading</td><td>Cormorant Garamond</td><td>1.8rem</td><td>300</td><td>#1B3A5C</td><td>Section titles</td></tr>
+      <tr><td>Card Heading</td><td>Cormorant Garamond</td><td>1.25rem</td><td>400</td><td>#1B3A5C</td><td>Card titles</td></tr>
+      <tr><td>Body</td><td>DM Sans</td><td>0.92rem</td><td>300</td><td>#6B8299</td><td>Paragraphs</td></tr>
+      <tr><td>Label / Tag</td><td>DM Sans</td><td>0.68rem</td><td>500</td><td>#C9A96E</td><td>Section labels, tags</td></tr>
+      <tr><td>Button</td><td>DM Sans</td><td>0.72rem</td><td>600</td><td>#142D48 or white</td><td>CTAs, buttons</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- BUTTONS -->
+<div class="section">
+  <span class="sub">04 — Buttons &amp; CTAs</span>
+  <h2>Button Styles</h2>
+  <div style="margin-top: 1.5rem;" class="btn-grid">
+    <button class="btn-gold">Schedule a Free Call</button>
+    <button class="btn-navy">Learn More</button>
+    <button class="btn-ghost">Our Story</button>
+  </div>
+  <table style="margin-top: 2rem;">
+    <thead><tr><th>Style</th><th>Background</th><th>Text Color</th><th>Use For</th></tr></thead>
+    <tbody>
+      <tr><td>Gold (Primary CTA)</td><td><code>#C9A96E</code></td><td><code>#142D48</code></td><td>Main CTAs: Schedule a call, Get started</td></tr>
+      <tr><td>Navy (Secondary)</td><td><code>#1B3A5C</code></td><td><code>#FFFFFF</code></td><td>Secondary actions, email buttons</td></tr>
+      <tr><td>Ghost (Tertiary)</td><td>Transparent</td><td><code>#1B3A5C</code> border</td><td>Learn more, secondary links</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- COPY / MESSAGING -->
+<div class="section">
+  <span class="sub">05 — Messaging &amp; Copy</span>
+  <h2>Brand Copy for GHL</h2>
+  <table style="margin-top: 1.5rem;">
+    <thead><tr><th>Element</th><th>Copy</th></tr></thead>
+    <tbody>
+      <tr><td>Company Name</td><td>All Financial Freedom</td></tr>
+      <tr><td>Tagline</td><td>Build Wealth. Protect Your Legacy.</td></tr>
+      <tr><td>Mission</td><td>Making financial empowerment accessible to everyone — no matter their background, income, or starting point.</td></tr>
+      <tr><td>Vision</td><td>To help empower 100 million families to achieve financial independence, create generational wealth, and live life on their terms.</td></tr>
+      <tr><td>Email Sender Name</td><td>All Financial Freedom</td></tr>
+      <tr><td>Email From Address</td><td>contact@allfinancialfreedom.com</td></tr>
+      <tr><td>Website</td><td>allfinancialfreedom.com</td></tr>
+      <tr><td>Primary CTA</td><td>Schedule a Free Call</td></tr>
+      <tr><td>Primary CTA (Article)</td><td>Schedule Your Free Strategy Call</td></tr>
+      <tr><td>Calendar CTA Heading</td><td>Schedule Time with Our Team</td></tr>
+      <tr><td>Booking Subtext</td><td>No pressure, no jargon — just a clear path forward for you and your family.</td></tr>
+    </tbody>
+  </table>
+
+  <h3 style="font-family: 'Cormorant Garamond', serif; font-weight: 300; font-size: 1.3rem; color: #1B3A5C; margin: 2.5rem 0 1rem;">Email Signature Template</h3>
+  <div style="padding: 1.5rem; background: white; border-radius: 6px; border: 1px solid rgba(201,169,110,0.15); font-size: 0.82rem;">
+    <div style="border-left: 3px solid #C9A96E; padding-left: 1rem;">
+      <div style="font-family: 'DM Sans', sans-serif; font-weight: 600; color: #1B3A5C; font-size: 0.9rem;">[Your Name]</div>
+      <div style="color: #6B8299; font-size: 0.78rem;">[Your Title] | All Financial Freedom</div>
+      <div style="margin-top: 0.5rem; color: #6B8299; font-size: 0.75rem;">📧 contact@allfinancialfreedom.com</div>
+      <div style="color: #6B8299; font-size: 0.75rem;">🌐 allfinancialfreedom.com</div>
+      <div style="margin-top: 0.75rem;">
+        <a href="https://allfinancialfreedom.com" style="display: inline-block; background: #C9A96E; color: #142D48; padding: 6px 16px; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; text-decoration: none; border-radius: 2px;">Schedule a Free Call</a>
+      </div>
+      <div style="margin-top: 0.75rem; font-size: 0.65rem; color: #9CA3AF; font-style: italic;">Empowering families to build wealth, protect assets, and create lasting legacies.</div>
+    </div>
+  </div>
+</div>
+
+<!-- GHL SETUP REFERENCE -->
+<div class="section">
+  <span class="sub">06 — GoHighLevel Setup</span>
+  <h2>GHL Configuration Reference</h2>
+  <table style="margin-top: 1.5rem;">
+    <thead><tr><th>GHL Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Agency / Sub-Account Name</td><td>All Financial Freedom</td></tr>
+      <tr><td>Email Sender Name</td><td>All Financial Freedom</td></tr>
+      <tr><td>Reply-To Email</td><td>contact@allfinancialfreedom.com</td></tr>
+      <tr><td>Primary Brand Color</td><td><code>#C9A96E</code> (Gold)</td></tr>
+      <tr><td>Secondary Brand Color</td><td><code>#1B3A5C</code> (Navy)</td></tr>
+      <tr><td>Background Color (Emails)</td><td><code>#F5F9FF</code></td></tr>
+      <tr><td>Button Color</td><td><code>#C9A96E</code></td></tr>
+      <tr><td>Button Text Color</td><td><code>#142D48</code></td></tr>
+      <tr><td>Heading Font</td><td>Cormorant Garamond (or Georgia as fallback)</td></tr>
+      <tr><td>Body Font</td><td>DM Sans (or Arial as fallback)</td></tr>
+      <tr><td>Logo URL (white — for dark backgrounds)</td><td>See Logo section above</td></tr>
+      <tr><td>Calendar Name (client-facing)</td><td>Schedule Time with Our Team</td></tr>
+      <tr><td>Confirmation Email Subject</td><td>Your call is confirmed — All Financial Freedom</td></tr>
+      <tr><td>Reminder SMS (24hr)</td><td>Hi [First Name], just a reminder — your call with All Financial Freedom is tomorrow. Reply STOP to opt out.</td></tr>
+      <tr><td>Reminder SMS (1hr)</td><td>Hi [First Name], your call with our team starts in 1 hour. See you soon! — All Financial Freedom</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- SERVICES -->
+<div class="section">
+  <span class="sub">07 — Services</span>
+  <h2>Core Service Lines</h2>
+  <table style="margin-top: 1.5rem;">
+    <thead><tr><th>Service</th><th>Description (for GHL tags / pipelines)</th></tr></thead>
+    <tbody>
+      <tr><td>Wealth Building</td><td>Investment strategy, index funds, annuities, long-term wealth accumulation</td></tr>
+      <tr><td>Asset Protection</td><td>Risk assessment, personal &amp; business asset shielding, liability coverage</td></tr>
+      <tr><td>Insurance Planning</td><td>Term &amp; whole life, IUL, disability &amp; income protection</td></tr>
+      <tr><td>Budgeting &amp; Planning</td><td>Cash flow analysis, debt elimination, emergency fund planning</td></tr>
+      <tr><td>Retirement Planning</td><td>401(k)/IRA/Roth optimization, Social Security strategy, income distribution</td></tr>
+      <tr><td>Legacy Planning</td><td>Estate planning, generational wealth transfer, charitable giving</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div style="padding: 2rem 5rem; background: #142D48; text-align: center; color: rgba(235,244,255,0.4); font-size: 0.72rem; letter-spacing: 0.15em; text-transform: uppercase;">
+  All Financial Freedom — Brand Kit — allfinancialfreedom.com
+</div>
+
+</body>
+</html>
