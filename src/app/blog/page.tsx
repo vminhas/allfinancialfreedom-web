@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { getAllArticles, getAllCategories } from '@/lib/blog'
 import Footer from '@/components/Footer'
 import CTABanner from '@/components/CTABanner'
+import BlogSearch from '@/components/BlogSearch'
 
 export const metadata: Metadata = {
   title: 'Financial Insights | All Financial Freedom',
@@ -17,24 +18,55 @@ export const metadata: Metadata = {
   },
 }
 
+const PAGE_SIZE = 9
+
 export default function BlogPage({
   searchParams,
 }: {
-  searchParams: { category?: string }
+  searchParams: { category?: string; search?: string; page?: string }
 }) {
   const allArticles = getAllArticles()
   const categories = getAllCategories()
   const activeCategory = searchParams.category ?? 'All'
+  const searchQuery = (searchParams.search ?? '').toLowerCase().trim()
+  const currentPage = Math.max(1, parseInt(searchParams.page ?? '1', 10))
 
-  const filtered = activeCategory === 'All'
+  // Filter by category
+  let filtered = activeCategory === 'All'
     ? allArticles
     : allArticles.filter(a => a.category === activeCategory)
 
-  const featured = filtered[0]
-  const rest = filtered.slice(1)
+  // Filter by search
+  if (searchQuery) {
+    filtered = filtered.filter(a =>
+      a.title.toLowerCase().includes(searchQuery) ||
+      a.excerpt.toLowerCase().includes(searchQuery) ||
+      a.category.toLowerCase().includes(searchQuery) ||
+      (a.tags ?? []).some((t: string) => t.toLowerCase().includes(searchQuery))
+    )
+  }
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage = Math.min(currentPage, totalPages)
+
+  const pageArticles = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  const featured = safePage === 1 && !searchQuery ? pageArticles[0] : null
+  const rest = featured ? pageArticles.slice(1) : pageArticles
 
   const formatDate = (d: string) =>
     new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+
+  const buildUrl = (overrides: { page?: number; category?: string; search?: string }) => {
+    const params = new URLSearchParams()
+    const cat = overrides.category !== undefined ? overrides.category : activeCategory
+    const q = overrides.search !== undefined ? overrides.search : searchQuery
+    const p = overrides.page ?? safePage
+    if (cat && cat !== 'All') params.set('category', cat)
+    if (q) params.set('search', q)
+    if (p > 1) params.set('page', String(p))
+    const str = params.toString()
+    return `/blog${str ? `?${str}` : ''}`
+  }
 
   return (
     <main className="pt-20">
@@ -52,29 +84,36 @@ export default function BlogPage({
         </div>
       </section>
 
-      {/* FILTERS */}
+      {/* FILTERS + SEARCH BAR */}
       <div style={{ background: '#F5F9FF', borderBottom: '1px solid rgba(201,169,110,0.12)' }}>
-        <div className="flex gap-2 flex-wrap px-5 md:px-12 lg:px-20 py-4">
-          {['All', ...categories].map(cat => (
-            <Link
-              key={cat}
-              href={cat === 'All' ? '/blog' : `/blog?category=${encodeURIComponent(cat)}`}
-              style={{
-                fontSize: '0.68rem',
-                letterSpacing: '0.2em',
-                textTransform: 'uppercase',
-                fontWeight: 500,
-                padding: '0.4rem 1rem',
-                borderRadius: 2,
-                border: activeCategory === cat ? '1px solid #C9A96E' : '1px solid rgba(27,58,92,0.12)',
-                background: activeCategory === cat ? 'rgba(201,169,110,0.1)' : 'transparent',
-                color: activeCategory === cat ? '#C9A96E' : '#1B3A5C',
-                transition: 'all 0.2s',
-              }}
-            >
-              {cat}
-            </Link>
-          ))}
+        <div className="flex items-center gap-3 flex-wrap px-5 md:px-12 lg:px-20 py-4">
+          {/* Category filters */}
+          <div className="flex gap-2 flex-wrap flex-1">
+            {['All', ...categories].map(cat => (
+              <Link
+                key={cat}
+                href={buildUrl({ category: cat, page: 1 })}
+                style={{
+                  fontSize: '0.68rem',
+                  letterSpacing: '0.2em',
+                  textTransform: 'uppercase',
+                  fontWeight: 500,
+                  padding: '0.4rem 1rem',
+                  borderRadius: 2,
+                  border: activeCategory === cat ? '1px solid #C9A96E' : '1px solid rgba(27,58,92,0.12)',
+                  background: activeCategory === cat ? 'rgba(201,169,110,0.1)' : 'transparent',
+                  color: activeCategory === cat ? '#C9A96E' : '#1B3A5C',
+                  transition: 'all 0.2s',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {cat}
+              </Link>
+            ))}
+          </div>
+
+          {/* Search input */}
+          <BlogSearch initialValue={searchQuery} category={activeCategory} />
         </div>
       </div>
 
@@ -84,16 +123,29 @@ export default function BlogPage({
 
           {filtered.length === 0 ? (
             <div className="text-center py-20">
-              <p className="text-muted-blue">No articles in this category yet. Check back soon.</p>
+              <p style={{ color: '#6B8299', fontSize: '0.9rem' }}>
+                {searchQuery
+                  ? `No articles found for "${searchParams.search}". Try a different search.`
+                  : 'No articles in this category yet. Check back soon.'}
+              </p>
+              <Link href="/blog" style={{ display: 'inline-block', marginTop: 16, fontSize: '0.72rem', color: '#C9A96E', textDecoration: 'underline', textUnderlineOffset: 3 }}>
+                Clear filters
+              </Link>
             </div>
           ) : (
             <>
-              {/* FEATURED ARTICLE */}
+              {/* Search result count */}
+              {searchQuery && (
+                <p style={{ fontSize: '0.72rem', color: '#9BB0C4', marginBottom: '1.5rem', letterSpacing: '0.04em' }}>
+                  {filtered.length} result{filtered.length !== 1 ? 's' : ''} for &ldquo;{searchParams.search}&rdquo;
+                </p>
+              )}
+
+              {/* FEATURED ARTICLE — page 1, no search query */}
               {featured && (
                 <Link href={`/blog/${featured.slug}`} className="group block mb-12">
                   <div className="grid md:grid-cols-2 overflow-hidden rounded-sm"
                     style={{ border: '1px solid rgba(201,169,110,0.15)', boxShadow: '0 4px 24px rgba(20,45,72,0.07)' }}>
-                    {/* Image */}
                     <div className="relative overflow-hidden" style={{ minHeight: 320 }}>
                       {featured.coverImage ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -108,7 +160,6 @@ export default function BlogPage({
                       )}
                       <div className="absolute inset-0" style={{ background: 'linear-gradient(to right, transparent 70%, rgba(255,255,255,0.03))' }} />
                     </div>
-                    {/* Content */}
                     <div className="flex flex-col justify-center p-10 md:p-12" style={{ background: '#ffffff' }}>
                       <div className="flex items-center gap-3 mb-4">
                         <span style={{ fontSize: '0.6rem', letterSpacing: '0.22em', textTransform: 'uppercase', color: '#C9A96E', fontWeight: 600 }}>
@@ -126,7 +177,7 @@ export default function BlogPage({
                       <div className="flex items-center justify-between">
                         <span style={{ fontSize: '0.7rem', color: '#9BB0C4' }}>{formatDate(featured.date)}</span>
                         <span style={{ fontSize: '0.68rem', color: '#C9A96E', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 500 }}>
-                          Read Article →
+                          Read Article &rarr;
                         </span>
                       </div>
                     </div>
@@ -140,7 +191,6 @@ export default function BlogPage({
                   {rest.map(article => (
                     <Link key={article.slug} href={`/blog/${article.slug}`} className="group block">
                       <div className="insight-card flex flex-col h-full overflow-hidden rounded-sm">
-                        {/* Cover */}
                         <div className="relative overflow-hidden" style={{ height: 188 }}>
                           {article.coverImage ? (
                             // eslint-disable-next-line @next/next/no-img-element
@@ -156,7 +206,6 @@ export default function BlogPage({
                             </div>
                           )}
                         </div>
-                        {/* Body */}
                         <div className="flex flex-col flex-1 p-6">
                           <div className="flex items-center gap-2 mb-3">
                             <span style={{ fontSize: '0.58rem', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C9A96E', fontWeight: 600 }}>
@@ -177,13 +226,85 @@ export default function BlogPage({
                             style={{ borderTop: '1px solid rgba(201,169,110,0.1)' }}>
                             <span style={{ fontSize: '0.65rem', color: '#9BB0C4' }}>{formatDate(article.date)}</span>
                             <span style={{ fontSize: '0.62rem', color: '#C9A96E', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 500 }}>
-                              Read →
+                              Read &rarr;
                             </span>
                           </div>
                         </div>
                       </div>
                     </Link>
                   ))}
+                </div>
+              )}
+
+              {/* PAGINATION */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 mt-14">
+                  {/* Prev */}
+                  {safePage > 1 ? (
+                    <Link
+                      href={buildUrl({ page: safePage - 1 })}
+                      style={{
+                        padding: '0.45rem 1rem',
+                        fontSize: '0.68rem',
+                        letterSpacing: '0.1em',
+                        textTransform: 'uppercase',
+                        border: '1px solid rgba(27,58,92,0.18)',
+                        color: '#1B3A5C',
+                        borderRadius: 2,
+                      }}
+                    >
+                      &larr; Prev
+                    </Link>
+                  ) : (
+                    <span style={{ padding: '0.45rem 1rem', fontSize: '0.68rem', opacity: 0.25, border: '1px solid rgba(27,58,92,0.1)', borderRadius: 2, color: '#1B3A5C' }}>
+                      &larr; Prev
+                    </span>
+                  )}
+
+                  {/* Page numbers */}
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                    <Link
+                      key={p}
+                      href={buildUrl({ page: p })}
+                      style={{
+                        width: 36,
+                        height: 36,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.72rem',
+                        fontWeight: p === safePage ? 600 : 400,
+                        border: p === safePage ? '1px solid #C9A96E' : '1px solid rgba(27,58,92,0.12)',
+                        background: p === safePage ? 'rgba(201,169,110,0.1)' : 'transparent',
+                        color: p === safePage ? '#C9A96E' : '#1B3A5C',
+                        borderRadius: 2,
+                      }}
+                    >
+                      {p}
+                    </Link>
+                  ))}
+
+                  {/* Next */}
+                  {safePage < totalPages ? (
+                    <Link
+                      href={buildUrl({ page: safePage + 1 })}
+                      style={{
+                        padding: '0.45rem 1rem',
+                        fontSize: '0.68rem',
+                        letterSpacing: '0.1em',
+                        textTransform: 'uppercase',
+                        border: '1px solid rgba(27,58,92,0.18)',
+                        color: '#1B3A5C',
+                        borderRadius: 2,
+                      }}
+                    >
+                      Next &rarr;
+                    </Link>
+                  ) : (
+                    <span style={{ padding: '0.45rem 1rem', fontSize: '0.68rem', opacity: 0.25, border: '1px solid rgba(27,58,92,0.1)', borderRadius: 2, color: '#1B3A5C' }}>
+                      Next &rarr;
+                    </span>
+                  )}
                 </div>
               )}
             </>
