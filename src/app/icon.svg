@@ -1,0 +1,19 @@
+<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="64" height="64" rx="10" fill="#142D48"/>
+  <!-- Gold rule top -->
+  <rect x="8" y="6" width="48" height="2" rx="1" fill="#C9A96E" opacity="0.7"/>
+  <!-- AFF monogram -->
+  <text
+    x="32"
+    y="46"
+    font-family="Georgia, serif"
+    font-weight="300"
+    font-size="28"
+    fill="#ffffff"
+    text-anchor="middle"
+    letter-spacing="-1"
+  >AFF</text>
+  <!-- Gold rule bottom -->
+  <rect x="8" y="56" width="48" height="2" rx="1" fill="#C9A96E" opacity="0.7"/>
+</svg>
