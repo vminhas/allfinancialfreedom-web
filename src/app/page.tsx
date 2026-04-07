@@ -75,12 +75,26 @@ function HeroStats() {
 /* ─── Page ──────────────────────────────────────────────────── */
 export default function Home() {
   const openBooking = () => window.dispatchEvent(new CustomEvent('open-booking'))
+  const heroContentRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const applyNavOffset = () => {
+      const nav = document.querySelector('nav')
+      if (nav && heroContentRef.current) {
+        const navH = nav.getBoundingClientRect().height
+        heroContentRef.current.style.paddingTop = `${navH + 16}px`
+      }
+    }
+    applyNavOffset()
+    window.addEventListener('resize', applyNavOffset)
+    return () => window.removeEventListener('resize', applyNavOffset)
+  }, [])
 
   return (
     <main>
 
       {/* ── HERO ── */}
-      <section className="relative flex items-end md:items-center" style={{ height: '100svh', minHeight: 680, paddingTop: 'calc(5.5rem + env(safe-area-inset-top, 0px))', paddingBottom: '2rem' }}>
+      <section className="relative flex items-start" style={{ height: '100svh', minHeight: 680 }}>
         {/* Background with Ken Burns slow motion effect */}
         <div className="absolute inset-0 overflow-hidden">
           <div className="hero-bg-animate">
@@ -97,7 +111,7 @@ export default function Home() {
         </div>
 
         {/* Content */}
-        <div className="relative z-10 page-section w-full max-w-5xl mx-auto">
+        <div ref={heroContentRef} className="relative z-10 page-section w-full max-w-5xl mx-auto">
           <h1 className="font-serif font-light text-white mb-6"
             style={{ fontSize: 'clamp(2.6rem, 5vw, 4.8rem)', lineHeight: 1.08, maxWidth: '780px' }}>
             It&apos;s not just about money,<br />
