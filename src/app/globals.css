@@ -257,3 +257,10 @@
   .page-section { padding: 4rem 1.5rem; }
   nav { padding: 1rem 1.5rem !important; }
 }
+
+/* Instagram in-app browser + iOS safe area support */
+@supports (padding-top: env(safe-area-inset-top)) {
+  nav {
+    padding-top: env(safe-area-inset-top) !important;
+  }
+}

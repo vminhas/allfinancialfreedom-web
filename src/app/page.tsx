@@ -97,7 +97,7 @@ export default function Home() {
         </div>
 
         {/* Content */}
-        <div className="relative z-10 page-section w-full max-w-5xl mx-auto pt-20">
+        <div className="relative z-10 page-section w-full max-w-5xl mx-auto" style={{ paddingTop: 'calc(5rem + env(safe-area-inset-top, 0px))' }}>
           <h1 className="font-serif font-light text-white mb-6"
             style={{ fontSize: 'clamp(2.6rem, 5vw, 4.8rem)', lineHeight: 1.08, maxWidth: '780px' }}>
             It&apos;s not just about money,<br />

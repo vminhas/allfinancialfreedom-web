@@ -42,6 +42,7 @@ export default function Navbar() {
         backdropFilter: solid ? 'blur(16px)' : 'none',
         borderBottom: solid ? '1px solid rgba(201,169,110,0.15)' : '1px solid transparent',
         boxShadow: solid ? '0 2px 24px rgba(27,58,92,0.08)' : 'none',
+        paddingTop: 'env(safe-area-inset-top)',
       }}
     >
       {/* Gold top accent bar, visible on scroll */}
