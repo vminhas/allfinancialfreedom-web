@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   },
 }
 
-const PAGE_SIZE = 9
+const PAGE_SIZE = 10
 
 export default function BlogPage({
   searchParams,
