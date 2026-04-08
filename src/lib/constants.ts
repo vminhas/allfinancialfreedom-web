@@ -47,6 +47,7 @@ export const ASSOCIATES = [
   { name: 'Doug Morrison', initials: 'DM', specialty: 'Wealth Building', location: 'Dallas, TX', image: '/team/doug.jpg' },
   { name: 'Heather Cullum', initials: 'HC', specialty: 'Retirement Planning', location: 'Charlotte, NC', image: '/team/heather.jpg' },
   { name: 'Sam Yonce', initials: 'SY', specialty: 'Asset Protection', location: 'Phoenix, AZ', image: '/team/sam.jpg' },
+  { name: 'Sadie Grubb', initials: 'SG', specialty: 'Financial Planning', location: 'Centerville, IA', image: '/team/sadie.jpg' },
 ]
 
 export const GHL_JOIN_FORM_URL = '' // Add your GHL join/team-prospect form embed URL here
