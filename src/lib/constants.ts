@@ -43,7 +43,7 @@ export const DIRECTORS = [
 ]
 
 export const ASSOCIATES = [
-  { name: 'Kiirah Washington', initials: 'KW', specialty: 'Insurance Planning', location: 'Atlanta, GA', image: '/team/kiirah.jpg' },
+  { name: 'Kiirah Washington', initials: 'KW', specialty: 'Insurance Planning', location: 'Houston, TX', image: '/team/kiirah.jpg' },
   { name: 'Doug Morrison', initials: 'DM', specialty: 'Wealth Building', location: 'Dallas, TX', image: '/team/doug.jpg' },
   { name: 'Heather Cullum', initials: 'HC', specialty: 'Retirement Planning', location: 'Charlotte, NC', image: '/team/heather.jpg' },
   { name: 'Sam Yonce', initials: 'SY', specialty: 'Asset Protection', location: 'Phoenix, AZ', image: '/team/sam.jpg' },
