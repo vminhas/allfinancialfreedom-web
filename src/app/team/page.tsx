@@ -118,7 +118,18 @@ export default function Team() {
                 <p className="text-xs tracking-wide mb-3" style={{ color: '#6B8299' }}>
                   {member.credentials}
                 </p>
-                <p className="text-sm leading-relaxed text-muted-blue">{member.bio}</p>
+                <p className="text-sm leading-relaxed text-muted-blue mb-4">{member.bio}</p>
+                {member.calendly && (
+                  <Link
+                    href={member.calendly}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block text-xs tracking-widest uppercase font-medium"
+                    style={{ color: '#C9A96E', borderBottom: '1px solid rgba(201,169,110,0.4)', paddingBottom: 2 }}
+                  >
+                    Book a Call
+                  </Link>
+                )}
               </div>
             </div>
           ))}
@@ -163,6 +174,17 @@ export default function Team() {
                 <div className="text-xs tracking-wider uppercase mb-1" style={{ color: '#C9A96E' }}>Senior Associate</div>
                 <div className="text-xs" style={{ color: '#6B8299' }}>{assoc.specialty}</div>
                 <div className="text-xs mt-0.5" style={{ color: 'rgba(107,130,153,0.65)' }}>{assoc.location}</div>
+                {assoc.calendly && (
+                  <Link
+                    href={assoc.calendly}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block text-xs tracking-widest uppercase font-medium mt-3"
+                    style={{ color: '#C9A96E', borderBottom: '1px solid rgba(201,169,110,0.4)', paddingBottom: 2 }}
+                  >
+                    Book a Call
+                  </Link>
+                )}
               </div>
             </div>
           ))}
