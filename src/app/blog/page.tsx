@@ -18,7 +18,8 @@ export const metadata: Metadata = {
   },
 }
 
-const PAGE_SIZE = 10
+const PAGE_1_SIZE = 10
+const PAGE_N_SIZE = 9
 
 export default function BlogPage({
   searchParams,
@@ -46,10 +47,15 @@ export default function BlogPage({
     )
   }
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  // Page 1 shows 10 articles; pages 2+ show 9 each (fills a clean 3-column grid)
+  const totalPages = Math.max(1, filtered.length <= PAGE_1_SIZE
+    ? 1
+    : 1 + Math.ceil((filtered.length - PAGE_1_SIZE) / PAGE_N_SIZE))
   const safePage = Math.min(currentPage, totalPages)
 
-  const pageArticles = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  const startIndex = safePage === 1 ? 0 : PAGE_1_SIZE + (safePage - 2) * PAGE_N_SIZE
+  const pageSize = safePage === 1 ? PAGE_1_SIZE : PAGE_N_SIZE
+  const pageArticles = filtered.slice(startIndex, startIndex + pageSize)
   const featured = safePage === 1 && !searchQuery ? pageArticles[0] : null
   const rest = featured ? pageArticles.slice(1) : pageArticles
 
