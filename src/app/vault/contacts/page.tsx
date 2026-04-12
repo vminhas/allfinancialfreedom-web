@@ -17,6 +17,19 @@ interface Contact {
   createdAt: string
 }
 
+function normalizeLicense(raw?: string): string {
+  if (!raw) return '—'
+  const r = raw.toLowerCase()
+  if (r.includes('accident') && r.includes('health') && r.includes('life')) return 'Life & Health'
+  if (r.includes('accident') && r.includes('health')) return 'Health'
+  if (r === 'life') return 'Life'
+  if (r.includes('life')) return 'Life'
+  if (r.includes('property') || r.includes('casualty') || r === 'p&c') return 'P&C'
+  if (r.includes('variable')) return 'Variable'
+  if (r.includes('health')) return 'Health'
+  return raw
+}
+
 const STATUS_COLORS: Record<string, string> = {
   pending: '#6B8299',
   sent: '#C9A96E',
@@ -148,7 +161,7 @@ export default function ContactsPage() {
                   {c.wornOut && <span style={{ fontSize: 9, color: '#f59e0b', letterSpacing: '0.1em', textTransform: 'uppercase', border: '1px solid rgba(245,158,11,0.3)', padding: '1px 4px', borderRadius: 2 }}>soft</span>}
                 </td>
                 <td style={{ padding: '10px 16px', color: '#9BB0C4', fontSize: 12 }}>{c.email}</td>
-                <td style={{ padding: '10px 16px', color: '#9BB0C4', fontSize: 12 }}>{c.licenseType ?? '—'}</td>
+                <td style={{ padding: '10px 16px', color: '#9BB0C4', fontSize: 12 }}>{normalizeLicense(c.licenseType)}</td>
                 <td style={{ padding: '10px 16px', color: '#9BB0C4', fontSize: 12 }}>{c.currentAgency ?? '—'}</td>
                 <td style={{ padding: '10px 16px', color: '#9BB0C4', fontSize: 12 }}>{c.state ?? '—'}</td>
                 <td style={{ padding: '10px 16px' }}>

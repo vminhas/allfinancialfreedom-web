@@ -24,10 +24,23 @@ interface SavedTemplate extends Template {
   savedAt: string
 }
 
+function normalizeLicense(raw?: string): string {
+  if (!raw) return 'insurance'
+  const r = raw.toLowerCase()
+  if (r.includes('accident') && r.includes('health') && r.includes('life')) return 'life and health insurance'
+  if (r.includes('accident') && r.includes('health')) return 'health insurance'
+  if (r === 'life') return 'life insurance'
+  if (r.includes('life')) return 'life insurance'
+  if (r.includes('property') || r.includes('casualty') || r === 'p&c') return 'property and casualty insurance'
+  if (r.includes('variable')) return 'variable annuity'
+  if (r.includes('health')) return 'health insurance'
+  return raw
+}
+
 function applyTokens(text: string, contact: ContactOption): string {
   return text
     .replace(/\{\{firstName\}\}/g, contact.firstName)
-    .replace(/\{\{licenseType\}\}/g, contact.licenseType || 'insurance')
+    .replace(/\{\{licenseType\}\}/g, normalizeLicense(contact.licenseType))
     .replace(/\{\{state\}\}/g, contact.state || 'your state')
     .replace(/\{\{currentAgency\}\}/g, contact.currentAgency || 'your current agency')
 }
@@ -228,7 +241,7 @@ export default function OutreachPage() {
                       {c.wornOut && <span style={{ fontSize: 9, color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)', padding: '0 4px', borderRadius: 2 }}>soft</span>}
                     </p>
                     <p style={{ color: '#6B8299', fontSize: 11, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {c.licenseType}{c.state ? ` · ${c.state}` : ''}
+                      {normalizeLicense(c.licenseType)}{c.state ? ` · ${c.state}` : ''}
                     </p>
                   </div>
                 </label>
