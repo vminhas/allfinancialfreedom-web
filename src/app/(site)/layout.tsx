@@ -14,7 +14,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
         src="https://widgets.leadconnectorhq.com/loader.js"
         data-resources-url="https://widgets.leadconnectorhq.com/chat-widget/loader.js"
         data-widget-id="69d2cc18a3eb88e277500144"
-        strategy="lazyOnload"
+        strategy="afterInteractive"
       />
       <Script
         src="https://links.allfinancialfreedom.com/js/external-tracking.js"
