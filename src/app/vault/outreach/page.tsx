@@ -231,8 +231,22 @@ export default function OutreachPage() {
       </div>
 
       {sentCount !== null && (
-        <div style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 6, padding: '16px 24px', marginBottom: 24 }}>
-          <p style={{ color: '#4ade80', margin: 0, fontSize: 14 }}>✓ {sentCount} emails sent successfully.</p>
+        <div style={{ background: 'rgba(74,222,128,0.06)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 6, padding: '20px 24px', marginBottom: 24 }}>
+          <p style={{ color: '#4ade80', margin: '0 0 12px', fontSize: 14, fontWeight: 600 }}>✓ {sentCount} email{sentCount !== 1 ? 's' : ''} sent successfully.</p>
+          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              <span style={{ color: '#C9A96E', fontSize: 12, marginTop: 1 }}>1</span>
+              <p style={{ color: '#9BB0C4', fontSize: 12, margin: 0, lineHeight: 1.6 }}>Contacts moved to <strong style={{ color: '#ffffff' }}>Contacted</strong> in your GHL pipeline.</p>
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              <span style={{ color: '#C9A96E', fontSize: 12, marginTop: 1 }}>2</span>
+              <p style={{ color: '#9BB0C4', fontSize: 12, margin: 0, lineHeight: 1.6 }}>Monitor replies in <strong style={{ color: '#ffffff' }}>GHL → Conversations</strong>. Move contacts to <strong style={{ color: '#ffffff' }}>Responded</strong> when they reply.</p>
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              <span style={{ color: '#C9A96E', fontSize: 12, marginTop: 1 }}>3</span>
+              <p style={{ color: '#9BB0C4', fontSize: 12, margin: 0, lineHeight: 1.6 }}>No reply after 3-5 days? Come back here and send a follow-up to the same contacts.</p>
+            </div>
+          </div>
         </div>
       )}
 
