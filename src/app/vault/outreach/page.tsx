@@ -12,7 +12,7 @@ interface ContactOption {
   state?: string
   wornOut: boolean
   importJobId?: string
-  _count?: { outreachMessages: number }
+  _count?: { messages: number }
 }
 
 interface Template {
@@ -294,9 +294,9 @@ export default function OutreachPage() {
                     <p style={{ color: '#ffffff', fontSize: 12, margin: '0 0 1px', display: 'flex', gap: 6, alignItems: 'center' }}>
                       {c.firstName} {c.lastName}
                       {c.wornOut && <span style={{ fontSize: 9, color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)', padding: '0 4px', borderRadius: 2 }}>soft</span>}
-                      {(c._count?.outreachMessages ?? 0) > 0 && (
-                        <span title={`${c._count?.outreachMessages} email${c._count?.outreachMessages !== 1 ? 's' : ''} sent`} style={{ fontSize: 9, color: '#C9A96E', border: '1px solid rgba(201,169,110,0.3)', padding: '0 4px', borderRadius: 2 }}>
-                          F{c._count?.outreachMessages}
+                      {(c._count?.messages ?? 0) > 0 && (
+                        <span title={`${c._count?.messages} email${c._count?.messages !== 1 ? 's' : ''} sent`} style={{ fontSize: 9, color: '#C9A96E', border: '1px solid rgba(201,169,110,0.3)', padding: '0 4px', borderRadius: 2 }}>
+                          F{c._count?.messages}
                         </span>
                       )}
                     </p>

@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
         ghlContactId: true,
         importJobId: true,
         createdAt: true,
-        _count: { select: { outreachMessages: true } },
+        _count: { select: { messages: true } },
       },
     }),
     db.contact.count({ where }),
@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
 
   // Apply followUpCount filter after fetching (Prisma doesn't support filtering by relation count without raw query)
   const filtered = followUpCount !== null
-    ? contacts.filter(c => c._count.outreachMessages === parseInt(followUpCount, 10))
+    ? contacts.filter(c => c._count.messages === parseInt(followUpCount, 10))
     : contacts
 
   return NextResponse.json({ contacts: filtered, total, page, limit })

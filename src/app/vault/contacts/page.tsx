@@ -15,7 +15,7 @@ interface Contact {
   outreachStatus?: string
   ghlContactId?: string
   createdAt: string
-  _count?: { outreachMessages: number }
+  _count?: { messages: number }
 }
 
 function normalizeLicense(raw?: string): string {
@@ -179,8 +179,8 @@ export default function ContactsPage() {
                   </span>
                 </td>
                 <td style={{ padding: '10px 16px' }}>
-                  {(c._count?.outreachMessages ?? 0) > 0 ? (
-                    <span style={{ fontSize: 11, color: '#C9A96E', fontWeight: 600 }}>{c._count?.outreachMessages}</span>
+                  {(c._count?.messages ?? 0) > 0 ? (
+                    <span style={{ fontSize: 11, color: '#C9A96E', fontWeight: 600 }}>{c._count?.messages}</span>
                   ) : (
                     <span style={{ color: '#4B5563', fontSize: 11 }}>—</span>
                   )}
