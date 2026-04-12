@@ -1,10 +1,7 @@
-name: Auto-Publish Scheduled Article
+name: Publish Article
 
 on:
-  schedule:
-    # Runs every Tuesday and Friday at 9am ET (1pm UTC)
-    - cron: '0 13 * * 2,5'
-  workflow_dispatch: # Also allows manual trigger from GitHub Actions tab
+  workflow_dispatch: # Manual trigger from GitHub Actions tab — publish on demand
 
 jobs:
   publish:
