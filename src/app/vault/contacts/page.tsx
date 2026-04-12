@@ -33,6 +33,8 @@ export default function ContactsPage() {
   const [licenseFilter, setLicenseFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [wornFilter, setWornFilter] = useState('')
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [deleting, setDeleting] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -40,7 +42,6 @@ export default function ContactsPage() {
     if (licenseFilter) params.set('licenseType', licenseFilter)
     if (statusFilter) params.set('outreachStatus', statusFilter)
     if (wornFilter) params.set('wornOut', wornFilter)
-
     const res = await fetch(`/api/admin/contacts?${params}`)
     const data = await res.json()
     setContacts(data.contacts ?? [])
@@ -52,6 +53,34 @@ export default function ContactsPage() {
 
   const totalPages = Math.ceil(total / 50)
 
+  function toggle(id: string) {
+    setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+
+  function toggleAll() {
+    if (selected.size === contacts.length) setSelected(new Set())
+    else setSelected(new Set(contacts.map(c => c.id)))
+  }
+
+  async function handleDelete() {
+    if (selected.size === 0) return
+    if (!confirm(`Delete ${selected.size} contact${selected.size !== 1 ? 's' : ''}? This cannot be undone.`)) return
+    setDeleting(true)
+    await fetch('/api/admin/contacts/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: Array.from(selected) }),
+    })
+    setSelected(new Set())
+    await load()
+    setDeleting(false)
+  }
+
+  const selectStyle = {
+    padding: '8px 12px', background: '#142D48', border: '1px solid rgba(201,169,110,0.2)',
+    borderRadius: 4, color: '#9BB0C4', fontSize: 12, cursor: 'pointer', outline: 'none',
+  }
+
   return (
     <div>
       <div style={{ marginBottom: 28, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
@@ -61,24 +90,34 @@ export default function ContactsPage() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-        {[
-          { label: 'License Type', value: licenseFilter, onChange: setLicenseFilter, options: ['', 'life', 'health', 'p&c', 'variable', 'multiple'] },
-          { label: 'Status', value: statusFilter, onChange: setStatusFilter, options: ['', 'pending', 'sent', 'responded', 'opted-out'] },
-          { label: 'Lead Type', value: wornFilter, onChange: setWornFilter, options: [{ v: '', l: 'All' }, { v: 'false', l: 'Fresh' }, { v: 'true', l: 'Worn Out' }] },
-        ].map(f => (
-          <select key={f.label} value={f.value} onChange={e => { f.onChange(e.target.value); setPage(1) }} style={{
-            padding: '8px 12px', background: '#142D48', border: '1px solid rgba(201,169,110,0.2)',
-            borderRadius: 4, color: '#9BB0C4', fontSize: 12, cursor: 'pointer', outline: 'none',
+      {/* Filters + delete bar */}
+      <div style={{ display: 'flex', gap: 12, marginBottom: 20, alignItems: 'center', flexWrap: 'wrap' }}>
+        <select value={licenseFilter} onChange={e => { setLicenseFilter(e.target.value); setPage(1) }} style={selectStyle}>
+          {['', 'life', 'health', 'p&c', 'variable', 'multiple'].map(o => (
+            <option key={o} value={o}>{o || 'All License Types'}</option>
+          ))}
+        </select>
+        <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1) }} style={selectStyle}>
+          {['', 'pending', 'sent', 'responded', 'opted-out'].map(o => (
+            <option key={o} value={o}>{o || 'All Statuses'}</option>
+          ))}
+        </select>
+        <select value={wornFilter} onChange={e => { setWornFilter(e.target.value); setPage(1) }} style={selectStyle}>
+          {[{ v: '', l: 'All Leads' }, { v: 'false', l: 'Fresh' }, { v: 'true', l: 'Worn Out' }].map(o => (
+            <option key={o.v} value={o.v}>{o.l}</option>
+          ))}
+        </select>
+
+        {selected.size > 0 && (
+          <button onClick={handleDelete} disabled={deleting} style={{
+            marginLeft: 'auto', padding: '8px 20px', background: 'rgba(248,113,113,0.1)',
+            border: '1px solid rgba(248,113,113,0.4)', borderRadius: 4, color: '#f87171',
+            fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+            cursor: deleting ? 'not-allowed' : 'pointer',
           }}>
-            {f.options.map(o => {
-              const v = typeof o === 'string' ? o : o.v
-              const l = typeof o === 'string' ? (o || `All ${f.label}s`) : o.l
-              return <option key={v} value={v}>{l}</option>
-            })}
-          </select>
-        ))}
+            {deleting ? 'Deleting...' : `Delete ${selected.size} selected`}
+          </button>
+        )}
       </div>
 
       {/* Table */}
@@ -86,42 +125,39 @@ export default function ContactsPage() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              <th style={{ padding: '12px 16px', width: 32 }}>
+                <input type="checkbox" checked={selected.size === contacts.length && contacts.length > 0} onChange={toggleAll} />
+              </th>
               {['Name', 'Email', 'License', 'Agency', 'State', 'Status', 'GHL'].map(h => (
-                <th key={h} style={{ padding: '12px 20px', textAlign: 'left', color: '#6B8299', fontSize: 11, fontWeight: 500, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{h}</th>
+                <th key={h} style={{ padding: '12px 16px', textAlign: 'left', color: '#6B8299', fontSize: 11, fontWeight: 500, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr>
-                <td colSpan={7} style={{ padding: '32px', textAlign: 'center', color: '#6B8299', fontSize: 13 }}>Loading...</td>
-              </tr>
+              <tr><td colSpan={8} style={{ padding: '32px', textAlign: 'center', color: '#6B8299', fontSize: 13 }}>Loading...</td></tr>
             ) : contacts.length === 0 ? (
-              <tr>
-                <td colSpan={7} style={{ padding: '32px', textAlign: 'center', color: '#6B8299', fontSize: 13 }}>No contacts match your filters.</td>
-              </tr>
+              <tr><td colSpan={8} style={{ padding: '32px', textAlign: 'center', color: '#6B8299', fontSize: 13 }}>No contacts match your filters.</td></tr>
             ) : contacts.map(c => (
-              <tr key={c.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                <td style={{ padding: '12px 20px' }}>
+              <tr key={c.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: selected.has(c.id) ? 'rgba(248,113,113,0.04)' : 'transparent' }}>
+                <td style={{ padding: '10px 16px' }}>
+                  <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggle(c.id)} />
+                </td>
+                <td style={{ padding: '10px 16px' }}>
                   <p style={{ color: '#ffffff', fontSize: 13, margin: '0 0 2px' }}>{c.firstName} {c.lastName}</p>
                   {c.wornOut && <span style={{ fontSize: 9, color: '#f59e0b', letterSpacing: '0.1em', textTransform: 'uppercase', border: '1px solid rgba(245,158,11,0.3)', padding: '1px 4px', borderRadius: 2 }}>soft</span>}
                 </td>
-                <td style={{ padding: '12px 20px', color: '#9BB0C4', fontSize: 12 }}>{c.email}</td>
-                <td style={{ padding: '12px 20px', color: '#9BB0C4', fontSize: 12 }}>{c.licenseType ?? '—'}</td>
-                <td style={{ padding: '12px 20px', color: '#9BB0C4', fontSize: 12 }}>{c.currentAgency ?? '—'}</td>
-                <td style={{ padding: '12px 20px', color: '#9BB0C4', fontSize: 12 }}>{c.state ?? '—'}</td>
-                <td style={{ padding: '12px 20px' }}>
-                  <span style={{
-                    fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase',
-                    color: STATUS_COLORS[c.outreachStatus ?? 'pending'] ?? '#6B8299',
-                  }}>
+                <td style={{ padding: '10px 16px', color: '#9BB0C4', fontSize: 12 }}>{c.email}</td>
+                <td style={{ padding: '10px 16px', color: '#9BB0C4', fontSize: 12 }}>{c.licenseType ?? '—'}</td>
+                <td style={{ padding: '10px 16px', color: '#9BB0C4', fontSize: 12 }}>{c.currentAgency ?? '—'}</td>
+                <td style={{ padding: '10px 16px', color: '#9BB0C4', fontSize: 12 }}>{c.state ?? '—'}</td>
+                <td style={{ padding: '10px 16px' }}>
+                  <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: STATUS_COLORS[c.outreachStatus ?? 'pending'] ?? '#6B8299' }}>
                     {c.outreachStatus ?? 'pending'}
                   </span>
                 </td>
-                <td style={{ padding: '12px 20px' }}>
-                  {c.ghlContactId
-                    ? <span style={{ color: '#4ade80', fontSize: 11 }}>✓</span>
-                    : <span style={{ color: '#f87171', fontSize: 11 }}>—</span>}
+                <td style={{ padding: '10px 16px' }}>
+                  {c.ghlContactId ? <span style={{ color: '#4ade80', fontSize: 11 }}>✓</span> : <span style={{ color: '#f87171', fontSize: 11 }}>—</span>}
                 </td>
               </tr>
             ))}
@@ -137,9 +173,7 @@ export default function ContactsPage() {
               width: 32, height: 32, background: p === page ? '#C9A96E' : '#142D48',
               color: p === page ? '#142D48' : '#6B8299', border: '1px solid rgba(201,169,110,0.2)',
               borderRadius: 4, fontSize: 12, cursor: 'pointer', fontWeight: p === page ? 700 : 400,
-            }}>
-              {p}
-            </button>
+            }}>{p}</button>
           ))}
         </div>
       )}
