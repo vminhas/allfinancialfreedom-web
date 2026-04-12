@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 
 function ApplicationForm({ onSuccess }: { onSuccess: () => void }) {
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', licensed: '', message: '' })
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', licensed: '', message: '' })
   const [status, setStatus] = useState<'idle' | 'sending' | 'error'>('idle')
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
@@ -51,10 +51,6 @@ function ApplicationForm({ onSuccess }: { onSuccess: () => void }) {
       <div>
         <label style={labelStyle}>Email *</label>
         <input required type="email" style={inputStyle} value={form.email} onChange={e => set('email', e.target.value)} placeholder="your@email.com" />
-      </div>
-      <div>
-        <label style={labelStyle}>Phone *</label>
-        <input required type="tel" style={inputStyle} value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="(555) 000-0000" />
       </div>
       <div>
         <label style={labelStyle}>Are you currently licensed?</label>
@@ -148,8 +144,33 @@ export default function JoinModal() {
               <p style={{ color: 'rgba(235,244,255,0.55)', fontSize: '0.9rem', lineHeight: 1.7, marginBottom: '1.5rem' }}>
                 We review every application personally. Expect to hear from us within 24-48 hours to schedule your discovery call.
               </p>
-              <button onClick={() => setOpen(false)} className="btn-gold" style={{ justifyContent: 'center' }}>
-                Close
+              <div style={{
+                background: 'rgba(201,169,110,0.08)', border: '1px solid rgba(201,169,110,0.25)',
+                borderRadius: 4, padding: '1.2rem 1.4rem', marginBottom: '1.5rem', textAlign: 'left',
+              }}>
+                <p style={{ color: '#C9A96E', fontSize: '0.65rem', letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 600, margin: '0 0 6px' }}>One more step</p>
+                <p style={{ color: 'rgba(235,244,255,0.7)', fontSize: '0.85rem', lineHeight: 1.6, margin: 0 }}>
+                  Share your phone number so we can reach you directly. Use the chat bubble in the bottom-right corner of this page to send it over.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setOpen(false)
+                  setTimeout(() => {
+                    const btn = document.querySelector<HTMLElement>('[data-widget-id] button, .chat-widget-button, #chat-widget-minimized')
+                    btn?.click()
+                  }, 300)
+                }}
+                className="btn-gold"
+                style={{ justifyContent: 'center', width: '100%', marginBottom: '0.75rem' }}
+              >
+                Open Chat
+              </button>
+              <button onClick={() => setOpen(false)} style={{
+                background: 'none', border: 'none', color: 'rgba(235,244,255,0.3)',
+                fontSize: '0.8rem', cursor: 'pointer', padding: '0.25rem',
+              }}>
+                Skip for now
               </button>
             </div>
           ) : (

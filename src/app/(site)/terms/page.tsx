@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   description: 'Terms of use for the All Financial Freedom website and services.',
 }
 
-const lastUpdated = 'April 1, 2026'
+const lastUpdated = 'April 12, 2026'
 
 export default function TermsPage() {
   return (
@@ -68,12 +68,24 @@ export default function TermsPage() {
             These Terms shall be governed by and construed in accordance with the laws of the United States and the state in which All Financial Freedom is domiciled, without regard to conflict of law principles.
           </p>
 
-          <h2 className="font-serif text-xl text-navy mb-3 mt-8">9. Changes to These Terms</h2>
+          <h2 className="font-serif text-xl text-navy mb-3 mt-8">9. Text Messaging</h2>
+          <p className="mb-4">
+            By providing your mobile phone number through our website chat widget, you consent to receive text messages from All Financial Freedom related to your inquiry or service request. These messages may include responses to support requests, appointment coordination, and follow-up communications.
+          </p>
+          <ul className="space-y-2 mb-6 ml-4">
+            <li className="flex gap-2"><span style={{ color: '#C9A96E', flexShrink: 0 }}>→</span><span>Message frequency varies based on your interactions with us.</span></li>
+            <li className="flex gap-2"><span style={{ color: '#C9A96E', flexShrink: 0 }}>→</span><span>Message and data rates may apply.</span></li>
+            <li className="flex gap-2"><span style={{ color: '#C9A96E', flexShrink: 0 }}>→</span><span>Text <strong>STOP</strong> at any time to opt out of text messages.</span></li>
+            <li className="flex gap-2"><span style={{ color: '#C9A96E', flexShrink: 0 }}>→</span><span>Text <strong>HELP</strong> for assistance or contact us at contact@allfinancialfreedom.com.</span></li>
+            <li className="flex gap-2"><span style={{ color: '#C9A96E', flexShrink: 0 }}>→</span><span>We do not share your phone number with third parties for marketing purposes.</span></li>
+          </ul>
+
+          <h2 className="font-serif text-xl text-navy mb-3 mt-8">10. Changes to These Terms</h2>
           <p className="mb-6">
             We reserve the right to modify these Terms at any time. Changes will be posted on this page with an updated &quot;Last Updated&quot; date. Continued use of the Site following any changes constitutes acceptance of the revised Terms.
           </p>
 
-          <h2 className="font-serif text-xl text-navy mb-3 mt-8">10. Contact</h2>
+          <h2 className="font-serif text-xl text-navy mb-3 mt-8">11. Contact</h2>
           <p className="mb-6">
             Questions about these Terms? Contact us at:<br />
             <strong>All Financial Freedom</strong><br />

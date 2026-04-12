@@ -4,9 +4,9 @@ import { getSetting } from '@/lib/settings'
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const { firstName, lastName, email, phone, licensed, pathway, message } = body
+  const { firstName, lastName, email, licensed, pathway, message } = body
 
-  if (!firstName || !lastName || !email || !phone) {
+  if (!firstName || !lastName || !email) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
@@ -30,7 +30,6 @@ export async function POST(req: NextRequest) {
         firstName,
         lastName,
         email,
-        phone,
         source: 'Join Form',
         tags: ['join-applicant', licensed === 'yes' ? 'licensed' : 'unlicensed'],
         customFields: [
