@@ -57,6 +57,9 @@ export default function OutreachPage() {
   const [sending, setSending] = useState(false)
   const [savedTemplates, setSavedTemplates] = useState<SavedTemplate[]>([])
   const [saving, setSaving] = useState(false)
+  const [testEmail, setTestEmail] = useState('')
+  const [testSending, setTestSending] = useState(false)
+  const [testMsg, setTestMsg] = useState<string | null>(null)
   const [sentCount, setSentCount] = useState<number | null>(null)
   const [advanceStage, setAdvanceStage] = useState(true)
   const [previewContact, setPreviewContact] = useState<ContactOption | null>(null)
@@ -153,6 +156,38 @@ export default function OutreachPage() {
   function selectTemplate(i: number) {
     setSelectedTemplate(i)
     setEditedTemplate({ ...templates[i] })
+  }
+
+  async function handleTestSend() {
+    if (!editedTemplate || !testEmail) return
+    setTestSending(true)
+    setTestMsg(null)
+    const mockContact: ContactOption = {
+      id: 'test',
+      firstName: 'Test',
+      lastName: 'User',
+      email: testEmail,
+      licenseType: 'Life',
+      state: 'TX',
+      currentAgency: 'State Farm',
+      wornOut: false,
+    }
+    const res = await fetch('/api/admin/send-outreach', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [{
+          contactId: 'test-preview',
+          subject: applyTokens(editedTemplate.subject, mockContact),
+          body: applyTokens(editedTemplate.body, mockContact),
+          testEmail,
+        }],
+        testMode: true,
+      }),
+    })
+    const data = await res.json()
+    setTestMsg(data.ok ? `Test sent to ${testEmail}` : `Error: ${data.error ?? 'Failed'}`)
+    setTestSending(false)
   }
 
   async function handleSend() {
@@ -380,6 +415,33 @@ export default function OutreachPage() {
                       </div>
                     </div>
                   )}
+
+                  {/* Test send */}
+                  <div style={{ background: '#0C1E30', borderRadius: 6, border: '1px solid rgba(255,255,255,0.06)', padding: '14px 18px' }}>
+                    <p style={{ color: '#6B8299', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 600, margin: '0 0 10px' }}>Send Test Email</p>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input
+                        type="email"
+                        value={testEmail}
+                        onChange={e => { setTestEmail(e.target.value); setTestMsg(null) }}
+                        placeholder="your@email.com"
+                        style={{ flex: 1, padding: '8px 12px', background: '#142D48', border: '1px solid rgba(201,169,110,0.2)', borderRadius: 4, color: '#ffffff', fontSize: 12, outline: 'none' }}
+                      />
+                      <button
+                        onClick={handleTestSend}
+                        disabled={testSending || !testEmail}
+                        style={{
+                          padding: '8px 16px', background: 'transparent', color: '#C9A96E',
+                          border: '1px solid rgba(201,169,110,0.4)', borderRadius: 4, fontSize: 11,
+                          fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                          cursor: testEmail && !testSending ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {testSending ? 'Sending...' : 'Send Test'}
+                      </button>
+                    </div>
+                    {testMsg && <p style={{ margin: '8px 0 0', fontSize: 12, color: testMsg.startsWith('Error') ? '#f87171' : '#4ade80' }}>{testMsg}</p>}
+                  </div>
 
                   {/* Send bar */}
                   <div style={{ background: '#142D48', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16 }}>

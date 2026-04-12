@@ -6,11 +6,12 @@ import { getGhlConfig, sendGhlEmail } from '@/lib/ghl'
 import { getSetting } from '@/lib/settings'
 
 interface MessageToSend {
-  contactId: string   // local DB contact id
+  contactId: string
   subject: string
-  body: string        // plain text from Claude
+  body: string
   inputTokens?: number
   outputTokens?: number
+  testEmail?: string  // if set, send to this address instead (test mode)
 }
 
 function wrapInBrandedHtml(firstName: string, body: string, bookingUrl: string, email = ''): string {
@@ -48,9 +49,10 @@ export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { messages, advanceStage } = await req.json() as {
+  const { messages, advanceStage, testMode } = await req.json() as {
     messages: MessageToSend[]
     advanceStage?: boolean
+    testMode?: boolean
   }
 
   if (!messages || messages.length === 0) {
@@ -66,6 +68,31 @@ export async function POST(req: NextRequest) {
 
   for (const msg of messages) {
     try {
+      // Test mode: send directly to testEmail without looking up a real contact
+      if (testMode && msg.testEmail) {
+        const html = wrapInBrandedHtml('Test', msg.body, prophogBookingUrl, msg.testEmail)
+        const headers = {
+          'Authorization': `Bearer ${config.apiKey}`,
+          'Version': '2021-07-28',
+          'Content-Type': 'application/json',
+        }
+        await fetch('https://services.leadconnectorhq.com/conversations/messages', {
+          method: 'POST', headers,
+          body: JSON.stringify({
+            type: 'Email',
+            contactId: 'test',
+            emailFrom: 'vick@allfinancialfreedom.com',
+            emailFromName: 'Vick Minhas',
+            emailTo: msg.testEmail,
+            subject: `[TEST] ${msg.subject}`,
+            emailSubject: `[TEST] ${msg.subject}`,
+            html,
+          }),
+        })
+        sent++
+        continue
+      }
+
       const contact = await db.contact.findUnique({ where: { id: msg.contactId } })
       if (!contact || !contact.email) {
         errors.push(`Contact ${msg.contactId}: not found`)
