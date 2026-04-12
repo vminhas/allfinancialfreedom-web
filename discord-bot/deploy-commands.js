@@ -8,9 +8,15 @@ const { GUILD_ID } = require('./config');
 const commands = [
   new SlashCommandBuilder()
     .setName('announce')
-    .setDescription('Post a branded announcement to #announcements')
+    .setDescription('Post a branded AFF announcement to any channel')
     .addStringOption(opt =>
       opt.setName('message').setDescription('The announcement text').setRequired(true)
+    )
+    .addChannelOption(opt =>
+      opt.setName('channel').setDescription('Channel to post in (defaults to current channel)').setRequired(false)
+    )
+    .addBooleanOption(opt =>
+      opt.setName('ping').setDescription('Ping @everyone? (default: false)').setRequired(false)
     ),
 
   new SlashCommandBuilder()

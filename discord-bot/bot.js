@@ -160,7 +160,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     const message = interaction.options.getString('message');
-    const channel = interaction.guild.channels.cache.get(CHANNELS.ANNOUNCEMENTS);
+    const targetChannel = interaction.options.getChannel('channel') || interaction.channel;
+    const pingEveryone = interaction.options.getBoolean('ping') ?? false;
 
     const embed = new EmbedBuilder()
       .setColor(COLORS.NAVY)
@@ -169,8 +170,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
       .setFooter({ text: `All Financial Freedom · Posted by ${interaction.user.username}` })
       .setTimestamp();
 
-    await channel.send({ content: '@everyone', embeds: [embed] });
-    await interaction.reply({ content: 'Announcement posted!', ephemeral: true });
+    await targetChannel.send({ content: pingEveryone ? '@everyone' : '', embeds: [embed] });
+    await interaction.reply({ content: `Announcement posted in ${targetChannel}!`, ephemeral: true });
   }
 
   // /phase — admin assigns phase to a member
