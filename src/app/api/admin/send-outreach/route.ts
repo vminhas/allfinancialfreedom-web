@@ -25,17 +25,19 @@ function wrapInBrandedHtml(firstName: string, body: string, bookingUrl: string, 
 <body style="margin:0;padding:0;background:#ffffff;">
 <div style="font-family:Georgia,serif;font-size:15px;color:#222222;max-width:560px;margin:0 auto;padding:40px 24px;">
 
+  <p style="margin:0 0 32px;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:#9B8A6A;font-family:Arial,sans-serif;">All Financial Freedom</p>
+
   ${paragraphs}
 
-  <p style="margin:0 0 4px;line-height:1.7;">Best,</p>
+  <p style="margin:24px 0 4px;line-height:1.7;">Best,</p>
   <p style="margin:0 0 2px;font-weight:bold;">Vick Minhas</p>
-  <p style="margin:0 0 2px;font-size:13px;color:#555555;">All Financial Freedom</p>
-  <p style="margin:0 0 24px;font-size:13px;color:#555555;">contact@allfinancialfreedom.com</p>
+  <p style="margin:0 0 2px;font-size:13px;color:#555555;">Founder &amp; CEO, All Financial Freedom</p>
+  <p style="margin:0 0 32px;font-size:13px;color:#555555;">vick@allfinancialfreedom.com</p>
 
-  <hr style="border:none;border-top:1px solid #eeeeee;margin:24px 0;">
-  <p style="font-size:11px;color:#999999;margin:0;line-height:1.6;">
+  <hr style="border:none;border-top:1px solid #eeeeee;margin:0 0 20px;">
+  <p style="font-size:11px;color:#aaaaaa;margin:0;line-height:1.6;">
     All Financial Freedom &bull; Licensed insurance professionals &bull; Products vary by state.<br>
-    <a href="https://www.allfinancialfreedom.com/unsubscribe?email=${encodeURIComponent(email)}" style="color:#999999;">Unsubscribe</a>
+    <a href="https://www.allfinancialfreedom.com/unsubscribe?email=${encodeURIComponent(email)}" style="color:#aaaaaa;">Unsubscribe</a>
   </p>
 
 </div>
