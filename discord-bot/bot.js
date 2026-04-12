@@ -174,6 +174,33 @@ client.on(Events.InteractionCreate, async (interaction) => {
     await interaction.reply({ content: `Announcement posted in ${targetChannel}!`, ephemeral: true });
   }
 
+  // /edit — admin edits a bot message
+  if (interaction.commandName === 'edit') {
+    const adminRole = interaction.member.roles.cache.get(ROLES.ADMIN);
+    if (!adminRole) {
+      return interaction.reply({ content: 'You need the Admin role to use this command.', ephemeral: true });
+    }
+
+    const messageId = interaction.options.getString('message_id');
+    const newContent = interaction.options.getString('content');
+
+    try {
+      const message = await interaction.channel.messages.fetch(messageId);
+
+      if (message.author.id !== client.user.id) {
+        return interaction.reply({ content: '❌ I can only edit my own messages.', ephemeral: true });
+      }
+
+      // Preserve existing embed, just update description
+      const oldEmbed = message.embeds[0];
+      const updatedEmbed = EmbedBuilder.from(oldEmbed).setDescription(newContent);
+      await message.edit({ embeds: [updatedEmbed] });
+      await interaction.reply({ content: '✅ Message updated.', ephemeral: true });
+    } catch (e) {
+      await interaction.reply({ content: `❌ Could not find message. Make sure you copied the ID from this channel.\n\`${e.message}\``, ephemeral: true });
+    }
+  }
+
   // /phase — admin assigns phase to a member
   if (interaction.commandName === 'phase') {
     const adminRole = interaction.member.roles.cache.get(ROLES.ADMIN);

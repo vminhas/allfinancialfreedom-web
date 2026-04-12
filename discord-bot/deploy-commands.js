@@ -20,6 +20,16 @@ const commands = [
     ),
 
   new SlashCommandBuilder()
+    .setName('edit')
+    .setDescription('Edit the description of a bot message')
+    .addStringOption(opt =>
+      opt.setName('message_id').setDescription('Right-click the message → Copy Message ID').setRequired(true)
+    )
+    .addStringOption(opt =>
+      opt.setName('content').setDescription('The new text for the message body').setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
     .setName('phase')
     .setDescription('Assign a phase role to a team member')
     .addUserOption(opt =>
