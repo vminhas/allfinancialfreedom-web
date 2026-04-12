@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Setting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   // AES-256 encrypted for sensitive keys
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime  @default(now())
+  lastLoginAt  DateTime?
+
+  @@map("admin_users")
+}
+
+model ImportJob {
+  id              String    @id @default(cuid())
+  fileName        String
+  totalRows       Int       @default(0)
+  importedCount   Int       @default(0)
+  skippedCount    Int       @default(0)
+  errorCount      Int       @default(0)
+  lastRowIndex    Int       @default(0)
+  status          ImportJobStatus @default(PENDING)
+  contextPrompt   String?
+  wornOutStrategy String?   // "flag_column" | "manual" | "none"
+  createdAt       DateTime  @default(now())
+  completedAt     DateTime?
+  contacts        Contact[]
+
+  @@map("import_jobs")
+}
+
+enum ImportJobStatus {
+  PENDING
+  RUNNING
+  PAUSED
+  COMPLETE
+  ERROR
+}
+
+model Contact {
+  id             String    @id @default(cuid())
+  ghlContactId   String?   @unique
+  firstName      String
+  lastName       String
+  email          String    @unique
+  phone          String?
+  licenseType    String?   // "life" | "health" | "p&c" | "variable" | "multiple"
+  currentAgency  String?
+  state          String?
+  source         String    @default("prophog")
+  wornOut        Boolean   @default(false)
+  outreachStatus String?   // "pending" | "drafted" | "sent" | "responded" | "opted-out"
+  importJobId    String?
+  importJob      ImportJob? @relation(fields: [importJobId], references: [id])
+  messages       OutreachMessage[]
+  createdAt      DateTime  @default(now())
+
+  @@map("contacts")
+}
+
+model SuppressionEntry {
+  id        String   @id @default(cuid())
+  email     String?  @unique
+  phone     String?  @unique
+  reason    String?
+  addedAt   DateTime @default(now())
+
+  @@map("suppression_list")
+}
+
+model OutreachMessage {
+  id           String    @id @default(cuid())
+  contactId    String
+  contact      Contact   @relation(fields: [contactId], references: [id])
+  subject      String
+  bodyHtml     String
+  status       MessageStatus @default(DRAFT)
+  sentAt       DateTime?
+  ghlMessageId String?
+  createdAt    DateTime  @default(now())
+
+  @@map("outreach_messages")
+}
+
+enum MessageStatus {
+  DRAFT
+  SENT
+  FAILED
+}
