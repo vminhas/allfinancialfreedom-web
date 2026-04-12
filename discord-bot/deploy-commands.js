@@ -1,6 +1,7 @@
 // Run this once to register slash commands with Discord
 // node discord-bot/deploy-commands.js
 
+require('./load-env');
 const { REST, Routes, SlashCommandBuilder } = require('discord.js');
 const { GUILD_ID } = require('./config');
 
