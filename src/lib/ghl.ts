@@ -68,5 +68,6 @@ export async function sendGhlEmail(params: {
     subject: params.subject,
     emailSubject: params.subject,
     html: params.html,
+    text: params.html,
   }, config)
 }

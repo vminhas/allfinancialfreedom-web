@@ -17,20 +17,14 @@ interface MessageToSend {
 function wrapInBrandedHtml(firstName: string, body: string, bookingUrl: string, email = ''): string {
   void firstName
   void bookingUrl
-  const lines = body.trim().split(/\n/).map(l => l === '' ? '<br>' : `${l}<br>`).join('\n')
+  const unsubUrl = `https://www.allfinancialfreedom.com/unsubscribe?email=${encodeURIComponent(email)}`
+  return `${body.trim()}
 
-  return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"></head>
-<body style="margin:0;padding:0;">
-<div style="font-family:Arial,sans-serif;font-size:15px;color:#000000;max-width:600px;line-height:1.6;">
-${lines}
-<br>
--- <br>
-Vick Minhas<br>
-vick@allfinancialfreedom.com<br>
-<span style="font-size:11px;color:#888888;">To stop receiving emails: <a href="https://www.allfinancialfreedom.com/unsubscribe?email=${encodeURIComponent(email)}" style="color:#888888;">unsubscribe</a></span>
-</div>
-</body></html>`
+--
+Vick Minhas
+vick@allfinancialfreedom.com
+
+To stop receiving emails: ${unsubUrl}`
 }
 
 export async function POST(req: NextRequest) {
@@ -75,6 +69,7 @@ export async function POST(req: NextRequest) {
             subject: `[TEST] ${msg.subject}`,
             emailSubject: `[TEST] ${msg.subject}`,
             html,
+            text: html,
           }),
         })
         sent++
