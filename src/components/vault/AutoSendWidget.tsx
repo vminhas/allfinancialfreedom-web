@@ -15,6 +15,25 @@ interface Props {
 export default function AutoSendWidget({ enabled, sentToday, dailyLimit, queueDepth, week, ramp }: Props) {
   const [on, setOn] = useState(enabled)
   const [toggling, setToggling] = useState(false)
+  const [triggering, setTriggering] = useState(false)
+  const [triggerResult, setTriggerResult] = useState<string | null>(null)
+  const [localSentToday, setLocalSentToday] = useState(sentToday)
+
+  async function handleTrigger() {
+    setTriggering(true)
+    setTriggerResult(null)
+    const res = await fetch('/api/admin/auto-send/trigger', { method: 'POST' })
+    const data = await res.json()
+    if (data.skipped) {
+      setTriggerResult(`Skipped: ${data.reason}`)
+    } else if (data.ok) {
+      setTriggerResult(`✓ Sent ${data.sent} emails (${data.sentToday} total today)`)
+      setLocalSentToday(data.sentToday)
+    } else {
+      setTriggerResult(`Error: ${data.error ?? 'Unknown'}`)
+    }
+    setTriggering(false)
+  }
 
   async function handleToggle() {
     setToggling(true)
@@ -27,7 +46,7 @@ export default function AutoSendWidget({ enabled, sentToday, dailyLimit, queueDe
     setToggling(false)
   }
 
-  const progress = dailyLimit > 0 ? Math.min((sentToday / dailyLimit) * 100, 100) : 0
+  const progress = dailyLimit > 0 ? Math.min((localSentToday / dailyLimit) * 100, 100) : 0
   const daysToEmpty = dailyLimit > 0 ? Math.ceil(queueDepth / dailyLimit) : 0
 
   return (
@@ -65,7 +84,7 @@ export default function AutoSendWidget({ enabled, sentToday, dailyLimit, queueDe
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}>
           <div>
             <p style={{ color: '#6B8299', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 4px' }}>Sent Today</p>
-            <p style={{ color: '#ffffff', fontSize: 22, fontWeight: 300, margin: 0 }}>{sentToday}<span style={{ color: '#4B5563', fontSize: 13 }}>/{dailyLimit}</span></p>
+            <p style={{ color: '#ffffff', fontSize: 22, fontWeight: 300, margin: 0 }}>{localSentToday}<span style={{ color: '#4B5563', fontSize: 13 }}>/{dailyLimit}</span></p>
           </div>
           <div>
             <p style={{ color: '#6B8299', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 4px' }}>In Queue</p>
@@ -111,8 +130,28 @@ export default function AutoSendWidget({ enabled, sentToday, dailyLimit, queueDe
           </div>
         </div>
 
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16 }}>
+          <button
+            onClick={handleTrigger}
+            disabled={triggering || !on}
+            style={{
+              padding: '8px 20px', background: on ? '#C9A96E' : '#2a4a6a',
+              color: on ? '#142D48' : '#4B5563', border: 'none', borderRadius: 4,
+              fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+              cursor: on && !triggering ? 'pointer' : 'not-allowed',
+            }}
+          >
+            {triggering ? 'Sending...' : 'Send Now'}
+          </button>
+          {triggerResult && (
+            <p style={{ color: triggerResult.startsWith('✓') ? '#4ade80' : '#f59e0b', fontSize: 12, margin: 0 }}>
+              {triggerResult}
+            </p>
+          )}
+        </div>
+
         {!on && (
-          <p style={{ color: '#f59e0b', fontSize: 11, margin: '16px 0 0' }}>
+          <p style={{ color: '#f59e0b', fontSize: 11, margin: '8px 0 0' }}>
             Auto-send is off. Set a default template in <Link href="/vault/outreach" style={{ color: '#C9A96E' }}>Outreach</Link> then enable it here.
           </p>
         )}
