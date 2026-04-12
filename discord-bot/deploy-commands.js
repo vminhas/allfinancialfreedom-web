@@ -1,16 +1,8 @@
 // Run this once to register slash commands with Discord
 // node discord-bot/deploy-commands.js
 
-const fs = require('fs');
-const path = require('path');
 const { REST, Routes, SlashCommandBuilder } = require('discord.js');
 const { GUILD_ID } = require('./config');
-
-const envContent = fs.readFileSync(path.join(__dirname, '../.env'), 'utf8');
-for (const line of envContent.split('\n')) {
-  const match = line.match(/^([^#=]+)=(.*)$/);
-  if (match) process.env[match[1].trim()] = match[2].trim().replace(/^["']|["']$/g, '');
-}
 
 const commands = [
   new SlashCommandBuilder()

@@ -1,16 +1,9 @@
 // Run once to create #blog-articles channel and webhook
 // node discord-bot/setup-channels.js
 
-const fs = require('fs');
-const path = require('path');
+require('./load-env');
 const { Client, GatewayIntentBits, ChannelType } = require('discord.js');
 const { GUILD_ID, CHANNELS } = require('./config');
-
-const envContent = fs.readFileSync(path.join(__dirname, '../.env'), 'utf8');
-for (const line of envContent.split('\n')) {
-  const match = line.match(/^([^#=]+)=(.*)$/);
-  if (match) process.env[match[1].trim()] = match[2].trim().replace(/^["']|["']$/g, '');
-}
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 

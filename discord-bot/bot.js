@@ -1,14 +1,5 @@
-const fs = require('fs');
-const path = require('path');
-const { Client, GatewayIntentBits, EmbedBuilder, Events, REST, Routes } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, Events } = require('discord.js');
 const { GUILD_ID, CHANNELS, ROLES, COLORS } = require('./config');
-
-// Load env
-const envContent = fs.readFileSync(path.join(__dirname, '../.env'), 'utf8');
-for (const line of envContent.split('\n')) {
-  const match = line.match(/^([^#=]+)=(.*)$/);
-  if (match) process.env[match[1].trim()] = match[2].trim().replace(/^["']|["']$/g, '');
-}
 
 const client = new Client({
   intents: [

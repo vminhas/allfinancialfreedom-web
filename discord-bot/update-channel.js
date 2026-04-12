@@ -1,16 +1,9 @@
 // Run once to update #blog-articles channel description
 // node discord-bot/update-channel.js
 
-const fs = require('fs');
-const path = require('path');
+require('./load-env');
 const { Client, GatewayIntentBits } = require('discord.js');
 const { GUILD_ID } = require('./config');
-
-const envContent = fs.readFileSync(path.join(__dirname, '../.env'), 'utf8');
-for (const line of envContent.split('\n')) {
-  const match = line.match(/^([^#=]+)=(.*)$/);
-  if (match) process.env[match[1].trim()] = match[2].trim().replace(/^["']|["']$/g, '');
-}
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
