@@ -31,6 +31,9 @@ Thumbs.db
 *.tsbuildinfo
 next-env.d.ts
 
+# Claude Code local settings (may contain command history with secrets)
+.claude/settings.local.json
+
 /src/generated/prisma
 
 .vercel
