@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getSettings, setSetting } from '@/lib/settings'
 
-const ALLOWED_KEYS = ['GHL_API_KEY', 'GHL_LOCATION_ID', 'ANTHROPIC_API_KEY', 'GHL_PROPHOG_BOOKING_URL', 'VICK_EMAIL']
+const ALLOWED_KEYS = ['GHL_API_KEY', 'GHL_LOCATION_ID', 'GHL_PIPELINE_ID', 'ANTHROPIC_API_KEY', 'GHL_PROPHOG_BOOKING_URL', 'VICK_EMAIL']
 
 export async function GET() {
   const session = await getServerSession(authOptions)

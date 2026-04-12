@@ -68,6 +68,7 @@ export default function SettingsPage() {
   const [fields, setFields] = useState({
     GHL_API_KEY: '',
     GHL_LOCATION_ID: '',
+    GHL_PIPELINE_ID: '',
     ANTHROPIC_API_KEY: '',
     GHL_PROPHOG_BOOKING_URL: '',
     VICK_EMAIL: '',
@@ -175,6 +176,7 @@ export default function SettingsPage() {
           <div style={{ padding: '28px' }}>
             <Field label="GHL API Key" name="GHL_API_KEY" value={fields.GHL_API_KEY} onChange={set('GHL_API_KEY')} placeholder="pit-..." />
             <Field label="GHL Location ID" name="GHL_LOCATION_ID" value={fields.GHL_LOCATION_ID} onChange={set('GHL_LOCATION_ID')} placeholder="tDxu4b..." />
+            <Field label="GHL Pipeline ID (AFF Recruit)" name="GHL_PIPELINE_ID" value={fields.GHL_PIPELINE_ID} onChange={set('GHL_PIPELINE_ID')} placeholder="Paste from GHL pipeline URL" />
             <Field label="Anthropic API Key (Claude)" name="ANTHROPIC_API_KEY" value={fields.ANTHROPIC_API_KEY} onChange={set('ANTHROPIC_API_KEY')} placeholder="sk-ant-..." />
             <Field label="Vick's Email (for PropHog briefings)" name="VICK_EMAIL" value={fields.VICK_EMAIL} onChange={set('VICK_EMAIL')} placeholder="vick@allfinancialfreedom.com" />
 
