@@ -270,6 +270,10 @@ export default function OutreachPage() {
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
                 <input type="checkbox" checked={wornOutOnly} onChange={e => { setWornOutOnly(e.target.checked); setSelected(new Set()) }} />
                 <span style={{ color: '#9BB0C4', fontSize: 12 }}>Worn-out leads only</span>
+                <span
+                  title="Agents who've been heavily pitched by other agencies. Templates for these contacts lead with value — no pitch, no booking link on the first email."
+                  style={{ color: '#4B5563', fontSize: 11, cursor: 'help', border: '1px solid #4B5563', borderRadius: '50%', width: 14, height: 14, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                >?</span>
               </label>
             </div>
             <div style={{ maxHeight: 300, overflowY: 'auto' }}>
