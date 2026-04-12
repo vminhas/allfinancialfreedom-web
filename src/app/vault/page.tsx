@@ -1,17 +1,32 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { getSetting } from '@/lib/settings'
 import GhlStatusWidget from '@/components/vault/GhlStatusWidget'
 import ClaudeCostWidget from '@/components/vault/ClaudeCostWidget'
+import AutoSendWidget from '@/components/vault/AutoSendWidget'
 
 export default async function VaultDashboard() {
   const session = await getServerSession(authOptions)
 
-  const [totalContacts, recentJobs, totalSent] = await Promise.all([
+  const todayStart = new Date()
+  todayStart.setHours(0, 0, 0, 0)
+
+  const [totalContacts, recentJobs, totalSent, sentToday, queueDepth, autoSendEnabled, startDateStr] = await Promise.all([
     db.contact.count(),
     db.importJob.findMany({ orderBy: { createdAt: 'desc' }, take: 5 }),
     db.outreachMessage.count({ where: { status: 'SENT' } }),
+    db.outreachMessage.count({ where: { sentAt: { gte: todayStart }, status: 'SENT' } }),
+    db.contact.count({ where: { outreachStatus: 'pending', ghlContactId: { not: null } } }),
+    getSetting('AUTO_SEND_ENABLED'),
+    getSetting('AUTO_SEND_START_DATE'),
   ])
+
+  const RAMP = [50, 150, 300, 500]
+  const startDate = startDateStr ? new Date(startDateStr) : null
+  const daysSince = startDate ? Math.floor((Date.now() - startDate.getTime()) / (1000 * 60 * 60 * 24)) : 0
+  const week = Math.min(Math.floor(daysSince / 7), RAMP.length - 1)
+  const dailyLimit = RAMP[week]
 
   const statusColors: Record<string, string> = {
     COMPLETE: '#4ade80',
@@ -69,6 +84,16 @@ export default async function VaultDashboard() {
           </div>
         ))}
       </div>
+
+      {/* Auto-send queue */}
+      <AutoSendWidget
+        enabled={autoSendEnabled === 'true'}
+        sentToday={sentToday}
+        dailyLimit={dailyLimit}
+        queueDepth={queueDepth}
+        week={week + 1}
+        ramp={RAMP}
+      />
 
       {/* Claude Cost */}
       <ClaudeCostWidget />

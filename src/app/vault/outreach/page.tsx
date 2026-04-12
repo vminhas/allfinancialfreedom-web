@@ -58,6 +58,8 @@ export default function OutreachPage() {
   const [sending, setSending] = useState(false)
   const [savedTemplates, setSavedTemplates] = useState<SavedTemplate[]>([])
   const [saving, setSaving] = useState(false)
+  const [defaultTemplateName, setDefaultTemplateName] = useState<string | null>(null)
+  const [settingDefault, setSettingDefault] = useState(false)
   const [testEmail, setTestEmail] = useState('')
   const [testSending, setTestSending] = useState(false)
   const [testMsg, setTestMsg] = useState<string | null>(null)
@@ -70,6 +72,9 @@ export default function OutreachPage() {
     fetch('/api/admin/saved-templates')
       .then(r => r.json())
       .then(d => setSavedTemplates(d.templates ?? []))
+    fetch('/api/admin/auto-send')
+      .then(r => r.json())
+      .then(d => setDefaultTemplateName(d.templateName ?? null))
   }, [])
 
   useEffect(() => {
@@ -405,6 +410,30 @@ export default function OutreachPage() {
                         <span style={{ color: '#4B5563', fontSize: 10 }}>{'{{firstName}} {{licenseType}} {{state}} {{currentAgency}}'}</span>
                         <button onClick={handleSaveTemplate} disabled={saving} style={{ background: 'none', border: '1px solid rgba(201,169,110,0.3)', borderRadius: 3, color: '#C9A96E', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '3px 10px', cursor: saving ? 'not-allowed' : 'pointer' }}>
                           {saving ? 'Saving...' : 'Save Template'}
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (!editedTemplate) return
+                            setSettingDefault(true)
+                            await fetch('/api/admin/auto-send', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ template: editedTemplate }),
+                            })
+                            setDefaultTemplateName(editedTemplate.name)
+                            setSettingDefault(false)
+                          }}
+                          disabled={settingDefault}
+                          title="Set as the template used by auto-send"
+                          style={{
+                            background: defaultTemplateName === editedTemplate?.name ? 'rgba(74,222,128,0.1)' : 'none',
+                            border: `1px solid ${defaultTemplateName === editedTemplate?.name ? 'rgba(74,222,128,0.4)' : 'rgba(255,255,255,0.1)'}`,
+                            borderRadius: 3, color: defaultTemplateName === editedTemplate?.name ? '#4ade80' : '#6B8299',
+                            fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                            padding: '3px 10px', cursor: 'pointer', whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {defaultTemplateName === editedTemplate?.name ? '✓ Auto-Send Default' : 'Set as Default'}
                         </button>
                       </div>
                     </div>
