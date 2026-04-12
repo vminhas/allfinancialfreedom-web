@@ -20,6 +20,10 @@ interface Template {
   body: string
 }
 
+interface SavedTemplate extends Template {
+  savedAt: string
+}
+
 function applyTokens(text: string, contact: ContactOption): string {
   return text
     .replace(/\{\{firstName\}\}/g, contact.firstName)
@@ -38,10 +42,18 @@ export default function OutreachPage() {
   const [editedTemplate, setEditedTemplate] = useState<Template | null>(null)
   const [generating, setGenerating] = useState(false)
   const [sending, setSending] = useState(false)
+  const [savedTemplates, setSavedTemplates] = useState<SavedTemplate[]>([])
+  const [saving, setSaving] = useState(false)
   const [sentCount, setSentCount] = useState<number | null>(null)
   const [advanceStage, setAdvanceStage] = useState(true)
   const [previewContact, setPreviewContact] = useState<ContactOption | null>(null)
   const [wornOutOnly, setWornOutOnly] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/admin/saved-templates')
+      .then(r => r.json())
+      .then(d => setSavedTemplates(d.templates ?? []))
+  }, [])
 
   useEffect(() => {
     fetch('/api/admin/contacts?outreachStatus=pending&limit=200')
@@ -99,6 +111,30 @@ export default function OutreachPage() {
       setEditedTemplate(data.templates[0])
     }
     setGenerating(false)
+  }
+
+  async function handleSaveTemplate() {
+    if (!editedTemplate) return
+    setSaving(true)
+    const newSaved: SavedTemplate = { ...editedTemplate, savedAt: new Date().toISOString() }
+    const updated = [newSaved, ...savedTemplates.filter(t => t.name !== editedTemplate.name)]
+    await fetch('/api/admin/saved-templates', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ templates: updated }),
+    })
+    setSavedTemplates(updated)
+    setSaving(false)
+  }
+
+  async function handleDeleteSaved(name: string) {
+    const updated = savedTemplates.filter(t => t.name !== name)
+    await fetch('/api/admin/saved-templates', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ templates: updated }),
+    })
+    setSavedTemplates(updated)
   }
 
   function selectTemplate(i: number) {
@@ -231,12 +267,35 @@ export default function OutreachPage() {
         {/* Right: template picker + preview + send */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-          {templates.length === 0 && !generating ? (
+          {/* Saved templates */}
+          {savedTemplates.length > 0 && (
+            <div style={{ background: '#142D48', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)' }}>
+              <div style={{ padding: '12px 18px', borderBottom: '1px solid rgba(201,169,110,0.1)' }}>
+                <p style={{ color: '#C9A96E', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 600, margin: 0 }}>Saved Templates</p>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {savedTemplates.map(t => (
+                  <div key={t.name} style={{ display: 'flex', alignItems: 'center', padding: '10px 18px', borderBottom: '1px solid rgba(255,255,255,0.04)', gap: 10 }}>
+                    <button
+                      onClick={() => { setEditedTemplate(t); setSelectedTemplate(null); setTemplates([]) }}
+                      style={{ flex: 1, background: 'none', border: 'none', color: '#ffffff', fontSize: 13, cursor: 'pointer', textAlign: 'left', padding: 0 }}
+                    >
+                      {t.name}
+                    </button>
+                    <span style={{ color: '#4B5563', fontSize: 10 }}>{new Date(t.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                    <button onClick={() => handleDeleteSaved(t.name)} style={{ background: 'none', border: 'none', color: '#4B5563', fontSize: 12, cursor: 'pointer', padding: '0 4px' }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {templates.length === 0 && !generating && !editedTemplate ? (
             <div style={{ background: '#142D48', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)', padding: '48px', textAlign: 'center', flex: 1 }}>
               <p style={{ color: '#4B5563', fontSize: 24, margin: '0 0 12px' }}>✉</p>
-              <p style={{ color: '#6B8299', fontSize: 13, margin: 0 }}>Write context and click "Generate 3 Templates" to create email variants you can pick from.</p>
+              <p style={{ color: '#6B8299', fontSize: 13, margin: 0 }}>Generate new templates or load a saved one above.</p>
             </div>
-          ) : generating ? (
+          ) : !generating && templates.length === 0 && editedTemplate ? null : generating ? (
             <div style={{ background: '#142D48', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)', padding: '48px', textAlign: 'center', flex: 1 }}>
               <p style={{ color: '#C9A96E', fontSize: 13, margin: 0 }}>Claude is writing 3 template variants...</p>
             </div>
@@ -267,7 +326,12 @@ export default function OutreachPage() {
                   <div style={{ background: '#142D48', borderRadius: 6, border: '1px solid rgba(201,169,110,0.15)' }}>
                     <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(201,169,110,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <p style={{ color: '#C9A96E', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 600, margin: 0 }}>Template — edit freely</p>
-                      <span style={{ color: '#4B5563', fontSize: 10 }}>tokens: {'{{firstName}} {{licenseType}} {{state}} {{currentAgency}}'}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <span style={{ color: '#4B5563', fontSize: 10 }}>{'{{firstName}} {{licenseType}} {{state}} {{currentAgency}}'}</span>
+                        <button onClick={handleSaveTemplate} disabled={saving} style={{ background: 'none', border: '1px solid rgba(201,169,110,0.3)', borderRadius: 3, color: '#C9A96E', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '3px 10px', cursor: saving ? 'not-allowed' : 'pointer' }}>
+                          {saving ? 'Saving...' : 'Save Template'}
+                        </button>
+                      </div>
                     </div>
                     <div style={{ padding: '16px 20px' }}>
                       <label style={{ color: '#6B8299', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Subject</label>
