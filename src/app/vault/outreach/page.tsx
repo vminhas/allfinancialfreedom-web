@@ -78,7 +78,7 @@ export default function OutreachPage() {
   }, [])
 
   useEffect(() => {
-    fetch('/api/admin/contacts?outreachStatus=pending&limit=200')
+    fetch('/api/admin/contacts?outreachStatus=pending&ghlOnly=true&limit=200')
       .then(r => r.json())
       .then(async d => {
         const loaded = d.contacts ?? []

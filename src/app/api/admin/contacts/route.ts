@@ -17,11 +17,15 @@ export async function GET(req: NextRequest) {
 
   const followUpCount = searchParams.get('followUpCount')
 
+  const ghlOnly = searchParams.get('ghlOnly') === 'true'
+
   const where: Record<string, unknown> = {}
   if (outreachStatus) where.outreachStatus = outreachStatus
   if (wornOut !== null) where.wornOut = wornOut === 'true'
   if (licenseType) where.licenseType = licenseType
   if (importJobId) where.importJobId = importJobId
+  // Only show contacts that are in GHL (otherwise sending will silently skip them)
+  if (ghlOnly) where.ghlContactId = { not: null }
 
   const [contacts, total] = await Promise.all([
     db.contact.findMany({

@@ -5,6 +5,7 @@ import { getSetting } from '@/lib/settings'
 import GhlStatusWidget from '@/components/vault/GhlStatusWidget'
 import ClaudeCostWidget from '@/components/vault/ClaudeCostWidget'
 import AutoSendWidget from '@/components/vault/AutoSendWidget'
+import ResumeButton from '@/components/vault/ResumeButton'
 
 export default async function VaultDashboard() {
   const session = await getServerSession(authOptions)
@@ -123,7 +124,10 @@ export default async function VaultDashboard() {
             <tbody>
               {recentJobs.map(job => (
                 <tr key={job.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                  <td style={{ padding: '14px 28px', color: '#ffffff', fontSize: 13 }}>{job.fileName}</td>
+                  <td style={{ padding: '14px 28px', color: '#ffffff', fontSize: 13 }}>
+                    {job.fileName}
+                    <span style={{ color: '#4B5563', fontSize: 11, marginLeft: 8 }}>{job.importedCount}/{job.totalRows}</span>
+                  </td>
                   <td style={{ padding: '14px 28px', color: '#4ade80', fontSize: 13 }}>{job.importedCount}</td>
                   <td style={{ padding: '14px 28px', color: '#6B8299', fontSize: 13 }}>{job.skippedCount}</td>
                   <td style={{ padding: '14px 28px' }}>
@@ -136,6 +140,11 @@ export default async function VaultDashboard() {
                   </td>
                   <td style={{ padding: '14px 28px', color: '#6B8299', fontSize: 12 }}>
                     {new Date(job.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </td>
+                  <td style={{ padding: '14px 28px' }}>
+                    {job.status === 'PAUSED' && (
+                      <ResumeButton jobId={job.id} />
+                    )}
                   </td>
                 </tr>
               ))}

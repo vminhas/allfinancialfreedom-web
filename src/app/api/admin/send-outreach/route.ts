@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
 
   const config = await getGhlConfig()
   const contactedStageId = await getSetting('GHL_STAGE_CONTACTED')
-  const prophogBookingUrl = await getSetting('GHL_PROPHOG_BOOKING_URL') || 'https://api.leadconnectorhq.com/widget/booking/ZOedxdwvtOnTS6Sg5n7Z'
+  const prophogBookingUrl = await getSetting('GHL_PROPHOG_BOOKING_URL') || 'https://links.allfinancialfreedom.com/widget/bookings/financial-career-discovery-cal'
 
   let sent = 0
   const errors: string[] = []

@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   const apiKey = await getSetting('ANTHROPIC_API_KEY')
   if (!apiKey) return NextResponse.json({ error: 'Anthropic API key not configured' }, { status: 400 })
 
-  const prophogBookingUrl = await getSetting('GHL_PROPHOG_BOOKING_URL') || ''
+  const prophogBookingUrl = await getSetting('GHL_PROPHOG_BOOKING_URL') || 'https://links.allfinancialfreedom.com/widget/bookings/financial-career-discovery-cal'
 
   const client = new Anthropic({ apiKey })
 
