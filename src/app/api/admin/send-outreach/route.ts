@@ -18,13 +18,9 @@ function wrapInBrandedHtml(firstName: string, body: string, bookingUrl: string, 
   void firstName
   void bookingUrl
   const unsubUrl = `https://www.allfinancialfreedom.com/unsubscribe?email=${encodeURIComponent(email)}`
-  return `${body.trim()}
-
---
-Vick Minhas
-vick@allfinancialfreedom.com
-
-To stop receiving emails: ${unsubUrl}`
+  const plainText = `${body.trim()}\n\n--\nVick Minhas\nvick@allfinancialfreedom.com\n\nTo stop receiving emails: ${unsubUrl}`
+  const html = plainText.replace(/\n/g, '<br>')
+  return html
 }
 
 export async function POST(req: NextRequest) {
