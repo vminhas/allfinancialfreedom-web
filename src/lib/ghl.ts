@@ -61,8 +61,8 @@ export async function sendGhlEmail(params: {
   return ghlPost('/conversations/messages', {
     type: 'Email',
     contactId: params.contactId,
-    emailFrom: 'contact@allfinancialfreedom.com',
-    emailFromName: 'All Financial Freedom',
+    emailFrom: 'vick@allfinancialfreedom.com',
+    emailFromName: 'Vick Minhas',
     emailTo: params.emailTo,
     subject: params.subject,
     emailSubject: params.subject,
