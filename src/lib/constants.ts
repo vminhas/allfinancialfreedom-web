@@ -45,9 +45,9 @@ export const DIRECTORS = [
 
 export const ASSOCIATES = [
   { name: 'Kiirah Washington', initials: 'KW', specialty: 'Insurance Planning', location: 'Houston, TX', image: '/team/kiirah.jpg', calendly: 'https://calendly.com/k-washington1-gfi/30min' },
-  { name: 'Doug Morrison', initials: 'DM', specialty: 'Wealth Building', location: 'Dallas, TX', image: '/team/doug.jpg', calendly: 'https://calendly.com/dougmorrison-gfi/gfi-discovery-phone-call-clone' },
-  { name: 'Heather Cullum', initials: 'HC', specialty: 'Retirement Planning', location: 'Charlotte, NC', image: '/team/heather.jpg' },
-  { name: 'Sam Yonce', initials: 'SY', specialty: 'Asset Protection', location: 'Phoenix, AZ', image: '/team/sam.jpg', calendly: 'https://calendly.com/syonce61/new-meeting' },
+  { name: 'Doug Morrison', initials: 'DM', specialty: 'Wealth Building', location: 'Columbus, OH', image: '/team/doug.jpg', calendly: 'https://calendly.com/dougmorrison-gfi/gfi-discovery-phone-call-clone' },
+  { name: 'Heather Cullum', initials: 'HC', specialty: 'Retirement Planning', location: 'Leonardtown, MD', image: '/team/heather.jpg' },
+  { name: 'Sam Yonce', initials: 'SY', specialty: 'Asset Protection', location: 'Cape Carteret, NC', image: '/team/sam.jpg', calendly: 'https://calendly.com/syonce61/new-meeting' },
   { name: 'Sadie Grubb', initials: 'SG', specialty: 'Financial Planning', location: 'Centerville, IA', image: '/team/sadie.jpg', calendly: 'https://calendly.com/sadiegrubb/future-planning-call' },
 ]
 
