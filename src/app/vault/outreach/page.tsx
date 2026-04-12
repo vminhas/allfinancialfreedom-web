@@ -30,6 +30,7 @@ export default function OutreachPage() {
   const [contacts, setContacts] = useState<ContactOption[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [context, setContext] = useState('')
+  const [contextSource, setContextSource] = useState<string | null>(null)
   const [drafts, setDrafts] = useState<Draft[]>([])
   const [drafting, setDrafting] = useState(false)
   const [sending, setSending] = useState(false)
@@ -40,7 +41,23 @@ export default function OutreachPage() {
   useEffect(() => {
     fetch('/api/admin/contacts?outreachStatus=pending&limit=200')
       .then(r => r.json())
-      .then(d => setContacts(d.contacts ?? []))
+      .then(async d => {
+        const loaded = d.contacts ?? []
+        setContacts(loaded)
+
+        // Auto-fill context from import job if all contacts share one job
+        const jobIds = [...new Set(loaded.map((c: ContactOption) => c.importJobId).filter(Boolean))]
+        if (jobIds.length === 1) {
+          const jobRes = await fetch(`/api/admin/import-job/${jobIds[0]}`)
+          if (jobRes.ok) {
+            const job = await jobRes.json()
+            if (job.contextPrompt) {
+              setContext(job.contextPrompt)
+              setContextSource(job.fileName)
+            }
+          }
+        }
+      })
   }, [])
 
   const filteredContacts = filter === 'pending'
@@ -153,9 +170,16 @@ export default function OutreachPage() {
 
           {/* Context prompt */}
           <div style={{ background: '#142D48', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)', padding: '20px' }}>
-            <p style={{ color: '#C9A96E', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 600, margin: '0 0 10px' }}>
-              Context for Claude
-            </p>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
+              <p style={{ color: '#C9A96E', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 600, margin: 0 }}>
+                Context for Claude
+              </p>
+              {contextSource && (
+                <span style={{ color: '#4ade80', fontSize: 10, letterSpacing: '0.1em' }}>
+                  ✓ pre-filled from import: {contextSource}
+                </span>
+              )}
+            </div>
             <textarea
               value={context}
               onChange={e => setContext(e.target.value)}
