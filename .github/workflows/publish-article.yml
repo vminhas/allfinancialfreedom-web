@@ -56,3 +56,33 @@ jobs:
           git commit -m "publish: auto-publish ${{ steps.check.outputs.draft_name }}"
           git push
         # Vercel will automatically redeploy on push to main
+
+      - name: Extract article metadata
+        if: steps.check.outputs.has_draft == 'true'
+        id: meta
+        run: |
+          FILE="content/blog/${{ steps.check.outputs.draft_name }}"
+          SLUG="${{ steps.check.outputs.draft_name }}"
+          SLUG="${SLUG%.mdx}"
+          TITLE=$(grep '^title:' "$FILE" | head -1 | sed 's/title: *//;s/^"//;s/"$//')
+          EXCERPT=$(grep '^excerpt:' "$FILE" | head -1 | sed 's/excerpt: *//;s/^"//;s/"$//')
+          echo "slug=$SLUG" >> $GITHUB_OUTPUT
+          echo "title=$TITLE" >> $GITHUB_OUTPUT
+          echo "excerpt=$EXCERPT" >> $GITHUB_OUTPUT
+
+      - name: Notify Discord
+        if: steps.check.outputs.has_draft == 'true' && env.DISCORD_WEBHOOK_URL != ''
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          curl -s -H "Content-Type: application/json" \
+          -d "{
+            \"embeds\": [{
+              \"title\": \"📖 New Article: ${{ steps.meta.outputs.title }}\",
+              \"description\": \"${{ steps.meta.outputs.excerpt }}\",
+              \"url\": \"https://allfinancialfreedom.com/blog/${{ steps.meta.outputs.slug }}\",
+              \"color\": 1714756,
+              \"footer\": { \"text\": \"All Financial Freedom · Wealth · Protection · Legacy\" }
+            }]
+          }" \
+          "$DISCORD_WEBHOOK_URL"

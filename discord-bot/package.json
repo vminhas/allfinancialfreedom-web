@@ -1,0 +1,15 @@
+{
+  "name": "aff-concierge",
+  "version": "1.0.0",
+  "description": "AFF Concierge - All Financial Freedom Discord Bot",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js",
+    "deploy-commands": "node deploy-commands.js",
+    "rebrand": "node rebrand.js",
+    "scout": "node scout.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.3"
+  }
+}
