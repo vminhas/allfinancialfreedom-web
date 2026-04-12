@@ -200,12 +200,27 @@ client.on(Events.InteractionCreate, async (interaction) => {
   // ── Modal submit → update message ──────────────────────────────────────────
   if (interaction.isModalSubmit() && interaction.customId.startsWith('edit_modal_')) {
     const messageId = interaction.customId.replace('edit_modal_', '');
-    const newDescription = interaction.fields.getTextInputValue('description');
-
     const message = await interaction.channel.messages.fetch(messageId);
     const oldEmbed = message.embeds[0];
-    const updatedEmbed = EmbedBuilder.from(oldEmbed).setDescription(newDescription);
-    await message.edit({ embeds: [updatedEmbed] });
+    const builder = EmbedBuilder.from(oldEmbed);
+
+    // Update description if it was in the modal
+    try {
+      const newDesc = interaction.fields.getTextInputValue('description');
+      builder.setDescription(newDesc);
+    } catch { /* field not in modal */ }
+
+    // Update any field values that were included
+    const updatedFields = oldEmbed.fields ? [...oldEmbed.fields] : [];
+    for (let i = 0; i < updatedFields.length; i++) {
+      try {
+        const newValue = interaction.fields.getTextInputValue(`field_${i}`);
+        updatedFields[i] = { ...updatedFields[i], value: newValue };
+      } catch { /* field not in modal */ }
+    }
+    if (updatedFields.length) builder.setFields(updatedFields);
+
+    await message.edit({ embeds: [builder] });
     return interaction.reply({ content: '✅ Updated!', ephemeral: true });
   }
 
@@ -258,20 +273,46 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return interaction.reply({ content: '❌ I can only edit my own messages.', ephemeral: true });
       }
 
-      // Open modal pre-filled with current description
+      // Open modal pre-filled with current content
+      // Discord modals support max 5 inputs — use description + up to 4 fields
       const oldEmbed = message.embeds[0];
       const modal = new ModalBuilder()
         .setCustomId(`edit_modal_${message.id}`)
-        .setTitle(`Edit: ${oldEmbed?.title || 'Message'}`);
+        .setTitle((oldEmbed?.title || 'Edit Message').slice(0, 45));
 
-      const descInput = new TextInputBuilder()
-        .setCustomId('description')
-        .setLabel('Description')
-        .setStyle(TextInputStyle.Paragraph)
-        .setValue(oldEmbed?.description || '')
-        .setRequired(false);
+      const components = [];
 
-      modal.addComponents(new ActionRowBuilder().addComponents(descInput));
+      // Description input (full size)
+      if (oldEmbed?.description !== undefined) {
+        components.push(new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId('description')
+            .setLabel('Description')
+            .setStyle(TextInputStyle.Paragraph)
+            .setValue(oldEmbed.description || '')
+            .setMinLength(0)
+            .setMaxLength(2000)
+            .setRequired(false)
+        ));
+      }
+
+      // Add up to 4 field values (Discord max = 5 total components)
+      const maxFields = Math.min(oldEmbed?.fields?.length || 0, 4);
+      for (let i = 0; i < maxFields; i++) {
+        const field = oldEmbed.fields[i];
+        components.push(new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId(`field_${i}`)
+            .setLabel(field.name.slice(0, 45))
+            .setStyle(TextInputStyle.Paragraph)
+            .setValue(field.value || '')
+            .setMinLength(0)
+            .setMaxLength(1024)
+            .setRequired(false)
+        ));
+      }
+
+      modal.addComponents(...components);
       return interaction.showModal(modal);
 
     } catch (e) {
