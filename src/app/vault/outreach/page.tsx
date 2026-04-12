@@ -12,6 +12,7 @@ interface ContactOption {
   state?: string
   wornOut: boolean
   importJobId?: string
+  _count?: { outreachMessages: number }
 }
 
 interface Template {
@@ -293,6 +294,11 @@ export default function OutreachPage() {
                     <p style={{ color: '#ffffff', fontSize: 12, margin: '0 0 1px', display: 'flex', gap: 6, alignItems: 'center' }}>
                       {c.firstName} {c.lastName}
                       {c.wornOut && <span style={{ fontSize: 9, color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)', padding: '0 4px', borderRadius: 2 }}>soft</span>}
+                      {(c._count?.outreachMessages ?? 0) > 0 && (
+                        <span title={`${c._count?.outreachMessages} email${c._count?.outreachMessages !== 1 ? 's' : ''} sent`} style={{ fontSize: 9, color: '#C9A96E', border: '1px solid rgba(201,169,110,0.3)', padding: '0 4px', borderRadius: 2 }}>
+                          F{c._count?.outreachMessages}
+                        </span>
+                      )}
                     </p>
                     <p style={{ color: '#6B8299', fontSize: 11, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {normalizeLicense(c.licenseType)}{c.state ? ` · ${c.state}` : ''}
@@ -362,7 +368,7 @@ export default function OutreachPage() {
               <p style={{ color: '#4B5563', fontSize: 24, margin: '0 0 12px' }}>✉</p>
               <p style={{ color: '#6B8299', fontSize: 13, margin: 0 }}>Generate new templates or load a saved one above.</p>
             </div>
-          ) : !generating && templates.length === 0 && editedTemplate ? null : generating ? (
+          ) : generating ? (
             <div style={{ background: '#142D48', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)', padding: '48px', textAlign: 'center', flex: 1 }}>
               <p style={{ color: '#C9A96E', fontSize: 13, margin: 0 }}>Claude is writing 3 template variants...</p>
             </div>

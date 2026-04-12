@@ -15,6 +15,7 @@ interface Contact {
   outreachStatus?: string
   ghlContactId?: string
   createdAt: string
+  _count?: { outreachMessages: number }
 }
 
 function normalizeLicense(raw?: string): string {
@@ -46,6 +47,7 @@ export default function ContactsPage() {
   const [licenseFilter, setLicenseFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [wornFilter, setWornFilter] = useState('')
+  const [followUpFilter, setFollowUpFilter] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
 
@@ -55,12 +57,13 @@ export default function ContactsPage() {
     if (licenseFilter) params.set('licenseType', licenseFilter)
     if (statusFilter) params.set('outreachStatus', statusFilter)
     if (wornFilter) params.set('wornOut', wornFilter)
+    if (followUpFilter) params.set('followUpCount', followUpFilter)
     const res = await fetch(`/api/admin/contacts?${params}`)
     const data = await res.json()
     setContacts(data.contacts ?? [])
     setTotal(data.total ?? 0)
     setLoading(false)
-  }, [page, licenseFilter, statusFilter, wornFilter])
+  }, [page, licenseFilter, statusFilter, wornFilter, followUpFilter])
 
   useEffect(() => { load() }, [load])
 
@@ -121,6 +124,11 @@ export default function ContactsPage() {
             <option key={o.v} value={o.v}>{o.l}</option>
           ))}
         </select>
+        <select value={followUpFilter} onChange={e => { setFollowUpFilter(e.target.value); setPage(1) }} style={selectStyle}>
+          {[{ v: '', l: 'All Follow-ups' }, { v: '0', l: 'Not contacted' }, { v: '1', l: '1 email sent' }, { v: '2', l: '2 emails sent' }, { v: '3', l: '3 emails sent' }].map(o => (
+            <option key={o.v} value={o.v}>{o.l}</option>
+          ))}
+        </select>
 
         {selected.size > 0 && (
           <button onClick={handleDelete} disabled={deleting} style={{
@@ -142,7 +150,7 @@ export default function ContactsPage() {
               <th style={{ padding: '12px 16px', width: 32 }}>
                 <input type="checkbox" checked={selected.size === contacts.length && contacts.length > 0} onChange={toggleAll} />
               </th>
-              {['Name', 'Email', 'License', 'Agency', 'State', 'Status', 'GHL'].map(h => (
+              {['Name', 'Email', 'License', 'Agency', 'State', 'Status', 'Emails', 'GHL'].map(h => (
                 <th key={h} style={{ padding: '12px 16px', textAlign: 'left', color: '#6B8299', fontSize: 11, fontWeight: 500, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{h}</th>
               ))}
             </tr>
@@ -169,6 +177,13 @@ export default function ContactsPage() {
                   <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: STATUS_COLORS[c.outreachStatus ?? 'pending'] ?? '#6B8299' }}>
                     {c.outreachStatus ?? 'pending'}
                   </span>
+                </td>
+                <td style={{ padding: '10px 16px' }}>
+                  {(c._count?.outreachMessages ?? 0) > 0 ? (
+                    <span style={{ fontSize: 11, color: '#C9A96E', fontWeight: 600 }}>{c._count?.outreachMessages}</span>
+                  ) : (
+                    <span style={{ color: '#4B5563', fontSize: 11 }}>—</span>
+                  )}
                 </td>
                 <td style={{ padding: '10px 16px' }}>
                   {c.ghlContactId ? <span style={{ color: '#4ade80', fontSize: 11 }}>✓</span> : <span style={{ color: '#f87171', fontSize: 11 }}>—</span>}
