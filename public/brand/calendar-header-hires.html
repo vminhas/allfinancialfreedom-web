@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1200px; height: 400px; overflow: hidden; }
+
+  body {
+    width: 1200px;
+    height: 400px;
+    background: #142D48;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: Georgia, 'Times New Roman', serif;
+    position: relative;
+  }
+
+  /* Top gold bar */
+  .bar-top {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, transparent, #C9A96E 20%, #C9A96E 80%, transparent);
+  }
+
+  /* Bottom gold bar */
+  .bar-bottom {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, transparent, #C9A96E 20%, #C9A96E 80%, transparent);
+  }
+
+  /* Corner marks */
+  .corner {
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    border-color: rgba(201,169,110,0.55);
+    border-style: solid;
+  }
+  .corner.tl { top: 28px; left: 40px; border-width: 2px 0 0 2px; }
+  .corner.tr { top: 28px; right: 40px; border-width: 2px 2px 0 0; }
+  .corner.bl { bottom: 28px; left: 40px; border-width: 0 0 2px 2px; }
+  .corner.br { bottom: 28px; right: 40px; border-width: 0 2px 2px 0; }
+
+  /* Inner border */
+  .inner-border {
+    position: absolute;
+    top: 20px; left: 28px; right: 28px; bottom: 20px;
+    border: 1px solid rgba(201,169,110,0.15);
+  }
+
+  /* Financial Services label */
+  .label-top {
+    font-family: 'Arial', sans-serif;
+    font-size: 15px;
+    font-weight: 400;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: #C9A96E;
+    margin-bottom: 18px;
+  }
+
+  /* Main wordmark */
+  .wordmark {
+    font-size: 88px;
+    font-weight: 300;
+    letter-spacing: 0.02em;
+    color: #ffffff;
+    line-height: 1;
+    margin-bottom: 22px;
+    text-align: center;
+  }
+
+  /* Gold rule */
+  .rule {
+    width: 80px;
+    height: 1.5px;
+    background: linear-gradient(90deg, transparent, #C9A96E, transparent);
+    margin-bottom: 22px;
+  }
+
+  /* Tagline */
+  .tagline {
+    font-family: 'Arial', sans-serif;
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: rgba(201,169,110,0.75);
+  }
+</style>
+</head>
+<body>
+  <div class="bar-top"></div>
+  <div class="bar-bottom"></div>
+  <div class="inner-border"></div>
+  <div class="corner tl"></div>
+  <div class="corner tr"></div>
+  <div class="corner bl"></div>
+  <div class="corner br"></div>
+
+  <div class="label-top">Financial Services</div>
+  <div class="wordmark">All Financial Freedom</div>
+  <div class="rule"></div>
+  <div class="tagline">Wealth &nbsp;·&nbsp; Protection &nbsp;·&nbsp; Legacy</div>
+</body>
+</html>

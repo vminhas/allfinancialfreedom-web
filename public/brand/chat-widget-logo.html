@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 300px; height: 300px; overflow: hidden; }
+
+  body {
+    width: 300px;
+    height: 300px;
+    background: #142D48;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: Georgia, 'Times New Roman', serif;
+  }
+
+  /* Corner marks */
+  .corner {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-color: rgba(201,169,110,0.4);
+    border-style: solid;
+  }
+  .corner.tl { top: 14px; left: 14px; border-width: 1.5px 0 0 1.5px; }
+  .corner.tr { top: 14px; right: 14px; border-width: 1.5px 1.5px 0 0; }
+  .corner.bl { bottom: 14px; left: 14px; border-width: 0 0 1.5px 1.5px; }
+  .corner.br { bottom: 14px; right: 14px; border-width: 0 1.5px 1.5px 0; }
+
+  /* Top gold bar */
+  .bar-top {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, #C9A96E, transparent);
+  }
+
+  /* Bottom gold bar */
+  .bar-bottom {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, #C9A96E, transparent);
+  }
+
+  /* Monogram */
+  .monogram {
+    font-size: 72px;
+    font-weight: 300;
+    letter-spacing: -2px;
+    color: #ffffff;
+    line-height: 1;
+    margin-bottom: 12px;
+  }
+
+  /* Gold rule */
+  .rule {
+    width: 48px;
+    height: 1.5px;
+    background: #C9A96E;
+    margin-bottom: 14px;
+  }
+
+  /* Name */
+  .name-top {
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: rgba(235,244,255,0.75);
+    margin-bottom: 3px;
+    font-family: 'Arial', sans-serif;
+  }
+  .name-bottom {
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: rgba(235,244,255,0.75);
+    font-family: 'Arial', sans-serif;
+  }
+
+  /* Gold dot */
+  .dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: #C9A96E;
+    margin: 10px auto 0;
+  }
+</style>
+</head>
+<body>
+  <div class="bar-top"></div>
+  <div class="bar-bottom"></div>
+  <div class="corner tl"></div>
+  <div class="corner tr"></div>
+  <div class="corner bl"></div>
+  <div class="corner br"></div>
+
+  <div class="monogram">AFF</div>
+  <div class="rule"></div>
+  <div class="name-top">All Financial</div>
+  <div class="name-bottom">Freedom</div>
+  <div class="dot"></div>
+</body>
+</html>
