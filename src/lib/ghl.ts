@@ -63,6 +63,7 @@ export async function sendGhlEmail(params: {
     contactId: params.contactId,
     emailFrom: 'vick@allfinancialfreedom.com',
     emailFromName: 'Vick Minhas',
+    emailReplyTo: 'vick@allfinancialfreedom.com',
     emailTo: params.emailTo,
     subject: params.subject,
     emailSubject: params.subject,
