@@ -363,35 +363,37 @@ export default function OutreachPage() {
             </div>
           )}
 
-          {templates.length === 0 && !generating && !editedTemplate ? (
+          {generating ? (
+            <div style={{ background: '#142D48', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)', padding: '48px', textAlign: 'center', flex: 1 }}>
+              <p style={{ color: '#C9A96E', fontSize: 13, margin: 0 }}>Claude is writing 3 template variants...</p>
+            </div>
+          ) : !editedTemplate ? (
             <div style={{ background: '#142D48', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)', padding: '48px', textAlign: 'center', flex: 1 }}>
               <p style={{ color: '#4B5563', fontSize: 24, margin: '0 0 12px' }}>✉</p>
               <p style={{ color: '#6B8299', fontSize: 13, margin: 0 }}>Generate new templates or load a saved one above.</p>
             </div>
-          ) : generating ? (
-            <div style={{ background: '#142D48', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)', padding: '48px', textAlign: 'center', flex: 1 }}>
-              <p style={{ color: '#C9A96E', fontSize: 13, margin: 0 }}>Claude is writing 3 template variants...</p>
-            </div>
           ) : (
             <>
-              {/* Template picker tabs */}
-              <div style={{ display: 'flex', gap: 8 }}>
-                {templates.map((t, i) => (
-                  <button
-                    key={i}
-                    onClick={() => selectTemplate(i)}
-                    style={{
-                      flex: 1, padding: '10px 12px', borderRadius: 4, border: 'none', cursor: 'pointer', fontSize: 11,
-                      fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
-                      background: selectedTemplate === i ? '#C9A96E' : '#142D48',
-                      color: selectedTemplate === i ? '#142D48' : '#6B8299',
-                      outline: selectedTemplate === i ? 'none' : '1px solid rgba(255,255,255,0.07)',
-                    }}
-                  >
-                    {t.name}
-                  </button>
-                ))}
-              </div>
+              {/* Template picker tabs — only shown when generated templates exist */}
+              {templates.length > 0 && (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {templates.map((t, i) => (
+                    <button
+                      key={i}
+                      onClick={() => selectTemplate(i)}
+                      style={{
+                        flex: 1, padding: '10px 12px', borderRadius: 4, border: 'none', cursor: 'pointer', fontSize: 11,
+                        fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                        background: selectedTemplate === i ? '#C9A96E' : '#142D48',
+                        color: selectedTemplate === i ? '#142D48' : '#6B8299',
+                        outline: selectedTemplate === i ? 'none' : '1px solid rgba(255,255,255,0.07)',
+                      }}
+                    >
+                      {t.name}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {activeTemplate && (
                 <>
