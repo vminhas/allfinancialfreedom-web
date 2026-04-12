@@ -9,6 +9,8 @@ interface MessageToSend {
   contactId: string   // local DB contact id
   subject: string
   body: string        // plain text from Claude
+  inputTokens?: number
+  outputTokens?: number
 }
 
 function wrapInBrandedHtml(firstName: string, body: string, bookingUrl: string): string {
@@ -134,6 +136,8 @@ export async function POST(req: NextRequest) {
           status: 'SENT',
           sentAt: new Date(),
           ghlMessageId: ghlData.messageId ?? ghlData.id ?? null,
+          inputTokens: msg.inputTokens ?? 0,
+          outputTokens: msg.outputTokens ?? 0,
         },
       })
 

@@ -22,6 +22,8 @@ interface Draft {
   body: string
   approved: boolean
   editing: boolean
+  inputTokens?: number
+  outputTokens?: number
 }
 
 export default function OutreachPage() {
@@ -79,6 +81,8 @@ export default function OutreachPage() {
       contactId: d.contactId,
       subject: d.subject,
       body: d.body,
+      inputTokens: d.inputTokens,
+      outputTokens: d.outputTokens,
     }))
     const res = await fetch('/api/admin/send-outreach', {
       method: 'POST',

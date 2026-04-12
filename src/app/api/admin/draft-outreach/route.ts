@@ -80,6 +80,8 @@ Write a personalized outreach email from Vick Minhas inviting this person to exp
         lastName: contact.lastName,
         subject: parsed.subject ?? '',
         body: parsed.body ?? '',
+        inputTokens: message.usage.input_tokens,
+        outputTokens: message.usage.output_tokens,
       })
     } catch (err) {
       drafts.push({

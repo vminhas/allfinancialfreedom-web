@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import GhlStatusWidget from '@/components/vault/GhlStatusWidget'
+import ClaudeCostWidget from '@/components/vault/ClaudeCostWidget'
 
 export default async function VaultDashboard() {
   const session = await getServerSession(authOptions)
@@ -53,6 +54,9 @@ export default async function VaultDashboard() {
           </div>
         ))}
       </div>
+
+      {/* Claude Cost */}
+      <ClaudeCostWidget />
 
       {/* Recent imports */}
       <div style={{ background: '#142D48', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)', overflow: 'hidden' }}>

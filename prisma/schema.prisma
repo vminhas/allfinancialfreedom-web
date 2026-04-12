@@ -93,6 +93,8 @@ model OutreachMessage {
   status       MessageStatus @default(DRAFT)
   sentAt       DateTime?
   ghlMessageId String?
+  inputTokens  Int       @default(0)
+  outputTokens Int       @default(0)
   createdAt    DateTime  @default(now())
 
   @@map("outreach_messages")
