@@ -222,19 +222,53 @@ export default function ImportPage() {
             <p style={{ color: '#6B8299', fontSize: 13, margin: 0 }}>{rows.length} rows found in {fileName}</p>
           </div>
           <div style={{ padding: '24px 28px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24 }}>
-              {headers.map(h => (
-                <div key={h}>
-                  <p style={{ color: '#9BB0C4', fontSize: 11, margin: '0 0 6px' }}>{h}</p>
-                  <select
-                    value={mapping[h] ?? ''}
-                    onChange={e => setMapping(m => ({ ...m, [h]: e.target.value }))}
-                    style={{ ...inputStyle, cursor: 'pointer' }}
-                  >
-                    {FIELD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
-                </div>
-              ))}
+            {/* Column headers */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 24px 1fr', gap: '0 8px', marginBottom: 8, padding: '0 4px' }}>
+              <span style={{ color: '#C9A96E', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 600 }}>PropHog Column</span>
+              <span />
+              <span style={{ color: '#4ade80', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 600 }}>Maps to AFF Field</span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 24 }}>
+              {headers.map(h => {
+                const mapped = mapping[h] ?? ''
+                const isMapped = !!mapped
+                return (
+                  <div key={h} style={{
+                    display: 'grid', gridTemplateColumns: '1fr 24px 1fr', gap: '0 8px', alignItems: 'center',
+                    background: isMapped ? 'rgba(201,169,110,0.04)' : 'rgba(255,255,255,0.02)',
+                    border: `1px solid ${isMapped ? 'rgba(201,169,110,0.15)' : 'rgba(255,255,255,0.05)'}`,
+                    borderRadius: 4, padding: '8px 12px',
+                  }}>
+                    {/* PropHog column name */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{
+                        display: 'inline-block', width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                        background: isMapped ? '#C9A96E' : '#2a3f52',
+                      }} />
+                      <span style={{ color: isMapped ? '#ffffff' : '#4B5563', fontSize: 12, fontFamily: 'monospace' }}>{h}</span>
+                    </div>
+
+                    {/* Arrow */}
+                    <span style={{ color: isMapped ? '#C9A96E' : '#2a3f52', fontSize: 14, textAlign: 'center' }}>→</span>
+
+                    {/* AFF field dropdown */}
+                    <select
+                      value={mapped}
+                      onChange={e => setMapping(m => ({ ...m, [h]: e.target.value }))}
+                      style={{
+                        width: '100%', padding: '6px 10px',
+                        background: isMapped ? '#0C1E30' : 'rgba(12,30,48,0.5)',
+                        border: `1px solid ${isMapped ? 'rgba(74,222,128,0.3)' : 'rgba(255,255,255,0.06)'}`,
+                        borderRadius: 4, color: isMapped ? '#4ade80' : '#4B5563',
+                        fontSize: 12, outline: 'none', cursor: 'pointer',
+                      }}
+                    >
+                      {FIELD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                  </div>
+                )
+              })}
             </div>
 
             {/* Preview */}
