@@ -21,16 +21,17 @@ export const metadata: Metadata = {
 const PAGE_1_SIZE = 10
 const PAGE_N_SIZE = 9
 
-export default function BlogPage({
+export default async function BlogPage({
   searchParams,
 }: {
-  searchParams: { category?: string; search?: string; page?: string }
+  searchParams: Promise<{ category?: string; search?: string; page?: string }>
 }) {
+  const { category, search, page } = await searchParams
   const allArticles = getAllArticles()
   const categories = getAllCategories()
-  const activeCategory = searchParams.category ?? 'All'
-  const searchQuery = (searchParams.search ?? '').toLowerCase().trim()
-  const currentPage = Math.max(1, parseInt(searchParams.page ?? '1', 10))
+  const activeCategory = category ?? 'All'
+  const searchQuery = (search ?? '').toLowerCase().trim()
+  const currentPage = Math.max(1, parseInt(page ?? '1', 10))
 
   // Filter by category
   let filtered = activeCategory === 'All'
@@ -131,7 +132,7 @@ export default function BlogPage({
             <div className="text-center py-20">
               <p style={{ color: '#6B8299', fontSize: '0.9rem' }}>
                 {searchQuery
-                  ? `No articles found for "${searchParams.search}". Try a different search.`
+                  ? `No articles found for "${search}". Try a different search.`
                   : 'No articles in this category yet. Check back soon.'}
               </p>
               <Link href="/blog" style={{ display: 'inline-block', marginTop: 16, fontSize: '0.72rem', color: '#C9A96E', textDecoration: 'underline', textUnderlineOffset: 3 }}>
@@ -143,7 +144,7 @@ export default function BlogPage({
               {/* Search result count */}
               {searchQuery && (
                 <p style={{ fontSize: '0.72rem', color: '#9BB0C4', marginBottom: '1.5rem', letterSpacing: '0.04em' }}>
-                  {filtered.length} result{filtered.length !== 1 ? 's' : ''} for &ldquo;{searchParams.search}&rdquo;
+                  {filtered.length} result{filtered.length !== 1 ? 's' : ''} for &ldquo;{search}&rdquo;
                 </p>
               )}
 
