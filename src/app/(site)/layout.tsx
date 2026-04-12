@@ -13,7 +13,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
       <Script
         src="https://widgets.leadconnectorhq.com/loader.js"
         data-resources-url="https://widgets.leadconnectorhq.com/chat-widget/loader.js"
-        data-widget-id="69d2cc18a3eb88e277500144"
+        data-widget-id="69d86ea0d69ee86268acfc80"
         strategy="afterInteractive"
       />
       <Script
