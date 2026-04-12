@@ -35,6 +35,9 @@ export default function SettingsPage() {
   const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null)
   const [pipelineMsg, setPipelineMsg] = useState<string | null>(null)
   const [pipelineLoading, setPipelineLoading] = useState(false)
+  const [pipelines, setPipelines] = useState<{ id: string; name: string }[]>([])
+  const [selectedPipelineId, setSelectedPipelineId] = useState('')
+  const [syncingPipeline, setSyncingPipeline] = useState(false)
 
   const [pwFields, setPwFields] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
   const [pwMsg, setPwMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -112,6 +115,38 @@ export default function SettingsPage() {
       setPipelineMsg(`Error: ${data.error}`)
     }
     setPipelineLoading(false)
+  }
+
+  async function handleLoadPipelines() {
+    setSyncingPipeline(true)
+    setPipelineMsg(null)
+    const res = await fetch('/api/admin/list-pipelines')
+    const data = await res.json()
+    if (data.pipelines) {
+      setPipelines(data.pipelines)
+      setPipelineMsg(data.pipelines.length === 0 ? 'No pipelines found in GHL.' : null)
+    } else {
+      setPipelineMsg(`Error: ${data.error}`)
+    }
+    setSyncingPipeline(false)
+  }
+
+  async function handleSyncPipeline() {
+    if (!selectedPipelineId) return
+    setSyncingPipeline(true)
+    setPipelineMsg(null)
+    const res = await fetch('/api/admin/list-pipelines', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pipelineId: selectedPipelineId }),
+    })
+    const data = await res.json()
+    if (data.ok) {
+      setPipelineMsg(`Synced — ${data.stages?.length ?? 0} stages saved.`)
+    } else {
+      setPipelineMsg(`Error: ${data.error}`)
+    }
+    setSyncingPipeline(false)
   }
 
   const card = (children: React.ReactNode) => (
@@ -216,11 +251,14 @@ export default function SettingsPage() {
           {cardHeader('GHL Pipeline Setup')}
           <div style={{ padding: '28px' }}>
             <p style={{ color: '#6B8299', fontSize: 13, lineHeight: 1.7, margin: '0 0 20px' }}>
-              Creates the "AFF Recruit" pipeline in GoHighLevel with all 8 stages. Safe to run again — it will sync existing stage IDs if the pipeline already exists.
+              Creates the "AFF Recruit" pipeline in GHL automatically, or sync an existing pipeline you've already created manually.
             </p>
-            <div style={{ background: '#0C1E30', borderRadius: 4, padding: '16px 20px', marginBottom: 20 }}>
+
+            {/* Auto-create */}
+            <p style={{ color: '#C9A96E', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 600, margin: '0 0 10px' }}>Option A — Auto-create</p>
+            <div style={{ background: '#0C1E30', borderRadius: 4, padding: '14px 18px', marginBottom: 14 }}>
               {['Application Received', 'Contacted', 'Responded', 'Discovery Booked', 'Not Responding', 'Not Interested', 'Qualified', 'Ready to Onboard'].map((s, i) => (
-                <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 0' }}>
+                <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '3px 0' }}>
                   <span style={{ color: '#C9A96E', fontSize: 11, width: 16, textAlign: 'right' }}>{i + 1}</span>
                   <span style={{ color: '#9BB0C4', fontSize: 13 }}>{s}</span>
                 </div>
@@ -230,12 +268,53 @@ export default function SettingsPage() {
               padding: '10px 24px', background: '#142D48', color: '#C9A96E',
               border: '1px solid rgba(201,169,110,0.4)', borderRadius: 4, fontSize: 12,
               fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
-              cursor: pipelineLoading ? 'not-allowed' : 'pointer',
+              cursor: pipelineLoading ? 'not-allowed' : 'pointer', marginBottom: 28,
             }}>
               {pipelineLoading ? 'Setting up...' : 'Setup Pipeline in GHL'}
             </button>
+
+            {/* Manual sync */}
+            <p style={{ color: '#C9A96E', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 600, margin: '0 0 8px' }}>Option B — Sync existing pipeline</p>
+            <p style={{ color: '#6B8299', fontSize: 12, lineHeight: 1.6, margin: '0 0 14px' }}>
+              Already created a pipeline in GHL? Load your pipelines and select it to sync the stage IDs.
+            </p>
+            <button onClick={handleLoadPipelines} disabled={syncingPipeline} style={{
+              padding: '10px 24px', background: '#142D48', color: '#C9A96E',
+              border: '1px solid rgba(201,169,110,0.4)', borderRadius: 4, fontSize: 12,
+              fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+              cursor: syncingPipeline ? 'not-allowed' : 'pointer', marginBottom: 14,
+            }}>
+              {syncingPipeline ? 'Loading...' : 'Load My Pipelines'}
+            </button>
+
+            {pipelines.length > 0 && (
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 14 }}>
+                <select
+                  value={selectedPipelineId}
+                  onChange={e => setSelectedPipelineId(e.target.value)}
+                  style={{
+                    flex: 1, padding: '10px 14px', background: '#0C1E30',
+                    border: '1px solid rgba(201,169,110,0.2)', borderRadius: 4,
+                    color: '#ffffff', fontSize: 13, outline: 'none',
+                  }}
+                >
+                  <option value="">Select a pipeline...</option>
+                  {pipelines.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+                <button onClick={handleSyncPipeline} disabled={!selectedPipelineId || syncingPipeline} style={{
+                  padding: '10px 20px', background: '#C9A96E', color: '#142D48', border: 'none',
+                  borderRadius: 4, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em',
+                  textTransform: 'uppercase', cursor: (!selectedPipelineId || syncingPipeline) ? 'not-allowed' : 'pointer',
+                }}>
+                  Sync
+                </button>
+              </div>
+            )}
+
             {pipelineMsg && (
-              <p style={{ marginTop: 14, fontSize: 13, color: pipelineMsg.startsWith('Error') ? '#f87171' : '#4ade80' }}>
+              <p style={{ marginTop: 4, fontSize: 13, color: pipelineMsg.startsWith('Error') ? '#f87171' : '#4ade80' }}>
                 {pipelineMsg}
               </p>
             )}
