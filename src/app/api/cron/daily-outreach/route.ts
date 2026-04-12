@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
     where: {
       outreachStatus: 'pending',
       ghlContactId: { not: null },
-      email: { not: null },
+      email: { not: undefined },
     },
     take: toSend,
     orderBy: { createdAt: 'asc' },
