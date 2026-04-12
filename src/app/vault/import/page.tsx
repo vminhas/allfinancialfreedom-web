@@ -18,24 +18,50 @@ const FIELD_OPTIONS = [
 ]
 
 function guessMapping(header: string): string {
-  const h = header.toLowerCase().replace(/[^a-z]/g, '')
-  if (h.includes('first')) return 'firstName'
-  if (h.includes('last')) return 'lastName'
+  const h = header.toLowerCase().trim()
+  // Exact PropHog column names first
+  if (h === 'first_name' || h === 'firstname') return 'firstName'
+  if (h === 'last_name' || h === 'lastname') return 'lastName'
+  if (h === 'email') return 'email'
+  if (h === 'phone') return 'phone'
+  if (h === 'state') return 'state'
+  if (h === 'loas') return 'licenseType'           // PropHog "lines of authority" — actual license types
+  if (h === 'current_agency' || h === 'agency' || h === 'company' || h === 'employer') return 'currentAgency'
+  if (h === 'worn_out' || h === 'wornout' || h === 'worn') return 'wornOut'
+  // Generic fallbacks (no 'license' keyword — PropHog has too many license_* columns)
+  if (h.includes('first') && !h.includes('last')) return 'firstName'
+  if (h.includes('last') && !h.includes('first')) return 'lastName'
   if (h.includes('email') || h.includes('mail')) return 'email'
   if (h.includes('phone') || h.includes('cell') || h.includes('mobile')) return 'phone'
-  if (h.includes('license') || h.includes('lob') || h.includes('type')) return 'licenseType'
-  if (h.includes('agency') || h.includes('company') || h.includes('employer')) return 'currentAgency'
-  if (h.includes('state') || h.includes('st') || h === 'state') return 'state'
-  if (h.includes('worn') || h.includes('exhausted') || h.includes('dnd')) return 'wornOut'
   return ''
+}
+
+function parseCsvLine(line: string): string[] {
+  const fields: string[] = []
+  let cur = ''
+  let inQuotes = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') { cur += '"'; i++ }
+      else inQuotes = !inQuotes
+    } else if (ch === ',' && !inQuotes) {
+      fields.push(cur.trim())
+      cur = ''
+    } else {
+      cur += ch
+    }
+  }
+  fields.push(cur.trim())
+  return fields
 }
 
 function parseCsv(text: string): { headers: string[]; rows: CsvRow[] } {
   const lines = text.trim().split(/\r?\n/)
   if (lines.length < 2) return { headers: [], rows: [] }
-  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''))
+  const headers = parseCsvLine(lines[0])
   const rows = lines.slice(1).map(line => {
-    const vals = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''))
+    const vals = parseCsvLine(line)
     const row: CsvRow = {}
     headers.forEach((h, i) => { row[h] = vals[i] ?? '' })
     return row
