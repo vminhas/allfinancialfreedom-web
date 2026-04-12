@@ -233,45 +233,49 @@ client.on(Events.InteractionCreate, async (interaction) => {
     await interaction.reply({ content: `Announcement posted in ${targetChannel}!`, ephemeral: true });
   }
 
-  // /edit — admin edits a bot message
+  // /edit — edit the most recent bot message in this channel (or a specific one)
   if (interaction.commandName === 'edit') {
-    const adminRole = interaction.member.roles.cache.get(ROLES.ADMIN);
-    if (!adminRole) {
-      return interaction.reply({ content: 'You need the Admin role to use this command.', ephemeral: true });
+    if (!canEdit(interaction)) {
+      return interaction.reply({ content: '❌ You don\'t have permission to edit messages.', ephemeral: true });
     }
 
-    const messageId = interaction.options.getString('message_id');
-    const newContent = interaction.options.getString('content');
-
     try {
-      const message = await interaction.channel.messages.fetch(messageId);
+      let message;
+      const messageId = interaction.options.getString('message_id');
+
+      if (messageId) {
+        message = await interaction.channel.messages.fetch(messageId);
+      } else {
+        // Auto-find the most recent bot message in this channel
+        const msgs = await interaction.channel.messages.fetch({ limit: 20 });
+        message = msgs.find(m => m.author.id === client.user.id && m.embeds.length > 0);
+        if (!message) {
+          return interaction.reply({ content: '❌ No bot message found in this channel.', ephemeral: true });
+        }
+      }
 
       if (message.author.id !== client.user.id) {
         return interaction.reply({ content: '❌ I can only edit my own messages.', ephemeral: true });
       }
 
-      // If no content provided, show current content for easy editing
-      if (!newContent) {
-        const oldEmbed = message.embeds[0];
-        const current = [
-          `**Title:** ${oldEmbed?.title || '(none)'}`,
-          `**Description:** ${oldEmbed?.description || '(none)'}`,
-          oldEmbed?.fields?.length ? `**Fields:**\n${oldEmbed.fields.map(f => `• **${f.name}:** ${f.value}`).join('\n')}` : '',
-        ].filter(Boolean).join('\n\n');
-
-        return interaction.reply({
-          content: `📋 **Current content of message \`${messageId}\`:**\n\n${current}\n\n---\nRun \`/edit message_id:${messageId} content:your new description here\` to update the description.`,
-          ephemeral: true,
-        });
-      }
-
-      // Update description, preserve everything else
+      // Open modal pre-filled with current description
       const oldEmbed = message.embeds[0];
-      const updatedEmbed = EmbedBuilder.from(oldEmbed).setDescription(newContent);
-      await message.edit({ embeds: [updatedEmbed] });
-      await interaction.reply({ content: '✅ Message updated.', ephemeral: true });
+      const modal = new ModalBuilder()
+        .setCustomId(`edit_modal_${message.id}`)
+        .setTitle(`Edit: ${oldEmbed?.title || 'Message'}`);
+
+      const descInput = new TextInputBuilder()
+        .setCustomId('description')
+        .setLabel('Description')
+        .setStyle(TextInputStyle.Paragraph)
+        .setValue(oldEmbed?.description || '')
+        .setRequired(false);
+
+      modal.addComponents(new ActionRowBuilder().addComponents(descInput));
+      return interaction.showModal(modal);
+
     } catch (e) {
-      await interaction.reply({ content: `❌ Could not find message. Make sure you copied the ID from this channel.\n\`${e.message}\``, ephemeral: true });
+      await interaction.reply({ content: `❌ Error: ${e.message}`, ephemeral: true });
     }
   }
 

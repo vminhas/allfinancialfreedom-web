@@ -23,7 +23,7 @@ const commands = [
     .setName('edit')
     .setDescription('Edit the description of a bot message')
     .addStringOption(opt =>
-      opt.setName('message_id').setDescription('Right-click the message → Copy Message ID').setRequired(true)
+      opt.setName('message_id').setDescription('Leave blank to auto-edit the most recent bot message in this channel').setRequired(false)
     )
     .addStringOption(opt =>
       opt.setName('content').setDescription('The new text for the message body (leave blank to preview current content)').setRequired(false)
