@@ -162,7 +162,8 @@ export default function ImportPage() {
     <div style={{ maxWidth: 760 }}>
       <div style={{ marginBottom: 32 }}>
         <p style={{ color: '#C9A96E', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 600, margin: '0 0 6px' }}>PropHog</p>
-        <h1 style={{ color: '#ffffff', fontSize: 28, fontWeight: 300, margin: 0 }}>Import Contacts</h1>
+        <h1 style={{ color: '#ffffff', fontSize: 28, fontWeight: 300, margin: '0 0 6px' }}>Import Contacts</h1>
+        <p style={{ color: '#6B8299', fontSize: 13, margin: 0 }}>Upload a PropHog CSV, map the columns, and import agents into GHL and your local database.</p>
       </div>
 
       {/* Step indicators */}
@@ -299,9 +300,15 @@ export default function ImportPage() {
             </div>
 
             <div style={{ marginBottom: 20 }}>
-              <p style={{ color: '#C9A96E', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 600, margin: '0 0 8px' }}>
-                Worn Out Strategy
-              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <p style={{ color: '#C9A96E', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 600, margin: 0 }}>
+                  Worn Out Strategy
+                </p>
+                <span
+                  title="Worn-out leads are agents who've already been heavily pitched by other agencies. They get a softer email sequence — value-first, no booking link on the first touch."
+                  style={{ color: '#4B5563', fontSize: 11, cursor: 'help', border: '1px solid #4B5563', borderRadius: '50%', width: 14, height: 14, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                >?</span>
+              </div>
               <div style={{ display: 'flex', gap: 12 }}>
                 {[{ v: 'none', l: 'None — treat all as fresh leads' }, { v: 'flag_column', l: 'Use "Worn Out" column from CSV' }].map(opt => (
                   <label key={opt.v} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>

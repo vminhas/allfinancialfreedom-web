@@ -99,7 +99,8 @@ export default function ContactsPage() {
       <div style={{ marginBottom: 28, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
         <div>
           <p style={{ color: '#C9A96E', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 600, margin: '0 0 6px' }}>Database</p>
-          <h1 style={{ color: '#ffffff', fontSize: 28, fontWeight: 300, margin: 0 }}>Contacts <span style={{ color: '#6B8299', fontSize: 16 }}>({total.toLocaleString()})</span></h1>
+          <h1 style={{ color: '#ffffff', fontSize: 28, fontWeight: 300, margin: '0 0 6px' }}>Contacts <span style={{ color: '#6B8299', fontSize: 16 }}>({total.toLocaleString()})</span></h1>
+          <p style={{ color: '#6B8299', fontSize: 13, margin: 0 }}>All imported agents. Filter by license type, outreach status, or lead type. Select contacts to bulk delete.</p>
         </div>
       </div>
 

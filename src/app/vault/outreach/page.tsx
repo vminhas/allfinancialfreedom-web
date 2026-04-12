@@ -227,7 +227,8 @@ export default function OutreachPage() {
     <div>
       <div style={{ marginBottom: 32 }}>
         <p style={{ color: '#C9A96E', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 600, margin: '0 0 6px' }}>AI-Powered</p>
-        <h1 style={{ color: '#ffffff', fontSize: 28, fontWeight: 300, margin: 0 }}>Outreach</h1>
+        <h1 style={{ color: '#ffffff', fontSize: 28, fontWeight: 300, margin: '0 0 6px' }}>Outreach</h1>
+        <p style={{ color: '#6B8299', fontSize: 13, margin: 0 }}>Claude generates 3 email templates. Pick one, edit if needed, then send to all selected contacts. Tokens like {`{{firstName}}`} are replaced per contact at send time.</p>
       </div>
 
       {sentCount !== null && (

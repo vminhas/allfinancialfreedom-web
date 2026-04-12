@@ -174,10 +174,13 @@ export default function SettingsPage() {
         <>
           {cardHeader('API Keys')}
           <div style={{ padding: '28px' }}>
+            <p style={{ color: '#6B8299', fontSize: 12, margin: '0 0 24px', lineHeight: 1.6 }}>
+              All keys are encrypted before being stored. Find your GHL API key at <strong style={{ color: '#9BB0C4' }}>GHL → Settings → Private Integrations</strong>. Your Anthropic key is at <strong style={{ color: '#9BB0C4' }}>console.anthropic.com → API Keys</strong>.
+            </p>
             <Field label="GHL API Key" name="GHL_API_KEY" value={fields.GHL_API_KEY} onChange={set('GHL_API_KEY')} placeholder="pit-..." />
-            <Field label="GHL Location ID" name="GHL_LOCATION_ID" value={fields.GHL_LOCATION_ID} onChange={set('GHL_LOCATION_ID')} placeholder="tDxu4b..." />
-            <Field label="GHL Pipeline ID (AFF Recruit)" name="GHL_PIPELINE_ID" value={fields.GHL_PIPELINE_ID} onChange={set('GHL_PIPELINE_ID')} placeholder="Paste from GHL pipeline URL" />
-            <Field label="Anthropic API Key (Claude)" name="ANTHROPIC_API_KEY" value={fields.ANTHROPIC_API_KEY} onChange={set('ANTHROPIC_API_KEY')} placeholder="sk-ant-..." />
+            <Field label="GHL Location ID" name="GHL_LOCATION_ID" value={fields.GHL_LOCATION_ID} onChange={set('GHL_LOCATION_ID')} placeholder="tDxu4b... (found in GHL URL)" />
+            <Field label="GHL Pipeline ID (AFF Recruit)" name="GHL_PIPELINE_ID" value={fields.GHL_PIPELINE_ID} onChange={set('GHL_PIPELINE_ID')} placeholder="Found in GHL → Opportunities → Pipelines URL" />
+            <Field label="Anthropic API Key (Claude)" name="ANTHROPIC_API_KEY" value={fields.ANTHROPIC_API_KEY} onChange={set('ANTHROPIC_API_KEY')} placeholder="sk-ant-... (used for AI email drafting)" />
             <Field label="Vick's Email (for PropHog briefings)" name="VICK_EMAIL" value={fields.VICK_EMAIL} onChange={set('VICK_EMAIL')} placeholder="vick@allfinancialfreedom.com" />
 
             <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>

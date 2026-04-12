@@ -33,6 +33,21 @@ export default async function VaultDashboard() {
         </h1>
       </div>
 
+      {/* Workflow overview */}
+      <div style={{ display: 'flex', gap: 0, marginBottom: 28, background: '#142D48', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)', overflow: 'hidden' }}>
+        {[
+          { step: '1', label: 'Import', desc: 'Upload PropHog CSV, map fields, import to GHL', href: '/vault/import' },
+          { step: '2', label: 'Outreach', desc: 'AI drafts personalized emails, you review and send', href: '/vault/outreach' },
+          { step: '3', label: 'Pipeline', desc: 'Track contacts from Contacted → Ready to Onboard', href: '/vault/pipeline' },
+          { step: '4', label: 'GHL', desc: 'Replies, SMS follow-ups, and booking calls live here', href: null },
+        ].map((w, i) => (
+          <div key={w.step} style={{ flex: 1, padding: '16px 20px', borderRight: i < 3 ? '1px solid rgba(201,169,110,0.08)' : 'none' }}>
+            <p style={{ color: '#C9A96E', fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700, margin: '0 0 4px' }}>Step {w.step} — {w.label}</p>
+            <p style={{ color: '#6B8299', fontSize: 11, margin: 0, lineHeight: 1.5 }}>{w.desc}</p>
+          </div>
+        ))}
+      </div>
+
       {/* GHL Connector */}
       <GhlStatusWidget />
 
