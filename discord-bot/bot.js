@@ -191,7 +191,22 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return interaction.reply({ content: '❌ I can only edit my own messages.', ephemeral: true });
       }
 
-      // Preserve existing embed, just update description
+      // If no content provided, show current content for easy editing
+      if (!newContent) {
+        const oldEmbed = message.embeds[0];
+        const current = [
+          `**Title:** ${oldEmbed?.title || '(none)'}`,
+          `**Description:** ${oldEmbed?.description || '(none)'}`,
+          oldEmbed?.fields?.length ? `**Fields:**\n${oldEmbed.fields.map(f => `• **${f.name}:** ${f.value}`).join('\n')}` : '',
+        ].filter(Boolean).join('\n\n');
+
+        return interaction.reply({
+          content: `📋 **Current content of message \`${messageId}\`:**\n\n${current}\n\n---\nRun \`/edit message_id:${messageId} content:your new description here\` to update the description.`,
+          ephemeral: true,
+        });
+      }
+
+      // Update description, preserve everything else
       const oldEmbed = message.embeds[0];
       const updatedEmbed = EmbedBuilder.from(oldEmbed).setDescription(newContent);
       await message.edit({ embeds: [updatedEmbed] });

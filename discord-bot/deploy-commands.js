@@ -26,7 +26,7 @@ const commands = [
       opt.setName('message_id').setDescription('Right-click the message → Copy Message ID').setRequired(true)
     )
     .addStringOption(opt =>
-      opt.setName('content').setDescription('The new text for the message body').setRequired(true)
+      opt.setName('content').setDescription('The new text for the message body (leave blank to preview current content)').setRequired(false)
     ),
 
   new SlashCommandBuilder()
