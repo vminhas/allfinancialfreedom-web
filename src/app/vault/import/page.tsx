@@ -136,12 +136,27 @@ export default function ImportPage() {
     setStep('import')
     setImportProgress({ imported: 0, total: jobStats?.toImport ?? 0, status: 'RUNNING' })
 
+    // Start polling for live progress
+    const pollInterval = setInterval(async () => {
+      const r = await fetch(`/api/admin/import-status?jobId=${jobId}`)
+      if (!r.ok) return
+      const d = await r.json()
+      if (d.job) {
+        setImportProgress(p => ({
+          imported: d.job.importedCount ?? p?.imported ?? 0,
+          total: jobStats?.toImport ?? d.job.totalRows ?? 0,
+          status: d.job.status,
+        }))
+      }
+    }, 2000)
+
     const res = await fetch('/api/admin/import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ jobId }),
     })
     const data = await res.json()
+    clearInterval(pollInterval)
 
     if (data.paused) {
       setImportProgress({ imported: data.imported ?? 0, total: jobStats?.toImport ?? 0, status: 'PAUSED' })
