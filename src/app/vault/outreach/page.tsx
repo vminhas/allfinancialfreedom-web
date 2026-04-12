@@ -51,14 +51,18 @@ export default function OutreachPage() {
         setContacts(loaded)
         if (loaded.length > 0) setPreviewContact(loaded[0])
 
-        const jobIds = [...new Set(loaded.map((c: ContactOption) => c.importJobId).filter(Boolean))]
-        if (jobIds.length === 1) {
-          const jobRes = await fetch(`/api/admin/import-job/${jobIds[0]}`)
+        // Auto-fill context from the most recent import job that has a contextPrompt
+        const jobIds = Array.from(new Set<string>(
+          loaded.map((c: ContactOption) => c.importJobId).filter(Boolean)
+        ))
+        for (const jobId of jobIds) {
+          const jobRes = await fetch(`/api/admin/import-job/${jobId}`)
           if (jobRes.ok) {
             const job = await jobRes.json()
             if (job.contextPrompt) {
               setContext(job.contextPrompt)
               setContextSource(job.fileName)
+              break
             }
           }
         }
