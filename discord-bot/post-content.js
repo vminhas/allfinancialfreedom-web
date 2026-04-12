@@ -3,7 +3,7 @@
 // node discord-bot/post-content.js
 
 require('./load-env');
-const { Client, GatewayIntentBits, EmbedBuilder, ChannelType } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { GUILD_ID, COLORS } = require('./config');
 
 const client = new Client({
@@ -259,13 +259,21 @@ async function run() {
       }
     }
 
-    // Post new embeds
+    // Post new embeds with edit button
     const embeds = CHANNEL_POSTS[channelId];
     if (embeds) {
       for (const embed of embeds) {
-        await channel.send({ embeds: [embed] });
+        const sent = await channel.send({ embeds: [embed] });
+        // Add edit button referencing the message's own ID
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`edit_btn_${sent.id}`)
+            .setLabel('✏️ Edit')
+            .setStyle(ButtonStyle.Secondary)
+        );
+        await sent.edit({ embeds: [embed], components: [row] });
       }
-      console.log(`  ✅ Posted ${embeds.length} embed(s)`);
+      console.log(`  ✅ Posted ${embeds.length} embed(s) with edit buttons`);
     }
 
     // Small delay to avoid rate limits

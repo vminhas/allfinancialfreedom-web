@@ -1,5 +1,9 @@
-const { Client, GatewayIntentBits, EmbedBuilder, Events } = require('discord.js');
-const { GUILD_ID, CHANNELS, ROLES, COLORS } = require('./config');
+const {
+  Client, GatewayIntentBits, EmbedBuilder, Events,
+  ActionRowBuilder, ButtonBuilder, ButtonStyle,
+  ModalBuilder, TextInputBuilder, TextInputStyle,
+} = require('discord.js');
+const { GUILD_ID, CHANNELS, ROLES, COLORS, EDITORS } = require('./config');
 
 const client = new Client({
   intents: [
@@ -148,8 +152,63 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   }
 });
 
-// Slash commands
+// Helper: check if user can edit
+function canEdit(interaction) {
+  const isAdmin = interaction.member?.roles?.cache?.has(ROLES.ADMIN);
+  const isEditor = EDITORS.includes(interaction.user.id);
+  return isAdmin || isEditor;
+}
+
+// Helper: build edit button row
+function editButtonRow(messageId) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`edit_btn_${messageId}`)
+      .setLabel('✏️ Edit')
+      .setStyle(ButtonStyle.Secondary)
+  );
+}
+
+// Slash commands + button/modal interactions
 client.on(Events.InteractionCreate, async (interaction) => {
+
+  // ── Button click → open edit modal ─────────────────────────────────────────
+  if (interaction.isButton() && interaction.customId.startsWith('edit_btn_')) {
+    if (!canEdit(interaction)) {
+      return interaction.reply({ content: '❌ You don\'t have permission to edit messages.', ephemeral: true });
+    }
+
+    const messageId = interaction.customId.replace('edit_btn_', '');
+    const message = await interaction.channel.messages.fetch(messageId);
+    const oldEmbed = message.embeds[0];
+
+    const modal = new ModalBuilder()
+      .setCustomId(`edit_modal_${messageId}`)
+      .setTitle('Edit Message');
+
+    const descInput = new TextInputBuilder()
+      .setCustomId('description')
+      .setLabel('Description')
+      .setStyle(TextInputStyle.Paragraph)
+      .setValue(oldEmbed?.description || '')
+      .setRequired(false);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(descInput));
+    return interaction.showModal(modal);
+  }
+
+  // ── Modal submit → update message ──────────────────────────────────────────
+  if (interaction.isModalSubmit() && interaction.customId.startsWith('edit_modal_')) {
+    const messageId = interaction.customId.replace('edit_modal_', '');
+    const newDescription = interaction.fields.getTextInputValue('description');
+
+    const message = await interaction.channel.messages.fetch(messageId);
+    const oldEmbed = message.embeds[0];
+    const updatedEmbed = EmbedBuilder.from(oldEmbed).setDescription(newDescription);
+    await message.edit({ embeds: [updatedEmbed] });
+    return interaction.reply({ content: '✅ Updated!', ephemeral: true });
+  }
+
   if (!interaction.isChatInputCommand()) return;
 
   // /announce — admin only

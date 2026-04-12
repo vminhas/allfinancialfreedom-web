@@ -29,6 +29,12 @@ module.exports = {
     LICENSED:       '1295044213360296053',
   },
 
+  // Users allowed to edit bot messages (Admin role OR these user IDs)
+  EDITORS: [
+    '857638016074907649',   // Melinee Minhas
+    '1248710966879715381',  // Karmvir (Vick) Minhas
+  ],
+
   // AFF brand colors (hex → decimal for Discord embeds)
   COLORS: {
     NAVY: 0x1a2744,
