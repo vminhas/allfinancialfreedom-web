@@ -36,6 +36,32 @@ export default function SettingsPage() {
   const [pipelineMsg, setPipelineMsg] = useState<string | null>(null)
   const [pipelineLoading, setPipelineLoading] = useState(false)
 
+  const [pwFields, setPwFields] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
+  const [pwMsg, setPwMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [pwLoading, setPwLoading] = useState(false)
+
+  async function handleChangePassword() {
+    if (pwFields.newPassword !== pwFields.confirmPassword) {
+      setPwMsg({ ok: false, text: 'New passwords do not match' })
+      return
+    }
+    setPwLoading(true)
+    setPwMsg(null)
+    const res = await fetch('/api/admin/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword: pwFields.currentPassword, newPassword: pwFields.newPassword }),
+    })
+    const data = await res.json()
+    if (data.ok) {
+      setPwMsg({ ok: true, text: 'Password updated successfully.' })
+      setPwFields({ currentPassword: '', newPassword: '', confirmPassword: '' })
+    } else {
+      setPwMsg({ ok: false, text: data.error ?? 'Failed to update password' })
+    }
+    setPwLoading(false)
+  }
+
   const [fields, setFields] = useState({
     GHL_API_KEY: '',
     GHL_LOCATION_ID: '',
@@ -211,6 +237,45 @@ export default function SettingsPage() {
             {pipelineMsg && (
               <p style={{ marginTop: 14, fontSize: 13, color: pipelineMsg.startsWith('Error') ? '#f87171' : '#4ade80' }}>
                 {pipelineMsg}
+              </p>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Change Password */}
+      {card(
+        <>
+          {cardHeader('Change Password')}
+          <div style={{ padding: '28px' }}>
+            {(['currentPassword', 'newPassword', 'confirmPassword'] as const).map(key => (
+              <div key={key} style={{ marginBottom: 20 }}>
+                <label style={{ display: 'block', color: '#C9A96E', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 8 }}>
+                  {key === 'currentPassword' ? 'Current Password' : key === 'newPassword' ? 'New Password' : 'Confirm New Password'}
+                </label>
+                <input
+                  type="password"
+                  value={pwFields[key]}
+                  onChange={e => setPwFields(f => ({ ...f, [key]: e.target.value }))}
+                  autoComplete="new-password"
+                  style={{
+                    width: '100%', padding: '10px 14px', background: '#0C1E30',
+                    border: '1px solid rgba(201,169,110,0.2)', borderRadius: 4,
+                    color: '#ffffff', fontSize: 13, outline: 'none', boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+            ))}
+            <button onClick={handleChangePassword} disabled={pwLoading} style={{
+              padding: '10px 24px', background: '#C9A96E', color: '#142D48', border: 'none',
+              borderRadius: 4, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em',
+              textTransform: 'uppercase', cursor: pwLoading ? 'not-allowed' : 'pointer',
+            }}>
+              {pwLoading ? 'Updating...' : 'Update Password'}
+            </button>
+            {pwMsg && (
+              <p style={{ marginTop: 14, fontSize: 13, color: pwMsg.ok ? '#4ade80' : '#f87171' }}>
+                {pwMsg.ok ? '✓ ' : '✗ '}{pwMsg.text}
               </p>
             )}
           </div>
