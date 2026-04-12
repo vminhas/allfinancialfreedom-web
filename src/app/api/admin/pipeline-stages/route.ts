@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getGhlConfig, ghlGet } from '@/lib/ghl'
+import { db } from '@/lib/db'
 import { getSetting } from '@/lib/settings'
 
 export async function GET() {
@@ -11,45 +11,34 @@ export async function GET() {
   const pipelineId = await getSetting('GHL_PIPELINE_ID')
   if (!pipelineId) return NextResponse.json({ notConfigured: true })
 
-  const config = await getGhlConfig()
-  if (!config.apiKey || !config.locationId) {
-    return NextResponse.json({ notConfigured: true })
-  }
+  // Count contacts per outreach status from local DB
+  const [pending, sent, responded, optedOut] = await Promise.all([
+    db.contact.count({ where: { outreachStatus: 'pending' } }),
+    db.contact.count({ where: { outreachStatus: 'sent' } }),
+    db.contact.count({ where: { outreachStatus: 'responded' } }),
+    db.contact.count({ where: { outreachStatus: 'opted-out' } }),
+  ])
 
-  // Fetch opportunities grouped by stage
-  const pipelineRes = await ghlGet(
-    `/opportunities/pipelines/${pipelineId}?locationId=${config.locationId}`,
-    config
-  )
+  // Sample contacts for preview chips
+  const [pendingContacts, sentContacts, respondedContacts] = await Promise.all([
+    db.contact.findMany({ where: { outreachStatus: 'pending' }, take: 4, select: { firstName: true, lastName: true, email: true } }),
+    db.contact.findMany({ where: { outreachStatus: 'sent' }, take: 4, select: { firstName: true, lastName: true, email: true } }),
+    db.contact.findMany({ where: { outreachStatus: 'responded' }, take: 4, select: { firstName: true, lastName: true, email: true } }),
+  ])
 
-  if (!pipelineRes.ok) {
-    return NextResponse.json({ error: `GHL returned ${pipelineRes.status}` })
-  }
+  const toChips = (contacts: { firstName: string; lastName: string; email: string }[]) =>
+    contacts.map(c => ({ name: `${c.firstName} ${c.lastName}`, email: c.email }))
 
-  const pipelineData = await pipelineRes.json()
-  const rawStages: { id: string; name: string }[] = pipelineData.pipeline?.stages ?? pipelineData.stages ?? []
+  const stages = [
+    { id: 'local-1', name: 'Application Received', count: pending, contacts: toChips(pendingContacts), local: true },
+    { id: 'local-2', name: 'Contacted', count: sent, contacts: toChips(sentContacts), local: true },
+    { id: 'local-3', name: 'Responded', count: responded, contacts: toChips(respondedContacts), local: true },
+    { id: 'local-4', name: 'Discovery Booked', count: 0, contacts: [], local: false },
+    { id: 'local-5', name: 'Not Responding', count: 0, contacts: [], local: false },
+    { id: 'local-6', name: 'Not Interested', count: optedOut, contacts: [], local: true },
+    { id: 'local-7', name: 'Qualified', count: 0, contacts: [], local: false },
+    { id: 'local-8', name: 'Ready to Onboard', count: 0, contacts: [], local: false },
+  ]
 
-  // For each stage, fetch a few opportunities to show names
-  const stages = await Promise.all(rawStages.map(async (stage) => {
-    const oppRes = await ghlGet(
-      `/opportunities/search?location_id=${config.locationId}&pipeline_id=${pipelineId}&pipeline_stage_id=${stage.id}&limit=5`,
-      config
-    )
-
-    let contacts: { name: string; email: string }[] = []
-    let count = 0
-
-    if (oppRes.ok) {
-      const oppData = await oppRes.json()
-      count = oppData.meta?.total ?? oppData.total ?? (oppData.opportunities?.length ?? 0)
-      contacts = (oppData.opportunities ?? []).slice(0, 4).map((o: { name: string; contact?: { email?: string } }) => ({
-        name: o.name ?? 'Unknown',
-        email: o.contact?.email ?? '',
-      }))
-    }
-
-    return { id: stage.id, name: stage.name, count, contacts }
-  }))
-
-  return NextResponse.json({ stages })
+  return NextResponse.json({ stages, localOnly: true })
 }

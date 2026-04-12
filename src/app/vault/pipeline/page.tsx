@@ -7,6 +7,7 @@ interface PipelineStage {
   name: string
   count: number
   contacts: { name: string; email: string }[]
+  local?: boolean
 }
 
 const STAGE_COLORS: Record<string, string> = {
@@ -99,11 +100,16 @@ export default function PipelinePage() {
       {/* Pipeline board */}
       {!loading && stages.length > 0 && (
         <div style={{ overflowX: 'auto' }}>
+          <p style={{ color: '#4B5563', fontSize: 11, margin: '0 0 12px' }}>
+            Stages 1-3 and Opted-Out reflect local data. Stages 4-8 are tracked in <a href="https://app.gohighlevel.com" target="_blank" rel="noreferrer" style={{ color: '#6B8299' }}>GHL Opportunities</a>.
+          </p>
           <div style={{ display: 'flex', gap: 12, minWidth: 'max-content', paddingBottom: 8 }}>
             {stages.map(stage => (
               <div key={stage.id} style={{
                 width: 180, background: '#142D48', borderRadius: 6,
-                border: '1px solid rgba(201,169,110,0.1)', overflow: 'hidden', flexShrink: 0,
+                border: `1px solid ${stage.local ? 'rgba(201,169,110,0.15)' : 'rgba(255,255,255,0.05)'}`,
+                overflow: 'hidden', flexShrink: 0,
+                opacity: stage.local ? 1 : 0.5,
               }}>
                 {/* Stage header */}
                 <div style={{
