@@ -6,7 +6,7 @@ import { AT_RISK_THRESHOLDS, PHASE_ITEMS } from '@/lib/agent-constants'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'admin') {
+  if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
