@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import {
@@ -100,7 +100,7 @@ const fieldLabel = {
   display: 'block', marginBottom: 4,
 }
 
-export default function AgentDashboard() {
+function AgentDashboardInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const discordParam = searchParams.get('discord')
@@ -605,11 +605,21 @@ export default function AgentDashboard() {
           <ProfileTab
             data={data}
             onSaved={fetchData}
+            discordParam={discordParam}
+            discordUsername={discordUsername}
           />
         )}
 
       </div>
     </div>
+  )
+}
+
+export default function AgentDashboard() {
+  return (
+    <Suspense fallback={null}>
+      <AgentDashboardInner />
+    </Suspense>
   )
 }
 
@@ -834,7 +844,7 @@ function CarriersTab({
 
 // ─── Profile Tab ───────────────────────────────────────────────────────────────
 
-function ProfileTab({ data, onSaved }: { data: AgentData; onSaved: () => void }) {
+function ProfileTab({ data, onSaved, discordParam, discordUsername }: { data: AgentData; onSaved: () => void; discordParam: string | null; discordUsername: string | null }) {
   const [form, setForm] = useState({
     phone: data.phone ?? '',
     state: data.state ?? '',
@@ -874,10 +884,7 @@ function ProfileTab({ data, onSaved }: { data: AgentData; onSaved: () => void })
     setAvatarUploading(false)
   }
 
-  // Discord OAuth state — read result from URL params passed back by the callback
-  const searchParams = useSearchParams()
-  const discordParam = searchParams.get('discord')
-  const discordUsername = searchParams.get('username')
+  // Discord OAuth result is passed in as props (read by parent via useSearchParams)
 
   const US_STATES = [
     'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
