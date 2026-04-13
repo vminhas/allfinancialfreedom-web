@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { decrypt } from '@/lib/settings'
 import { getAgentDiscordRoleName } from '@/lib/discord-roles'
 import { PHASE_LABELS, PHASE_ITEMS } from '@/lib/agent-constants'
 
@@ -37,6 +38,15 @@ export async function GET() {
 
   const discordRoleName = await getAgentDiscordRoleName(p.phase).catch(() => null)
 
+  // Mask SSN — decrypt server-side, return only last 4 digits to agent
+  let ssnMasked: string | null = null
+  let ssnOnFile = false
+  if (p.ssn) {
+    ssnOnFile = true
+    const plain = decrypt(p.ssn)
+    ssnMasked = plain.length === 9 ? `***-**-${plain.slice(-4)}` : '***-**-****'
+  }
+
   return NextResponse.json({
     id: p.id,
     agentCode: p.agentCode,
@@ -45,6 +55,8 @@ export async function GET() {
     state: p.state,
     phone: p.phone,
     dateOfBirth: p.dateOfBirth,
+    ssnMasked,
+    ssnOnFile,
     email: agentUser.email,
     phase: p.phase,
     phaseLabel: PHASE_LABELS[p.phase],

@@ -142,6 +142,7 @@ model AgentProfile {
   goal                  String?     // "MD", "EMD", etc.
   initialPointOfContact String?
   examDate              DateTime?
+  ssn                   String?   // AES-256-GCM encrypted; decrypt server-side for admin only
   licenseNumber         String?
   licenseLines          String?
   dateSubmittedToGfi    DateTime?

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { encrypt } from '@/lib/settings'
 
 // PUT /api/agents/profile — agent updates their own personal info
 export async function PUT(req: NextRequest) {
@@ -17,6 +18,7 @@ export async function PUT(req: NextRequest) {
     npn?: string
     licenseNumber?: string
     discordUserId?: string
+    ssn?: string
   }
 
   const agentUser = await db.agentUser.findUnique({
@@ -26,6 +28,19 @@ export async function PUT(req: NextRequest) {
 
   if (!agentUser?.profile) {
     return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+  }
+
+  // Validate and sanitize SSN — strip all non-digits, must be 9 digits
+  let ssnUpdate: { ssn: string | null } | undefined
+  if (body.ssn !== undefined) {
+    const digits = body.ssn.replace(/\D/g, '')
+    if (body.ssn === '') {
+      ssnUpdate = { ssn: null }
+    } else if (digits.length !== 9) {
+      return NextResponse.json({ error: 'SSN must be 9 digits' }, { status: 400 })
+    } else {
+      ssnUpdate = { ssn: encrypt(digits) }
+    }
   }
 
   const updated = await db.agentProfile.update({
@@ -39,6 +54,7 @@ export async function PUT(req: NextRequest) {
       ...(body.npn !== undefined && { npn: body.npn || null }),
       ...(body.licenseNumber !== undefined && { licenseNumber: body.licenseNumber || null }),
       ...(body.discordUserId !== undefined && { discordUserId: body.discordUserId || null }),
+      ...ssnUpdate,
     },
   })
 

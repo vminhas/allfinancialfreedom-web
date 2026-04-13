@@ -21,6 +21,8 @@ interface AgentData {
   state: string | null
   phone: string | null
   dateOfBirth: string | null
+  ssnMasked: string | null
+  ssnOnFile: boolean
   email: string
   phase: number
   phaseLabel: { title: string; standard: string; goal: string; description: string; nextStep: string }
@@ -98,6 +100,8 @@ export default function AgentDashboard() {
   const [activeTab, setActiveTab] = useState<'checklist' | 'licensing' | 'carriers' | 'partners' | 'policies' | 'calls' | 'profile'>('checklist')
   const [togglingKey, setTogglingKey] = useState<string | null>(null)
   const [expandedItem, setExpandedItem] = useState<string | null>(null)
+  const [selectedProgression, setSelectedProgression] = useState<string | null>(null)
+  const [checklistPhase, setChecklistPhase] = useState<number | null>(null)
 
   const fetchData = useCallback(async () => {
     const res = await fetch('/api/agents/me')
@@ -136,8 +140,9 @@ export default function AgentDashboard() {
     )
   }
 
-  const currentPhaseItems = data.phaseItems.filter(i => i.phase === data.phase)
-  const currentPhaseProgress = data.allPhaseProgress.find(p => p.phase === data.phase)
+  const activeChecklistPhase = checklistPhase ?? data.phase
+  const currentPhaseItems = data.phaseItems.filter(i => i.phase === activeChecklistPhase)
+  const currentPhaseProgress = data.allPhaseProgress.find(p => p.phase === activeChecklistPhase)
   const daysInPhase = data.phaseStartedAt
     ? Math.floor((Date.now() - new Date(data.phaseStartedAt).getTime()) / 86400000)
     : null
@@ -153,7 +158,7 @@ export default function AgentDashboard() {
   }).length
 
   const TABS = [
-    { key: 'checklist', label: `Phase ${data.phase}` },
+    { key: 'checklist', label: 'Checklist' },
     { key: 'licensing', label: 'Licensing' },
     { key: 'carriers', label: 'Carriers' },
     { key: 'partners', label: 'Partners' },
@@ -235,21 +240,23 @@ export default function AgentDashboard() {
             <div style={{ display: 'flex', gap: 8, minWidth: 'max-content' }}>
               {SYSTEM_PROGRESSIONS.map(prog => {
                 const achieved = progressions[prog.key] ?? false
+                const isSelected = selectedProgression === prog.key
                 return (
-                  <div
+                  <button
                     key={prog.key}
-                    title={prog.description}
+                    onClick={() => setSelectedProgression(isSelected ? null : prog.key)}
                     style={{
                       display: 'flex', flexDirection: 'column', alignItems: 'center',
-                      padding: '10px 12px', borderRadius: 6, cursor: 'default',
+                      padding: '10px 12px', borderRadius: 6, cursor: 'pointer',
                       minWidth: 76, maxWidth: 84, textAlign: 'center',
-                      background: achieved ? 'rgba(201,169,110,0.1)' : 'rgba(255,255,255,0.02)',
-                      border: `1px solid ${achieved ? 'rgba(201,169,110,0.35)' : 'rgba(255,255,255,0.05)'}`,
+                      background: isSelected
+                        ? (achieved ? 'rgba(201,169,110,0.2)' : 'rgba(255,255,255,0.06)')
+                        : achieved ? 'rgba(201,169,110,0.1)' : 'rgba(255,255,255,0.02)',
+                      border: `1px solid ${isSelected ? (achieved ? '#C9A96E' : 'rgba(255,255,255,0.2)') : achieved ? 'rgba(201,169,110,0.35)' : 'rgba(255,255,255,0.05)'}`,
                       boxShadow: achieved ? '0 0 12px rgba(201,169,110,0.15)' : 'none',
-                      transition: 'all 0.2s',
+                      transition: 'all 0.15s',
                     }}
                   >
-                    {/* Badge icon */}
                     <div style={{
                       width: 28, height: 28, borderRadius: '50%', marginBottom: 6,
                       background: achieved ? '#C9A96E' : 'rgba(255,255,255,0.06)',
@@ -267,11 +274,53 @@ export default function AgentDashboard() {
                     }}>
                       {prog.label}
                     </div>
-                  </div>
+                  </button>
                 )
               })}
             </div>
           </div>
+
+          {/* Selected progression detail */}
+          {selectedProgression && (() => {
+            const prog = SYSTEM_PROGRESSIONS.find(p => p.key === selectedProgression)!
+            const achieved = progressions[selectedProgression] ?? false
+            return (
+              <div style={{
+                marginTop: 12, padding: '14px 16px', borderRadius: 6,
+                background: achieved ? 'rgba(201,169,110,0.07)' : 'rgba(255,255,255,0.03)',
+                border: `1px solid ${achieved ? 'rgba(201,169,110,0.2)' : 'rgba(255,255,255,0.07)'}`,
+                display: 'flex', gap: 12, alignItems: 'flex-start',
+              }}>
+                <div style={{
+                  width: 24, height: 24, borderRadius: '50%', flexShrink: 0, marginTop: 1,
+                  background: achieved ? '#C9A96E' : 'rgba(255,255,255,0.08)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 11, fontWeight: 700, color: achieved ? '#142D48' : '#4B5563',
+                }}>
+                  {achieved ? '✓' : '·'}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: achieved ? '#C9A96E' : '#9BB0C4', marginBottom: 4 }}>
+                    {prog.label}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#6B8299', lineHeight: 1.6 }}>
+                    {prog.description}
+                  </div>
+                  {!achieved && (
+                    <div style={{ marginTop: 6, fontSize: 10, color: '#4B5563', fontStyle: 'italic' }}>
+                      Not yet achieved
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => setSelectedProgression(null)}
+                  style={{ background: 'none', border: 'none', color: '#4B5563', fontSize: 14, cursor: 'pointer', padding: 0, lineHeight: 1, flexShrink: 0 }}
+                >
+                  ✕
+                </button>
+              </div>
+            )
+          })()}
         </div>
 
         {/* ── Phase roadmap ── */}
@@ -352,14 +401,45 @@ export default function AgentDashboard() {
         {/* ── PHASE CHECKLIST TAB ── */}
         {activeTab === 'checklist' && (
           <div style={{ ...card, padding: '24px 28px' }}>
+
+            {/* Phase sub-tabs */}
+            <div style={{ display: 'flex', gap: 4, marginBottom: 24, flexWrap: 'wrap' }}>
+              {[1, 2, 3, 4, 5].map(ph => {
+                const prog = data.allPhaseProgress.find(p => p.phase === ph)
+                const isActive = activeChecklistPhase === ph
+                const isCurrent = ph === data.phase
+                const isDone = ph < data.phase
+                return (
+                  <button
+                    key={ph}
+                    onClick={() => setChecklistPhase(ph)}
+                    style={{
+                      padding: '6px 14px', borderRadius: 4, cursor: 'pointer', fontSize: 11,
+                      fontWeight: isActive ? 700 : 400, letterSpacing: '0.08em',
+                      border: `1px solid ${isActive ? PHASE_COLORS[ph] : 'rgba(255,255,255,0.08)'}`,
+                      background: isActive ? `${PHASE_COLORS[ph]}18` : 'transparent',
+                      color: isActive ? PHASE_COLORS[ph] : isDone ? '#4ade80' : isCurrent ? '#9BB0C4' : '#4B5563',
+                      transition: 'all 0.15s',
+                      display: 'flex', alignItems: 'center', gap: 6,
+                    }}
+                  >
+                    {isDone && <span style={{ fontSize: 9 }}>✓</span>}
+                    Phase {ph}
+                    {isCurrent && !isActive && <span style={{ fontSize: 8, color: '#C9A96E', fontWeight: 700 }}>NOW</span>}
+                    {prog && <span style={{ fontSize: 9, opacity: 0.7 }}>{prog.pct}%</span>}
+                  </button>
+                )
+              })}
+            </div>
+
             <div style={{ marginBottom: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                 <div>
-                  <div style={sectionLabel}>Phase {data.phase} — {data.phaseLabel.title}</div>
-                  <div style={{ fontSize: 11, color: '#6B8299', marginBottom: 2 }}>{data.phaseLabel.standard} · Goal: {data.phaseLabel.goal}</div>
+                  <div style={sectionLabel}>Phase {activeChecklistPhase} — {PHASE_LABELS[activeChecklistPhase].title}</div>
+                  <div style={{ fontSize: 11, color: '#6B8299', marginBottom: 2 }}>{PHASE_LABELS[activeChecklistPhase].standard} · Goal: {PHASE_LABELS[activeChecklistPhase].goal}</div>
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 16 }}>
-                  <div style={{ fontSize: 22, fontWeight: 600, color: PHASE_COLORS[data.phase] }}>
+                  <div style={{ fontSize: 22, fontWeight: 600, color: PHASE_COLORS[activeChecklistPhase] }}>
                     {currentPhaseProgress?.pct ?? 0}%
                   </div>
                   <div style={{ fontSize: 10, color: '#6B8299' }}>
@@ -371,10 +451,10 @@ export default function AgentDashboard() {
                 background: 'rgba(201,169,110,0.04)', border: '1px solid rgba(201,169,110,0.1)',
                 borderRadius: 6, padding: '12px 14px', fontSize: 12, color: '#9BB0C4', lineHeight: 1.6,
               }}>
-                {data.phaseLabel.description}
+                {PHASE_LABELS[activeChecklistPhase].description}
                 <div style={{ marginTop: 8, fontSize: 11, color: '#C9A96E', display: 'flex', alignItems: 'flex-start', gap: 6 }}>
                   <span style={{ flexShrink: 0 }}>→</span>
-                  <span>{data.phaseLabel.nextStep}</span>
+                  <span>{PHASE_LABELS[activeChecklistPhase].nextStep}</span>
                 </div>
               </div>
             </div>
@@ -382,12 +462,12 @@ export default function AgentDashboard() {
             <div style={{ height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3, marginBottom: 24 }}>
               <div style={{
                 height: '100%', width: `${currentPhaseProgress?.pct ?? 0}%`,
-                background: PHASE_COLORS[data.phase], borderRadius: 3, transition: 'width 0.5s',
+                background: PHASE_COLORS[activeChecklistPhase], borderRadius: 3, transition: 'width 0.5s',
               }} />
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {(PHASE_ITEMS[data.phase] ?? []).map(item => {
+              {(PHASE_ITEMS[activeChecklistPhase] ?? []).map(item => {
                 const phaseItem = currentPhaseItems.find(i => i.itemKey === item.key)
                 const done = phaseItem?.completed ?? false
                 const isToggling = togglingKey === item.key
@@ -398,7 +478,7 @@ export default function AgentDashboard() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
                       {/* Checkbox button */}
                       <button
-                        onClick={() => toggleItem(item.key, data.phase, done)}
+                        onClick={() => toggleItem(item.key, activeChecklistPhase, done)}
                         disabled={isToggling}
                         style={{
                           display: 'flex', alignItems: 'center', gap: 12,
@@ -731,7 +811,9 @@ function ProfileTab({ data, onSaved }: { data: AgentData; onSaved: () => void })
     npn: data.npn ?? '',
     licenseNumber: data.licenseNumber ?? '',
     discordUserId: '',
+    ssn: '',
   })
+  const [ssnFocused, setSsnFocused] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
@@ -743,19 +825,42 @@ function ProfileTab({ data, onSaved }: { data: AgentData; onSaved: () => void })
     'VA','WA','WV','WI','WY','DC',
   ]
 
+  // Format SSN input as XXX-XX-XXXX while typing
+  const handleSsnChange = (raw: string) => {
+    const digits = raw.replace(/\D/g, '').slice(0, 9)
+    let formatted = digits
+    if (digits.length > 5) formatted = `${digits.slice(0,3)}-${digits.slice(3,5)}-${digits.slice(5)}`
+    else if (digits.length > 3) formatted = `${digits.slice(0,3)}-${digits.slice(3)}`
+    setForm(f => ({ ...f, ssn: formatted }))
+  }
+
   const save = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true); setError(''); setSaved(false)
+
+    // Only send SSN if the user actually typed something new
+    const payload: Record<string, string> = {
+      phone: form.phone,
+      state: form.state,
+      dateOfBirth: form.dateOfBirth,
+      npn: form.npn,
+      licenseNumber: form.licenseNumber,
+    }
+    if (form.ssn.replace(/\D/g, '').length > 0) {
+      payload.ssn = form.ssn
+    }
+
     const res = await fetch('/api/agents/profile', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+      body: JSON.stringify(payload),
     })
     if (!res.ok) {
       const d = await res.json() as { error?: string }
       setError(d.error ?? 'Save failed')
     } else {
       setSaved(true)
+      setForm(f => ({ ...f, ssn: '' }))  // clear SSN input after save
       onSaved()
       setTimeout(() => setSaved(false), 3000)
     }
@@ -842,6 +947,52 @@ function ProfileTab({ data, onSaved }: { data: AgentData; onSaved: () => void })
               style={inputStyle}
             />
           </div>
+        </div>
+
+        {/* SSN section — full width with privacy notice */}
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 20, marginTop: 4 }}>
+          <label style={fieldLabel}>
+            Social Security Number
+            {data.ssnOnFile && !ssnFocused && form.ssn === '' && (
+              <span style={{ color: '#4ade80', fontWeight: 400, marginLeft: 8 }}>✓ On file</span>
+            )}
+          </label>
+
+          {/* Privacy notice */}
+          <div style={{
+            display: 'flex', gap: 10, alignItems: 'flex-start',
+            background: 'rgba(201,169,110,0.05)',
+            border: '1px solid rgba(201,169,110,0.15)',
+            borderRadius: 6, padding: '10px 14px', marginBottom: 10,
+          }}>
+            <span style={{ color: '#C9A96E', fontSize: 14, lineHeight: 1, flexShrink: 0, marginTop: 1 }}>⚑</span>
+            <p style={{ margin: 0, fontSize: 11, color: '#9BB0C4', lineHeight: 1.6 }}>
+              Your SSN is collected solely for employment verification, carrier appointment processing, and E&O insurance purposes as required by All Financial Freedom.
+              It is encrypted and stored securely — only authorized AFF staff can access it, and it is never shared with third parties outside of these licensing requirements.
+            </p>
+          </div>
+
+          <div style={{ position: 'relative' }}>
+            <input
+              type={ssnFocused || form.ssn ? 'text' : 'password'}
+              value={ssnFocused || form.ssn ? form.ssn : (data.ssnMasked ?? '')}
+              onChange={e => handleSsnChange(e.target.value)}
+              onFocus={() => setSsnFocused(true)}
+              onBlur={() => { if (!form.ssn) setSsnFocused(false) }}
+              placeholder={data.ssnOnFile ? 'Enter new SSN to update' : 'XXX-XX-XXXX'}
+              autoComplete="off"
+              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' as const }}
+            />
+            {data.ssnOnFile && !ssnFocused && form.ssn === '' && (
+              <div style={{
+                position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                fontSize: 10, color: '#4B5563', letterSpacing: '0.05em',
+              }}>MASKED</div>
+            )}
+          </div>
+          <p style={{ margin: '6px 0 0', fontSize: 10, color: '#4B5563', lineHeight: 1.5 }}>
+            After saving, your SSN will be masked. Only the last 4 digits will be visible to you.
+          </p>
         </div>
 
         {error && (

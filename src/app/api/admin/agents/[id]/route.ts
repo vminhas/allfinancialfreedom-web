@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { decrypt } from '@/lib/settings'
 import { PHASE_ITEMS, CARRIERS } from '@/lib/agent-constants'
 import { assignDiscordPhaseRole } from '@/lib/discord-roles'
 
@@ -26,7 +27,14 @@ export async function GET(
   })
 
   if (!profile) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  return NextResponse.json(profile)
+
+  // Decrypt SSN for admin view — never send encrypted blob to client
+  const ssnDecrypted = profile.ssn ? decrypt(profile.ssn) : null
+  const ssnFormatted = ssnDecrypted?.length === 9
+    ? `${ssnDecrypted.slice(0, 3)}-${ssnDecrypted.slice(3, 5)}-${ssnDecrypted.slice(5)}`
+    : null
+
+  return NextResponse.json({ ...profile, ssn: ssnFormatted })
 }
 
 // PUT /api/admin/agents/[id] — update agent profile
