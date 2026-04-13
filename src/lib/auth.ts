@@ -75,6 +75,28 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: '/vault/login',
   },
+  // Fix for Next.js 15+ / 16 CSRF cookie validation issues.
+  // NextAuth derives cookie security from NEXTAUTH_URL; when that env var is
+  // missing or wrong on Vercel the __Host- prefix breaks the CSRF check.
+  // Explicitly setting SameSite=lax + secure=false in dev keeps cookies
+  // flowing regardless of host detection.
+  cookies: {
+    sessionToken: {
+      name: `next-auth.session-token`,
+      options: { httpOnly: true, sameSite: 'lax', path: '/', secure: process.env.NODE_ENV === 'production' },
+    },
+    callbackUrl: {
+      name: `next-auth.callback-url`,
+      options: { httpOnly: true, sameSite: 'lax', path: '/', secure: process.env.NODE_ENV === 'production' },
+    },
+    csrfToken: {
+      // Drop the __Host- prefix that NextAuth adds when it detects HTTPS —
+      // the prefix requires the cookie to be set without a Domain attribute,
+      // which breaks when the production URL isn't exactly right.
+      name: `next-auth.csrf-token`,
+      options: { httpOnly: true, sameSite: 'lax', path: '/', secure: false },
+    },
+  },
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
