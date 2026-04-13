@@ -12,10 +12,21 @@ export async function GET() {
   const rows = await db.agentProfile.findMany({
     select: { cft: true },
     where: { cft: { not: null } },
-    distinct: ['cft'],
     orderBy: { cft: 'asc' },
   })
 
-  const trainers = rows.map(r => r.cft!).filter(Boolean)
+  // Deduplicate case-insensitively, keeping the first occurrence (already sorted)
+  const seen = new Set<string>()
+  const trainers: string[] = []
+  for (const r of rows) {
+    const name = r.cft?.trim()
+    if (!name) continue
+    const key = name.toLowerCase()
+    if (!seen.has(key)) {
+      seen.add(key)
+      trainers.push(name)
+    }
+  }
+
   return NextResponse.json({ trainers })
 }
