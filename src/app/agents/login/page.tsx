@@ -21,7 +21,10 @@ export default function AgentLoginPage() {
       redirect: false,
       callbackUrl: '/agents',
     })
-    if (res?.error) {
+    if (res?.error === 'AccountInactive') {
+      setError('Your account has been deactivated. If you believe this is an error, please contact your trainer or AFF support.')
+      setLoading(false)
+    } else if (res?.error) {
       setError('Invalid email or password')
       setLoading(false)
     } else {

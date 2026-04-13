@@ -399,7 +399,7 @@ export default function TrackerPage() {
                           key={phase}
                           onClick={() => { setPhaseFilter(isActive ? '' : String(phase)); setPage(1); setAtRiskOnly(false) }}
                           style={{
-                            display: 'grid', gridTemplateColumns: '20px 1fr 36px',
+                            display: 'grid', gridTemplateColumns: '20px 1fr 52px',
                             alignItems: 'center', gap: 8,
                             background: isActive ? `${PHASE_COLORS[phase]}14` : 'transparent',
                             border: `1px solid ${isActive ? `${PHASE_COLORS[phase]}40` : 'transparent'}`,
@@ -415,18 +415,18 @@ export default function TrackerPage() {
                           </span>
                           {/* Bar + phase name stacked */}
                           <div>
-                            <div style={{ height: 5, background: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden', marginBottom: 3 }}>
+                            <div style={{ height: 5, background: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden', marginBottom: 4 }}>
                               <div style={{ width: `${barW}%`, height: '100%', background: PHASE_COLORS[phase], borderRadius: 3, opacity: isActive ? 1 : 0.82, transition: 'width 0.4s ease' }} />
                             </div>
-                            <div style={{ fontSize: 8, color: '#4B5563', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <div style={{ fontSize: 9, color: '#6B8299', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               {PHASE_LABELS[phase].title}
                             </div>
                           </div>
                           {/* Count */}
                           <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: count > 0 ? '#ffffff' : '#4B5563', lineHeight: 1 }}>{count}</div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: count > 0 ? '#ffffff' : '#4B5563', lineHeight: 1 }}>{count}</div>
                             {activeCount < count && count > 0 && (
-                              <div style={{ fontSize: 8, color: '#6B8299', marginTop: 1 }}>{activeCount}a</div>
+                              <div style={{ fontSize: 9, color: '#6B8299', marginTop: 2 }}>{activeCount} active</div>
                             )}
                           </div>
                         </button>
@@ -438,7 +438,7 @@ export default function TrackerPage() {
             </div>
 
             {/* Trend chart */}
-            <div style={{ background: '#142D48', border: '1px solid rgba(201,169,110,0.08)', borderRadius: 6, padding: '18px 24px' }}>
+            <div style={{ background: '#142D48', border: '1px solid rgba(201,169,110,0.08)', borderRadius: 6, padding: '18px 24px', display: 'flex', flexDirection: 'column' }}>
               {/* Header + date range presets */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <div>
@@ -502,7 +502,7 @@ export default function TrackerPage() {
 
               {/* Area chart */}
               {trendData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={110}>
+                <ResponsiveContainer width="100%" height="100%" style={{ flex: 1, minHeight: 80 }}>
                   <AreaChart data={trendData} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
                     <defs>
                       <linearGradient id="goldGrad" x1="0" y1="0" x2="0" y2="1">
@@ -547,7 +547,7 @@ export default function TrackerPage() {
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
-                <div style={{ height: 110, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ flex: 1, minHeight: 80, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <div style={{ fontSize: 12, color: '#4B5563' }}>No data for selected period</div>
                 </div>
               )}

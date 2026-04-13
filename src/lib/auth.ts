@@ -53,6 +53,10 @@ export const authOptions: NextAuthOptions = {
         const valid = await bcrypt.compare(credentials.password, user.passwordHash)
         if (!valid) return null
 
+        if (user.profile?.status === 'INACTIVE') {
+          throw new Error('AccountInactive')
+        }
+
         await db.agentUser.update({
           where: { id: user.id },
           data: { lastLoginAt: new Date() },

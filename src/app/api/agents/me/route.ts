@@ -27,6 +27,11 @@ export async function GET() {
   })
 
   if (!agentUser?.profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+
+  if (agentUser.profile.status === 'INACTIVE') {
+    return NextResponse.json({ error: 'AccountInactive' }, { status: 403 })
+  }
+
   const p = agentUser.profile
 
   // Phase progress for current and all phases

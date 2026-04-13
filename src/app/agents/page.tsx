@@ -119,6 +119,13 @@ function AgentDashboardInner() {
   const fetchData = useCallback(async () => {
     const res = await fetch('/api/agents/me')
     if (res.status === 401) { router.push('/agents/login'); return }
+    if (res.status === 403) {
+      const body = await res.json() as { error?: string }
+      if (body.error === 'AccountInactive') {
+        router.push('/agents/login?reason=inactive')
+        return
+      }
+    }
     if (!res.ok) { setLoading(false); return }
     setData(await res.json() as AgentData)
     setLoading(false)
