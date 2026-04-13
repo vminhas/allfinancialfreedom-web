@@ -44,6 +44,7 @@ export async function GET() {
     lastName: p.lastName,
     state: p.state,
     phone: p.phone,
+    dateOfBirth: p.dateOfBirth,
     email: agentUser.email,
     phase: p.phase,
     phaseLabel: PHASE_LABELS[p.phase],

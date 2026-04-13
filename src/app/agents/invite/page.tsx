@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
+import { signIn } from 'next-auth/react'
 
 const PORTAL_FEATURES = [
   { icon: '◑', title: 'Phase Roadmap', desc: 'Your 5-phase journey to financial freedom, one checkbox at a time.' },
@@ -53,9 +54,19 @@ function InviteForm() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token, password }),
     })
-    const data = await res.json() as { ok?: boolean; error?: string }
+    const data = await res.json() as { ok?: boolean; error?: string; email?: string }
     if (!res.ok) { setError(data.error ?? 'Failed'); setLoading(false); return }
-    router.push('/agents/login?activated=1')
+    // Auto sign-in then go to onboarding to complete profile
+    if (data.email) {
+      await signIn('agent-credentials', {
+        email: data.email,
+        password,
+        redirect: false,
+      })
+      router.push('/agents/onboarding')
+    } else {
+      router.push('/agents/login?activated=1')
+    }
   }
 
   const inputStyle = {
