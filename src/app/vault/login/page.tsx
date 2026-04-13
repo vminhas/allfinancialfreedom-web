@@ -26,7 +26,8 @@ export default function VaultLoginPage() {
       setError('Invalid credentials.')
       setLoading(false)
     } else {
-      router.push('/vault')
+      // Hard navigation ensures the new session cookie is read fresh
+      window.location.href = '/vault'
     }
   }
 

@@ -8,8 +8,9 @@ export const metadata = { title: 'Vault — AFF' }
 export default async function VaultLayout({ children }: { children: ReactNode }) {
   const session = await getServerSession(authOptions)
 
-  // No sidebar until authenticated
-  if (!session) {
+  // Only show sidebar for authenticated admins
+  const role = (session?.user as { role?: string } | undefined)?.role
+  if (!session || role !== 'admin') {
     return <>{children}</>
   }
 
