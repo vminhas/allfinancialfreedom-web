@@ -387,43 +387,51 @@ export default function TrackerPage() {
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 16 }}>
                 Pipeline by Phase
               </div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', height: 96 }}>
-                {stats.phaseDistribution.map(({ phase, count, activeCount }) => {
-                  const maxCount = Math.max(...stats.phaseDistribution.map(p => p.count), 1)
-                  const barH = Math.max(Math.round((count / maxCount) * 76), count > 0 ? 8 : 3)
-                  const isActive = phaseFilter === String(phase)
-                  return (
-                    <button
-                      key={phase}
-                      onClick={() => {
-                        setPhaseFilter(isActive ? '' : String(phase))
-                        setPage(1)
-                        setAtRiskOnly(false)
-                      }}
-                      style={{
-                        flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-                        background: isActive ? `${PHASE_COLORS[phase]}18` : 'transparent',
-                        border: `1px solid ${isActive ? `${PHASE_COLORS[phase]}44` : 'transparent'}`,
-                        borderRadius: 4, padding: '4px 4px 6px', cursor: 'pointer',
-                        transition: 'all 0.15s',
-                      }}
-                      onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
-                      onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
-                    >
-                      <div style={{ fontSize: 12, fontWeight: 700, color: count > 0 ? '#ffffff' : '#4B5563', lineHeight: 1 }}>{count}</div>
-                      <div style={{ width: '100%', minHeight: barH, height: barH, background: PHASE_COLORS[phase], borderRadius: '3px 3px 2px 2px', opacity: isActive ? 1 : 0.8, transition: 'height 0.4s ease' }} />
-                      <div style={{ fontSize: 9, fontWeight: 700, color: PHASE_COLORS[phase], letterSpacing: '0.05em' }}>P{phase}</div>
-                      {activeCount < count && count > 0 && (
-                        <div style={{ fontSize: 8, color: '#6B8299' }}>{activeCount} active</div>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-              {/* Phase labels row */}
-              <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+              {(() => {
+                const maxCount = Math.max(...stats.phaseDistribution.map(p => p.count), 1)
+                return (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {stats.phaseDistribution.map(({ phase, count, activeCount }) => {
+                      const barH = Math.max(Math.round((count / maxCount) * 68), count > 0 ? 6 : 3)
+                      const isActive = phaseFilter === String(phase)
+                      return (
+                        <button
+                          key={phase}
+                          onClick={() => { setPhaseFilter(isActive ? '' : String(phase)); setPage(1); setAtRiskOnly(false) }}
+                          style={{
+                            flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+                            background: isActive ? `${PHASE_COLORS[phase]}18` : 'transparent',
+                            border: `1px solid ${isActive ? `${PHASE_COLORS[phase]}44` : 'transparent'}`,
+                            borderRadius: 4, padding: '6px 4px 6px', cursor: 'pointer', transition: 'all 0.15s',
+                          }}
+                          onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
+                          onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
+                        >
+                          {/* Count — sits above the fixed bar area */}
+                          <div style={{ fontSize: 11, fontWeight: 700, color: count > 0 ? '#ffffff' : '#4B5563', lineHeight: 1, marginBottom: 5 }}>
+                            {count}
+                          </div>
+                          {/* Fixed-height bar area — bar grows from the bottom */}
+                          <div style={{ width: '100%', height: 68, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                            <div style={{ width: '100%', height: barH, background: PHASE_COLORS[phase], borderRadius: '3px 3px 2px 2px', opacity: isActive ? 1 : 0.85, transition: 'height 0.4s ease' }} />
+                          </div>
+                          {/* Phase badge */}
+                          <div style={{ fontSize: 9, fontWeight: 700, color: PHASE_COLORS[phase], letterSpacing: '0.05em', marginTop: 5 }}>
+                            P{phase}
+                          </div>
+                          {activeCount < count && count > 0 && (
+                            <div style={{ fontSize: 8, color: '#6B8299', marginTop: 2 }}>{activeCount} active</div>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
+              {/* Phase name labels */}
+              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                 {stats.phaseDistribution.map(({ phase }) => (
-                  <div key={phase} style={{ flex: 1, textAlign: 'center', fontSize: 8, color: '#4B5563', lineHeight: 1.3, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                  <div key={phase} style={{ flex: 1, textAlign: 'center', fontSize: 8, color: '#4B5563', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
                     {PHASE_LABELS[phase].title}
                   </div>
                 ))}
