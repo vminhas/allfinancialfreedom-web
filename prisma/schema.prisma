@@ -105,3 +105,170 @@ enum MessageStatus {
   SENT
   FAILED
 }
+
+// ─── Agent System ─────────────────────────────────────────────────────────────
+
+model AgentUser {
+  id            String       @id @default(cuid())
+  email         String       @unique
+  passwordHash  String?      // null until agent accepts invite
+  inviteToken   String?      @unique
+  inviteExpires DateTime?
+  createdAt     DateTime     @default(now())
+  lastLoginAt   DateTime?
+  profile       AgentProfile?
+
+  @@map("agent_users")
+}
+
+model AgentProfile {
+  id                    String    @id @default(cuid())
+  agentUserId           String    @unique
+  agentUser             AgentUser @relation(fields: [agentUserId], references: [id])
+  agentCode             String    @unique
+  firstName             String
+  lastName              String
+  state                 String?
+  phone                 String?
+  dateOfBirth           DateTime?
+  npn                   String?
+  icaDate               DateTime?
+  recruiterId           String?   // agentCode of recruiter
+  cft                   String?   // trainer name
+  eliteCft              String?
+  status                AgentStatus @default(ACTIVE)
+  phase                 Int         @default(1)
+  phaseStartedAt        DateTime?   // when they entered current phase
+  goal                  String?     // "MD", "EMD", etc.
+  initialPointOfContact String?
+  examDate              DateTime?
+  licenseNumber         String?
+  licenseLines          String?
+  dateSubmittedToGfi    DateTime?
+  discordJoinDate       DateTime?
+  discordUserId         String?     // Discord snowflake ID for role assignment
+  welcomeLetterSentAt   DateTime?
+  clientProduct         String?
+  licenseProcess        String?
+  notes                 String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  phaseItems            PhaseItem[]
+  carrierAppointments   CarrierAppointment[]
+  milestones            RecognitionMilestone[]
+  businessPartners      BusinessPartner[]
+  policies              PolicyEntry[]
+  callLogs              CallLog[]
+
+  @@map("agent_profiles")
+}
+
+enum AgentStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model PhaseItem {
+  id             String       @id @default(cuid())
+  agentProfileId String
+  agentProfile   AgentProfile @relation(fields: [agentProfileId], references: [id])
+  phase          Int
+  itemKey        String
+  completed      Boolean      @default(false)
+  completedAt    DateTime?
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([agentProfileId, phase, itemKey])
+  @@map("phase_items")
+}
+
+model CarrierAppointment {
+  id             String            @id @default(cuid())
+  agentProfileId String
+  agentProfile   AgentProfile      @relation(fields: [agentProfileId], references: [id])
+  carrier        String
+  status         AppointmentStatus @default(NOT_STARTED)
+  producerNumber String?
+  appointedDate  DateTime?
+  updatedAt      DateTime          @updatedAt
+
+  @@unique([agentProfileId, carrier])
+  @@map("carrier_appointments")
+}
+
+enum AppointmentStatus {
+  NOT_STARTED
+  PENDING
+  APPOINTED
+  JIT
+}
+
+model RecognitionMilestone {
+  id             String       @id @default(cuid())
+  agentProfileId String
+  agentProfile   AgentProfile @relation(fields: [agentProfileId], references: [id])
+  milestone      String
+  completedAt    DateTime     @default(now())
+  notes          String?
+
+  @@unique([agentProfileId, milestone])
+  @@map("recognition_milestones")
+}
+
+model BusinessPartner {
+  id              String       @id @default(cuid())
+  agentProfileId  String
+  agentProfile    AgentProfile @relation(fields: [agentProfileId], references: [id])
+  name            String
+  phone           String?
+  timeZone        String?
+  age             String?
+  married         Boolean      @default(false)
+  children        Boolean      @default(false)
+  occupation      String?
+  characterTraits String?
+  appointmentDate DateTime?
+  icaDate         DateTime?
+  firstCallDate   DateTime?
+  secondCallDate  DateTime?
+  notes           String?
+  createdAt       DateTime     @default(now())
+
+  @@map("business_partners")
+}
+
+model PolicyEntry {
+  id               String       @id @default(cuid())
+  agentProfileId   String
+  agentProfile     AgentProfile @relation(fields: [agentProfileId], references: [id])
+  policyNumber     String?
+  clientName       String
+  carrier          String
+  product          String
+  splitAgentName   String?
+  dateSubmitted    DateTime?
+  targetPremium    Float?
+  targetPoints     Float?
+  commissionPayout Float?
+  notes            String?
+  createdAt        DateTime     @default(now())
+
+  @@map("policy_entries")
+}
+
+model CallLog {
+  id             String       @id @default(cuid())
+  agentProfileId String
+  agentProfile   AgentProfile @relation(fields: [agentProfileId], references: [id])
+  callDate       DateTime
+  contactName    String
+  phoneNumber    String?
+  subject        String?
+  notes          String?
+  result         String?
+  followUpNeeded Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  @@map("call_logs")
+}

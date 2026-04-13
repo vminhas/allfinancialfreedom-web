@@ -11,6 +11,7 @@ const NAV = [
   { href: '/vault/pipeline', label: 'Pipeline', icon: '◫' },
   { href: '/vault/sequence', label: 'Sequences', icon: '⟳' },
   { href: '/vault/contacts', label: 'Contacts', icon: '◉' },
+  { href: '/vault/tracker', label: 'AFF Tracker', icon: '◑' },
   { href: '/vault/settings', label: 'Settings', icon: '⚙' },
 ]
 
