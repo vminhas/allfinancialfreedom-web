@@ -43,6 +43,8 @@ interface DetailedAgent extends Agent {
   milestones: { milestone: string; completedAt: string }[]
   _count: { businessPartners: number; policies: number; callLogs: number }
   dateOfBirth: string | null
+  phone: string | null
+  recruiterId: string | null
   ssn: string | null
   avatarUrl: string | null
   addressLine1: string | null
@@ -735,10 +737,87 @@ function AgentDrawer({
   inviteMsg: string
   onClose: () => void
 }) {
-  const [activeTab, setActiveTab] = useState<'progress' | 'carriers' | 'info'>('progress')
+  const [activeTab, setActiveTab] = useState<'progress' | 'carriers' | 'info' | 'edit'>('progress')
   const [editingCarrier, setEditingCarrier] = useState<string | null>(null)
   const [carrierStatus, setCarrierStatus] = useState('')
   const [carrierPN, setCarrierPN] = useState('')
+
+  // Edit tab state
+  const [editForm, setEditForm] = useState({
+    firstName: agent.firstName,
+    lastName: agent.lastName,
+    phone: agent.phone ?? '',
+    state: agent.state ?? '',
+    dateOfBirth: agent.dateOfBirth ? agent.dateOfBirth.split('T')[0] : '',
+    npn: agent.npn ?? '',
+    licenseNumber: agent.licenseNumber ?? '',
+    icaDate: agent.icaDate ? agent.icaDate.split('T')[0] : '',
+    cft: agent.cft ?? '',
+    goal: agent.goal ?? '',
+    recruiterId: agent.recruiterId ?? '',
+    discordUserId: agent.discordUserId ?? '',
+    addressLine1: agent.addressLine1 ?? '',
+    addressLine2: agent.addressLine2 ?? '',
+    city: agent.city ?? '',
+    zip: agent.zip ?? '',
+    notes: agent.notes ?? '',
+  })
+  const [editSaving, setEditSaving] = useState(false)
+  const [editSaved, setEditSaved] = useState(false)
+  const [editError, setEditError] = useState('')
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(agent.avatarUrl)
+
+  const US_STATES = [
+    'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
+    'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
+    'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT',
+    'VA','WA','WV','WI','WY','DC',
+  ]
+
+  const uploadAdminAvatar = async (file: File) => {
+    setAvatarUploading(true)
+    const fd = new FormData()
+    fd.append('avatar', file)
+    const res = await fetch(`/api/admin/agents/${agent.id}/avatar`, { method: 'POST', body: fd })
+    const d = await res.json() as { ok?: boolean; avatarUrl?: string; error?: string }
+    if (res.ok && d.avatarUrl) setAvatarPreview(d.avatarUrl)
+    setAvatarUploading(false)
+  }
+
+  const saveEdit = async () => {
+    setEditSaving(true); setEditError(''); setEditSaved(false)
+    const res = await fetch(`/api/admin/agents/${agent.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...editForm,
+        phone: editForm.phone || null,
+        state: editForm.state || null,
+        dateOfBirth: editForm.dateOfBirth || null,
+        npn: editForm.npn || null,
+        licenseNumber: editForm.licenseNumber || null,
+        icaDate: editForm.icaDate || null,
+        cft: editForm.cft || null,
+        goal: editForm.goal || null,
+        recruiterId: editForm.recruiterId || null,
+        discordUserId: editForm.discordUserId || null,
+        addressLine1: editForm.addressLine1 || null,
+        addressLine2: editForm.addressLine2 || null,
+        city: editForm.city || null,
+        zip: editForm.zip || null,
+        notes: editForm.notes || null,
+      }),
+    })
+    if (!res.ok) {
+      const d = await res.json() as { error?: string }
+      setEditError(d.error ?? 'Save failed')
+    } else {
+      setEditSaved(true)
+      setTimeout(() => setEditSaved(false), 3000)
+    }
+    setEditSaving(false)
+  }
 
   const riskStatus = getAtRiskStatus(
     agent.phase,
@@ -919,13 +998,13 @@ function AgentDrawer({
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        {(['progress', 'carriers', 'info'] as const).map(tab => (
+        {(['progress', 'carriers', 'info', 'edit'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             style={{
               background: 'none', border: 'none',
-              padding: '8px 16px', cursor: 'pointer',
+              padding: '8px 14px', cursor: 'pointer',
               fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase',
               color: activeTab === tab ? '#C9A96E' : '#6B8299',
               borderBottom: activeTab === tab ? '2px solid #C9A96E' : '2px solid transparent',
@@ -1082,6 +1161,190 @@ function AgentDrawer({
           )}
         </div>
       )}
+
+      {/* Edit tab */}
+      {activeTab === 'edit' && (() => {
+        const iStyle: React.CSSProperties = {
+          background: '#0C1E30', border: '1px solid rgba(201,169,110,0.15)',
+          borderRadius: 4, color: '#9BB0C4', padding: '7px 10px',
+          fontSize: 12, width: '100%', boxSizing: 'border-box',
+          outline: 'none',
+        }
+        const lStyle: React.CSSProperties = {
+          fontSize: 9, fontWeight: 700, letterSpacing: '0.12em',
+          textTransform: 'uppercase', color: '#6B8299', marginBottom: 4, display: 'block',
+        }
+        const set = (k: keyof typeof editForm) =>
+          (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+            setEditForm(f => ({ ...f, [k]: e.target.value }))
+
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* Avatar */}
+            <div>
+              <div style={sLabel}>Profile Photo</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div style={{
+                  width: 56, height: 56, borderRadius: '50%', flexShrink: 0,
+                  background: avatarPreview ? 'transparent' : 'rgba(201,169,110,0.1)',
+                  border: '2px solid rgba(201,169,110,0.25)',
+                  overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {avatarPreview ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={avatarPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <span style={{ fontSize: 18, color: '#C9A96E', fontWeight: 600 }}>
+                      {agent.firstName.charAt(0)}{agent.lastName.charAt(0)}
+                    </span>
+                  )}
+                </div>
+                <label style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  cursor: avatarUploading ? 'not-allowed' : 'pointer',
+                  background: 'transparent', border: '1px solid rgba(201,169,110,0.3)',
+                  color: '#C9A96E', borderRadius: 4, padding: '6px 14px',
+                  fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                  opacity: avatarUploading ? 0.6 : 1,
+                }}>
+                  <input
+                    type="file" accept="image/jpeg,image/png,image/webp"
+                    style={{ display: 'none' }}
+                    disabled={avatarUploading}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) uploadAdminAvatar(f); e.target.value = '' }}
+                  />
+                  {avatarUploading ? 'Uploading...' : avatarPreview ? 'Change Photo' : 'Upload Photo'}
+                </label>
+              </div>
+            </div>
+
+            {/* Name */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div>
+                <label style={lStyle}>First Name</label>
+                <input value={editForm.firstName} onChange={set('firstName')} style={iStyle} />
+              </div>
+              <div>
+                <label style={lStyle}>Last Name</label>
+                <input value={editForm.lastName} onChange={set('lastName')} style={iStyle} />
+              </div>
+            </div>
+
+            {/* Contact */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div>
+                <label style={lStyle}>Phone</label>
+                <input value={editForm.phone} onChange={set('phone')} placeholder="(555) 555-5555" style={iStyle} />
+              </div>
+              <div>
+                <label style={lStyle}>Licensed State</label>
+                <select value={editForm.state} onChange={set('state')} style={{ ...iStyle, appearance: 'auto' }}>
+                  <option value="">Select</option>
+                  {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* ICA + DOB */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div>
+                <label style={lStyle}>ICA Date</label>
+                <input type="date" value={editForm.icaDate} onChange={set('icaDate')} style={iStyle} />
+              </div>
+              <div>
+                <label style={lStyle}>Date of Birth</label>
+                <input type="date" value={editForm.dateOfBirth} onChange={set('dateOfBirth')} style={iStyle} />
+              </div>
+            </div>
+
+            {/* Licensing */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div>
+                <label style={lStyle}>NPN</label>
+                <input value={editForm.npn} onChange={set('npn')} placeholder="National Producer #" style={iStyle} />
+              </div>
+              <div>
+                <label style={lStyle}>License #</label>
+                <input value={editForm.licenseNumber} onChange={set('licenseNumber')} placeholder="State license #" style={iStyle} />
+              </div>
+            </div>
+
+            {/* CFT + Goal + Recruiter */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+              <div>
+                <label style={lStyle}>Trainer (CFT)</label>
+                <input value={editForm.cft} onChange={set('cft')} placeholder="Trainer name" style={iStyle} />
+              </div>
+              <div>
+                <label style={lStyle}>Goal</label>
+                <input value={editForm.goal} onChange={set('goal')} placeholder="MD, EMD…" style={iStyle} />
+              </div>
+              <div>
+                <label style={lStyle}>Recruiter Code</label>
+                <input value={editForm.recruiterId} onChange={set('recruiterId')} placeholder="Agent code" style={iStyle} />
+              </div>
+            </div>
+
+            {/* Discord */}
+            <div>
+              <label style={lStyle}>Discord User ID</label>
+              <input value={editForm.discordUserId} onChange={set('discordUserId')} placeholder="17–20 digit snowflake" style={iStyle} />
+            </div>
+
+            {/* Address */}
+            <div>
+              <div style={{ ...sLabel, marginBottom: 8 }}>Mailing Address</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <input value={editForm.addressLine1} onChange={set('addressLine1')} placeholder="Street address" style={iStyle} />
+                <input value={editForm.addressLine2} onChange={set('addressLine2')} placeholder="Apt / Suite (optional)" style={iStyle} />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 70px', gap: 8 }}>
+                  <input value={editForm.city} onChange={set('city')} placeholder="City" style={iStyle} />
+                  <select value={editForm.state} onChange={set('state')} style={{ ...iStyle, appearance: 'auto' }}>
+                    <option value="">State</option>
+                    {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <input value={editForm.zip} onChange={set('zip')} placeholder="ZIP" style={iStyle} />
+                </div>
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div>
+              <label style={lStyle}>Internal Notes</label>
+              <textarea
+                value={editForm.notes}
+                onChange={set('notes')}
+                placeholder="Admin notes…"
+                rows={3}
+                style={{ ...iStyle, resize: 'vertical', lineHeight: 1.6 }}
+              />
+            </div>
+
+            {editError && (
+              <div style={{ fontSize: 11, color: '#f87171', padding: '8px 12px', background: 'rgba(248,113,113,0.06)', borderRadius: 4 }}>
+                {editError}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <button
+                onClick={saveEdit}
+                disabled={editSaving}
+                style={{
+                  background: editSaving ? 'rgba(201,169,110,0.3)' : '#C9A96E',
+                  color: '#142D48', border: 'none', borderRadius: 4,
+                  padding: '9px 20px', fontSize: 11, fontWeight: 700,
+                  cursor: editSaving ? 'not-allowed' : 'pointer',
+                  letterSpacing: '0.1em', textTransform: 'uppercase',
+                }}
+              >
+                {editSaving ? 'Saving…' : 'Save Changes'}
+              </button>
+              {editSaved && <span style={{ fontSize: 12, color: '#4ade80' }}>✓ Saved</span>}
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
