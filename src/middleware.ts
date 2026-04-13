@@ -14,8 +14,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next({ request: { headers: requestHeaders } })
   }
 
-  // All other vault routes require an admin session
-  const token = await getToken({ req: request })
+  // All other vault routes require an admin session.
+  // Must use the same cookie name we set in auth.ts (no __Secure- prefix).
+  const token = await getToken({
+    req: request,
+    cookieName: 'next-auth.session-token',
+    secret: process.env.NEXTAUTH_SECRET,
+  })
   if (!token || token.role !== 'admin') {
     return NextResponse.redirect(new URL('/vault/login', request.url))
   }
