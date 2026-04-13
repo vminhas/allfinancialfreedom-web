@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import {
   PHASE_LABELS, PHASE_ITEMS, CARRIERS,
@@ -102,9 +102,15 @@ const fieldLabel = {
 
 export default function AgentDashboard() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const discordParam = searchParams.get('discord')
+  const discordUsername = searchParams.get('username')
+
   const [data, setData] = useState<AgentData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'checklist' | 'licensing' | 'carriers' | 'partners' | 'policies' | 'calls' | 'profile'>('checklist')
+  const [activeTab, setActiveTab] = useState<'checklist' | 'licensing' | 'carriers' | 'partners' | 'policies' | 'calls' | 'profile'>(
+    discordParam ? 'profile' : 'checklist'
+  )
   const [togglingKey, setTogglingKey] = useState<string | null>(null)
   const [expandedItem, setExpandedItem] = useState<string | null>(null)
   const [selectedProgression, setSelectedProgression] = useState<string | null>(null)
@@ -868,11 +874,10 @@ function ProfileTab({ data, onSaved }: { data: AgentData; onSaved: () => void })
     setAvatarUploading(false)
   }
 
-  // Discord state
-  const [discordId, setDiscordId] = useState(data.discordUserId ?? '')
-  const [discordSyncing, setDiscordSyncing] = useState(false)
-  const [discordStatus, setDiscordStatus] = useState<'idle' | 'success' | 'error'>('idle')
-  const [discordMsg, setDiscordMsg] = useState('')
+  // Discord OAuth state — read result from URL params passed back by the callback
+  const searchParams = useSearchParams()
+  const discordParam = searchParams.get('discord')
+  const discordUsername = searchParams.get('username')
 
   const US_STATES = [
     'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
@@ -888,27 +893,6 @@ function ProfileTab({ data, onSaved }: { data: AgentData; onSaved: () => void })
     if (digits.length > 5) formatted = `${digits.slice(0,3)}-${digits.slice(3,5)}-${digits.slice(5)}`
     else if (digits.length > 3) formatted = `${digits.slice(0,3)}-${digits.slice(3)}`
     setForm(f => ({ ...f, ssn: formatted }))
-  }
-
-  const syncDiscord = async () => {
-    setDiscordSyncing(true)
-    setDiscordStatus('idle')
-    setDiscordMsg('')
-    const res = await fetch('/api/agents/discord-sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ discordUserId: discordId }),
-    })
-    const d = await res.json() as { ok?: boolean; error?: string; phase?: number }
-    if (!res.ok) {
-      setDiscordStatus('error')
-      setDiscordMsg(d.error ?? 'Sync failed')
-    } else {
-      setDiscordStatus('success')
-      setDiscordMsg(`Phase ${d.phase} role assigned successfully`)
-      onSaved()
-    }
-    setDiscordSyncing(false)
   }
 
   const save = async (e: React.FormEvent) => {
@@ -1215,9 +1199,7 @@ function ProfileTab({ data, onSaved }: { data: AgentData; onSaved: () => void })
 
       {/* ── Discord section ─────────────────────────────────────────────── */}
       <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', marginTop: 28, paddingTop: 24 }}>
-        {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-          {/* Discord logo */}
           <svg width="20" height="20" viewBox="0 0 24 24" fill="#5865F2">
             <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.02.012.04.032.052a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
           </svg>
@@ -1231,88 +1213,72 @@ function ProfileTab({ data, onSaved }: { data: AgentData; onSaved: () => void })
           )}
         </div>
         <p style={{ fontSize: 12, color: '#6B8299', marginBottom: 16, lineHeight: 1.6 }}>
-          Link your Discord account so the AFF bot can automatically assign your phase role in the server.
+          Link your Discord account so the AFF bot automatically assigns your phase role in the server.
         </p>
 
-        {/* How to find your User ID */}
-        <div style={{
-          background: 'rgba(88,101,242,0.06)', border: '1px solid rgba(88,101,242,0.15)',
-          borderRadius: 6, padding: '10px 14px', marginBottom: 16,
-          display: 'flex', gap: 10, alignItems: 'flex-start',
-        }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="#5865F2" style={{ flexShrink: 0, marginTop: 2 }}>
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
-          </svg>
-          <p style={{ margin: 0, fontSize: 11, color: '#9BB0C4', lineHeight: 1.6 }}>
-            In Discord: <strong style={{ color: '#C9A96E' }}>User Settings → Advanced → Enable Developer Mode</strong>,
-            then right-click your username anywhere and select <strong style={{ color: '#C9A96E' }}>Copy User ID</strong>. Paste it below.
-          </p>
-        </div>
-
-        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-          <div style={{ flex: 1 }}>
-            <label style={fieldLabel}>Discord User ID</label>
-            <input
-              value={discordId}
-              onChange={e => { setDiscordId(e.target.value); setDiscordStatus('idle') }}
-              placeholder="e.g. 123456789012345678"
-              autoComplete="off"
-              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' as const, fontFamily: 'monospace', fontSize: 12 }}
-            />
-            <p style={{ margin: '5px 0 0', fontSize: 10, color: '#4B5563' }}>
-              17–20 digit number · current: {data.discordUserId ? <span style={{ color: '#9BB0C4', fontFamily: 'monospace' }}>{data.discordUserId}</span> : <span style={{ color: '#4B5563' }}>not set</span>}
-            </p>
-          </div>
-
-          <button
-            onClick={syncDiscord}
-            disabled={discordSyncing || !discordId.trim()}
-            style={{
-              marginTop: 20, flexShrink: 0,
-              display: 'flex', alignItems: 'center', gap: 8,
-              background: discordSyncing || !discordId.trim()
-                ? 'rgba(88,101,242,0.2)'
-                : '#5865F2',
-              color: discordSyncing || !discordId.trim() ? 'rgba(255,255,255,0.3)' : '#ffffff',
-              border: `1px solid ${discordSyncing || !discordId.trim() ? 'rgba(88,101,242,0.2)' : '#5865F2'}`,
-              borderRadius: 4, padding: '9px 16px', fontSize: 11, fontWeight: 700,
-              cursor: discordSyncing || !discordId.trim() ? 'not-allowed' : 'pointer',
-              letterSpacing: '0.1em', textTransform: 'uppercase' as const,
-              transition: 'all 0.15s',
-            }}
-          >
-            {!discordSyncing && (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.02.012.04.032.052a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
-              </svg>
-            )}
-            {discordSyncing ? 'Syncing...' : 'Sync Role'}
-          </button>
-        </div>
-
-        {/* Status message */}
-        {discordStatus !== 'idle' && (
+        {/* OAuth result banner */}
+        {discordParam === 'connected' && (
           <div style={{
-            marginTop: 10, fontSize: 12, padding: '8px 12px', borderRadius: 4,
-            color: discordStatus === 'success' ? '#4ade80' : '#f87171',
-            background: discordStatus === 'success' ? 'rgba(74,222,128,0.08)' : 'rgba(248,113,113,0.08)',
-            border: `1px solid ${discordStatus === 'success' ? 'rgba(74,222,128,0.15)' : 'rgba(248,113,113,0.15)'}`,
+            display: 'flex', alignItems: 'center', gap: 10,
+            marginBottom: 16, padding: '10px 14px', borderRadius: 6,
+            background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)',
           }}>
-            {discordStatus === 'success' ? '✓ ' : '✗ '}{discordMsg}
+            <span style={{ color: '#4ade80', fontSize: 16 }}>✓</span>
+            <div>
+              <div style={{ fontSize: 13, color: '#4ade80', fontWeight: 600 }}>
+                Discord connected{discordUsername ? ` as ${discordUsername}` : ''}!
+              </div>
+              <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>
+                Your phase role has been assigned in the AFF server.
+              </div>
+            </div>
+          </div>
+        )}
+        {discordParam === 'error' && (
+          <div style={{
+            marginBottom: 16, padding: '10px 14px', borderRadius: 6, fontSize: 12,
+            color: '#f87171', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)',
+          }}>
+            Something went wrong connecting Discord. Please try again.
           </div>
         )}
 
-        {/* Current role badge */}
-        {data.discordRoleName && discordStatus === 'idle' && (
-          <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 10, color: '#4B5563' }}>Current role:</span>
-            <span style={{
-              fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
-              color: '#5865F2', background: 'rgba(88,101,242,0.12)',
-              borderRadius: 4, padding: '2px 8px', border: '1px solid rgba(88,101,242,0.2)',
-            }}>
-              {data.discordRoleName}
-            </span>
+        {/* Connect / Reconnect button */}
+        <a
+          href="/api/agents/discord-connect"
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 10,
+            background: '#5865F2', color: '#ffffff',
+            borderRadius: 4, padding: '10px 20px',
+            fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+            textDecoration: 'none', transition: 'opacity 0.15s',
+          }}
+          onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+          onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.02.012.04.032.052a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+          </svg>
+          {data.discordUserId ? 'Reconnect Discord' : 'Connect Discord'}
+        </a>
+
+        {/* Current role + username */}
+        {(data.discordRoleName || data.discordUserId) && (
+          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {data.discordRoleName && (
+              <span style={{
+                fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
+                color: '#5865F2', background: 'rgba(88,101,242,0.12)',
+                borderRadius: 4, padding: '3px 9px', border: '1px solid rgba(88,101,242,0.2)',
+              }}>
+                {data.discordRoleName}
+              </span>
+            )}
+            {data.discordUserId && (
+              <span style={{ fontSize: 10, color: '#4B5563', fontFamily: 'monospace' }}>
+                ID: {data.discordUserId}
+              </span>
+            )}
           </div>
         )}
       </div>
