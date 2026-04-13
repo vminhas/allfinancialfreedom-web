@@ -418,7 +418,7 @@ export default function TrackerPage() {
                             <div style={{ height: 5, background: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden', marginBottom: 4 }}>
                               <div style={{ width: `${barW}%`, height: '100%', background: PHASE_COLORS[phase], borderRadius: 3, opacity: isActive ? 1 : 0.82, transition: 'width 0.4s ease' }} />
                             </div>
-                            <div style={{ fontSize: 9, color: '#6B8299', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <div style={{ fontSize: 10, color: '#9BB0C4', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               {PHASE_LABELS[phase].title}
                             </div>
                           </div>
@@ -426,7 +426,7 @@ export default function TrackerPage() {
                           <div style={{ textAlign: 'right' }}>
                             <div style={{ fontSize: 14, fontWeight: 700, color: count > 0 ? '#ffffff' : '#4B5563', lineHeight: 1 }}>{count}</div>
                             {activeCount < count && count > 0 && (
-                              <div style={{ fontSize: 9, color: '#6B8299', marginTop: 2 }}>{activeCount} active</div>
+                              <div style={{ fontSize: 9, color: '#9BB0C4', marginTop: 2 }}>{activeCount} active</div>
                             )}
                           </div>
                         </button>
