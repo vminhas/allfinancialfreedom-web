@@ -1,13 +1,15 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { agentAuthOptions } from '@/lib/agent-auth'
+import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { getAgentDiscordRoleName } from '@/lib/discord-roles'
 import { PHASE_LABELS, PHASE_ITEMS } from '@/lib/agent-constants'
 
 export async function GET() {
-  const session = await getServerSession(agentAuthOptions)
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const session = await getServerSession(authOptions)
+  if (!session || (session.user as { role?: string }).role !== 'agent') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
   const agentUser = await db.agentUser.findUnique({
     where: { email: session.user!.email! },

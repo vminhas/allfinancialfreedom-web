@@ -4,7 +4,8 @@ import { getToken } from 'next-auth/jwt'
 
 export async function middleware(request: NextRequest) {
   const token = await getToken({ req: request })
-  if (!token) {
+  // Vault requires an admin session — agents cannot access it
+  if (!token || token.role !== 'admin') {
     return NextResponse.redirect(new URL('/vault/login', request.url))
   }
   return NextResponse.next()

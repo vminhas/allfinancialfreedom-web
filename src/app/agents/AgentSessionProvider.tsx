@@ -4,7 +4,7 @@ import { SessionProvider } from 'next-auth/react'
 
 export default function AgentSessionProvider({ children }: { children: React.ReactNode }) {
   return (
-    <SessionProvider basePath="/api/agent-auth">
+    <SessionProvider>
       <div style={{
         minHeight: '100vh',
         background: '#0A1628',

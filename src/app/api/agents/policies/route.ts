@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { agentAuthOptions } from '@/lib/agent-auth'
+import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 
 async function getProfileId(email: string) {
@@ -12,7 +12,7 @@ async function getProfileId(email: string) {
 }
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(agentAuthOptions)
+  const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const profileId = await getProfileId(session.user!.email!)
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(agentAuthOptions)
+  const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const profileId = await getProfileId(session.user!.email!)
