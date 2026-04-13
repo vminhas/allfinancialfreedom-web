@@ -89,12 +89,42 @@ export const PHASE_ITEMS: Record<number, { key: string; label: string }[]> = {
   ],
 }
 
-export const PHASE_LABELS: Record<number, { title: string; standard: string; goal: string }> = {
-  1: { title: 'Getting Started', standard: '7–21 Day Standard', goal: 'License & Onboard' },
-  2: { title: 'Field Training', standard: 'First 30 Day Standard', goal: '10 FTAs + First $1,000' },
-  3: { title: 'Becoming a CFT', standard: '45–60 Day Standard', goal: 'CFT Certification' },
-  4: { title: 'MD Focus', standard: 'MD Plan', goal: '45,000 Points + 5 Licenses' },
-  5: { title: 'EMD Focus', standard: 'EMD Plan', goal: '150K Net Points + 20 Licenses' },
+export const PHASE_LABELS: Record<number, { title: string; standard: string; goal: string; description: string; nextStep: string }> = {
+  1: {
+    title: 'Getting Started',
+    standard: '7–21 Day Standard',
+    goal: 'License & Onboard',
+    description: 'Complete your onboarding trainings, schedule your license exam, and build your first list of business partners. This phase sets the foundation for everything that follows.',
+    nextStep: 'Pass your life license exam and submit your fingerprints to move to Phase 2.',
+  },
+  2: {
+    title: 'Field Training',
+    standard: 'First 30 Day Standard',
+    goal: '10 FTAs + First $1,000',
+    description: 'Complete 10 Field Training Appointments with your CFT. Help your first 3 clients, build your direct team, and earn your first $1,000 in commission.',
+    nextStep: 'Complete 10 FTAs, earn your Net License, and get your Associate Promotion to advance.',
+  },
+  3: {
+    title: 'Becoming a CFT',
+    standard: '45–60 Day Standard',
+    goal: 'CFT Certification',
+    description: 'Attend CFT In Progress classes and demonstrate you can run appointments independently. This phase qualifies you to train new agents on your team.',
+    nextStep: 'Get sign-offs from your trainer, CFT Coordinator, and EMD to unlock Phase 4.',
+  },
+  4: {
+    title: 'MD Focus',
+    standard: 'MD Plan',
+    goal: '45,000 Points + 5 Licenses',
+    description: 'Build your business to Marketing Director level. Hit 45,000 production points, meet monthly premium goals, and develop 5 licensed agents on your team.',
+    nextStep: 'Hit your production targets and develop your team to qualify for EMD status.',
+  },
+  5: {
+    title: 'EMD Focus',
+    standard: 'EMD Plan',
+    goal: '150K Net Points + 20 Licenses',
+    description: 'Scale to Elite Marketing Director. Maintain 150,000 net points over 6 months, develop a Marketing Director, and grow your licensed team to 20 agents.',
+    nextStep: "You're building a legacy — maintain production and keep growing your leadership team.",
+  },
 }
 
 // Discord roles per phase — guild role IDs stored in Settings table

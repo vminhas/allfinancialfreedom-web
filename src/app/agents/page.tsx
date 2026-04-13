@@ -17,7 +17,7 @@ interface AgentData {
   lastName: string
   state: string | null
   phase: number
-  phaseLabel: { title: string; standard: string; goal: string }
+  phaseLabel: { title: string; standard: string; goal: string; description: string; nextStep: string }
   phaseStartedAt: string | null
   status: string
   goal: string | null
@@ -244,17 +244,32 @@ export default function AgentDashboard() {
         {activeTab === 'checklist' && (
           <div>
             <div style={{ ...card, padding: '24px 28px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <div>
-                  <div style={sectionLabel}>Phase {data.phase} — {data.phaseLabel.title}</div>
-                  <div style={{ fontSize: 12, color: '#6B8299' }}>{data.phaseLabel.standard} · Goal: {data.phaseLabel.goal}</div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 22, fontWeight: 600, color: PHASE_COLORS[data.phase] }}>
-                    {currentPhaseProgress?.pct ?? 0}%
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                  <div>
+                    <div style={sectionLabel}>Phase {data.phase} — {data.phaseLabel.title}</div>
+                    <div style={{ fontSize: 11, color: '#6B8299', marginBottom: 2 }}>{data.phaseLabel.standard} · Goal: {data.phaseLabel.goal}</div>
                   </div>
-                  <div style={{ fontSize: 10, color: '#6B8299' }}>
-                    {currentPhaseProgress?.completed ?? 0} of {currentPhaseProgress?.total ?? 0}
+                  <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 16 }}>
+                    <div style={{ fontSize: 22, fontWeight: 600, color: PHASE_COLORS[data.phase] }}>
+                      {currentPhaseProgress?.pct ?? 0}%
+                    </div>
+                    <div style={{ fontSize: 10, color: '#6B8299' }}>
+                      {currentPhaseProgress?.completed ?? 0} of {currentPhaseProgress?.total ?? 0}
+                    </div>
+                  </div>
+                </div>
+                {/* Phase description */}
+                <div style={{
+                  background: 'rgba(201,169,110,0.04)',
+                  border: '1px solid rgba(201,169,110,0.1)',
+                  borderRadius: 6, padding: '12px 14px',
+                  fontSize: 12, color: '#9BB0C4', lineHeight: 1.6,
+                }}>
+                  {data.phaseLabel.description}
+                  <div style={{ marginTop: 8, fontSize: 11, color: '#C9A96E', display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                    <span style={{ flexShrink: 0 }}>→</span>
+                    <span>{data.phaseLabel.nextStep}</span>
                   </div>
                 </div>
               </div>
