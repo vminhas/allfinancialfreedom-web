@@ -102,7 +102,7 @@ export default function TrackerPage() {
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [phaseFilter, setPhaseFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('active')
   const [atRiskOnly, setAtRiskOnly] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
   const [selectedAgent, setSelectedAgent] = useState<DetailedAgent | null>(null)
@@ -111,12 +111,18 @@ export default function TrackerPage() {
   const [inviteMsg, setInviteMsg] = useState('')
   const [stats, setStats] = useState<DashStats | null>(null)
 
-  // Date range state
+  // Date range state (chart only)
   type Preset = '3m' | '6m' | '12m' | 'ytd' | 'all' | 'custom'
   const [preset, setPreset] = useState<Preset>('12m')
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
   const [trendData, setTrendData] = useState<TrendPoint[]>([])
+
+  // Table-only filters
+  const [newThisMonthOnly, setNewThisMonthOnly] = useState(false)
+
+  // Trainer list for dropdowns
+  const [trainers, setTrainers] = useState<string[]>([])
 
   // Derive actual date range from preset
   function getDateRange(): { start: string; end: string } | null {
@@ -150,27 +156,40 @@ export default function TrackerPage() {
 
   const fetchAgents = useCallback(async () => {
     setLoading(true)
-    const range = getDateRange()
     const params = new URLSearchParams({ page: String(page), limit: '50' })
     if (phaseFilter) params.set('phase', phaseFilter)
     if (statusFilter) params.set('status', statusFilter)
-    if (range?.start) params.set('icaStart', range.start)
-    if (range?.end)   params.set('icaEnd', range.end)
+    if (newThisMonthOnly) {
+      const today = new Date()
+      const start = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`
+      const end = today.toISOString().split('T')[0]
+      params.set('icaStart', start)
+      params.set('icaEnd', end)
+    }
     const res = await fetch(`/api/admin/agents?${params}`)
     const data = await res.json() as { agents: Agent[]; total: number }
     setAgents(data.agents ?? [])
     setTotal(data.total ?? 0)
     setLoading(false)
-  }, [page, phaseFilter, statusFilter])
+  }, [page, phaseFilter, statusFilter, newThisMonthOnly])
 
   const fetchStats = useCallback(async () => {
     const res = await fetch('/api/admin/stats')
     if (res.ok) setStats(await res.json() as DashStats)
   }, [])
 
+  const fetchTrainers = useCallback(async () => {
+    const res = await fetch('/api/admin/trainers')
+    if (res.ok) {
+      const data = await res.json() as { trainers: string[] }
+      setTrainers(data.trainers)
+    }
+  }, [])
+
   useEffect(() => { fetchAgents() }, [fetchAgents])
   useEffect(() => { fetchStats() }, [fetchStats])
   useEffect(() => { fetchTrends() }, [fetchTrends])
+  useEffect(() => { fetchTrainers() }, [fetchTrainers])
 
   const openDrawer = async (id: string) => {
     setDrawerLoading(true)
@@ -251,13 +270,9 @@ export default function TrackerPage() {
     : agents
 
   // KPI card filter states
-  const todayFmt = new Date().toISOString().split('T')[0]
-  const thisMonthStart = (() => {
-    const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
-  })()
   const activeAgentsFilterOn = statusFilter === 'active'
   const inactiveAgentsFilterOn = statusFilter === 'inactive'
-  const newThisMonthFilterOn = preset === 'custom' && customStart === thisMonthStart
+  const newThisMonthFilterOn = newThisMonthOnly
 
   const selectStyle = {
     background: '#0C1E30', border: '1px solid rgba(201,169,110,0.15)',
@@ -347,11 +362,7 @@ export default function TrackerPage() {
             {/* New This Month */}
             <div
               onClick={() => {
-                if (newThisMonthFilterOn) {
-                  setPreset('all'); setCustomStart(''); setCustomEnd('')
-                } else {
-                  setPreset('custom'); setCustomStart(thisMonthStart); setCustomEnd(todayFmt)
-                }
+                setNewThisMonthOnly(v => !v)
                 setPage(1)
               }}
               style={{
@@ -768,6 +779,7 @@ export default function TrackerPage() {
                 onDeleteConfirmChange={setDeleteConfirm}
                 inviteLoading={inviteLoading}
                 inviteMsg={inviteMsg}
+                trainers={trainers}
                 onClose={() => { setSelectedAgent(null); setInviteMsg(''); setDeleteConfirm(false) }}
               />
             ) : null}
@@ -779,7 +791,8 @@ export default function TrackerPage() {
       {showAddModal && (
         <AddAgentModal
           onClose={() => setShowAddModal(false)}
-          onCreated={() => { setShowAddModal(false); fetchAgents(); fetchStats() }}
+          onCreated={() => { setShowAddModal(false); fetchAgents(); fetchStats(); fetchTrainers() }}
+          trainers={trainers}
         />
       )}
     </div>
@@ -799,6 +812,7 @@ function AgentDrawer({
   onDeleteConfirmChange,
   inviteLoading,
   inviteMsg,
+  trainers,
   onClose,
 }: {
   agent: DetailedAgent
@@ -811,6 +825,7 @@ function AgentDrawer({
   onDeleteConfirmChange: (v: boolean) => void
   inviteLoading: boolean
   inviteMsg: string
+  trainers: string[]
   onClose: () => void
 }) {
   const [activeTab, setActiveTab] = useState<'progress' | 'carriers' | 'info' | 'edit'>('progress')
@@ -1342,7 +1357,13 @@ function AgentDrawer({
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
               <div>
                 <label style={lStyle}>Trainer (CFT)</label>
-                <input value={editForm.cft} onChange={set('cft')} placeholder="Trainer name" style={iStyle} />
+                <select value={editForm.cft} onChange={set('cft')} style={{ ...iStyle, appearance: 'auto' }}>
+                  <option value="">Select trainer</option>
+                  {trainers.map(t => <option key={t} value={t}>{t}</option>)}
+                  {editForm.cft && !trainers.includes(editForm.cft) && (
+                    <option value={editForm.cft}>{editForm.cft}</option>
+                  )}
+                </select>
               </div>
               <div>
                 <label style={lStyle}>Goal</label>
@@ -1420,7 +1441,7 @@ function AgentDrawer({
 
 // ─── Add Agent Modal ──────────────────────────────────────────────────────────
 
-function AddAgentModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+function AddAgentModal({ onClose, onCreated, trainers }: { onClose: () => void; onCreated: () => void; trainers: string[] }) {
   const [form, setForm] = useState({
     firstName: '', lastName: '', email: '', agentCode: '',
     state: '', phone: '', icaDate: '', recruiterId: '',
@@ -1498,7 +1519,12 @@ function AddAgentModal({ onClose, onCreated }: { onClose: () => void; onCreated:
             <div><label style={fieldLabel}>Phone</label><input style={inputStyle} value={form.phone} onChange={set('phone')} /></div>
             <div><label style={fieldLabel}>ICA Date</label><input type="date" style={inputStyle} value={form.icaDate} onChange={set('icaDate')} /></div>
             <div><label style={fieldLabel}>Recruiter Code</label><input style={inputStyle} value={form.recruiterId} onChange={set('recruiterId')} placeholder="e.g. B3570" /></div>
-            <div><label style={fieldLabel}>Trainer (CFT)</label><input style={inputStyle} value={form.cft} onChange={set('cft')} /></div>
+            <div><label style={fieldLabel}>Trainer (CFT)</label>
+              <select style={{ ...inputStyle, appearance: 'auto' }} value={form.cft} onChange={set('cft')}>
+                <option value="">Select trainer</option>
+                {trainers.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
             <div><label style={fieldLabel}>Goal</label>
               <select style={{ ...inputStyle }} value={form.goal} onChange={set('goal')}>
                 <option value="">Select goal</option>
