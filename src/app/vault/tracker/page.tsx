@@ -77,6 +77,13 @@ interface DashStats {
   activeLoginsLast30d: number
 }
 
+const US_STATES = [
+  'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
+  'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
+  'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT',
+  'VA','WA','WV','WI','WY','DC',
+]
+
 const PHASE_COLORS: Record<number, string> = {
   1: '#6B8299', 2: '#9B6DFF', 3: '#C9A96E', 4: '#3b82f6', 5: '#4ade80',
 }
@@ -243,6 +250,15 @@ export default function TrackerPage() {
       })
     : agents
 
+  // KPI card filter states
+  const todayFmt = new Date().toISOString().split('T')[0]
+  const thisMonthStart = (() => {
+    const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+  })()
+  const activeAgentsFilterOn = statusFilter === 'active'
+  const inactiveAgentsFilterOn = statusFilter === 'inactive'
+  const newThisMonthFilterOn = preset === 'custom' && customStart === thisMonthStart
+
   const selectStyle = {
     background: '#0C1E30', border: '1px solid rgba(201,169,110,0.15)',
     borderRadius: 4, color: '#9BB0C4', padding: '7px 12px', fontSize: 12,
@@ -289,35 +305,79 @@ export default function TrackerPage() {
         <div style={{ marginBottom: 28 }}>
           {/* KPI row */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 16 }}>
-            {[
-              { label: 'Active Agents', value: stats.activeAgents, sub: `${stats.inactiveAgents} inactive`, color: '#4ade80', clickable: false },
-              { label: 'At Risk', value: stats.atRiskCount, sub: `${stats.behindCount} behind — click to filter`, color: '#f87171', clickable: true, togglesAtRisk: true },
-              { label: 'New This Month', value: stats.newThisMonth, sub: 'by ICA date', color: '#C9A96E', clickable: false },
-              { label: 'Active Logins (30d)', value: stats.activeLoginsLast30d, sub: 'portal activity', color: '#9B6DFF', clickable: false },
-              { label: 'Total Pipeline', value: stats.totalAgents, sub: 'all time', color: '#9BB0C4', clickable: false },
-            ].map(kpi => (
-              <div
-                key={kpi.label}
-                onClick={() => kpi.togglesAtRisk && setAtRiskOnly(v => !v)}
-                style={{
-                  background: kpi.togglesAtRisk && atRiskOnly ? 'rgba(248,113,113,0.1)' : '#142D48',
-                  border: `1px solid ${kpi.togglesAtRisk && atRiskOnly ? 'rgba(248,113,113,0.3)' : 'rgba(201,169,110,0.08)'}`,
-                  borderRadius: 6, padding: '16px 20px',
-                  cursor: kpi.clickable ? 'pointer' : 'default',
-                  transition: 'all 0.15s',
-                }}
-              >
-                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#6B8299', marginBottom: 8 }}>
-                  {kpi.label}
-                </div>
-                <div style={{ fontSize: 28, fontWeight: 600, color: kpi.color, lineHeight: 1, marginBottom: 4 }}>
-                  {kpi.value}
-                </div>
-                <div style={{ fontSize: 11, color: kpi.togglesAtRisk && atRiskOnly ? '#f87171' : '#4B5563' }}>
-                  {kpi.togglesAtRisk && atRiskOnly ? '✕ clear filter' : kpi.sub}
-                </div>
+            {/* Active Agents */}
+            <div
+              onClick={() => { setStatusFilter(activeAgentsFilterOn ? '' : 'active'); setPage(1) }}
+              style={{
+                background: activeAgentsFilterOn ? 'rgba(74,222,128,0.08)' : '#142D48',
+                border: `1px solid ${activeAgentsFilterOn ? 'rgba(74,222,128,0.3)' : 'rgba(201,169,110,0.08)'}`,
+                borderRadius: 6, padding: '16px 20px', cursor: 'pointer', transition: 'all 0.15s',
+              }}
+            >
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#6B8299', marginBottom: 8 }}>Active Agents</div>
+              <div style={{ fontSize: 28, fontWeight: 600, color: '#4ade80', lineHeight: 1, marginBottom: 4 }}>{stats.activeAgents}</div>
+              <div style={{ fontSize: 11, color: activeAgentsFilterOn ? '#4ade80' : '#4B5563' }}>
+                {activeAgentsFilterOn ? '✕ clear filter' : (
+                  <span>
+                    <span
+                      onClick={e => { e.stopPropagation(); setStatusFilter(inactiveAgentsFilterOn ? '' : 'inactive'); setPage(1) }}
+                      style={{ color: inactiveAgentsFilterOn ? '#f59e0b' : '#4B5563', textDecoration: 'underline', cursor: 'pointer' }}
+                    >
+                      {stats.inactiveAgents} inactive
+                    </span>
+                  </span>
+                )}
               </div>
-            ))}
+            </div>
+            {/* At Risk */}
+            <div
+              onClick={() => { setAtRiskOnly(v => !v); setPage(1) }}
+              style={{
+                background: atRiskOnly ? 'rgba(248,113,113,0.1)' : '#142D48',
+                border: `1px solid ${atRiskOnly ? 'rgba(248,113,113,0.3)' : 'rgba(201,169,110,0.08)'}`,
+                borderRadius: 6, padding: '16px 20px', cursor: 'pointer', transition: 'all 0.15s',
+              }}
+            >
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#6B8299', marginBottom: 8 }}>At Risk</div>
+              <div style={{ fontSize: 28, fontWeight: 600, color: '#f87171', lineHeight: 1, marginBottom: 4 }}>{stats.atRiskCount}</div>
+              <div style={{ fontSize: 11, color: atRiskOnly ? '#f87171' : '#4B5563' }}>
+                {atRiskOnly ? '✕ clear filter' : `${stats.behindCount} behind — click to filter`}
+              </div>
+            </div>
+            {/* New This Month */}
+            <div
+              onClick={() => {
+                if (newThisMonthFilterOn) {
+                  setPreset('all'); setCustomStart(''); setCustomEnd('')
+                } else {
+                  setPreset('custom'); setCustomStart(thisMonthStart); setCustomEnd(todayFmt)
+                }
+                setPage(1)
+              }}
+              style={{
+                background: newThisMonthFilterOn ? 'rgba(201,169,110,0.08)' : '#142D48',
+                border: `1px solid ${newThisMonthFilterOn ? 'rgba(201,169,110,0.3)' : 'rgba(201,169,110,0.08)'}`,
+                borderRadius: 6, padding: '16px 20px', cursor: 'pointer', transition: 'all 0.15s',
+              }}
+            >
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#6B8299', marginBottom: 8 }}>New This Month</div>
+              <div style={{ fontSize: 28, fontWeight: 600, color: '#C9A96E', lineHeight: 1, marginBottom: 4 }}>{stats.newThisMonth}</div>
+              <div style={{ fontSize: 11, color: newThisMonthFilterOn ? '#C9A96E' : '#4B5563' }}>
+                {newThisMonthFilterOn ? '✕ clear filter' : 'by ICA date'}
+              </div>
+            </div>
+            {/* Active Logins */}
+            <div style={{ background: '#142D48', border: '1px solid rgba(201,169,110,0.08)', borderRadius: 6, padding: '16px 20px' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#6B8299', marginBottom: 8 }}>Active Logins (30d)</div>
+              <div style={{ fontSize: 28, fontWeight: 600, color: '#9B6DFF', lineHeight: 1, marginBottom: 4 }}>{stats.activeLoginsLast30d}</div>
+              <div style={{ fontSize: 11, color: '#4B5563' }}>portal activity</div>
+            </div>
+            {/* Total Pipeline */}
+            <div style={{ background: '#142D48', border: '1px solid rgba(201,169,110,0.08)', borderRadius: 6, padding: '16px 20px' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#6B8299', marginBottom: 8 }}>Total Pipeline</div>
+              <div style={{ fontSize: 28, fontWeight: 600, color: '#9BB0C4', lineHeight: 1, marginBottom: 4 }}>{stats.totalAgents}</div>
+              <div style={{ fontSize: 11, color: '#4B5563' }}>all time</div>
+            </div>
           </div>
 
           {/* Phase pipeline + trend chart side by side */}
@@ -327,10 +387,10 @@ export default function TrackerPage() {
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 16 }}>
                 Pipeline by Phase
               </div>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', height: 72 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', height: 96 }}>
                 {stats.phaseDistribution.map(({ phase, count, activeCount }) => {
                   const maxCount = Math.max(...stats.phaseDistribution.map(p => p.count), 1)
-                  const barH = Math.max((count / maxCount) * 64, count > 0 ? 6 : 2)
+                  const barH = Math.max(Math.round((count / maxCount) * 76), count > 0 ? 8 : 3)
                   const isActive = phaseFilter === String(phase)
                   return (
                     <button
@@ -341,25 +401,32 @@ export default function TrackerPage() {
                         setAtRiskOnly(false)
                       }}
                       style={{
-                        flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                        flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
                         background: isActive ? `${PHASE_COLORS[phase]}18` : 'transparent',
                         border: `1px solid ${isActive ? `${PHASE_COLORS[phase]}44` : 'transparent'}`,
-                        borderRadius: 4, padding: '4px 2px', cursor: 'pointer',
+                        borderRadius: 4, padding: '4px 4px 6px', cursor: 'pointer',
                         transition: 'all 0.15s',
                       }}
                       onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
                       onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
                     >
-                      <div style={{ fontSize: 11, fontWeight: 700, color: count > 0 ? '#ffffff' : '#4B5563' }}>{count}</div>
-                      <div style={{ width: '100%', height: barH, background: PHASE_COLORS[phase], borderRadius: 3, opacity: isActive ? 1 : 0.75, transition: 'all 0.5s ease' }} />
-                      <div style={{ fontSize: 9, fontWeight: 700, color: PHASE_COLORS[phase] }}>P{phase}</div>
-                      <div style={{ fontSize: 8, color: '#9BB0C4' }}>{PHASE_LABELS[phase].title}</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: count > 0 ? '#ffffff' : '#4B5563', lineHeight: 1 }}>{count}</div>
+                      <div style={{ width: '100%', minHeight: barH, height: barH, background: PHASE_COLORS[phase], borderRadius: '3px 3px 2px 2px', opacity: isActive ? 1 : 0.8, transition: 'height 0.4s ease' }} />
+                      <div style={{ fontSize: 9, fontWeight: 700, color: PHASE_COLORS[phase], letterSpacing: '0.05em' }}>P{phase}</div>
                       {activeCount < count && count > 0 && (
                         <div style={{ fontSize: 8, color: '#6B8299' }}>{activeCount} active</div>
                       )}
                     </button>
                   )
                 })}
+              </div>
+              {/* Phase labels row */}
+              <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                {stats.phaseDistribution.map(({ phase }) => (
+                  <div key={phase} style={{ flex: 1, textAlign: 'center', fontSize: 8, color: '#4B5563', lineHeight: 1.3, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                    {PHASE_LABELS[phase].title}
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -767,13 +834,6 @@ function AgentDrawer({
   const [editError, setEditError] = useState('')
   const [avatarUploading, setAvatarUploading] = useState(false)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(agent.avatarUrl)
-
-  const US_STATES = [
-    'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
-    'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
-    'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT',
-    'VA','WA','WV','WI','WY','DC',
-  ]
 
   const uploadAdminAvatar = async (file: File) => {
     setAvatarUploading(true)
@@ -1420,7 +1480,12 @@ function AddAgentModal({ onClose, onCreated }: { onClose: () => void; onCreated:
             <div><label style={fieldLabel}>Last Name *</label><input required style={inputStyle} value={form.lastName} onChange={set('lastName')} /></div>
             <div><label style={fieldLabel}>Email *</label><input required type="email" style={inputStyle} value={form.email} onChange={set('email')} /></div>
             <div><label style={fieldLabel}>Agent Code *</label><input required style={inputStyle} value={form.agentCode} onChange={set('agentCode')} placeholder="e.g. F2030" /></div>
-            <div><label style={fieldLabel}>State</label><input style={inputStyle} value={form.state} onChange={set('state')} placeholder="TX" maxLength={2} /></div>
+            <div><label style={fieldLabel}>State</label>
+              <select style={{ ...inputStyle, appearance: 'auto' }} value={form.state} onChange={set('state')}>
+                <option value="">Select state</option>
+                {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
             <div><label style={fieldLabel}>Phone</label><input style={inputStyle} value={form.phone} onChange={set('phone')} /></div>
             <div><label style={fieldLabel}>ICA Date</label><input type="date" style={inputStyle} value={form.icaDate} onChange={set('icaDate')} /></div>
             <div><label style={fieldLabel}>Recruiter Code</label><input style={inputStyle} value={form.recruiterId} onChange={set('recruiterId')} placeholder="e.g. B3570" /></div>

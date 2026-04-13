@@ -9,7 +9,9 @@ import { PHASE_ITEMS, CARRIERS } from '@/lib/agent-constants'
 // GET /api/admin/agents — list all agents with phase progress
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session || (session.user as { role?: string }).role !== 'admin') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
   const { searchParams } = new URL(req.url)
   const phase      = searchParams.get('phase')
@@ -28,9 +30,9 @@ export async function GET(req: NextRequest) {
   if (cft)    where.cft    = cft
   if (icaStart || icaEnd) {
     const icaFilter: Record<string, Date> = {}
-    if (icaStart) icaFilter.gte = new Date(icaStart)
-    if (icaEnd)   icaFilter.lte = new Date(icaEnd + 'T23:59:59')
-    where.icaDate = icaFilter
+    if (icaStart && !isNaN(Date.parse(icaStart))) icaFilter.gte = new Date(icaStart)
+    if (icaEnd && !isNaN(Date.parse(icaEnd)))     icaFilter.lte = new Date(icaEnd + 'T23:59:59')
+    if (Object.keys(icaFilter).length > 0) where.icaDate = icaFilter
   }
   // atRisk filter is applied post-query (requires computed fields)
   void atRisk
@@ -87,7 +89,9 @@ export async function GET(req: NextRequest) {
 // POST /api/admin/agents — create new agent + AgentUser + seed items
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session || (session.user as { role?: string }).role !== 'admin') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
   const body = await req.json() as {
     firstName: string
@@ -155,7 +159,6 @@ export async function POST(req: NextRequest) {
       ok: true,
       agentUserId: agentUser.id,
       profileId: agentUser.profile?.id,
-      inviteToken,
     })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Unknown error'

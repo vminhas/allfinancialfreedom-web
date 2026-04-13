@@ -12,13 +12,15 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session || (session.user as { role?: string }).role !== 'admin') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
   const { id } = await params
   const profile = await db.agentProfile.findUnique({
     where: { id },
     include: {
-      agentUser: { select: { email: true, lastLoginAt: true, inviteToken: true, inviteExpires: true } },
+      agentUser: { select: { email: true, lastLoginAt: true } },
       phaseItems: true,
       carrierAppointments: true,
       milestones: { orderBy: { completedAt: 'desc' } },
@@ -43,7 +45,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session || (session.user as { role?: string }).role !== 'admin') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
   const { id } = await params
   const body = await req.json() as Record<string, unknown>
@@ -106,7 +110,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session || (session.user as { role?: string }).role !== 'admin') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
   const { id } = await params
   const profile = await db.agentProfile.findUnique({

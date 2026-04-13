@@ -7,7 +7,9 @@ import { PHASE_ITEMS } from '@/lib/agent-constants'
 // PUT /api/agents/progress — toggle a phase item checkbox
 export async function PUT(req: NextRequest) {
   const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session || (session.user as { role?: string }).role !== 'agent') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
   const { itemKey, phase, completed } = await req.json() as {
     itemKey: string

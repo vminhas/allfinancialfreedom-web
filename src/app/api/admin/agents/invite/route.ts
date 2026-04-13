@@ -8,7 +8,9 @@ import { getGhlConfig, sendGhlEmail, ghlPost, ghlPut } from '@/lib/ghl'
 // POST /api/admin/agents/invite — resend invite email for an agent
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session || (session.user as { role?: string }).role !== 'admin') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
   const { agentUserId } = await req.json() as { agentUserId: string }
   if (!agentUserId) return NextResponse.json({ error: 'agentUserId required' }, { status: 400 })
@@ -110,5 +112,5 @@ export async function POST(req: NextRequest) {
     emailError = err instanceof Error ? err.message : 'Email send failed'
   }
 
-  return NextResponse.json({ ok: true, inviteToken, inviteUrl, agentName, emailSent, emailError })
+  return NextResponse.json({ ok: true, agentName, emailSent, emailError })
 }

@@ -13,7 +13,9 @@ async function getProfileId(email: string) {
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session || (session.user as { role?: string }).role !== 'agent') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
   const profileId = await getProfileId(session.user!.email!)
   if (!profileId) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
@@ -27,7 +29,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session || (session.user as { role?: string }).role !== 'agent') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
   const profileId = await getProfileId(session.user!.email!)
   if (!profileId) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
