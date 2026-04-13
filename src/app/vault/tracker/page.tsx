@@ -384,58 +384,57 @@ export default function TrackerPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12, marginBottom: 16 }}>
             {/* Phase pipeline */}
             <div style={{ background: '#142D48', border: '1px solid rgba(201,169,110,0.08)', borderRadius: 6, padding: '18px 24px' }}>
-              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 16 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 14 }}>
                 Pipeline by Phase
               </div>
               {(() => {
                 const maxCount = Math.max(...stats.phaseDistribution.map(p => p.count), 1)
                 return (
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {stats.phaseDistribution.map(({ phase, count, activeCount }) => {
-                      const barH = Math.max(Math.round((count / maxCount) * 68), count > 0 ? 6 : 3)
+                      const barW = Math.max(Math.round((count / maxCount) * 100), count > 0 ? 4 : 1)
                       const isActive = phaseFilter === String(phase)
                       return (
                         <button
                           key={phase}
                           onClick={() => { setPhaseFilter(isActive ? '' : String(phase)); setPage(1); setAtRiskOnly(false) }}
                           style={{
-                            flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-                            background: isActive ? `${PHASE_COLORS[phase]}18` : 'transparent',
-                            border: `1px solid ${isActive ? `${PHASE_COLORS[phase]}44` : 'transparent'}`,
-                            borderRadius: 4, padding: '6px 4px 6px', cursor: 'pointer', transition: 'all 0.15s',
+                            display: 'grid', gridTemplateColumns: '20px 1fr 36px',
+                            alignItems: 'center', gap: 8,
+                            background: isActive ? `${PHASE_COLORS[phase]}14` : 'transparent',
+                            border: `1px solid ${isActive ? `${PHASE_COLORS[phase]}40` : 'transparent'}`,
+                            borderRadius: 4, padding: '6px 8px', cursor: 'pointer',
+                            transition: 'all 0.15s', textAlign: 'left',
                           }}
                           onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
                           onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
                         >
-                          {/* Count — sits above the fixed bar area */}
-                          <div style={{ fontSize: 11, fontWeight: 700, color: count > 0 ? '#ffffff' : '#4B5563', lineHeight: 1, marginBottom: 5 }}>
-                            {count}
-                          </div>
-                          {/* Fixed-height bar area — bar grows from the bottom */}
-                          <div style={{ width: '100%', height: 68, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                            <div style={{ width: '100%', height: barH, background: PHASE_COLORS[phase], borderRadius: '3px 3px 2px 2px', opacity: isActive ? 1 : 0.85, transition: 'height 0.4s ease' }} />
-                          </div>
                           {/* Phase badge */}
-                          <div style={{ fontSize: 9, fontWeight: 700, color: PHASE_COLORS[phase], letterSpacing: '0.05em', marginTop: 5 }}>
+                          <span style={{ fontSize: 9, fontWeight: 700, color: PHASE_COLORS[phase], letterSpacing: '0.04em' }}>
                             P{phase}
+                          </span>
+                          {/* Bar + phase name stacked */}
+                          <div>
+                            <div style={{ height: 5, background: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden', marginBottom: 3 }}>
+                              <div style={{ width: `${barW}%`, height: '100%', background: PHASE_COLORS[phase], borderRadius: 3, opacity: isActive ? 1 : 0.82, transition: 'width 0.4s ease' }} />
+                            </div>
+                            <div style={{ fontSize: 8, color: '#4B5563', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {PHASE_LABELS[phase].title}
+                            </div>
                           </div>
-                          {activeCount < count && count > 0 && (
-                            <div style={{ fontSize: 8, color: '#6B8299', marginTop: 2 }}>{activeCount} active</div>
-                          )}
+                          {/* Count */}
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: count > 0 ? '#ffffff' : '#4B5563', lineHeight: 1 }}>{count}</div>
+                            {activeCount < count && count > 0 && (
+                              <div style={{ fontSize: 8, color: '#6B8299', marginTop: 1 }}>{activeCount}a</div>
+                            )}
+                          </div>
                         </button>
                       )
                     })}
                   </div>
                 )
               })()}
-              {/* Phase name labels */}
-              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                {stats.phaseDistribution.map(({ phase }) => (
-                  <div key={phase} style={{ flex: 1, textAlign: 'center', fontSize: 8, color: '#4B5563', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
-                    {PHASE_LABELS[phase].title}
-                  </div>
-                ))}
-              </div>
             </div>
 
             {/* Trend chart */}
