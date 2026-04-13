@@ -41,6 +41,12 @@ interface DetailedAgent extends Agent {
   dateOfBirth: string | null
   npn: string | null
   licenseNumber: string | null
+  examDate: string | null
+  dateSubmittedToGfi: string | null
+  licenseProcess: string | null
+  clientProduct: string | null
+  initialPointOfContact: string | null
+  welcomeLetterSentAt: string | null
   discordUserId: string | null
   notes: string | null
 }
