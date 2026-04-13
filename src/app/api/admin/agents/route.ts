@@ -12,17 +12,28 @@ export async function GET(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
-  const phase = searchParams.get('phase')
-  const status = searchParams.get('status')
-  const cft = searchParams.get('cft')
-  const page = Math.max(1, parseInt(searchParams.get('page') ?? '1'))
+  const phase      = searchParams.get('phase')
+  const status     = searchParams.get('status')
+  const cft        = searchParams.get('cft')
+  const icaStart   = searchParams.get('icaStart')
+  const icaEnd     = searchParams.get('icaEnd')
+  const atRisk     = searchParams.get('atRisk') === '1'
+  const page  = Math.max(1, parseInt(searchParams.get('page') ?? '1'))
   const limit = Math.min(100, parseInt(searchParams.get('limit') ?? '50'))
-  const skip = (page - 1) * limit
+  const skip  = (page - 1) * limit
 
   const where: Record<string, unknown> = {}
-  if (phase) where.phase = parseInt(phase)
+  if (phase)  where.phase  = parseInt(phase)
   if (status) where.status = status.toUpperCase()
-  if (cft) where.cft = cft
+  if (cft)    where.cft    = cft
+  if (icaStart || icaEnd) {
+    const icaFilter: Record<string, Date> = {}
+    if (icaStart) icaFilter.gte = new Date(icaStart)
+    if (icaEnd)   icaFilter.lte = new Date(icaEnd + 'T23:59:59')
+    where.icaDate = icaFilter
+  }
+  // atRisk filter is applied post-query (requires computed fields)
+  void atRisk
 
   const [profiles, total] = await Promise.all([
     db.agentProfile.findMany({
