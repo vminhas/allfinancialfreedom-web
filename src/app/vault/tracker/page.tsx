@@ -502,7 +502,8 @@ export default function TrackerPage() {
 
               {/* Area chart */}
               {trendData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%" style={{ flex: 1, minHeight: 80 }}>
+                <div style={{ flex: 1, minHeight: 80 }}>
+                <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={trendData} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
                     <defs>
                       <linearGradient id="goldGrad" x1="0" y1="0" x2="0" y2="1">
@@ -546,6 +547,7 @@ export default function TrackerPage() {
                     />
                   </AreaChart>
                 </ResponsiveContainer>
+                </div>
               ) : (
                 <div style={{ flex: 1, minHeight: 80, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <div style={{ fontSize: 12, color: '#4B5563' }}>No data for selected period</div>
