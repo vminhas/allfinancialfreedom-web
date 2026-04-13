@@ -19,6 +19,11 @@ export async function PUT(req: NextRequest) {
     licenseNumber?: string
     discordUserId?: string
     ssn?: string
+    addressLine1?: string
+    addressLine2?: string
+    city?: string
+    zip?: string
+    country?: string
   }
 
   const agentUser = await db.agentUser.findUnique({
@@ -54,6 +59,11 @@ export async function PUT(req: NextRequest) {
       ...(body.npn !== undefined && { npn: body.npn || null }),
       ...(body.licenseNumber !== undefined && { licenseNumber: body.licenseNumber || null }),
       ...(body.discordUserId !== undefined && { discordUserId: body.discordUserId || null }),
+      ...(body.addressLine1 !== undefined && { addressLine1: body.addressLine1 || null }),
+      ...(body.addressLine2 !== undefined && { addressLine2: body.addressLine2 || null }),
+      ...(body.city !== undefined && { city: body.city || null }),
+      ...(body.zip !== undefined && { zip: body.zip || null }),
+      ...(body.country !== undefined && { country: body.country || null }),
       ...ssnUpdate,
     },
   })

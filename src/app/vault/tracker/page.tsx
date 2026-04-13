@@ -1,6 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, ReferenceLine,
+} from 'recharts'
 import { PHASE_LABELS, CARRIERS, getAtRiskStatus, PHASE_ITEMS } from '@/lib/agent-constants'
 
 interface Agent {
@@ -40,6 +44,12 @@ interface DetailedAgent extends Agent {
   _count: { businessPartners: number; policies: number; callLogs: number }
   dateOfBirth: string | null
   ssn: string | null
+  avatarUrl: string | null
+  addressLine1: string | null
+  addressLine2: string | null
+  city: string | null
+  zip: string | null
+  country: string | null
   npn: string | null
   licenseNumber: string | null
   examDate: string | null
@@ -51,6 +61,8 @@ interface DetailedAgent extends Agent {
   discordUserId: string | null
   notes: string | null
 }
+
+interface TrendPoint { month: string; label: string; newAgents: number; active: number }
 
 interface DashStats {
   totalAgents: number
@@ -90,11 +102,51 @@ export default function TrackerPage() {
   const [inviteMsg, setInviteMsg] = useState('')
   const [stats, setStats] = useState<DashStats | null>(null)
 
+  // Date range state
+  type Preset = '3m' | '6m' | '12m' | 'ytd' | 'all' | 'custom'
+  const [preset, setPreset] = useState<Preset>('12m')
+  const [customStart, setCustomStart] = useState('')
+  const [customEnd, setCustomEnd] = useState('')
+  const [trendData, setTrendData] = useState<TrendPoint[]>([])
+
+  // Derive actual date range from preset
+  function getDateRange(): { start: string; end: string } | null {
+    const today = new Date()
+    const fmt = (d: Date) => d.toISOString().split('T')[0]
+    if (preset === 'all') return null
+    if (preset === 'custom') {
+      if (!customStart && !customEnd) return null
+      return { start: customStart, end: customEnd || fmt(today) }
+    }
+    const end = fmt(today)
+    if (preset === 'ytd') return { start: `${today.getFullYear()}-01-01`, end }
+    const months = preset === '3m' ? 3 : preset === '6m' ? 6 : 12
+    const start = new Date(today)
+    start.setMonth(start.getMonth() - months)
+    return { start: fmt(start), end }
+  }
+
+  const fetchTrends = useCallback(async () => {
+    const range = getDateRange()
+    const params = new URLSearchParams()
+    if (range?.start) params.set('startDate', range.start)
+    if (range?.end)   params.set('endDate', range.end)
+    const res = await fetch(`/api/admin/trends?${params}`)
+    if (res.ok) {
+      const d = await res.json() as { months: TrendPoint[] }
+      setTrendData(d.months)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preset, customStart, customEnd])
+
   const fetchAgents = useCallback(async () => {
     setLoading(true)
+    const range = getDateRange()
     const params = new URLSearchParams({ page: String(page), limit: '50' })
     if (phaseFilter) params.set('phase', phaseFilter)
     if (statusFilter) params.set('status', statusFilter)
+    if (range?.start) params.set('icaStart', range.start)
+    if (range?.end)   params.set('icaEnd', range.end)
     const res = await fetch(`/api/admin/agents?${params}`)
     const data = await res.json() as { agents: Agent[]; total: number }
     setAgents(data.agents ?? [])
@@ -109,6 +161,7 @@ export default function TrackerPage() {
 
   useEffect(() => { fetchAgents() }, [fetchAgents])
   useEffect(() => { fetchStats() }, [fetchStats])
+  useEffect(() => { fetchTrends() }, [fetchTrends])
 
   const openDrawer = async (id: string) => {
     setDrawerLoading(true)
@@ -139,6 +192,30 @@ export default function TrackerPage() {
     })
     const res = await fetch(`/api/admin/agents/${selectedAgent.id}`)
     setSelectedAgent(await res.json() as DetailedAgent)
+    fetchAgents()
+    fetchStats()
+  }
+
+  const toggleStatus = async () => {
+    if (!selectedAgent) return
+    const newStatus = selectedAgent.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
+    await fetch(`/api/admin/agents/${selectedAgent.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus }),
+    })
+    const res = await fetch(`/api/admin/agents/${selectedAgent.id}`)
+    setSelectedAgent(await res.json() as DetailedAgent)
+    fetchAgents()
+    fetchStats()
+  }
+
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const deleteAgent = async () => {
+    if (!selectedAgent) return
+    await fetch(`/api/admin/agents/${selectedAgent.id}`, { method: 'DELETE' })
+    setSelectedAgent(null)
+    setDeleteConfirm(false)
     fetchAgents()
     fetchStats()
   }
@@ -211,72 +288,193 @@ export default function TrackerPage() {
           {/* KPI row */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 16 }}>
             {[
-              { label: 'Active Agents', value: stats.activeAgents, sub: `${stats.inactiveAgents} inactive`, color: '#4ade80' },
-              { label: 'At Risk', value: stats.atRiskCount, sub: `${stats.behindCount} behind`, color: '#f87171' },
-              { label: 'New This Month', value: stats.newThisMonth, sub: 'ICA dates', color: '#C9A96E' },
-              { label: 'Active Logins (30d)', value: stats.activeLoginsLast30d, sub: 'portal activity', color: '#9B6DFF' },
-              { label: 'Total Pipeline', value: stats.totalAgents, sub: 'all time', color: '#9BB0C4' },
+              { label: 'Active Agents', value: stats.activeAgents, sub: `${stats.inactiveAgents} inactive`, color: '#4ade80', clickable: false },
+              { label: 'At Risk', value: stats.atRiskCount, sub: `${stats.behindCount} behind — click to filter`, color: '#f87171', clickable: true, togglesAtRisk: true },
+              { label: 'New This Month', value: stats.newThisMonth, sub: 'by ICA date', color: '#C9A96E', clickable: false },
+              { label: 'Active Logins (30d)', value: stats.activeLoginsLast30d, sub: 'portal activity', color: '#9B6DFF', clickable: false },
+              { label: 'Total Pipeline', value: stats.totalAgents, sub: 'all time', color: '#9BB0C4', clickable: false },
             ].map(kpi => (
-              <div key={kpi.label} style={{
-                background: '#142D48',
-                border: '1px solid rgba(201,169,110,0.08)',
-                borderRadius: 6, padding: '16px 20px',
-              }}>
+              <div
+                key={kpi.label}
+                onClick={() => kpi.togglesAtRisk && setAtRiskOnly(v => !v)}
+                style={{
+                  background: kpi.togglesAtRisk && atRiskOnly ? 'rgba(248,113,113,0.1)' : '#142D48',
+                  border: `1px solid ${kpi.togglesAtRisk && atRiskOnly ? 'rgba(248,113,113,0.3)' : 'rgba(201,169,110,0.08)'}`,
+                  borderRadius: 6, padding: '16px 20px',
+                  cursor: kpi.clickable ? 'pointer' : 'default',
+                  transition: 'all 0.15s',
+                }}
+              >
                 <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#6B8299', marginBottom: 8 }}>
                   {kpi.label}
                 </div>
                 <div style={{ fontSize: 28, fontWeight: 600, color: kpi.color, lineHeight: 1, marginBottom: 4 }}>
                   {kpi.value}
                 </div>
-                <div style={{ fontSize: 11, color: '#4B5563' }}>{kpi.sub}</div>
+                <div style={{ fontSize: 11, color: kpi.togglesAtRisk && atRiskOnly ? '#f87171' : '#4B5563' }}>
+                  {kpi.togglesAtRisk && atRiskOnly ? '✕ clear filter' : kpi.sub}
+                </div>
               </div>
             ))}
           </div>
 
-          {/* Phase pipeline */}
-          <div style={{
-            background: '#142D48',
-            border: '1px solid rgba(201,169,110,0.08)',
-            borderRadius: 6, padding: '18px 24px',
-          }}>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 16 }}>
-              Agent Pipeline by Phase
-            </div>
-            <div style={{ display: 'flex', gap: 12, alignItems: 'stretch' }}>
-              {stats.phaseDistribution.map(({ phase, count, activeCount }) => {
-                const pct = stats.totalAgents > 0 ? (count / stats.totalAgents) * 100 : 0
-                return (
-                  <div key={phase} style={{ flex: 1, minWidth: 0 }}>
-                    {/* Bar */}
-                    <div style={{ height: 48, background: 'rgba(255,255,255,0.03)', borderRadius: 4, overflow: 'hidden', marginBottom: 8, position: 'relative' }}>
-                      <div style={{
-                        position: 'absolute', bottom: 0, left: 0, right: 0,
-                        height: `${Math.max(pct * 2, 4)}%`,
-                        background: PHASE_COLORS[phase],
-                        opacity: 0.7,
-                        transition: 'height 0.6s cubic-bezier(0.34,1.56,0.64,1)',
-                      }} />
-                      <div style={{
-                        position: 'absolute', inset: 0,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 16, fontWeight: 700, color: count > 0 ? '#ffffff' : '#4B5563',
-                      }}>
-                        {count}
-                      </div>
-                    </div>
-                    {/* Label */}
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: PHASE_COLORS[phase], marginBottom: 2 }}>
-                        P{phase}
-                      </div>
-                      <div style={{ fontSize: 9, color: '#4B5563' }}>{PHASE_LABELS[phase].title}</div>
-                      {activeCount < count && (
-                        <div style={{ fontSize: 9, color: '#4B5563', marginTop: 2 }}>{activeCount} active</div>
+          {/* Phase pipeline + trend chart side by side */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12, marginBottom: 16 }}>
+            {/* Phase pipeline */}
+            <div style={{ background: '#142D48', border: '1px solid rgba(201,169,110,0.08)', borderRadius: 6, padding: '18px 24px' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 16 }}>
+                Pipeline by Phase
+              </div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', height: 72 }}>
+                {stats.phaseDistribution.map(({ phase, count, activeCount }) => {
+                  const maxCount = Math.max(...stats.phaseDistribution.map(p => p.count), 1)
+                  const barH = Math.max((count / maxCount) * 64, count > 0 ? 6 : 2)
+                  const isActive = phaseFilter === String(phase)
+                  return (
+                    <button
+                      key={phase}
+                      onClick={() => {
+                        setPhaseFilter(isActive ? '' : String(phase))
+                        setPage(1)
+                        setAtRiskOnly(false)
+                      }}
+                      style={{
+                        flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                        background: isActive ? `${PHASE_COLORS[phase]}18` : 'transparent',
+                        border: `1px solid ${isActive ? `${PHASE_COLORS[phase]}44` : 'transparent'}`,
+                        borderRadius: 4, padding: '4px 2px', cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                      onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
+                      onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
+                    >
+                      <div style={{ fontSize: 11, fontWeight: 700, color: count > 0 ? '#ffffff' : '#4B5563' }}>{count}</div>
+                      <div style={{ width: '100%', height: barH, background: PHASE_COLORS[phase], borderRadius: 3, opacity: isActive ? 1 : 0.75, transition: 'all 0.5s ease' }} />
+                      <div style={{ fontSize: 9, fontWeight: 700, color: PHASE_COLORS[phase] }}>P{phase}</div>
+                      <div style={{ fontSize: 8, color: '#9BB0C4' }}>{PHASE_LABELS[phase].title}</div>
+                      {activeCount < count && count > 0 && (
+                        <div style={{ fontSize: 8, color: '#6B8299' }}>{activeCount} active</div>
                       )}
-                    </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Trend chart */}
+            <div style={{ background: '#142D48', border: '1px solid rgba(201,169,110,0.08)', borderRadius: 6, padding: '18px 24px' }}>
+              {/* Header + date range presets */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C9A96E' }}>
+                    New Agents / Month
                   </div>
-                )
-              })}
+                  {trendData.length > 0 && (
+                    <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>
+                      {trendData.reduce((s, d) => s + d.newAgents, 0)} agents in period
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                  {(['3m', '6m', '12m', 'ytd', 'all'] as Preset[]).map(p => (
+                    <button
+                      key={p}
+                      onClick={() => setPreset(p)}
+                      style={{
+                        padding: '4px 8px', borderRadius: 3, fontSize: 10, fontWeight: 700,
+                        letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', border: 'none',
+                        background: preset === p ? '#C9A96E' : 'rgba(255,255,255,0.05)',
+                        color: preset === p ? '#142D48' : '#6B8299',
+                        transition: 'all 0.1s',
+                      }}
+                    >
+                      {p === 'all' ? 'All' : p.toUpperCase()}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setPreset('custom')}
+                    style={{
+                      padding: '4px 8px', borderRadius: 3, fontSize: 10, fontWeight: 700,
+                      letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', border: 'none',
+                      background: preset === 'custom' ? '#C9A96E' : 'rgba(255,255,255,0.05)',
+                      color: preset === 'custom' ? '#142D48' : '#6B8299',
+                    }}
+                  >
+                    Custom
+                  </button>
+                </div>
+              </div>
+
+              {/* Custom date inputs */}
+              {preset === 'custom' && (
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                  <input
+                    type="date"
+                    value={customStart}
+                    onChange={e => setCustomStart(e.target.value)}
+                    style={{ background: '#0C1E30', border: '1px solid rgba(201,169,110,0.2)', borderRadius: 4, color: '#9BB0C4', padding: '5px 10px', fontSize: 12 }}
+                  />
+                  <span style={{ color: '#4B5563', alignSelf: 'center', fontSize: 12 }}>→</span>
+                  <input
+                    type="date"
+                    value={customEnd}
+                    onChange={e => setCustomEnd(e.target.value)}
+                    style={{ background: '#0C1E30', border: '1px solid rgba(201,169,110,0.2)', borderRadius: 4, color: '#9BB0C4', padding: '5px 10px', fontSize: 12 }}
+                  />
+                </div>
+              )}
+
+              {/* Area chart */}
+              {trendData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={110}>
+                  <AreaChart data={trendData} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="goldGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%"  stopColor="#C9A96E" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#C9A96E" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                    <XAxis
+                      dataKey="label"
+                      tick={{ fill: '#4B5563', fontSize: 9 }}
+                      axisLine={false} tickLine={false}
+                      interval={Math.max(0, Math.floor(trendData.length / 8) - 1)}
+                    />
+                    <YAxis
+                      tick={{ fill: '#4B5563', fontSize: 9 }}
+                      axisLine={false} tickLine={false}
+                      allowDecimals={false}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: '#0C1E30', border: '1px solid rgba(201,169,110,0.2)',
+                        borderRadius: 4, fontSize: 11,
+                      }}
+                      labelStyle={{ color: '#C9A96E', fontWeight: 700, marginBottom: 4 }}
+                      itemStyle={{ color: '#9BB0C4' }}
+                      formatter={(val) => [val ?? 0, 'New agents']}
+                    />
+                    {trendData.length > 1 && (() => {
+                      const avg = trendData.reduce((s, d) => s + d.newAgents, 0) / trendData.length
+                      return <ReferenceLine y={avg} stroke="rgba(201,169,110,0.25)" strokeDasharray="4 4" label={{ value: `avg ${avg.toFixed(0)}`, fill: '#4B5563', fontSize: 9, position: 'right' }} />
+                    })()}
+                    <Area
+                      type="monotone"
+                      dataKey="newAgents"
+                      stroke="#C9A96E"
+                      strokeWidth={2}
+                      fill="url(#goldGrad)"
+                      dot={false}
+                      activeDot={{ r: 4, fill: '#C9A96E', stroke: '#142D48', strokeWidth: 2 }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div style={{ height: 110, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ fontSize: 12, color: '#4B5563' }}>No data for selected period</div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -295,15 +493,18 @@ export default function TrackerPage() {
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
         </select>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#9BB0C4', cursor: 'pointer', padding: '7px 12px', background: atRiskOnly ? 'rgba(248,113,113,0.08)' : 'transparent', border: `1px solid ${atRiskOnly ? 'rgba(248,113,113,0.3)' : 'rgba(201,169,110,0.15)'}`, borderRadius: 4 }}>
-          <input
-            type="checkbox"
-            checked={atRiskOnly}
-            onChange={e => setAtRiskOnly(e.target.checked)}
-            style={{ accentColor: '#f87171' }}
-          />
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: atRiskOnly ? '#f87171' : '#9BB0C4', cursor: 'pointer', padding: '7px 12px', background: atRiskOnly ? 'rgba(248,113,113,0.08)' : 'transparent', border: `1px solid ${atRiskOnly ? 'rgba(248,113,113,0.3)' : 'rgba(201,169,110,0.15)'}`, borderRadius: 4 }}>
+          <input type="checkbox" checked={atRiskOnly} onChange={e => setAtRiskOnly(e.target.checked)} style={{ accentColor: '#f87171' }} />
           At-Risk Only
         </label>
+        {/* Active date range indicator */}
+        {preset !== 'all' && (
+          <div style={{ fontSize: 11, color: '#C9A96E', padding: '7px 12px', background: 'rgba(201,169,110,0.06)', border: '1px solid rgba(201,169,110,0.2)', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ opacity: 0.6 }}>ICA filter:</span>
+            <span>{preset === 'custom' ? `${customStart || '…'} → ${customEnd || 'today'}` : preset.toUpperCase()}</span>
+            <button onClick={() => setPreset('all')} style={{ background: 'none', border: 'none', color: '#6B8299', cursor: 'pointer', padding: 0, fontSize: 12, lineHeight: 1 }}>✕</button>
+          </div>
+        )}
         <div style={{ marginLeft: 'auto', fontSize: 11, color: '#4B5563' }}>
           {total} agents
         </div>
@@ -483,9 +684,13 @@ export default function TrackerPage() {
                 onAdvancePhase={advancePhase}
                 onUpdateCarrier={updateCarrier}
                 onSendInvite={sendInvite}
+                onToggleStatus={toggleStatus}
+                onDelete={deleteAgent}
+                deleteConfirm={deleteConfirm}
+                onDeleteConfirmChange={setDeleteConfirm}
                 inviteLoading={inviteLoading}
                 inviteMsg={inviteMsg}
-                onClose={() => { setSelectedAgent(null); setInviteMsg('') }}
+                onClose={() => { setSelectedAgent(null); setInviteMsg(''); setDeleteConfirm(false) }}
               />
             ) : null}
           </div>
@@ -510,6 +715,10 @@ function AgentDrawer({
   onAdvancePhase,
   onUpdateCarrier,
   onSendInvite,
+  onToggleStatus,
+  onDelete,
+  deleteConfirm,
+  onDeleteConfirmChange,
   inviteLoading,
   inviteMsg,
   onClose,
@@ -518,6 +727,10 @@ function AgentDrawer({
   onAdvancePhase: () => void
   onUpdateCarrier: (carrier: string, status: string, producerNumber: string) => void
   onSendInvite: () => void
+  onToggleStatus: () => void
+  onDelete: () => void
+  deleteConfirm: boolean
+  onDeleteConfirmChange: (v: boolean) => void
   inviteLoading: boolean
   inviteMsg: string
   onClose: () => void
@@ -547,12 +760,29 @@ function AgentDrawer({
     <div>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
-        <div>
-          <div style={{ fontSize: 22, fontWeight: 500, color: '#ffffff', letterSpacing: '-0.01em' }}>
-            {agent.firstName} {agent.lastName}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: '50%', flexShrink: 0,
+            background: agent.avatarUrl ? 'transparent' : 'rgba(201,169,110,0.1)',
+            border: '2px solid rgba(201,169,110,0.2)',
+            overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            {agent.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={agent.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <span style={{ fontSize: 16, color: '#C9A96E', fontWeight: 600 }}>
+                {agent.firstName.charAt(0)}{agent.lastName.charAt(0)}
+              </span>
+            )}
           </div>
-          <div style={{ fontSize: 11, color: '#6B8299', marginTop: 4 }}>
-            {agent.agentCode} · {agent.state ?? 'No state'} · {agent.email}
+          <div>
+            <div style={{ fontSize: 22, fontWeight: 500, color: '#ffffff', letterSpacing: '-0.01em' }}>
+              {agent.firstName} {agent.lastName}
+            </div>
+            <div style={{ fontSize: 11, color: '#6B8299', marginTop: 4 }}>
+              {agent.agentCode} · {agent.state ?? 'No state'} · {agent.email}
+            </div>
           </div>
         </div>
         <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#9BB0C4', fontSize: 14, cursor: 'pointer', width: 28, height: 28, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -632,6 +862,58 @@ function AgentDrawer({
           <span style={{ fontSize: 12, color: inviteMsg === 'Invite sent!' ? '#4ade80' : '#f87171' }}>
             {inviteMsg}
           </span>
+        )}
+      </div>
+
+      {/* Status toggle + Delete */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+        <button
+          onClick={onToggleStatus}
+          style={{
+            flex: 1, background: 'transparent',
+            border: `1px solid ${agent.status === 'ACTIVE' ? 'rgba(107,130,153,0.4)' : 'rgba(74,222,128,0.3)'}`,
+            color: agent.status === 'ACTIVE' ? '#6B8299' : '#4ade80',
+            borderRadius: 4, padding: '7px 0', fontSize: 11, fontWeight: 700,
+            cursor: 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase',
+            transition: 'background 0.15s',
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = agent.status === 'ACTIVE' ? 'rgba(107,130,153,0.08)' : 'rgba(74,222,128,0.06)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+        >
+          {agent.status === 'ACTIVE' ? 'Mark Inactive' : 'Mark Active'}
+        </button>
+        {!deleteConfirm ? (
+          <button
+            onClick={() => onDeleteConfirmChange(true)}
+            style={{
+              background: 'transparent',
+              border: '1px solid rgba(248,113,113,0.3)',
+              color: '#f87171', borderRadius: 4,
+              padding: '7px 14px', fontSize: 11, fontWeight: 700,
+              cursor: 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase',
+              transition: 'background 0.15s',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(248,113,113,0.06)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+          >
+            Delete
+          </button>
+        ) : (
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', background: 'rgba(248,113,113,0.06)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 4, padding: '4px 10px' }}>
+            <span style={{ fontSize: 10, color: '#f87171', fontWeight: 700 }}>Confirm delete?</span>
+            <button
+              onClick={onDelete}
+              style={{ background: '#f87171', color: '#ffffff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}
+            >
+              Yes
+            </button>
+            <button
+              onClick={() => onDeleteConfirmChange(false)}
+              style={{ background: 'transparent', color: '#6B8299', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 3, padding: '4px 8px', fontSize: 10, cursor: 'pointer' }}
+            >
+              No
+            </button>
+          </div>
         )}
       </div>
 
@@ -777,6 +1059,7 @@ function AgentDrawer({
             ['Exam Date', agent.examDate ? new Date(agent.examDate as unknown as string).toLocaleDateString() : '—'],
             ['Trainer (CFT)', agent.cft ?? '—'],
             ['Goal', agent.goal ?? '—'],
+            ['Address', [agent.addressLine1, agent.addressLine2, agent.city && agent.zip ? `${agent.city}, ${agent.state ?? ''} ${agent.zip}`.trim() : (agent.city ?? null)].filter(Boolean).join(', ') || '—'],
             ['Discord', agent.discordUserId ?? 'Not linked'],
             ['Last Login', agent.agentUser?.lastLoginAt ? new Date(agent.agentUser.lastLoginAt).toLocaleString() : 'Never'],
             ['Partners', String(agent._count.businessPartners)],

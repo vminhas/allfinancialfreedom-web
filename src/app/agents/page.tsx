@@ -21,6 +21,12 @@ interface AgentData {
   state: string | null
   phone: string | null
   dateOfBirth: string | null
+  avatarUrl: string | null
+  addressLine1: string | null
+  addressLine2: string | null
+  city: string | null
+  zip: string | null
+  country: string | null
   ssnMasked: string | null
   ssnOnFile: boolean
   email: string
@@ -184,7 +190,25 @@ export default function AgentDashboard() {
           <span style={{ marginLeft: 12, fontSize: 11, color: '#4B5563' }}>Agent Portal</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <span style={{ fontSize: 12, color: '#6B8299' }}>{data.firstName} {data.lastName} · {data.agentCode}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 30, height: 30, borderRadius: '50%',
+              background: data.avatarUrl ? 'transparent' : 'rgba(201,169,110,0.15)',
+              border: '1px solid rgba(201,169,110,0.3)',
+              overflow: 'hidden', flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              {data.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={data.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <span style={{ fontSize: 11, color: '#C9A96E', fontWeight: 700 }}>
+                  {data.firstName.charAt(0)}{data.lastName.charAt(0)}
+                </span>
+              )}
+            </div>
+            <span style={{ fontSize: 12, color: '#6B8299' }}>{data.firstName} {data.lastName} · {data.agentCode}</span>
+          </div>
           <button
             onClick={() => signOut({ callbackUrl: '/agents/login' })}
             style={{ background: 'none', border: 'none', color: '#6B8299', fontSize: 12, cursor: 'pointer' }}
@@ -812,11 +836,37 @@ function ProfileTab({ data, onSaved }: { data: AgentData; onSaved: () => void })
     npn: data.npn ?? '',
     licenseNumber: data.licenseNumber ?? '',
     ssn: '',
+    addressLine1: data.addressLine1 ?? '',
+    addressLine2: data.addressLine2 ?? '',
+    city: data.city ?? '',
+    zip: data.zip ?? '',
+    country: data.country ?? 'US',
   })
   const [ssnFocused, setSsnFocused] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+
+  // Avatar state
+  const [avatarUrl, setAvatarUrl] = useState(data.avatarUrl ?? null)
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const [avatarError, setAvatarError] = useState('')
+
+  const uploadAvatar = async (file: File) => {
+    setAvatarUploading(true)
+    setAvatarError('')
+    const fd = new FormData()
+    fd.append('avatar', file)
+    const res = await fetch('/api/agents/avatar', { method: 'POST', body: fd })
+    const d = await res.json() as { ok?: boolean; avatarUrl?: string; error?: string }
+    if (!res.ok) {
+      setAvatarError(d.error ?? 'Upload failed')
+    } else {
+      setAvatarUrl(d.avatarUrl ?? null)
+      onSaved()
+    }
+    setAvatarUploading(false)
+  }
 
   // Discord state
   const [discordId, setDiscordId] = useState(data.discordUserId ?? '')
@@ -872,6 +922,11 @@ function ProfileTab({ data, onSaved }: { data: AgentData; onSaved: () => void })
       dateOfBirth: form.dateOfBirth,
       npn: form.npn,
       licenseNumber: form.licenseNumber,
+      addressLine1: form.addressLine1,
+      addressLine2: form.addressLine2,
+      city: form.city,
+      zip: form.zip,
+      country: form.country,
     }
     if (form.ssn.replace(/\D/g, '').length > 0) {
       payload.ssn = form.ssn
@@ -900,6 +955,63 @@ function ProfileTab({ data, onSaved }: { data: AgentData; onSaved: () => void })
       <p style={{ fontSize: 12, color: '#6B8299', marginBottom: 24, lineHeight: 1.5 }}>
         Update your personal information below. Your email address and agent code are managed by your admin.
       </p>
+
+      {/* Profile Picture */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 14 }}>Profile Photo</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+          {/* Avatar display */}
+          <div style={{
+            width: 80, height: 80, borderRadius: '50%',
+            background: avatarUrl ? 'transparent' : 'rgba(201,169,110,0.1)',
+            border: '2px solid rgba(201,169,110,0.25)',
+            overflow: 'hidden', flexShrink: 0, position: 'relative',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            {avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avatarUrl} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <span style={{ fontSize: 28, color: '#C9A96E', fontWeight: 300 }}>
+                {data.firstName.charAt(0)}{data.lastName.charAt(0)}
+              </span>
+            )}
+          </div>
+          {/* Upload controls */}
+          <div style={{ flex: 1 }}>
+            <label style={{
+              display: 'inline-block', cursor: avatarUploading ? 'not-allowed' : 'pointer',
+              background: 'transparent', border: '1px solid rgba(201,169,110,0.3)',
+              color: '#C9A96E', borderRadius: 4, padding: '8px 16px',
+              fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+              opacity: avatarUploading ? 0.6 : 1, transition: 'background 0.15s',
+            }}
+              onMouseEnter={e => { if (!avatarUploading) (e.currentTarget.style.background = 'rgba(201,169,110,0.08)') }}
+              onMouseLeave={e => { (e.currentTarget.style.background = 'transparent') }}
+            >
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                style={{ display: 'none' }}
+                disabled={avatarUploading}
+                onChange={e => {
+                  const file = e.target.files?.[0]
+                  if (file) uploadAvatar(file)
+                  e.target.value = ''
+                }}
+              />
+              {avatarUploading ? 'Uploading...' : avatarUrl ? 'Change Photo' : 'Upload Photo'}
+            </label>
+            <p style={{ fontSize: 11, color: '#4B5563', marginTop: 8, lineHeight: 1.5 }}>
+              JPG, PNG or WebP · Max 5 MB · Square crop recommended.<br />
+              This photo will be used for your Discord profile and team announcements.
+            </p>
+            {avatarError && (
+              <div style={{ fontSize: 11, color: '#f87171', marginTop: 6 }}>{avatarError}</div>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* Read-only fields */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20, padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid rgba(255,255,255,0.05)' }}>
@@ -937,7 +1049,7 @@ function ProfileTab({ data, onSaved }: { data: AgentData; onSaved: () => void })
             />
           </div>
           <div>
-            <label style={fieldLabel}>State</label>
+            <label style={fieldLabel}>Licensed State</label>
             <select
               value={form.state}
               onChange={e => setForm(f => ({ ...f, state: e.target.value }))}
@@ -973,6 +1085,61 @@ function ProfileTab({ data, onSaved }: { data: AgentData; onSaved: () => void })
               placeholder="State license #"
               style={inputStyle}
             />
+          </div>
+        </div>
+
+        {/* Mailing Address */}
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 20, marginTop: 4 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 12 }}>
+            Mailing Address
+            <span style={{ marginLeft: 8, fontSize: 9, color: '#4B5563', fontWeight: 400, letterSpacing: '0.06em' }}>used for gifts & correspondence</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div>
+              <label style={fieldLabel}>Street Address</label>
+              <input
+                value={form.addressLine1}
+                onChange={e => setForm(f => ({ ...f, addressLine1: e.target.value }))}
+                placeholder="123 Main St"
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={fieldLabel}>Apt / Suite / Unit <span style={{ color: '#4B5563', fontWeight: 400 }}>(optional)</span></label>
+              <input
+                value={form.addressLine2}
+                onChange={e => setForm(f => ({ ...f, addressLine2: e.target.value }))}
+                placeholder="Apt 4B"
+                style={inputStyle}
+              />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 80px', gap: 10 }}>
+              <div>
+                <label style={fieldLabel}>City</label>
+                <input
+                  value={form.city}
+                  onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
+                  placeholder="Chicago"
+                  style={inputStyle}
+                />
+              </div>
+              <div>
+                <label style={fieldLabel}>State</label>
+                <select value={form.state} onChange={e => setForm(f => ({ ...f, state: e.target.value }))} style={inputStyle}>
+                  <option value="">Select</option>
+                  {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={fieldLabel}>ZIP</label>
+                <input
+                  value={form.zip}
+                  onChange={e => setForm(f => ({ ...f, zip: e.target.value }))}
+                  placeholder="60601"
+                  style={inputStyle}
+                />
+              </div>
+            </div>
           </div>
         </div>
 

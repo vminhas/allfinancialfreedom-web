@@ -143,6 +143,12 @@ model AgentProfile {
   initialPointOfContact String?
   examDate              DateTime?
   ssn                   String?   // AES-256-GCM encrypted; decrypt server-side for admin only
+  avatarUrl             String?   // Vercel Blob URL for profile headshot
+  addressLine1          String?   // Mailing address for gifts/correspondence
+  addressLine2          String?
+  city                  String?
+  zip                   String?
+  country               String?   @default("US")
   licenseNumber         String?
   licenseLines          String?
   dateSubmittedToGfi    DateTime?
