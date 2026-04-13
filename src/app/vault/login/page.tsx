@@ -22,12 +22,15 @@ export default function VaultLoginPage() {
       redirect: false,
     })
 
-    if (result?.error) {
-      setError('Invalid credentials.')
+    if (!result || result.error) {
+      setError('Invalid credentials. Please check your email and password.')
       setLoading(false)
+    } else if (result.ok) {
+      // Hard navigation ensures the new admin session cookie is read fresh
+      window.location.replace('/vault')
     } else {
-      // Hard navigation ensures the new session cookie is read fresh
-      window.location.href = '/vault'
+      setError('Sign in failed — please try again.')
+      setLoading(false)
     }
   }
 
