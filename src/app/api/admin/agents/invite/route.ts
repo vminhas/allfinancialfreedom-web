@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { randomUUID } from 'crypto'
-import { getGhlConfig, sendGhlEmail, ghlPost } from '@/lib/ghl'
+import { getGhlConfig, sendGhlEmail, ghlPost, ghlPut } from '@/lib/ghl'
 
 // POST /api/admin/agents/invite — resend invite email for an agent
 export async function POST(req: NextRequest) {
@@ -68,6 +68,11 @@ export async function POST(req: NextRequest) {
       }
 
       if (ghlContactId) {
+        // Tag the contact as an AFF team member for smart list targeting
+        await ghlPut(`/contacts/${ghlContactId}`, {
+          tags: ['AFF Team Member', 'agent-portal'],
+        }, config).catch(() => {}) // non-blocking — don't fail the invite if tagging fails
+
         const firstName = agentUser.profile?.firstName ?? 'Agent'
         const agentCode = agentUser.profile?.agentCode ?? ''
         const html = `
