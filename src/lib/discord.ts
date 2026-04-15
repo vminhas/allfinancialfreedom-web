@@ -32,19 +32,21 @@ function authHeaders(): HeadersInit {
 /**
  * Fetch wrapper that handles Discord rate limits (HTTP 429). Reads the
  * `retry_after` field from the response and sleeps for that many seconds
- * before retrying. Up to 3 retries per call.
+ * before retrying. Up to 5 retries per call — Discord's per-guild
+ * scheduled-event limit is tight (~5 per 10s) so multi-step retries
+ * are normal during a fresh weekly sync.
  */
-async function discordFetch(url: string, init: RequestInit, attempts = 3): Promise<Response> {
+async function discordFetch(url: string, init: RequestInit, attempts = 5): Promise<Response> {
   for (let i = 0; i < attempts; i++) {
     const res = await fetch(url, init)
     if (res.status !== 429) return res
-    let retryAfter = 1
+    let retryAfter = 2
     try {
       const body = await res.clone().json() as { retry_after?: number }
-      if (typeof body.retry_after === 'number') retryAfter = body.retry_after
-    } catch { /* fall back to 1s */ }
-    // Add a small jitter so multiple parallel calls don't all wake at once
-    const sleepMs = Math.ceil(retryAfter * 1000) + 250
+      if (typeof body.retry_after === 'number') retryAfter = Math.max(body.retry_after, 1)
+    } catch { /* fall back */ }
+    // Add jitter so multiple parallel calls don't all wake at once
+    const sleepMs = Math.ceil(retryAfter * 1000) + 500
     await new Promise(r => setTimeout(r, sleepMs))
   }
   // Final attempt — return whatever we get even if it's a 429

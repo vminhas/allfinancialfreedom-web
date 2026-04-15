@@ -135,7 +135,11 @@ export async function syncTrainingsFromDrive(opts: SyncOptions = {}): Promise<Sy
           // Small spacing between Discord create calls — Discord rate-limits
           // scheduled-event creation per-guild aggressively. discordFetch
           // also handles 429s with retry-after, but spacing reduces churn.
-          await new Promise(r => setTimeout(r, 300))
+          // Discord per-guild rate limit on scheduled-event creation is
+          // around 5 per 10 seconds. Sleep 3s between calls so we stay
+          // comfortably under it. Total time for 14 events: ~42s, well
+          // within Vercel function timeout on Pro.
+          await new Promise(r => setTimeout(r, 3000))
         }
         continue
       }
