@@ -1,7 +1,7 @@
 import { db } from './db'
 import { listPublicFolder, downloadPublicFile, filterTrainingFlyers, type DriveFile } from './google-drive'
 import { parseTrainingFlyer, type ParsedTrainingEvent } from './training-parser'
-import { createGuildScheduledEvent } from './discord'
+import { createGuildScheduledEvent, sendChannelMessage } from './discord'
 
 /**
  * Build a clickable Zoom-style join URL from a stream/meeting ID.
@@ -85,6 +85,7 @@ export interface SyncStats {
   upserted: number
   discordEventsCreated: number
   discordErrors: number
+  roundupPosted: boolean
   errors: { fileName: string; error: string }[]
 }
 
@@ -104,8 +105,15 @@ export async function syncTrainingsFromDrive(opts: SyncOptions = {}): Promise<Sy
     upserted: 0,
     discordEventsCreated: 0,
     discordErrors: 0,
+    roundupPosted: false,
     errors: [],
   }
+
+  // Track the IDs of TrainingEvent rows that get a fresh Discord scheduled
+  // event during this sync. We post a single @everyone roundup message at
+  // the end so members get notified about all the new events at once
+  // (instead of pinging on each one).
+  const newDiscordRowIds: string[] = []
 
   const all = await listPublicFolder(folderId)
   const files = filterTrainingFlyers(all)
@@ -130,15 +138,14 @@ export async function syncTrainingsFromDrive(opts: SyncOptions = {}): Promise<Sy
         // (covers the case where Discord env was set AFTER the row was first parsed).
         if (existing && !existing.discordEventId && existing.startsAt > new Date()) {
           const ok = await ensureDiscordEvent(existing.id)
-          if (ok) stats.discordEventsCreated += 1
-          else stats.discordErrors += 1
-          // Small spacing between Discord create calls — Discord rate-limits
-          // scheduled-event creation per-guild aggressively. discordFetch
-          // also handles 429s with retry-after, but spacing reduces churn.
-          // Discord per-guild rate limit on scheduled-event creation is
-          // around 5 per 10 seconds. Sleep 3s between calls so we stay
-          // comfortably under it. Total time for 14 events: ~42s, well
-          // within Vercel function timeout on Pro.
+          if (ok) {
+            stats.discordEventsCreated += 1
+            newDiscordRowIds.push(existing.id)
+          } else {
+            stats.discordErrors += 1
+          }
+          // Discord per-guild rate limit on scheduled-event creation is ~5 per
+          // 10 seconds. 3s spacing keeps us comfortably under it.
           await new Promise(r => setTimeout(r, 3000))
         }
         continue
@@ -168,13 +175,15 @@ export async function syncTrainingsFromDrive(opts: SyncOptions = {}): Promise<Sy
         stats.upserted += 1
 
         const ok = await ensureDiscordEvent(created.id)
-        if (ok) stats.discordEventsCreated += 1
-        else if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_GUILD_ID && created.startsAt > new Date()) {
+        if (ok) {
+          stats.discordEventsCreated += 1
+          newDiscordRowIds.push(created.id)
+        } else if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_GUILD_ID && created.startsAt > new Date()) {
           // Only count as an error if Discord is configured but we still failed
           stats.discordErrors += 1
           stats.errors.push({ fileName: `${file.name} (Discord)`, error: 'Discord event creation failed — see row parseError' })
         }
-        await new Promise(r => setTimeout(r, 300))
+        await new Promise(r => setTimeout(r, 3000))
       }
     } catch (err) {
       stats.parseErrors += 1
@@ -185,7 +194,90 @@ export async function syncTrainingsFromDrive(opts: SyncOptions = {}): Promise<Sy
     }
   }
 
+  // After the loop — if we created any new Discord scheduled events,
+  // post a single @everyone roundup message in the training-and-events
+  // channel so members get notified about the new week of trainings
+  // and can mark themselves Interested with one tap.
+  if (newDiscordRowIds.length > 0 && process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_GUILD_ID) {
+    try {
+      await postWeeklyRoundup(newDiscordRowIds)
+      stats.roundupPosted = true
+    } catch (err) {
+      stats.errors.push({
+        fileName: '(roundup post)',
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+  }
+
   return stats
+}
+
+/**
+ * Posts a single @everyone announcement message in the configured
+ * training channel, listing all the newly created scheduled events.
+ * Each event is rendered as a clickable Discord event link so members
+ * can tap through and mark themselves Interested with one click.
+ */
+async function postWeeklyRoundup(rowIds: string[]): Promise<void> {
+  const channelId = process.env.DISCORD_TRAINING_CHANNEL_ID ?? '1295044213590982725'
+  const guildId = process.env.DISCORD_GUILD_ID!
+
+  // Fetch the rows we just created Discord events for, ordered by start time
+  const rows = await db.trainingEvent.findMany({
+    where: { id: { in: rowIds }, discordEventId: { not: null } },
+    orderBy: { startsAt: 'asc' },
+  })
+  if (rows.length === 0) return
+
+  // Group by date so the post reads as a week-at-a-glance
+  const groups = new Map<string, typeof rows>()
+  for (const r of rows) {
+    const key = r.startsAt.toLocaleDateString('en-US', {
+      weekday: 'long', month: 'long', day: 'numeric',
+      timeZone: 'America/New_York',
+    })
+    const arr = groups.get(key) ?? []
+    arr.push(r)
+    groups.set(key, arr)
+  }
+
+  // Build the embed
+  const fields: { name: string; value: string; inline?: boolean }[] = []
+  for (const [day, dayRows] of groups) {
+    const lines = dayRows.map(r => {
+      const time = r.startsAt.toLocaleTimeString('en-US', {
+        hour: 'numeric', minute: '2-digit',
+        timeZone: 'America/New_York', timeZoneName: 'short',
+      })
+      const link = `https://discord.com/events/${guildId}/${r.discordEventId}`
+      const titleCleaned = r.title.replace(/\*/g, '')
+      return `**${time}** — [${titleCleaned}](${link})${r.audienceRestriction ? ` 🔒` : ''}`
+    })
+    fields.push({ name: `📆 ${day}`, value: lines.join('\n'), inline: false })
+  }
+
+  const eventCount = rows.length
+  const dayCount = groups.size
+
+  await sendChannelMessage(channelId, {
+    content: '@everyone',
+    embeds: [{
+      title: `${eventCount} new training${eventCount === 1 ? '' : 's'} this week`,
+      description: [
+        `${eventCount} GFI training session${eventCount === 1 ? '' : 's'} ${eventCount === 1 ? 'has' : 'have'} been added to the calendar across ${dayCount} day${dayCount === 1 ? '' : 's'}.`,
+        '',
+        '**Tap any session below** to open the event and click **Interested** — Discord will send you a personal reminder one hour before it starts and again when it goes live.',
+        '',
+        'A 15-minute heads-up will also post here for every session.',
+      ].join('\n'),
+      color: 0xC9A96E,
+      fields,
+      footer: { text: 'AFF Concierge · auto-posted from /vault/trainings' },
+      timestamp: new Date().toISOString(),
+    }],
+    allowedMentions: { parse: ['everyone'] },
+  })
 }
 
 function shapeEventForDb(

@@ -59,6 +59,7 @@ interface SyncResponse {
   upserted: number
   discordEventsCreated: number
   discordErrors: number
+  roundupPosted: boolean
   errors: { fileName: string; error: string }[]
 }
 
@@ -126,6 +127,7 @@ export default function TrainingsPage() {
           `${json.discordEventsCreated} Discord events created`,
         ]
         if (json.discordErrors > 0) parts.push(`${json.discordErrors} Discord errors`)
+        if (json.roundupPosted) parts.push('📣 weekly roundup posted')
         setSyncMsg({ ok: true, text: parts.join(' · ') })
         await load()
       }
