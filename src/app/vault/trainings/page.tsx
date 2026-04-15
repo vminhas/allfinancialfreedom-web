@@ -101,6 +101,17 @@ export default function TrainingsPage() {
     }
   }
 
+  const postWeeklyRoundup = async () => {
+    setSyncMsg(null)
+    const res = await fetch('/api/admin/trainings/post-roundup', { method: 'POST' })
+    const d = await res.json() as { posted?: boolean; eventCount?: number; error?: string }
+    if (res.ok && d.posted) {
+      setSyncMsg({ ok: true, text: `📣 Weekly roundup posted to Discord with ${d.eventCount} training${d.eventCount === 1 ? '' : 's'}` })
+    } else {
+      setSyncMsg({ ok: false, text: d.error ?? 'Failed to post roundup' })
+    }
+  }
+
   const clearStaleErrors = async () => {
     setSyncMsg(null)
     const res = await fetch('/api/admin/trainings/clear-stale-errors', { method: 'POST' })
@@ -260,6 +271,23 @@ export default function TrainingsPage() {
               }}
             >
               Clear Errors
+            </button>
+            <button
+              onClick={postWeeklyRoundup}
+              title="Post a fresh @everyone weekly roundup covering every current + upcoming training in the next 7 days. Use this to correct or update the roundup at any time."
+              style={{
+                background: 'transparent',
+                color: '#C9A96E',
+                border: '1px solid rgba(201,169,110,0.45)',
+                borderRadius: 4,
+                padding: '12px 12px', fontSize: 10, fontWeight: 700,
+                letterSpacing: '0.1em', textTransform: 'uppercase',
+                cursor: 'pointer',
+                minHeight: 44, width: '100%',
+                gridColumn: isMobile ? '1 / -1' : undefined,
+              }}
+            >
+              📢 Post Week Roundup
             </button>
             <button
               onClick={previewAnnouncement}

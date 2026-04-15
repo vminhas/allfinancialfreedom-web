@@ -208,8 +208,13 @@ export async function syncTrainingsFromDrive(opts: SyncOptions = {}): Promise<Sy
   // and can mark themselves Interested with one tap.
   if (newDiscordRowIds.length > 0 && process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_GUILD_ID) {
     try {
-      await postWeeklyRoundup(newDiscordRowIds)
-      stats.roundupPosted = true
+      const newRows = await db.trainingEvent.findMany({
+        where: { id: { in: newDiscordRowIds } },
+        orderBy: { startsAt: 'asc' },
+        select: { id: true, title: true, startsAt: true, discordEventId: true, audienceRestriction: true },
+      })
+      const result = await postWeeklyRoundupForRows(newRows)
+      stats.roundupPosted = result.posted
     } catch (err) {
       stats.errors.push({
         fileName: '(roundup post)',
@@ -223,24 +228,31 @@ export async function syncTrainingsFromDrive(opts: SyncOptions = {}): Promise<Sy
 
 /**
  * Posts a single @everyone announcement message in the configured
- * training channel, listing all the newly created scheduled events.
- * Each event is rendered as a clickable Discord event link so members
- * can tap through and mark themselves Interested with one click.
+ * training channel, listing the given scheduled events. Each event
+ * is rendered as a clickable Discord event link so members can tap
+ * through and mark themselves Interested with one click.
+ *
+ * Exported so the "Post Weekly Roundup" button in the admin UI can
+ * call it directly with a custom list of rows (e.g. all upcoming
+ * events, not just newly created ones).
  */
-async function postWeeklyRoundup(rowIds: string[]): Promise<void> {
+export async function postWeeklyRoundupForRows(
+  rows: { id: string; title: string; startsAt: Date; discordEventId: string | null; audienceRestriction: string | null }[]
+): Promise<{ posted: boolean; eventCount: number }> {
   const channelId = process.env.DISCORD_TRAINING_CHANNEL_ID ?? '1295044213590982725'
-  const guildId = process.env.DISCORD_GUILD_ID!
+  const guildId = process.env.DISCORD_GUILD_ID
+  if (!guildId || !process.env.DISCORD_BOT_TOKEN) {
+    return { posted: false, eventCount: 0 }
+  }
 
-  // Fetch the rows we just created Discord events for, ordered by start time
-  const rows = await db.trainingEvent.findMany({
-    where: { id: { in: rowIds }, discordEventId: { not: null } },
-    orderBy: { startsAt: 'asc' },
-  })
-  if (rows.length === 0) return
+  // Only include rows that actually have a Discord event ID — we can't
+  // link to non-existent events.
+  const linkable = rows.filter(r => r.discordEventId)
+  if (linkable.length === 0) return { posted: false, eventCount: 0 }
 
   // Group by date so the post reads as a week-at-a-glance
-  const groups = new Map<string, typeof rows>()
-  for (const r of rows) {
+  const groups = new Map<string, typeof linkable>()
+  for (const r of linkable) {
     const key = r.startsAt.toLocaleDateString('en-US', {
       weekday: 'long', month: 'long', day: 'numeric',
       timeZone: 'America/New_York',
@@ -265,15 +277,15 @@ async function postWeeklyRoundup(rowIds: string[]): Promise<void> {
     fields.push({ name: `📆 ${day}`, value: lines.join('\n'), inline: false })
   }
 
-  const eventCount = rows.length
+  const eventCount = linkable.length
   const dayCount = groups.size
 
   await sendChannelMessage(channelId, {
     content: '@everyone',
     embeds: [{
-      title: `${eventCount} new training${eventCount === 1 ? '' : 's'} this week`,
+      title: `${eventCount} training${eventCount === 1 ? '' : 's'} this week`,
       description: [
-        `${eventCount} GFI training session${eventCount === 1 ? '' : 's'} ${eventCount === 1 ? 'has' : 'have'} been added to the calendar across ${dayCount} day${dayCount === 1 ? '' : 's'}.`,
+        `${eventCount} GFI training session${eventCount === 1 ? '' : 's'} ${eventCount === 1 ? 'is' : 'are'} on the calendar across ${dayCount} day${dayCount === 1 ? '' : 's'}.`,
         '',
         '**Tap any session below** to open the event and click **Interested** — Discord will send you a personal reminder one hour before it starts and again when it goes live.',
         '',
@@ -286,6 +298,8 @@ async function postWeeklyRoundup(rowIds: string[]): Promise<void> {
     }],
     allowedMentions: { parse: ['everyone'] },
   })
+
+  return { posted: true, eventCount }
 }
 
 function shapeEventForDb(
