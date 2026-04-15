@@ -3,6 +3,14 @@
     {
       "path": "/api/cron/daily-outreach",
       "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/sync-trainings",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/training-reminders",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
