@@ -44,10 +44,13 @@ export default function SettingsPage() {
   const [pwLoading, setPwLoading] = useState(false)
 
   // Team management
-  interface AdminUser { id: string; email: string; name: string; createdAt: string; lastLoginAt: string | null }
+  type TeamRole = 'ADMIN' | 'LICENSING_COORDINATOR'
+  interface AdminUser { id: string; email: string; name: string; role?: TeamRole; createdAt: string; lastLoginAt: string | null }
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([])
   const [showAddAdmin, setShowAddAdmin] = useState(false)
-  const [newAdmin, setNewAdmin] = useState({ email: '', name: '', password: '' })
+  const [newAdmin, setNewAdmin] = useState<{ email: string; name: string; password: string; role: TeamRole }>({
+    email: '', name: '', password: '', role: 'ADMIN',
+  })
   const [teamMsg, setTeamMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [teamLoading, setTeamLoading] = useState(false)
 
@@ -72,7 +75,7 @@ export default function SettingsPage() {
     const data = await res.json() as { user?: AdminUser; error?: string }
     if (res.ok && data.user) {
       setAdminUsers(prev => [...prev, data.user!])
-      setNewAdmin({ email: '', name: '', password: '' })
+      setNewAdmin({ email: '', name: '', password: '', role: 'ADMIN' })
       setShowAddAdmin(false)
       setTeamMsg({ ok: true, text: `Admin account created for ${data.user.email}` })
     } else {
@@ -427,7 +430,19 @@ export default function SettingsPage() {
                     borderRadius: 5,
                   }}>
                     <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontSize: 13, color: '#ffffff', fontWeight: 500 }}>{u.name}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <div style={{ fontSize: 13, color: '#ffffff', fontWeight: 500 }}>{u.name}</div>
+                        <span style={{
+                          display: 'inline-block',
+                          background: u.role === 'LICENSING_COORDINATOR' ? 'rgba(155,109,255,0.12)' : 'rgba(201,169,110,0.12)',
+                          border: `1px solid ${u.role === 'LICENSING_COORDINATOR' ? 'rgba(155,109,255,0.35)' : 'rgba(201,169,110,0.35)'}`,
+                          color: u.role === 'LICENSING_COORDINATOR' ? '#9B6DFF' : '#C9A96E',
+                          fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
+                          padding: '2px 7px', borderRadius: 3,
+                        }}>
+                          {u.role === 'LICENSING_COORDINATOR' ? 'Licensing' : 'Admin'}
+                        </span>
+                      </div>
                       <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>
                         {u.email} · {u.lastLoginAt ? `last login ${new Date(u.lastLoginAt).toLocaleDateString()}` : 'never logged in'}
                       </div>
@@ -498,6 +513,22 @@ export default function SettingsPage() {
                   </div>
                 </div>
                 <div>
+                  <label style={{ display: 'block', fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 5 }}>Role</label>
+                  <select
+                    value={newAdmin.role}
+                    onChange={e => setNewAdmin(a => ({ ...a, role: e.target.value as TeamRole }))}
+                    style={{ width: '100%', boxSizing: 'border-box', background: '#0C1E30', border: '1px solid rgba(201,169,110,0.15)', borderRadius: 4, color: '#ffffff', padding: '9px 12px', fontSize: 13, appearance: 'auto' }}
+                  >
+                    <option value="ADMIN">Admin — full vault access</option>
+                    <option value="LICENSING_COORDINATOR">Licensing Coordinator — inbox + licensing fields only</option>
+                  </select>
+                  <div style={{ fontSize: 10, color: '#6B8299', marginTop: 4, lineHeight: 1.5 }}>
+                    {newAdmin.role === 'LICENSING_COORDINATOR'
+                      ? "This user will only see the Licensing Inbox and Profile pages. They can manage requests, update licensing fields (exam date, license #, NPN), but cannot access the main tracker, outreach, or call reviews."
+                      : 'This user will have full access to the vault, including team management and all agent data.'}
+                  </div>
+                </div>
+                <div>
                   <label style={{ display: 'block', fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 5 }}>Temporary Password (min 8 chars)</label>
                   <input
                     type="text"
@@ -509,7 +540,7 @@ export default function SettingsPage() {
                 </div>
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                   <button
-                    onClick={() => { setShowAddAdmin(false); setNewAdmin({ email: '', name: '', password: '' }) }}
+                    onClick={() => { setShowAddAdmin(false); setNewAdmin({ email: '', name: '', password: '', role: 'ADMIN' }) }}
                     disabled={teamLoading}
                     style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.12)', color: '#9BB0C4', borderRadius: 4, padding: '9px 16px', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', minHeight: 38 }}
                   >

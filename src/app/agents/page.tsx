@@ -8,6 +8,7 @@ import {
   CARRIER_UNLOCK_PHASE, LICENSING_CHECKLIST, SYSTEM_PROGRESSIONS,
 } from '@/lib/agent-constants'
 import CallReviewModal, { CallReviewData } from '@/components/CallReviewModal'
+import LicensingRequestModal, { type LicensingRequestTopic } from '@/components/LicensingRequestModal'
 import { useIsMobile } from '@/lib/useIsMobile'
 
 interface PhaseProgress { phase: number; total: number; completed: number; pct: number }
@@ -117,6 +118,30 @@ function AgentDashboardInner() {
   const [expandedItem, setExpandedItem] = useState<string | null>(null)
   const [selectedProgression, setSelectedProgression] = useState<string | null>(null)
   const [checklistPhase, setChecklistPhase] = useState<number | null>(null)
+
+  // Coordinator requests — keyed by phaseItemKey
+  interface CoordinatorRequest {
+    id: string
+    phaseItemKey: string | null
+    topic: string
+    message: string
+    status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED'
+    resolutionNote: string | null
+    createdAt: string
+    resolvedAt: string | null
+  }
+  const [coordinatorRequests, setCoordinatorRequests] = useState<CoordinatorRequest[]>([])
+  const [requestModalItemKey, setRequestModalItemKey] = useState<string | null>(null)
+
+  const fetchCoordinatorRequests = useCallback(async () => {
+    const res = await fetch('/api/agents/coordinator-requests')
+    if (res.ok) {
+      const d = await res.json() as { requests: CoordinatorRequest[] }
+      setCoordinatorRequests(d.requests ?? [])
+    }
+  }, [])
+
+  useEffect(() => { fetchCoordinatorRequests() }, [fetchCoordinatorRequests])
 
   const fetchData = useCallback(async () => {
     const res = await fetch('/api/agents/me')
@@ -580,18 +605,71 @@ function AgentDashboardInner() {
                       </button>
                     </div>
                     {/* Expanded description */}
-                    {isExpanded && (
-                      <div style={{
-                        padding: '10px 16px 12px 46px',
-                        background: done ? 'rgba(74,222,128,0.03)' : 'rgba(255,255,255,0.01)',
-                        border: `1px solid ${done ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.04)'}`,
-                        borderTop: 'none',
-                        borderRadius: '0 0 6px 6px',
-                        fontSize: 12, color: '#6B8299', lineHeight: 1.6,
-                      }}>
-                        {item.description}
-                      </div>
-                    )}
+                    {isExpanded && (() => {
+                      const itemRequests = coordinatorRequests.filter(r => r.phaseItemKey === item.key)
+                      const openCount = itemRequests.filter(r => r.status === 'OPEN' || r.status === 'IN_PROGRESS').length
+                      return (
+                        <div style={{
+                          padding: '12px 16px 14px 46px',
+                          background: done ? 'rgba(74,222,128,0.03)' : 'rgba(255,255,255,0.01)',
+                          border: `1px solid ${done ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.04)'}`,
+                          borderTop: 'none',
+                          borderRadius: '0 0 6px 6px',
+                        }}>
+                          <div style={{ fontSize: 12, color: '#9BB0C4', lineHeight: 1.6 }}>
+                            {item.description}
+                          </div>
+
+                          {item.coordinatorTopic && (
+                            <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed rgba(201,169,110,0.12)' }}>
+                              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 6 }}>
+                                Licensing Coordinator
+                              </div>
+                              {/* Request history */}
+                              {itemRequests.length > 0 && (
+                                <div style={{ marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                  {itemRequests.slice(0, 3).map(r => (
+                                    <div key={r.id} style={{ fontSize: 11, color: '#9BB0C4', lineHeight: 1.5 }}>
+                                      <span style={{
+                                        color: r.status === 'OPEN' ? '#f59e0b' : r.status === 'IN_PROGRESS' ? '#9B6DFF' : r.status === 'RESOLVED' ? '#4ade80' : '#6B8299',
+                                        fontWeight: 700,
+                                        textTransform: 'uppercase', fontSize: 9, letterSpacing: '0.08em',
+                                      }}>
+                                        {r.status === 'IN_PROGRESS' ? 'IN PROGRESS' : r.status}
+                                      </span>
+                                      {' · '}
+                                      <span style={{ color: '#6B8299' }}>
+                                        sent {new Date(r.createdAt).toLocaleDateString()}
+                                      </span>
+                                      {r.resolutionNote && (
+                                        <div style={{ marginTop: 2, marginLeft: 0, color: '#d1d9e2', fontStyle: 'italic', fontSize: 11 }}>
+                                          &ldquo;{r.resolutionNote}&rdquo;
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              <button
+                                onClick={() => setRequestModalItemKey(item.key)}
+                                style={{
+                                  display: 'inline-flex', alignItems: 'center', gap: 8,
+                                  background: 'transparent',
+                                  border: '1px solid rgba(201,169,110,0.3)',
+                                  color: '#C9A96E', borderRadius: 4,
+                                  padding: '10px 14px', fontSize: 10, fontWeight: 700,
+                                  letterSpacing: '0.12em', textTransform: 'uppercase',
+                                  cursor: 'pointer', minHeight: 40,
+                                }}
+                              >
+                                {openCount > 0 ? 'Send another request' : 'Request help from the licensing coordinator'}
+                                <span>→</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </div>
                 )
               })}
@@ -631,6 +709,41 @@ function AgentDashboardInner() {
         )}
 
       </div>
+
+      {/* Licensing coordinator request modal */}
+      {requestModalItemKey && (() => {
+        const item = PHASE_ITEMS[activeChecklistPhase]?.find(i => i.key === requestModalItemKey)
+          ?? Object.values(PHASE_ITEMS).flat().find(i => i.key === requestModalItemKey)
+        if (!item || !item.coordinatorTopic) return null
+        const itemRequests = coordinatorRequests.filter(r => r.phaseItemKey === item.key)
+        return (
+          <LicensingRequestModal
+            phaseItemKey={item.key}
+            phaseItemLabel={item.label}
+            defaultTopic={item.coordinatorTopic as LicensingRequestTopic}
+            existingRequests={itemRequests.map(r => ({
+              ...r,
+              topic: r.topic as LicensingRequestTopic,
+            }))}
+            onClose={() => setRequestModalItemKey(null)}
+            onSubmitted={newReq => {
+              setCoordinatorRequests(prev => [
+                {
+                  id: newReq.id,
+                  phaseItemKey: newReq.phaseItemKey ?? null,
+                  topic: newReq.topic as string,
+                  message: newReq.message,
+                  status: newReq.status,
+                  resolutionNote: newReq.resolutionNote,
+                  createdAt: newReq.createdAt,
+                  resolvedAt: newReq.resolvedAt,
+                },
+                ...prev,
+              ])
+            }}
+          />
+        )
+      })()}
     </div>
   )
 }

@@ -16,6 +16,7 @@ export async function GET() {
       id: true,
       email: true,
       name: true,
+      role: true,
       createdAt: true,
       lastLoginAt: true,
     },
@@ -36,6 +37,7 @@ export async function POST(req: NextRequest) {
     email: string
     name: string
     password: string
+    role?: 'ADMIN' | 'LICENSING_COORDINATOR'
   }
 
   if (!body.email || !body.name || !body.password) {
@@ -46,6 +48,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
   }
 
+  const role = body.role === 'LICENSING_COORDINATOR' ? 'LICENSING_COORDINATOR' : 'ADMIN'
   const email = body.email.toLowerCase().trim()
 
   const existing = await db.adminUser.findUnique({ where: { email } })
@@ -60,8 +63,9 @@ export async function POST(req: NextRequest) {
       email,
       name: body.name.trim(),
       passwordHash,
+      role,
     },
-    select: { id: true, email: true, name: true, createdAt: true, lastLoginAt: true },
+    select: { id: true, email: true, name: true, role: true, createdAt: true, lastLoginAt: true },
   })
 
   return NextResponse.json({ user })
