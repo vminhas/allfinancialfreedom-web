@@ -64,6 +64,20 @@ export async function GET() {
     db.callReview.count(),
   ])
 
+  // ── Training events (Sonnet vision) ────────────────────────────────────────
+  const [trAllTime, trMonth, trToday, trCount] = await Promise.all([
+    db.trainingEvent.aggregate({ _sum: { inputTokens: true, outputTokens: true } }),
+    db.trainingEvent.aggregate({
+      where: { parsedAt: { gte: startOfMonth } },
+      _sum: { inputTokens: true, outputTokens: true },
+    }),
+    db.trainingEvent.aggregate({
+      where: { parsedAt: { gte: startOfToday } },
+      _sum: { inputTokens: true, outputTokens: true },
+    }),
+    db.trainingEvent.count(),
+  ])
+
   const outreach = {
     allTime: {
       inputTokens: outAllTime._sum.inputTokens ?? 0,
@@ -125,25 +139,46 @@ export async function GET() {
     model: 'claude-sonnet-4-5',
   }
 
-  // Totals for backward compatibility with existing UI (sums both features)
+  const trainings = {
+    allTime: {
+      inputTokens: trAllTime._sum.inputTokens ?? 0,
+      outputTokens: trAllTime._sum.outputTokens ?? 0,
+      cost: calcSonnet(trAllTime._sum.inputTokens ?? 0, trAllTime._sum.outputTokens ?? 0),
+    },
+    thisMonth: {
+      inputTokens: trMonth._sum.inputTokens ?? 0,
+      outputTokens: trMonth._sum.outputTokens ?? 0,
+      cost: calcSonnet(trMonth._sum.inputTokens ?? 0, trMonth._sum.outputTokens ?? 0),
+    },
+    today: {
+      inputTokens: trToday._sum.inputTokens ?? 0,
+      outputTokens: trToday._sum.outputTokens ?? 0,
+      cost: calcSonnet(trToday._sum.inputTokens ?? 0, trToday._sum.outputTokens ?? 0),
+    },
+    count: trCount,
+    model: 'claude-sonnet-4-5 (vision)',
+  }
+
+  // Totals (sum of all three features)
   return NextResponse.json({
     outreach,
     callReviews,
+    trainings,
     allTime: {
-      inputTokens: outreach.allTime.inputTokens + callReviews.allTime.inputTokens,
-      outputTokens: outreach.allTime.outputTokens + callReviews.allTime.outputTokens,
-      cost: outreach.allTime.cost + callReviews.allTime.cost,
+      inputTokens: outreach.allTime.inputTokens + callReviews.allTime.inputTokens + trainings.allTime.inputTokens,
+      outputTokens: outreach.allTime.outputTokens + callReviews.allTime.outputTokens + trainings.allTime.outputTokens,
+      cost: outreach.allTime.cost + callReviews.allTime.cost + trainings.allTime.cost,
     },
     thisMonth: {
-      inputTokens: outreach.thisMonth.inputTokens + callReviews.thisMonth.inputTokens,
-      outputTokens: outreach.thisMonth.outputTokens + callReviews.thisMonth.outputTokens,
-      cost: outreach.thisMonth.cost + callReviews.thisMonth.cost,
+      inputTokens: outreach.thisMonth.inputTokens + callReviews.thisMonth.inputTokens + trainings.thisMonth.inputTokens,
+      outputTokens: outreach.thisMonth.outputTokens + callReviews.thisMonth.outputTokens + trainings.thisMonth.outputTokens,
+      cost: outreach.thisMonth.cost + callReviews.thisMonth.cost + trainings.thisMonth.cost,
     },
     today: {
-      inputTokens: outreach.today.inputTokens + callReviews.today.inputTokens,
-      outputTokens: outreach.today.outputTokens + callReviews.today.outputTokens,
-      cost: outreach.today.cost + callReviews.today.cost,
+      inputTokens: outreach.today.inputTokens + callReviews.today.inputTokens + trainings.today.inputTokens,
+      outputTokens: outreach.today.outputTokens + callReviews.today.outputTokens + trainings.today.outputTokens,
+      cost: outreach.today.cost + callReviews.today.cost + trainings.today.cost,
     },
-    totalMessages: outreach.count + callReviews.count,
+    totalMessages: outreach.count + callReviews.count + trainings.count,
   })
 }

@@ -1,0 +1,64 @@
+name: Training Pipeline Cron
+
+# We use GitHub Actions cron instead of Vercel cron because the AFF project
+# is on the Vercel Hobby plan, which only allows daily cron jobs. The training
+# pipeline needs sub-daily scheduling:
+#   • sync-trainings   — hourly  (parses new flyers from the Drive folder)
+#   • training-reminders — every 5 min (T-15 reminders into Discord)
+#
+# Each job just curls a Vercel route with the bearer secret. The actual
+# work happens on Vercel — these workflows are pure schedulers.
+#
+# Required GitHub repo secret:
+#   CRON_SECRET — same value as the CRON_SECRET env var on Vercel
+
+on:
+  schedule:
+    # Note: GitHub cron times are UTC. */5 = every 5 min, 0 * * * * = top of every hour.
+    # GitHub may delay scheduled workflows by several minutes during high load.
+    - cron: '*/5 * * * *'
+  workflow_dispatch:  # allow manual trigger from the Actions tab
+
+concurrency:
+  group: training-pipeline
+  cancel-in-progress: false
+
+jobs:
+  reminders:
+    name: T-15 reminders
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit /api/cron/training-reminders
+        run: |
+          curl -fsS -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://www.allfinancialfreedom.com/api/cron/training-reminders" \
+            -o response.json -w "\nHTTP %{http_code}\n"
+          echo "Response:"
+          cat response.json || true
+
+  hourly-sync:
+    name: Hourly Drive sync
+    runs-on: ubuntu-latest
+    # Only run the Drive sync once per hour (when the minute is 0)
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.schedule == '*/5 * * * *' }}
+    steps:
+      - name: Check if top of the hour
+        id: check
+        run: |
+          MIN=$(date -u +%M)
+          if [ "$MIN" = "00" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Hit /api/cron/sync-trainings
+        if: steps.check.outputs.should_run == 'true'
+        run: |
+          curl -fsS -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://www.allfinancialfreedom.com/api/cron/sync-trainings" \
+            -o sync-response.json -w "\nHTTP %{http_code}\n"
+          echo "Sync response:"
+          cat sync-response.json || true

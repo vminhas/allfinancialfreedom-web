@@ -19,6 +19,7 @@ interface FeatureBucket {
 interface CostData {
   outreach: FeatureBucket
   callReviews: FeatureBucket
+  trainings: FeatureBucket
   allTime: BucketTotals
   thisMonth: BucketTotals
   today: BucketTotals
@@ -58,7 +59,7 @@ export default function ClaudeCostWidget() {
         <p style={{ color: '#C9A96E', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 600, margin: 0 }}>Claude API Usage</p>
         {data && (
           <span style={{ color: '#6B8299', fontSize: 10, letterSpacing: '0.1em' }}>
-            Outreach ({data.outreach.model}) &nbsp;&bull;&nbsp; Reviews ({data.callReviews.model})
+            3 sources · {data.outreach.model.split(' ')[0]} + {data.callReviews.model.split(' ')[0]}
           </span>
         )}
       </div>
@@ -74,29 +75,64 @@ export default function ClaudeCostWidget() {
           {row('All time', fmt(data.allTime.cost),
             `${data.totalMessages.toLocaleString()} ops · ${fmtTokens(data.allTime.inputTokens + data.allTime.outputTokens)} tokens`)}
 
-          {/* Per-feature breakdown */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16, marginTop: 16, padding: '14px 0 0' }}>
-            <div>
-              <p style={{ color: '#6B8299', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 4px' }}>Outreach emails</p>
-              <p style={{ color: '#C9A96E', fontSize: 14, fontWeight: 600, margin: 0 }}>
-                ${data.outreach.allTime.cost.toFixed(4)}
-              </p>
-              <p style={{ color: '#4B5563', fontSize: 10, margin: '2px 0 0' }}>
-                {data.outreach.count.toLocaleString()} emails
-              </p>
-            </div>
-            <div>
-              <p style={{ color: '#6B8299', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 4px' }}>Call reviews</p>
-              <p style={{ color: '#C9A96E', fontSize: 14, fontWeight: 600, margin: 0 }}>
-                ${data.callReviews.allTime.cost.toFixed(4)}
-              </p>
-              <p style={{ color: '#4B5563', fontSize: 10, margin: '2px 0 0' }}>
-                {data.callReviews.count.toLocaleString()} reviews
-              </p>
+          {/* Per-source breakdown — shows where the spend is coming from */}
+          <div style={{ marginTop: 16, padding: '14px 0 0', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+            <p style={{ color: '#9BB0C4', fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', margin: '0 0 10px' }}>
+              Source breakdown
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14 }}>
+              <SourceCard
+                label="Outreach emails"
+                model={data.outreach.model}
+                cost={data.outreach.allTime.cost}
+                count={data.outreach.count}
+                unit="emails"
+              />
+              <SourceCard
+                label="Call reviews"
+                model={data.callReviews.model}
+                cost={data.callReviews.allTime.cost}
+                count={data.callReviews.count}
+                unit="reviews"
+              />
+              <SourceCard
+                label="Training flyers"
+                model={data.trainings.model}
+                cost={data.trainings.allTime.cost}
+                count={data.trainings.count}
+                unit="parsed"
+              />
             </div>
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function SourceCard({ label, model, cost, count, unit }: {
+  label: string
+  model: string
+  cost: number
+  count: number
+  unit: string
+}) {
+  return (
+    <div style={{
+      background: 'rgba(255,255,255,0.02)',
+      border: '1px solid rgba(201,169,110,0.08)',
+      borderRadius: 4, padding: '10px 12px',
+    }}>
+      <p style={{ color: '#6B8299', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 4px' }}>{label}</p>
+      <p style={{ color: '#C9A96E', fontSize: 14, fontWeight: 600, margin: 0 }}>
+        ${cost.toFixed(4)}
+      </p>
+      <p style={{ color: '#4B5563', fontSize: 10, margin: '2px 0 0' }}>
+        {count.toLocaleString()} {unit}
+      </p>
+      <p style={{ color: '#4B5563', fontSize: 9, margin: '2px 0 0', fontStyle: 'italic' }}>
+        {model}
+      </p>
     </div>
   )
 }
