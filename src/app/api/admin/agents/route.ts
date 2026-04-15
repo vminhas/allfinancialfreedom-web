@@ -53,12 +53,31 @@ export async function GET(req: NextRequest) {
     db.agentProfile.count({ where }),
   ])
 
+  // Pull 30-day call review aggregates for all profiles in one query
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+  const recentReviews = await db.callReview.findMany({
+    where: {
+      agentProfileId: { in: profiles.map(p => p.id) },
+      reviewedAt: { gte: thirtyDaysAgo },
+    },
+    select: { agentProfileId: true, overallScore: true, flaggedForCoaching: true, discussedAt: true },
+  })
+  const reviewAggByAgent = new Map<string, { sum: number; count: number; flagged: number }>()
+  for (const r of recentReviews) {
+    const a = reviewAggByAgent.get(r.agentProfileId) ?? { sum: 0, count: 0, flagged: 0 }
+    a.sum += r.overallScore
+    a.count += 1
+    if (r.flaggedForCoaching && !r.discussedAt) a.flagged += 1
+    reviewAggByAgent.set(r.agentProfileId, a)
+  }
+
   const agents = profiles.map(p => {
     const phaseTotal = PHASE_ITEMS[p.phase]?.length ?? 0
     const phaseCompleted = p.phaseItems.filter(
       i => i.phase === p.phase && i.completed
     ).length
     const appointed = p.carrierAppointments.filter(c => c.status === 'APPOINTED').length
+    const agg = reviewAggByAgent.get(p.id)
 
     return {
       id: p.id,
@@ -80,6 +99,9 @@ export async function GET(req: NextRequest) {
       carriersTotal: CARRIERS.length,
       milestoneCount: p._count.milestones,
       createdAt: p.createdAt,
+      callScore30d: agg && agg.count > 0 ? Math.round(agg.sum / agg.count) : null,
+      callReviewCount30d: agg?.count ?? 0,
+      openCoachingFlags: agg?.flagged ?? 0,
     }
   })
 

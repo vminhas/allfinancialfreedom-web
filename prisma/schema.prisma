@@ -167,6 +167,7 @@ model AgentProfile {
   businessPartners      BusinessPartner[]
   policies              PolicyEntry[]
   callLogs              CallLog[]
+  callReviews           CallReview[]
 
   @@map("agent_profiles")
 }
@@ -265,17 +266,58 @@ model PolicyEntry {
 }
 
 model CallLog {
-  id             String       @id @default(cuid())
-  agentProfileId String
-  agentProfile   AgentProfile @relation(fields: [agentProfileId], references: [id])
-  callDate       DateTime
-  contactName    String
-  phoneNumber    String?
-  subject        String?
-  notes          String?
-  result         String?
-  followUpNeeded Boolean      @default(false)
-  createdAt      DateTime     @default(now())
+  id               String                @id @default(cuid())
+  agentProfileId   String
+  agentProfile     AgentProfile          @relation(fields: [agentProfileId], references: [id])
+  callDate         DateTime
+  contactName      String
+  phoneNumber      String?
+  subject          String?
+  notes            String?
+  result           String?
+  followUpNeeded   Boolean               @default(false)
+  createdAt        DateTime              @default(now())
+
+  transcriptText   String?
+  transcriptSource CallTranscriptSource?
+  durationSeconds  Int?
+  review           CallReview?
 
   @@map("call_logs")
+}
+
+enum CallTranscriptSource {
+  MANUAL_PASTE
+  FATHOM_OAUTH
+  FATHOM_MANUAL
+}
+
+model CallReview {
+  id                 String       @id @default(cuid())
+  callLogId          String       @unique
+  callLog            CallLog      @relation(fields: [callLogId], references: [id], onDelete: Cascade)
+  agentProfileId     String
+  agentProfile       AgentProfile @relation(fields: [agentProfileId], references: [id])
+
+  overallScore       Int
+  rubricScores       Json
+  strengths          Json
+  weaknesses         Json
+  coachingTips       Json
+  nextSteps          Json
+  summary            String
+
+  flaggedForCoaching Boolean      @default(false)
+  adminNotes         String?
+  discussedAt        DateTime?
+
+  modelId            String
+  inputTokens        Int
+  outputTokens       Int
+  cacheReadTokens    Int          @default(0)
+  cacheCreateTokens  Int          @default(0)
+  reviewedAt         DateTime     @default(now())
+
+  @@index([agentProfileId, reviewedAt])
+  @@map("call_reviews")
 }

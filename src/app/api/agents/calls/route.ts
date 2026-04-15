@@ -31,6 +31,16 @@ export async function GET(req: NextRequest) {
       orderBy: { callDate: 'desc' },
       skip,
       take: limit,
+      include: {
+        review: {
+          select: {
+            id: true,
+            overallScore: true,
+            flaggedForCoaching: true,
+            reviewedAt: true,
+          },
+        },
+      },
     }),
     db.callLog.count({ where: { agentProfileId: profileId } }),
   ])
@@ -55,11 +65,15 @@ export async function POST(req: NextRequest) {
     notes?: string
     result?: string
     followUpNeeded?: boolean
+    transcriptText?: string
+    durationSeconds?: number
   }
 
   if (!body.callDate || !body.contactName) {
     return NextResponse.json({ error: 'callDate and contactName required' }, { status: 400 })
   }
+
+  const hasTranscript = body.transcriptText && body.transcriptText.trim().length > 0
 
   const call = await db.callLog.create({
     data: {
@@ -71,8 +85,11 @@ export async function POST(req: NextRequest) {
       notes: body.notes,
       result: body.result,
       followUpNeeded: body.followUpNeeded ?? false,
+      transcriptText: hasTranscript ? body.transcriptText : null,
+      transcriptSource: hasTranscript ? 'MANUAL_PASTE' : null,
+      durationSeconds: body.durationSeconds,
     },
   })
 
-  return NextResponse.json(call)
+  return NextResponse.json({ call, hasTranscript })
 }
