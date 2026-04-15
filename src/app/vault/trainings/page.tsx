@@ -37,7 +37,17 @@ interface TrainingsPayload {
     totalUpcoming: number
     reminderQueue: number
     discordEventsCreated: number
+    futureMissingDiscord: number
     parseErrorCount: number
+  }
+  configStatus: {
+    googleApiKey: boolean
+    driveFolderId: boolean
+    anthropicConfigured: boolean
+    discordBotToken: boolean
+    discordGuildId: boolean
+    discordChannelId: string
+    cronSecret: boolean
   }
 }
 
@@ -47,6 +57,8 @@ interface SyncResponse {
   parsed: number
   parseErrors: number
   upserted: number
+  discordEventsCreated: number
+  discordErrors: number
   errors: { fileName: string; error: string }[]
 }
 
@@ -77,7 +89,14 @@ export default function TrainingsPage() {
         setSyncMsg({ ok: false, text: ('error' in json ? json.error : 'Sync failed') })
       } else {
         setSyncResult(json)
-        setSyncMsg({ ok: true, text: `Scanned ${json.scanned} files · ${json.upserted} events upserted · ${json.skippedExisting} unchanged` })
+        const parts = [
+          `Scanned ${json.scanned} files`,
+          `${json.upserted} parsed`,
+          `${json.skippedExisting} unchanged`,
+          `${json.discordEventsCreated} Discord events created`,
+        ]
+        if (json.discordErrors > 0) parts.push(`${json.discordErrors} Discord errors`)
+        setSyncMsg({ ok: true, text: parts.join(' · ') })
         await load()
       }
     } catch (err) {
@@ -167,7 +186,7 @@ export default function TrainingsPage() {
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
           gap: 12,
-          marginBottom: 24,
+          marginBottom: 16,
         }}>
           <StatCard label="Upcoming" value={data.stats.totalUpcoming} color="#C9A96E" />
           <StatCard label="Reminder Queue" value={data.stats.reminderQueue} color="#9B6DFF" />
@@ -175,6 +194,9 @@ export default function TrainingsPage() {
           <StatCard label="Parse Errors" value={data.stats.parseErrorCount} color={data.stats.parseErrorCount > 0 ? '#f87171' : '#6B8299'} />
         </div>
       )}
+
+      {/* Integration / config status */}
+      {data && <ConfigStatusPanel config={data.configStatus} futureMissingDiscord={data.stats.futureMissingDiscord} />}
 
       {loading ? (
         <div style={{ color: '#6B8299', fontSize: 13, padding: '40px 0' }}>Loading training events...</div>
@@ -213,6 +235,87 @@ function StatCard({ label, value, color }: { label: string; value: number; color
         {label}
       </div>
       <div style={{ fontSize: 28, fontWeight: 600, color, lineHeight: 1 }}>{value}</div>
+    </div>
+  )
+}
+
+function ConfigStatusPanel({
+  config,
+  futureMissingDiscord,
+}: {
+  config: TrainingsPayload['configStatus']
+  futureMissingDiscord: number
+}) {
+  const checks: { label: string; ok: boolean; help?: string }[] = [
+    { label: 'GOOGLE_API_KEY', ok: config.googleApiKey, help: 'Required to list/download from Drive' },
+    { label: 'GDRIVE_TRAINING_FOLDER_ID', ok: config.driveFolderId, help: 'Which Drive folder to scan' },
+    { label: 'DISCORD_BOT_TOKEN', ok: config.discordBotToken, help: 'Required for scheduled events + T-15 reminders' },
+    { label: 'DISCORD_GUILD_ID', ok: config.discordGuildId, help: 'Your AFF Discord server ID' },
+    { label: 'CRON_SECRET', ok: config.cronSecret, help: 'Used by Vercel cron to authenticate' },
+  ]
+  const missing = checks.filter(c => !c.ok)
+  const allOk = missing.length === 0
+
+  // The most actionable warning: future events exist but they don't have Discord events
+  // AND Discord is configured. Tells admin "click Sync Now to backfill".
+  const shouldNudgeBackfill = futureMissingDiscord > 0 && config.discordBotToken && config.discordGuildId
+
+  return (
+    <div style={{
+      marginBottom: 24,
+      padding: '16px 20px',
+      background: allOk ? 'rgba(74,222,128,0.04)' : 'rgba(245,158,11,0.05)',
+      border: `1px solid ${allOk ? 'rgba(74,222,128,0.18)' : 'rgba(245,158,11,0.25)'}`,
+      borderRadius: 8,
+    }}>
+      <div style={{
+        fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase',
+        color: allOk ? '#4ade80' : '#f59e0b',
+        marginBottom: 10,
+        display: 'flex', alignItems: 'center', gap: 6,
+      }}>
+        Integration Status {allOk ? '· all set' : `· ${missing.length} missing`}
+      </div>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+        gap: 8,
+      }}>
+        {checks.map(c => (
+          <div key={c.label} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+            <span style={{
+              fontSize: 12,
+              color: c.ok ? '#4ade80' : '#f59e0b',
+              flexShrink: 0,
+              marginTop: 1,
+            }}>
+              {c.ok ? '✓' : '✗'}
+            </span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 11, color: c.ok ? '#9BB0C4' : '#ffffff', fontFamily: 'monospace' }}>
+                {c.label}
+              </div>
+              {c.help && (
+                <div style={{ fontSize: 9, color: '#6B8299', marginTop: 1 }}>{c.help}</div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+      {shouldNudgeBackfill && (
+        <div style={{
+          marginTop: 12, padding: '10px 12px',
+          background: 'rgba(155,109,255,0.06)',
+          border: '1px solid rgba(155,109,255,0.25)',
+          borderRadius: 4,
+          fontSize: 11, color: '#9BB0C4', lineHeight: 1.5,
+        }}>
+          <strong style={{ color: '#9B6DFF' }}>{futureMissingDiscord}</strong> future event{futureMissingDiscord === 1 ? '' : 's'} {futureMissingDiscord === 1 ? 'is' : 'are'} missing a Discord scheduled event. Click <strong style={{ color: '#C9A96E' }}>Sync Now</strong> to backfill — no re-parsing happens, just Discord event creation.
+        </div>
+      )}
+      <div style={{ marginTop: 10, fontSize: 9, color: '#4B5563' }}>
+        Channel for T-15 reminders: <span style={{ fontFamily: 'monospace', color: '#6B8299' }}>{config.discordChannelId}</span>
+      </div>
     </div>
   )
 }
