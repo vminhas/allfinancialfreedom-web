@@ -43,6 +43,82 @@ export default function SettingsPage() {
   const [pwMsg, setPwMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [pwLoading, setPwLoading] = useState(false)
 
+  // Team management
+  interface AdminUser { id: string; email: string; name: string; createdAt: string; lastLoginAt: string | null }
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([])
+  const [showAddAdmin, setShowAddAdmin] = useState(false)
+  const [newAdmin, setNewAdmin] = useState({ email: '', name: '', password: '' })
+  const [teamMsg, setTeamMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [teamLoading, setTeamLoading] = useState(false)
+
+  const loadAdmins = async () => {
+    const res = await fetch('/api/admin/users')
+    if (res.ok) {
+      const d = await res.json() as { users: AdminUser[] }
+      setAdminUsers(d.users)
+    }
+  }
+
+  useEffect(() => { loadAdmins() }, [])
+
+  async function handleAddAdmin() {
+    setTeamLoading(true)
+    setTeamMsg(null)
+    const res = await fetch('/api/admin/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newAdmin),
+    })
+    const data = await res.json() as { user?: AdminUser; error?: string }
+    if (res.ok && data.user) {
+      setAdminUsers(prev => [...prev, data.user!])
+      setNewAdmin({ email: '', name: '', password: '' })
+      setShowAddAdmin(false)
+      setTeamMsg({ ok: true, text: `Admin account created for ${data.user.email}` })
+    } else {
+      setTeamMsg({ ok: false, text: data.error ?? 'Failed to create admin' })
+    }
+    setTeamLoading(false)
+  }
+
+  async function handleRemoveAdmin(userId: string, email: string) {
+    if (!confirm(`Remove admin access for ${email}? They will no longer be able to log in.`)) return
+    setTeamLoading(true)
+    setTeamMsg(null)
+    const res = await fetch(`/api/admin/users/${userId}`, { method: 'DELETE' })
+    const data = await res.json() as { ok?: boolean; error?: string }
+    if (res.ok && data.ok) {
+      setAdminUsers(prev => prev.filter(u => u.id !== userId))
+      setTeamMsg({ ok: true, text: `Removed ${email}` })
+    } else {
+      setTeamMsg({ ok: false, text: data.error ?? 'Failed to remove admin' })
+    }
+    setTeamLoading(false)
+  }
+
+  async function handleResetAdminPassword(userId: string, email: string) {
+    const newPassword = prompt(`Set a new password for ${email} (min 8 chars):`)
+    if (!newPassword) return
+    if (newPassword.length < 8) {
+      setTeamMsg({ ok: false, text: 'Password must be at least 8 characters' })
+      return
+    }
+    setTeamLoading(true)
+    setTeamMsg(null)
+    const res = await fetch(`/api/admin/users/${userId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newPassword }),
+    })
+    const data = await res.json() as { user?: AdminUser; error?: string }
+    if (res.ok && data.user) {
+      setTeamMsg({ ok: true, text: `Password updated for ${email}. Share it with them securely.` })
+    } else {
+      setTeamMsg({ ok: false, text: data.error ?? 'Failed to update password' })
+    }
+    setTeamLoading(false)
+  }
+
   async function handleChangePassword() {
     if (pwFields.newPassword !== pwFields.confirmPassword) {
       setPwMsg({ ok: false, text: 'New passwords do not match' })
@@ -321,6 +397,152 @@ export default function SettingsPage() {
             {pipelineMsg && (
               <p style={{ marginTop: 4, fontSize: 13, color: pipelineMsg.startsWith('Error') ? '#f87171' : '#4ade80' }}>
                 {pipelineMsg}
+              </p>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Team Management */}
+      {card(
+        <>
+          {cardHeader('Team Management')}
+          <div style={{ padding: '24px 28px' }}>
+            <p style={{ fontSize: 12, color: '#9BB0C4', margin: '0 0 18px', lineHeight: 1.55 }}>
+              Admin accounts can log in to the vault, manage agents, and access all tracker data. Add a new admin below, or remove / reset passwords for existing ones.
+            </p>
+
+            {/* Existing admins list */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 18 }}>
+              {adminUsers.length === 0 ? (
+                <div style={{ fontSize: 12, color: '#6B8299' }}>Loading...</div>
+              ) : (
+                adminUsers.map(u => (
+                  <div key={u.id} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    gap: 12, flexWrap: 'wrap',
+                    padding: '12px 14px',
+                    background: 'rgba(255,255,255,0.02)',
+                    border: '1px solid rgba(201,169,110,0.08)',
+                    borderRadius: 5,
+                  }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: 13, color: '#ffffff', fontWeight: 500 }}>{u.name}</div>
+                      <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>
+                        {u.email} · {u.lastLoginAt ? `last login ${new Date(u.lastLoginAt).toLocaleDateString()}` : 'never logged in'}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        onClick={() => handleResetAdminPassword(u.id, u.email)}
+                        disabled={teamLoading}
+                        style={{
+                          background: 'transparent',
+                          border: '1px solid rgba(201,169,110,0.3)',
+                          color: '#C9A96E', borderRadius: 4,
+                          padding: '6px 12px', fontSize: 10, fontWeight: 700,
+                          letterSpacing: '0.1em', textTransform: 'uppercase',
+                          cursor: teamLoading ? 'wait' : 'pointer', minHeight: 32,
+                        }}
+                      >
+                        Reset PW
+                      </button>
+                      <button
+                        onClick={() => handleRemoveAdmin(u.id, u.email)}
+                        disabled={teamLoading}
+                        style={{
+                          background: 'transparent',
+                          border: '1px solid rgba(248,113,113,0.25)',
+                          color: '#f87171', borderRadius: 4,
+                          padding: '6px 12px', fontSize: 10, fontWeight: 700,
+                          letterSpacing: '0.1em', textTransform: 'uppercase',
+                          cursor: teamLoading ? 'wait' : 'pointer', minHeight: 32,
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Add admin form */}
+            {showAddAdmin ? (
+              <div style={{
+                padding: 16,
+                background: 'rgba(255,255,255,0.02)',
+                border: '1px solid rgba(201,169,110,0.15)',
+                borderRadius: 6,
+                display: 'flex', flexDirection: 'column', gap: 12,
+              }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 5 }}>Name</label>
+                    <input
+                      value={newAdmin.name}
+                      onChange={e => setNewAdmin(a => ({ ...a, name: e.target.value }))}
+                      placeholder="Melinee Minhas"
+                      style={{ width: '100%', boxSizing: 'border-box', background: '#0C1E30', border: '1px solid rgba(201,169,110,0.15)', borderRadius: 4, color: '#ffffff', padding: '9px 12px', fontSize: 13 }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 5 }}>Email</label>
+                    <input
+                      type="email"
+                      value={newAdmin.email}
+                      onChange={e => setNewAdmin(a => ({ ...a, email: e.target.value }))}
+                      placeholder="melinee@allfinancialfreedom.com"
+                      style={{ width: '100%', boxSizing: 'border-box', background: '#0C1E30', border: '1px solid rgba(201,169,110,0.15)', borderRadius: 4, color: '#ffffff', padding: '9px 12px', fontSize: 13 }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 5 }}>Temporary Password (min 8 chars)</label>
+                  <input
+                    type="text"
+                    value={newAdmin.password}
+                    onChange={e => setNewAdmin(a => ({ ...a, password: e.target.value }))}
+                    placeholder="Share this securely — they can change it after first login"
+                    style={{ width: '100%', boxSizing: 'border-box', background: '#0C1E30', border: '1px solid rgba(201,169,110,0.15)', borderRadius: 4, color: '#ffffff', padding: '9px 12px', fontSize: 13, fontFamily: 'monospace' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <button
+                    onClick={() => { setShowAddAdmin(false); setNewAdmin({ email: '', name: '', password: '' }) }}
+                    disabled={teamLoading}
+                    style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.12)', color: '#9BB0C4', borderRadius: 4, padding: '9px 16px', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', minHeight: 38 }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAddAdmin}
+                    disabled={teamLoading || !newAdmin.email || !newAdmin.name || newAdmin.password.length < 8}
+                    style={{ background: teamLoading || !newAdmin.email || !newAdmin.name || newAdmin.password.length < 8 ? 'rgba(201,169,110,0.4)' : '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '9px 18px', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: teamLoading ? 'wait' : 'pointer', minHeight: 38 }}
+                  >
+                    {teamLoading ? 'Creating...' : 'Create Admin'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowAddAdmin(true)}
+                style={{
+                  background: 'transparent',
+                  border: '1px dashed rgba(201,169,110,0.35)',
+                  color: '#C9A96E', borderRadius: 5,
+                  padding: '12px 18px', fontSize: 11, fontWeight: 700,
+                  letterSpacing: '0.12em', textTransform: 'uppercase',
+                  cursor: 'pointer', width: '100%', minHeight: 44,
+                }}
+              >
+                + Add Admin User
+              </button>
+            )}
+
+            {teamMsg && (
+              <p style={{ marginTop: 14, fontSize: 12, color: teamMsg.ok ? '#4ade80' : '#f87171' }}>
+                {teamMsg.ok ? '✓ ' : '✗ '}{teamMsg.text}
               </p>
             )}
           </div>
