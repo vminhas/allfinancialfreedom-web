@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 interface Birthday {
   id: string
@@ -168,22 +169,39 @@ function StatCard({ label, value, color, emoji }: { label: string; value: number
 }
 
 function BirthdayCard({ birthday, highlight }: { birthday: Birthday; highlight?: boolean }) {
+  const router = useRouter()
   const initials = `${birthday.firstName.charAt(0)}${birthday.lastName.charAt(0)}`
   const dobDate = new Date(birthday.dateOfBirth)
   const month = dobDate.toLocaleString(undefined, { month: 'short', timeZone: 'UTC' })
   const day = dobDate.getUTCDate()
 
+  const openProfile = () => {
+    router.push(`/vault/tracker?agentId=${birthday.id}`)
+  }
+
   return (
-    <div style={{
-      background: highlight ? 'linear-gradient(135deg, rgba(201,169,110,0.14), rgba(201,169,110,0.04))' : '#142D48',
-      border: `1px solid ${highlight ? 'rgba(201,169,110,0.45)' : 'rgba(201,169,110,0.08)'}`,
-      borderRadius: 6,
-      padding: '14px 16px',
-      display: 'flex',
-      alignItems: 'center',
-      gap: 12,
-      boxShadow: highlight ? '0 0 24px rgba(201,169,110,0.15)' : 'none',
-    }}>
+    <button
+      onClick={openProfile}
+      style={{
+        background: highlight ? 'linear-gradient(135deg, rgba(201,169,110,0.14), rgba(201,169,110,0.04))' : '#142D48',
+        border: `1px solid ${highlight ? 'rgba(201,169,110,0.45)' : 'rgba(201,169,110,0.08)'}`,
+        borderRadius: 6,
+        padding: '14px 16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        boxShadow: highlight ? '0 0 24px rgba(201,169,110,0.15)' : 'none',
+        cursor: 'pointer',
+        textAlign: 'left',
+        width: '100%',
+        transition: 'all 0.15s',
+      }}
+      onMouseEnter={e => {
+        if (!highlight) e.currentTarget.style.background = 'rgba(201,169,110,0.06)'
+      }}
+      onMouseLeave={e => {
+        if (!highlight) e.currentTarget.style.background = '#142D48'
+      }}>
       {/* Avatar */}
       <div style={{
         width: 44, height: 44, borderRadius: '50%',
@@ -231,6 +249,6 @@ function BirthdayCard({ birthday, highlight }: { birthday: Birthday; highlight?:
           ? 'Tomorrow'
           : `${birthday.daysUntil} days`}
       </div>
-    </div>
+    </button>
   )
 }

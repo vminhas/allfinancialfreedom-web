@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine,
@@ -208,14 +209,22 @@ export default function TrackerPage() {
   useEffect(() => { fetchTrainers() }, [fetchTrainers])
   useEffect(() => { fetchReviewStats() }, [fetchReviewStats])
 
-  const openDrawer = async (id: string) => {
+  const openDrawer = useCallback(async (id: string) => {
     setDrawerLoading(true)
     setSelectedAgent(null)
     const res = await fetch(`/api/admin/agents/${id}`)
     const data = await res.json() as DetailedAgent
     setSelectedAgent(data)
     setDrawerLoading(false)
-  }
+  }, [])
+
+  // Deep-link support: /vault/tracker?agentId=xxx auto-opens that agent's drawer
+  // (used by the birthday tracker, future quick-jump links, etc.)
+  const searchParams = useSearchParams()
+  useEffect(() => {
+    const agentId = searchParams.get('agentId')
+    if (agentId) openDrawer(agentId)
+  }, [searchParams, openDrawer])
 
   const updateCarrier = async (carrier: string, status: string, producerNumber: string) => {
     if (!selectedAgent) return
