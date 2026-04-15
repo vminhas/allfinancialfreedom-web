@@ -87,6 +87,17 @@ export default function TrainingsPage() {
 
   useEffect(() => { load() }, [load])
 
+  const previewAnnouncement = async () => {
+    setSyncMsg(null)
+    const res = await fetch('/api/admin/trainings/preview-announcement', { method: 'POST' })
+    const d = await res.json() as { posted?: boolean; event?: { title: string }; error?: string }
+    if (res.ok) {
+      setSyncMsg({ ok: true, text: `✓ Preview announcement posted to Discord for: ${d.event?.title ?? 'next upcoming event'}` })
+    } else {
+      setSyncMsg({ ok: false, text: d.error ?? 'Failed to post preview' })
+    }
+  }
+
   const clearStaleErrors = async () => {
     setSyncMsg(null)
     const res = await fetch('/api/admin/trainings/clear-stale-errors', { method: 'POST' })
@@ -233,6 +244,22 @@ export default function TrainingsPage() {
               }}
             >
               Clear Errors
+            </button>
+            <button
+              onClick={previewAnnouncement}
+              title="Post a 'live now' announcement for the next upcoming event so you can see what the T-15 reminder looks like in the real channel"
+              style={{
+                background: 'transparent',
+                color: '#4ade80',
+                border: '1px solid rgba(74,222,128,0.35)',
+                borderRadius: 4,
+                padding: '12px 16px', fontSize: 10, fontWeight: 700,
+                letterSpacing: '0.12em', textTransform: 'uppercase',
+                cursor: 'pointer',
+                minHeight: 44,
+              }}
+            >
+              📣 Preview Announcement
             </button>
           </div>
         </div>

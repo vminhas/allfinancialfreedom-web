@@ -71,11 +71,17 @@ const PHASE_CONTENT = {
 };
 
 // ─── Welcome embed ────────────────────────────────────────────────────────────
+// Note: user mentions inside embeds don't render as clickable names — Discord
+// treats them as raw <@id> text. So we use the member's displayName inside
+// the embed for a clean look, and put the actual @mention in the message
+// `content` (outside the embed) so the ping still fires and the name
+// renders as a clickable user link.
 function buildWelcomeEmbed(member) {
+  const name = member.displayName || member.user?.username || 'friend'
   return new EmbedBuilder()
     .setColor(COLORS.NAVY)
     .setTitle('Welcome to All Financial Freedom')
-    .setDescription(`Hey ${member}, we're thrilled to have you on the team.\n\n*Wealth · Protection · Legacy*`)
+    .setDescription(`Hey **${name}**, we're thrilled to have you on the team.\n\n*Wealth · Protection · Legacy*`)
     .addFields(
       { name: '📋 Get Started', value: `Read <#${CHANNELS.RULES}> to understand our community standards.`, inline: false },
       { name: '🚀 Your Journey', value: 'Your leader will assign your Phase 1 role to unlock your onboarding materials.', inline: false },
@@ -106,16 +112,22 @@ function buildPhaseEmbed(phaseData) {
 // New member joins
 client.on(Events.GuildMemberAdd, async (member) => {
   try {
-    // DM the new member
+    // DM the new member (no content mention needed in a DM)
     await member.send({ embeds: [buildWelcomeEmbed(member)] });
   } catch {
     // Member may have DMs disabled — that's okay
   }
 
-  // Post welcome in #welcome channel
+  // Post welcome in #welcome channel. Mention goes in `content` so it
+  // renders as a clickable @username + actually pings them. The embed
+  // itself uses the member's displayName in bold for a clean look.
   const welcomeChannel = member.guild.channels.cache.get(CHANNELS.WELCOME);
   if (welcomeChannel) {
-    await welcomeChannel.send({ embeds: [buildWelcomeEmbed(member)] });
+    await welcomeChannel.send({
+      content: `👋 Welcome <@${member.id}>!`,
+      embeds: [buildWelcomeEmbed(member)],
+      allowedMentions: { parse: ['users'] },
+    });
   }
 });
 
