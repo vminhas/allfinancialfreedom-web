@@ -1,7 +1,50 @@
 import Anthropic from '@anthropic-ai/sdk'
+import sharp from 'sharp'
 import { getSetting } from './settings'
 
 const MODEL_ID = 'claude-sonnet-4-5-20250929'
+
+// Anthropic vision caps source images at 5 MB base64. We target 4 MB raw to
+// leave headroom for base64 inflation (~1.33x). Anything larger gets resized
+// + recompressed via sharp before being sent.
+const MAX_RAW_BYTES = 4 * 1024 * 1024
+
+/**
+ * If the image is over the 4 MB budget, downscale it. Returns the original
+ * buffer + mimeType if it's already under the limit, or a freshly compressed
+ * JPEG buffer if it had to shrink. Always preserves enough resolution for
+ * Claude vision to read text on the flyer.
+ */
+async function shrinkIfNeeded(
+  buffer: Buffer,
+  mimeType: 'image/jpeg' | 'image/png'
+): Promise<{ buffer: Buffer; mimeType: 'image/jpeg' | 'image/png' }> {
+  if (buffer.byteLength <= MAX_RAW_BYTES) {
+    return { buffer, mimeType }
+  }
+
+  // Walk down the size ladder until we fit. JPEG quality 85 + max 1600px wide
+  // is plenty for OCR; rarely needs to drop further but the loop is defensive.
+  const widths = [1600, 1280, 1024, 800]
+  for (const width of widths) {
+    const out = await sharp(buffer, { failOn: 'none' })
+      .rotate()        // honour EXIF orientation
+      .resize({ width, withoutEnlargement: true })
+      .jpeg({ quality: 85, mozjpeg: true })
+      .toBuffer()
+    if (out.byteLength <= MAX_RAW_BYTES) {
+      return { buffer: out, mimeType: 'image/jpeg' }
+    }
+  }
+
+  // Last resort — aggressive crunch
+  const out = await sharp(buffer, { failOn: 'none' })
+    .rotate()
+    .resize({ width: 800, withoutEnlargement: true })
+    .jpeg({ quality: 70, mozjpeg: true })
+    .toBuffer()
+  return { buffer: out, mimeType: 'image/jpeg' }
+}
 
 const SYSTEM_PROMPT = `You are an extraction system for GFI / All Financial Freedom training event flyers.
 
@@ -64,6 +107,10 @@ export async function parseTrainingFlyer(params: {
 
   const client = new Anthropic({ apiKey })
 
+  // Auto-shrink oversized flyers (Anthropic vision caps at 5 MB base64).
+  // Several GFI flyers are 10-17 MB raw — we transparently resize + recompress.
+  const { buffer: shrunkBuffer, mimeType: finalMime } = await shrinkIfNeeded(params.imageBytes, params.mimeType)
+
   const message = await client.messages.create({
     model: MODEL_ID,
     max_tokens: 2048,
@@ -117,7 +164,7 @@ export async function parseTrainingFlyer(params: {
       {
         role: 'user',
         content: [
-          { type: 'image', source: { type: 'base64', media_type: params.mimeType, data: params.imageBytes.toString('base64') } },
+          { type: 'image', source: { type: 'base64', media_type: finalMime, data: shrunkBuffer.toString('base64') } },
           { type: 'text', text: `Extract structured event data from this flyer (filename: ${params.fileName}).` },
         ],
       },
