@@ -68,6 +68,14 @@ export default function TrainingsPage() {
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<SyncResponse | null>(null)
   const [syncMsg, setSyncMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [testingDiscord, setTestingDiscord] = useState(false)
+  const [discordTestResult, setDiscordTestResult] = useState<{
+    ok: boolean
+    summary: string
+    checks: { step: string; ok: boolean; detail?: string }[]
+    visibleGuilds?: { id: string; name: string }[]
+    botName?: string
+  } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -77,6 +85,28 @@ export default function TrainingsPage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  const runDiscordTest = async () => {
+    setTestingDiscord(true)
+    setDiscordTestResult(null)
+    try {
+      const res = await fetch('/api/admin/trainings/test-discord', { method: 'POST' })
+      const data = await res.json() as {
+        summary: string
+        checks: { step: string; ok: boolean; detail?: string }[]
+        visibleGuilds?: { id: string; name: string }[]
+        botName?: string
+      }
+      setDiscordTestResult({ ok: res.ok, ...data })
+    } catch (err) {
+      setDiscordTestResult({
+        ok: false,
+        summary: err instanceof Error ? err.message : String(err),
+        checks: [],
+      })
+    }
+    setTestingDiscord(false)
+  }
 
   const runSync = async (force: boolean) => {
     setSyncing(true)
@@ -125,7 +155,7 @@ export default function TrainingsPage() {
               Auto-synced hourly from the GFI Weekly Training Drive folder. Each flyer is parsed by Claude vision into a structured event. Edits in the AFF Concierge bot will fire 15 minutes before each training starts in the <strong style={{ color: '#C9A96E' }}>training-and-events</strong> Discord channel.
             </p>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button
               onClick={() => runSync(false)}
               disabled={syncing}
@@ -157,6 +187,23 @@ export default function TrainingsPage() {
             >
               Force
             </button>
+            <button
+              onClick={runDiscordTest}
+              disabled={testingDiscord}
+              title="Verify the Discord bot can reach the configured guild + channel"
+              style={{
+                background: 'transparent',
+                color: '#9B6DFF',
+                border: '1px solid rgba(155,109,255,0.35)',
+                borderRadius: 4,
+                padding: '12px 16px', fontSize: 10, fontWeight: 700,
+                letterSpacing: '0.12em', textTransform: 'uppercase',
+                cursor: testingDiscord ? 'wait' : 'pointer',
+                minHeight: 44,
+              }}
+            >
+              {testingDiscord ? 'Testing...' : '🛠 Test Discord'}
+            </button>
           </div>
         </div>
         {syncMsg && (
@@ -175,6 +222,61 @@ export default function TrainingsPage() {
                   <li key={i}>{e.fileName}: {e.error}</li>
                 ))}
               </ul>
+            )}
+          </div>
+        )}
+
+        {discordTestResult && (
+          <div style={{
+            marginTop: 14,
+            padding: '14px 16px',
+            background: discordTestResult.ok ? 'rgba(74,222,128,0.06)' : 'rgba(248,113,113,0.06)',
+            border: `1px solid ${discordTestResult.ok ? 'rgba(74,222,128,0.25)' : 'rgba(248,113,113,0.3)'}`,
+            borderRadius: 6,
+          }}>
+            <div style={{
+              fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase',
+              color: discordTestResult.ok ? '#4ade80' : '#f87171',
+              marginBottom: 10,
+            }}>
+              Discord smoke test {discordTestResult.ok ? '· passed' : '· failed'}
+            </div>
+            <div style={{ fontSize: 12, color: '#d1d9e2', marginBottom: 10 }}>
+              {discordTestResult.summary}
+            </div>
+            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 11, color: '#9BB0C4', lineHeight: 1.6 }}>
+              {discordTestResult.checks.map((c, i) => (
+                <li key={i}>
+                  <span style={{ color: c.ok ? '#4ade80' : '#f87171', fontWeight: 700 }}>
+                    {c.ok ? '✓' : '✗'}
+                  </span>{' '}
+                  {c.step}
+                  {c.detail && (
+                    <div style={{ color: '#6B8299', fontSize: 10, marginTop: 2, marginLeft: 14, fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                      {c.detail}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+            {discordTestResult.visibleGuilds && discordTestResult.visibleGuilds.length > 0 && (
+              <div style={{
+                marginTop: 12, padding: '10px 12px',
+                background: 'rgba(155,109,255,0.06)',
+                border: '1px solid rgba(155,109,255,0.25)',
+                borderRadius: 4,
+              }}>
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#9B6DFF', marginBottom: 6 }}>
+                  Guilds the bot can see — copy the right ID into DISCORD_GUILD_ID
+                </div>
+                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 11, color: '#d1d9e2', lineHeight: 1.6 }}>
+                  {discordTestResult.visibleGuilds.map(g => (
+                    <li key={g.id}>
+                      <strong>{g.name}</strong> — <code style={{ color: '#C9A96E', fontFamily: 'monospace', userSelect: 'all' }}>{g.id}</code>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </div>
         )}

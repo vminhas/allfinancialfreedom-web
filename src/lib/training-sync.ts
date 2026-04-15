@@ -132,6 +132,10 @@ export async function syncTrainingsFromDrive(opts: SyncOptions = {}): Promise<Sy
           const ok = await ensureDiscordEvent(existing.id)
           if (ok) stats.discordEventsCreated += 1
           else stats.discordErrors += 1
+          // Small spacing between Discord create calls — Discord rate-limits
+          // scheduled-event creation per-guild aggressively. discordFetch
+          // also handles 429s with retry-after, but spacing reduces churn.
+          await new Promise(r => setTimeout(r, 300))
         }
         continue
       }
@@ -166,6 +170,7 @@ export async function syncTrainingsFromDrive(opts: SyncOptions = {}): Promise<Sy
           stats.discordErrors += 1
           stats.errors.push({ fileName: `${file.name} (Discord)`, error: 'Discord event creation failed — see row parseError' })
         }
+        await new Promise(r => setTimeout(r, 300))
       }
     } catch (err) {
       stats.parseErrors += 1

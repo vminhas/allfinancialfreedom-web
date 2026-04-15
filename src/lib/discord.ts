@@ -29,6 +29,59 @@ function authHeaders(): HeadersInit {
   }
 }
 
+/**
+ * Fetch wrapper that handles Discord rate limits (HTTP 429). Reads the
+ * `retry_after` field from the response and sleeps for that many seconds
+ * before retrying. Up to 3 retries per call.
+ */
+async function discordFetch(url: string, init: RequestInit, attempts = 3): Promise<Response> {
+  for (let i = 0; i < attempts; i++) {
+    const res = await fetch(url, init)
+    if (res.status !== 429) return res
+    let retryAfter = 1
+    try {
+      const body = await res.clone().json() as { retry_after?: number }
+      if (typeof body.retry_after === 'number') retryAfter = body.retry_after
+    } catch { /* fall back to 1s */ }
+    // Add a small jitter so multiple parallel calls don't all wake at once
+    const sleepMs = Math.ceil(retryAfter * 1000) + 250
+    await new Promise(r => setTimeout(r, sleepMs))
+  }
+  // Final attempt — return whatever we get even if it's a 429
+  return fetch(url, init)
+}
+
+// ─── Bot identity / guild membership (diagnostics) ────────────────────────────
+
+export interface DiscordBotIdentity {
+  id: string
+  username: string
+  discriminator?: string
+}
+
+export interface DiscordGuildSummary {
+  id: string
+  name: string
+}
+
+export async function getBotIdentity(): Promise<DiscordBotIdentity> {
+  const res = await discordFetch(`${API}/users/@me`, { headers: authHeaders() })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Discord getBotIdentity failed (${res.status}): ${text.slice(0, 300)}`)
+  }
+  return res.json() as Promise<DiscordBotIdentity>
+}
+
+export async function listBotGuilds(): Promise<DiscordGuildSummary[]> {
+  const res = await discordFetch(`${API}/users/@me/guilds`, { headers: authHeaders() })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Discord listBotGuilds failed (${res.status}): ${text.slice(0, 300)}`)
+  }
+  return res.json() as Promise<DiscordGuildSummary[]>
+}
+
 // ─── Guild scheduled events ──────────────────────────────────────────────────
 
 export interface DiscordScheduledEventInput {
@@ -64,7 +117,7 @@ export async function createGuildScheduledEvent(
     body.image = `data:image/jpeg;base64,${input.imageBase64}`
   }
 
-  const res = await fetch(`${API}/guilds/${guildId()}/scheduled-events`, {
+  const res = await discordFetch(`${API}/guilds/${guildId()}/scheduled-events`, {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify(body),
@@ -77,7 +130,7 @@ export async function createGuildScheduledEvent(
 }
 
 export async function deleteGuildScheduledEvent(eventId: string): Promise<void> {
-  const res = await fetch(`${API}/guilds/${guildId()}/scheduled-events/${eventId}`, {
+  const res = await discordFetch(`${API}/guilds/${guildId()}/scheduled-events/${eventId}`, {
     method: 'DELETE',
     headers: authHeaders(),
   })
@@ -116,7 +169,7 @@ export async function sendChannelMessage(channelId: string, payload: {
     }
   }
 
-  const res = await fetch(`${API}/channels/${channelId}/messages`, {
+  const res = await discordFetch(`${API}/channels/${channelId}/messages`, {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify(body),
