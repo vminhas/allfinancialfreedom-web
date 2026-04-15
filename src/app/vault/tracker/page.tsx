@@ -6,6 +6,7 @@ import {
   ResponsiveContainer, ReferenceLine,
 } from 'recharts'
 import { PHASE_LABELS, CARRIERS, getAtRiskStatus, PHASE_ITEMS } from '@/lib/agent-constants'
+import CallReviewModal, { CallReviewData } from '@/components/CallReviewModal'
 
 interface Agent {
   id: string
@@ -27,6 +28,9 @@ interface Agent {
   carriersTotal: number
   milestoneCount: number
   createdAt: string
+  callScore30d: number | null
+  callReviewCount30d: number
+  openCoachingFlags: number
 }
 
 interface CarrierAppointment {
@@ -120,9 +124,13 @@ export default function TrackerPage() {
 
   // Table-only filters
   const [newThisMonthOnly, setNewThisMonthOnly] = useState(false)
+  const [flaggedCoachingOnly, setFlaggedCoachingOnly] = useState(false)
 
   // Trainer list for dropdowns
   const [trainers, setTrainers] = useState<string[]>([])
+
+  // Team-wide call review stats
+  const [reviewStats, setReviewStats] = useState<{ teamAvg30d: number | null; teamAvgPrior30d: number | null; delta: number | null; flaggedOpenCount: number; totalReviews: number; reviewedAgents30d: number } | null>(null)
 
   // Derive actual date range from preset
   function getDateRange(): { start: string; end: string } | null {
@@ -186,10 +194,19 @@ export default function TrackerPage() {
     }
   }, [])
 
+  const fetchReviewStats = useCallback(async () => {
+    const res = await fetch('/api/admin/call-reviews/stats')
+    if (res.ok) {
+      const data = await res.json() as { teamAvg30d: number | null; teamAvgPrior30d: number | null; delta: number | null; flaggedOpenCount: number; totalReviews: number; reviewedAgents30d: number }
+      setReviewStats(data)
+    }
+  }, [])
+
   useEffect(() => { fetchAgents() }, [fetchAgents])
   useEffect(() => { fetchStats() }, [fetchStats])
   useEffect(() => { fetchTrends() }, [fetchTrends])
   useEffect(() => { fetchTrainers() }, [fetchTrainers])
+  useEffect(() => { fetchReviewStats() }, [fetchReviewStats])
 
   const openDrawer = async (id: string) => {
     setDrawerLoading(true)
@@ -262,12 +279,19 @@ export default function TrackerPage() {
     setInviteLoading(false)
   }
 
-  const displayedAgents = atRiskOnly
-    ? agents.filter(a => {
+  const displayedAgents = (() => {
+    let list = agents
+    if (atRiskOnly) {
+      list = list.filter(a => {
         const s = getAtRiskStatus(a.phase, a.phaseStartedAt ? new Date(a.phaseStartedAt) : null, a.phaseCompleted, a.phaseTotal)
         return s !== 'on-track'
       })
-    : agents
+    }
+    if (flaggedCoachingOnly) {
+      list = list.filter(a => a.openCoachingFlags > 0)
+    }
+    return list
+  })()
 
   // KPI card filter states
   const activeAgentsFilterOn = statusFilter === 'active'
@@ -389,6 +413,30 @@ export default function TrackerPage() {
               <div style={{ fontSize: 28, fontWeight: 600, color: '#9BB0C4', lineHeight: 1, marginBottom: 4 }}>{stats.totalAgents}</div>
               <div style={{ fontSize: 11, color: '#4B5563' }}>all time</div>
             </div>
+            {/* Avg Call Score (30d) */}
+            {reviewStats && (
+              <div
+                onClick={() => { setFlaggedCoachingOnly(v => !v); setPage(1) }}
+                style={{
+                  background: flaggedCoachingOnly ? 'rgba(155,109,255,0.08)' : '#142D48',
+                  border: `1px solid ${flaggedCoachingOnly ? 'rgba(155,109,255,0.3)' : 'rgba(201,169,110,0.08)'}`,
+                  borderRadius: 6, padding: '16px 20px', cursor: 'pointer', transition: 'all 0.15s',
+                }}
+                title="Click to show only agents with open coaching flags"
+              >
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#6B8299', marginBottom: 8 }}>Avg Call Score</div>
+                <div style={{ fontSize: 28, fontWeight: 600, color: reviewStats.teamAvg30d != null ? (reviewStats.teamAvg30d >= 80 ? '#4ade80' : reviewStats.teamAvg30d >= 60 ? '#f59e0b' : '#f87171') : '#4B5563', lineHeight: 1, marginBottom: 4 }}>
+                  {reviewStats.teamAvg30d ?? '—'}
+                </div>
+                <div style={{ fontSize: 11, color: flaggedCoachingOnly ? '#9B6DFF' : '#4B5563' }}>
+                  {flaggedCoachingOnly ? '✕ clear filter' : (
+                    reviewStats.delta != null
+                      ? `${reviewStats.delta >= 0 ? '+' : ''}${reviewStats.delta} vs prior 30d · ${reviewStats.flaggedOpenCount} flagged`
+                      : `${reviewStats.flaggedOpenCount} flagged for coaching`
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Phase pipeline + trend chart side by side */}
@@ -606,10 +654,10 @@ export default function TrackerPage() {
         borderRadius: 6, overflow: 'hidden',
       }}>
         <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-        <table style={{ width: '100%', minWidth: 900, borderCollapse: 'collapse' }}>
+        <table style={{ width: '100%', minWidth: 1000, borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: 'rgba(12,30,48,0.8)' }}>
-              {['Agent', 'State', 'Phase', 'Progress', 'Days', 'Carriers', 'Trainer', 'Status', ''].map(h => (
+              {['Agent', 'State', 'Phase', 'Progress', 'Days', 'Carriers', 'Call Score', 'Trainer', 'Status', ''].map(h => (
                 <th key={h} style={{
                   padding: '11px 16px', textAlign: 'left',
                   fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase',
@@ -624,7 +672,7 @@ export default function TrackerPage() {
             {loading ? (
               [...Array(8)].map((_, i) => (
                 <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                  {[...Array(9)].map((_, j) => (
+                  {[...Array(10)].map((_, j) => (
                     <td key={j} style={{ padding: '14px 16px' }}>
                       <div style={{ height: 11, background: 'rgba(255,255,255,0.04)', borderRadius: 4, width: `${40 + Math.random() * 40}%`, animation: 'pulse 1.5s ease-in-out infinite' }} />
                     </td>
@@ -707,6 +755,23 @@ export default function TrackerPage() {
                         {agent.carriersAppointed}
                       </span>
                       <span style={{ fontSize: 10, color: '#4B5563' }}>/{agent.carriersTotal}</span>
+                    </td>
+                    <td style={{ padding: '13px 16px' }}>
+                      {agent.callScore30d != null ? (
+                        <span style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 4,
+                          padding: '3px 10px', borderRadius: 4,
+                          fontSize: 11, fontWeight: 700,
+                          background: `${agent.callScore30d >= 80 ? '#4ade80' : agent.callScore30d >= 60 ? '#f59e0b' : '#f87171'}14`,
+                          color: agent.callScore30d >= 80 ? '#4ade80' : agent.callScore30d >= 60 ? '#f59e0b' : '#f87171',
+                          border: `1px solid ${agent.callScore30d >= 80 ? '#4ade80' : agent.callScore30d >= 60 ? '#f59e0b' : '#f87171'}40`,
+                        }}>
+                          {agent.callScore30d}
+                          {agent.openCoachingFlags > 0 && <span title={`${agent.openCoachingFlags} open flag(s)`}>⚑</span>}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: 11, color: '#4B5563' }}>—</span>
+                      )}
                     </td>
                     <td style={{ padding: '13px 16px', fontSize: 12, color: '#9BB0C4' }}>{agent.cft ?? '—'}</td>
                     <td style={{ padding: '13px 16px' }}>
@@ -830,7 +895,7 @@ function AgentDrawer({
   trainers: string[]
   onClose: () => void
 }) {
-  const [activeTab, setActiveTab] = useState<'progress' | 'carriers' | 'info' | 'edit'>('progress')
+  const [activeTab, setActiveTab] = useState<'progress' | 'carriers' | 'calls' | 'info' | 'edit'>('progress')
   const [editingCarrier, setEditingCarrier] = useState<string | null>(null)
   const [carrierStatus, setCarrierStatus] = useState('')
   const [carrierPN, setCarrierPN] = useState('')
@@ -1083,21 +1148,21 @@ function AgentDrawer({
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        {(['progress', 'carriers', 'info', 'edit'] as const).map(tab => (
+      <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid rgba(255,255,255,0.06)', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        {(['progress', 'carriers', 'calls', 'info', 'edit'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             style={{
               background: 'none', border: 'none',
-              padding: '8px 14px', cursor: 'pointer',
+              padding: '10px 14px', cursor: 'pointer', whiteSpace: 'nowrap',
               fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase',
               color: activeTab === tab ? '#C9A96E' : '#6B8299',
               borderBottom: activeTab === tab ? '2px solid #C9A96E' : '2px solid transparent',
               marginBottom: -1,
             }}
           >
-            {tab === 'progress' ? `Phase ${agent.phase}` : tab}
+            {tab === 'progress' ? `Phase ${agent.phase}` : tab === 'calls' ? 'Call Reviews' : tab}
           </button>
         ))}
       </div>
@@ -1211,6 +1276,11 @@ function AgentDrawer({
             })}
           </div>
         </div>
+      )}
+
+      {/* Call Reviews tab */}
+      {activeTab === 'calls' && (
+        <CallReviewsDrawerTab agentProfileId={agent.id} agentName={`${agent.firstName} ${agent.lastName}`} />
       )}
 
       {/* Info tab */}
@@ -1556,4 +1626,243 @@ function AddAgentModal({ onClose, onCreated, trainers }: { onClose: () => void; 
       </div>
     </div>
   )
+}
+
+// ─── Call Reviews Drawer Tab (admin view) ─────────────────────────────────────
+
+interface AdminReview {
+  id: string
+  overallScore: number
+  rubricScores: { opening: number; discovery: number; product: number; objections: number; closing: number; tone: number }
+  strengths: string[]
+  weaknesses: string[]
+  coachingTips: string[]
+  nextSteps: string[]
+  summary: string
+  flaggedForCoaching: boolean
+  adminNotes: string | null
+  discussedAt: string | null
+  reviewedAt: string
+  callLog: {
+    id: string
+    callDate: string
+    contactName: string
+    subject: string | null
+    transcriptText: string | null
+  }
+}
+
+interface DrawerStats {
+  totalReviews: number
+  avgOverall: number
+  avgRubric: Record<string, number>
+  flaggedCount: number
+  recentAvg: number | null
+}
+
+function CallReviewsDrawerTab({ agentProfileId, agentName }: { agentProfileId: string; agentName: string }) {
+  const [reviews, setReviews] = useState<AdminReview[]>([])
+  const [stats, setStats] = useState<DrawerStats | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [viewing, setViewing] = useState<AdminReview | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    const res = await fetch(`/api/admin/agents/${agentProfileId}/call-reviews`)
+    if (res.ok) {
+      const d = await res.json() as { reviews: AdminReview[]; aggregate: DrawerStats | null }
+      setReviews(d.reviews)
+      setStats(d.aggregate)
+    }
+    setLoading(false)
+  }, [agentProfileId])
+
+  useEffect(() => { load() }, [load])
+
+  const updateReview = async (reviewId: string, patch: { adminNotes?: string | null; discussedAt?: string | null; flaggedForCoaching?: boolean }) => {
+    const res = await fetch(`/api/admin/call-reviews/${reviewId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    })
+    if (res.ok) {
+      const d = await res.json() as { review: AdminReview }
+      setReviews(prev => prev.map(r => r.id === reviewId ? { ...r, ...d.review } : r))
+      if (viewing?.id === reviewId) setViewing({ ...viewing, ...d.review })
+    }
+  }
+
+  if (loading) {
+    return <div style={{ color: '#6B8299', fontSize: 13, padding: '20px 0' }}>Loading reviews...</div>
+  }
+
+  if (reviews.length === 0) {
+    return (
+      <div>
+        <ExplainerBanner />
+        <div style={{
+          marginTop: 16, padding: '24px 18px', textAlign: 'center',
+          background: 'rgba(255,255,255,0.02)',
+          border: '1px dashed rgba(201,169,110,0.15)', borderRadius: 6,
+        }}>
+          <div style={{ fontSize: 13, color: '#9BB0C4', marginBottom: 4 }}>No call reviews yet</div>
+          <div style={{ fontSize: 11, color: '#6B8299' }}>
+            {agentName.split(' ')[0]} hasn&apos;t submitted any transcripts for AI review. Encourage them to paste Fathom transcripts in the Calls tab of their portal.
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <ExplainerBanner />
+
+      {/* Aggregate stats */}
+      {stats && (
+        <div style={{ marginTop: 16, marginBottom: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10, marginBottom: 16 }}>
+            <MiniStat label="30-day avg" value={stats.recentAvg != null ? `${stats.recentAvg}` : '—'} color={stats.recentAvg != null ? scoreColor(stats.recentAvg) : '#6B8299'} />
+            <MiniStat label="All-time avg" value={`${stats.avgOverall}`} color={scoreColor(stats.avgOverall)} />
+            <MiniStat label="Reviews" value={`${stats.totalReviews}`} color="#9BB0C4" />
+            <MiniStat label="Flagged" value={`${stats.flaggedCount}`} color={stats.flaggedCount > 0 ? '#f87171' : '#4ade80'} />
+          </div>
+
+          {/* Rubric averages */}
+          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 10 }}>
+            Rubric averages
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {([
+              ['opening', 'Opening & Rapport'],
+              ['discovery', 'Discovery & Needs'],
+              ['product', 'Product Knowledge'],
+              ['objections', 'Objection Handling'],
+              ['closing', 'Closing & Next Steps'],
+              ['tone', 'Tone & Empathy'],
+            ] as const).map(([key, label]) => {
+              const score = stats.avgRubric[key] ?? 0
+              const color = scoreColor(score)
+              return (
+                <div key={key} style={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 11, color: '#9BB0C4', marginBottom: 3 }}>{label}</div>
+                    <div style={{ height: 5, background: 'rgba(255,255,255,0.05)', borderRadius: 3, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${score}%`, background: color, borderRadius: 3 }} />
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color, minWidth: 28, textAlign: 'right' }}>{score}</div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Recent reviews list */}
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 10 }}>
+        Recent Reviews
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {reviews.map(r => {
+          const color = scoreColor(r.overallScore)
+          return (
+            <button
+              key={r.id}
+              onClick={() => setViewing(r)}
+              style={{
+                textAlign: 'left', width: '100%',
+                background: 'rgba(255,255,255,0.02)',
+                border: `1px solid ${r.flaggedForCoaching && !r.discussedAt ? 'rgba(248,113,113,0.3)' : 'rgba(201,169,110,0.08)'}`,
+                borderRadius: 6, padding: '12px 14px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.02)' }}
+            >
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 13, color: '#ffffff', fontWeight: 500 }}>{r.callLog.contactName}</div>
+                <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2 }}>
+                  {new Date(r.callLog.callDate).toLocaleDateString()}
+                  {r.discussedAt && <span style={{ color: '#4ade80', marginLeft: 8 }}>✓ Discussed</span>}
+                  {r.flaggedForCoaching && !r.discussedAt && <span style={{ color: '#f87171', marginLeft: 8 }}>⚑ Needs coaching</span>}
+                </div>
+              </div>
+              <div style={{
+                fontSize: 14, fontWeight: 700, color,
+                padding: '6px 12px', borderRadius: 4,
+                background: `${color}12`, border: `1px solid ${color}40`,
+                minWidth: 44, textAlign: 'center',
+              }}>
+                {r.overallScore}
+              </div>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Review detail modal */}
+      {viewing && (
+        <CallReviewModal
+          review={{
+            id: viewing.id,
+            overallScore: viewing.overallScore,
+            rubricScores: viewing.rubricScores,
+            strengths: viewing.strengths,
+            weaknesses: viewing.weaknesses,
+            coachingTips: viewing.coachingTips,
+            nextSteps: viewing.nextSteps,
+            summary: viewing.summary,
+            flaggedForCoaching: viewing.flaggedForCoaching,
+            adminNotes: viewing.adminNotes,
+            discussedAt: viewing.discussedAt,
+            reviewedAt: viewing.reviewedAt,
+          } as CallReviewData}
+          callDate={viewing.callLog.callDate}
+          contactName={viewing.callLog.contactName}
+          adminMode
+          onClose={() => setViewing(null)}
+          onAdminUpdate={async (patch) => {
+            await updateReview(viewing.id, patch)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function ExplainerBanner() {
+  return (
+    <div style={{
+      padding: '12px 14px',
+      background: 'rgba(155,109,255,0.06)',
+      border: '1px solid rgba(155,109,255,0.2)',
+      borderRadius: 6,
+      fontSize: 11,
+      color: '#9BB0C4',
+      lineHeight: 1.55,
+    }}>
+      <strong style={{ color: '#9B6DFF' }}>What you&apos;re looking at:</strong> Claude reviews each call transcript against the AFF rubric (opening, discovery, product, objections, closing, tone) and scores it 0-100. Reviews flagged for coaching scored below 60 overall or had at least one weak dimension under 50. Use the aggregate to spot patterns and the recent list to coach specific calls.
+    </div>
+  )
+}
+
+function MiniStat({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div style={{
+      background: '#0C1E30',
+      border: '1px solid rgba(201,169,110,0.1)',
+      borderRadius: 5, padding: '10px 12px',
+    }}>
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#6B8299', marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 700, color, lineHeight: 1 }}>{value}</div>
+    </div>
+  )
+}
+
+function scoreColor(score: number) {
+  if (score >= 80) return '#4ade80'
+  if (score >= 60) return '#f59e0b'
+  return '#f87171'
 }

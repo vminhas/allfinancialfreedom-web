@@ -7,6 +7,8 @@ import {
   PHASE_LABELS, PHASE_ITEMS, CARRIERS,
   CARRIER_UNLOCK_PHASE, LICENSING_CHECKLIST, SYSTEM_PROGRESSIONS,
 } from '@/lib/agent-constants'
+import CallReviewModal, { CallReviewData } from '@/components/CallReviewModal'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 interface PhaseProgress { phase: number; total: number; completed: number; pct: number }
 interface PhaseItem { phase: number; itemKey: string; completed: boolean; completedAt: string | null }
@@ -1439,69 +1441,469 @@ function PoliciesTab() {
 
 // ─── Call Logs Tab ─────────────────────────────────────────────────────────────
 
+interface CallLogRow {
+  id: string
+  callDate: string
+  contactName: string
+  phoneNumber: string | null
+  subject: string | null
+  result: string | null
+  followUpNeeded: boolean
+  review: {
+    id: string
+    overallScore: number
+    flaggedForCoaching: boolean
+    reviewedAt: string
+  } | null
+}
+
 function CallLogsTab() {
-  const [calls, setCalls] = useState<{ id: string; callDate: string; contactName: string; phoneNumber: string | null; subject: string | null; result: string | null; followUpNeeded: boolean }[]>([])
+  const isMobile = useIsMobile()
+  const [calls, setCalls] = useState<CallLogRow[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ callDate: '', contactName: '', phoneNumber: '', subject: '', result: '', followUpNeeded: false })
+  const [form, setForm] = useState({
+    callDate: new Date().toISOString().split('T')[0],
+    contactName: '',
+    phoneNumber: '',
+    subject: '',
+    result: '',
+    followUpNeeded: false,
+    transcriptText: '',
+  })
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+  const [analyzingCallIds, setAnalyzingCallIds] = useState<Set<string>>(new Set())
+  const [viewingReview, setViewingReview] = useState<{ call: CallLogRow; review: CallReviewData } | null>(null)
 
-  useEffect(() => {
-    fetch('/api/agents/calls').then(r => r.json()).then((d: { calls: typeof calls }) => { setCalls(d.calls ?? []); setLoading(false) })
+  const fetchCalls = useCallback(() => {
+    fetch('/api/agents/calls')
+      .then(r => r.json())
+      .then((d: { calls: CallLogRow[] }) => {
+        setCalls(d.calls ?? [])
+        setLoading(false)
+      })
   }, [])
+
+  useEffect(() => { fetchCalls() }, [fetchCalls])
+
+  // Poll for review completion on any analyzing calls
+  useEffect(() => {
+    if (analyzingCallIds.size === 0) return
+    const timer = setInterval(async () => {
+      for (const callId of analyzingCallIds) {
+        const res = await fetch(`/api/agents/calls/${callId}/review`)
+        if (res.ok) {
+          const data = await res.json() as { review: CallReviewData | null }
+          if (data.review) {
+            setAnalyzingCallIds(prev => {
+              const next = new Set(prev)
+              next.delete(callId)
+              return next
+            })
+            setCalls(prev => prev.map(c => c.id === callId ? {
+              ...c,
+              review: {
+                id: data.review!.id,
+                overallScore: data.review!.overallScore,
+                flaggedForCoaching: data.review!.flaggedForCoaching,
+                reviewedAt: data.review!.reviewedAt,
+              },
+            } : c))
+          }
+        }
+      }
+    }, 2500)
+    return () => clearInterval(timer)
+  }, [analyzingCallIds])
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault()
-    const res = await fetch('/api/agents/calls', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
-    const c = await res.json() as typeof calls[0]
-    setCalls(prev => [c, ...prev])
-    setForm({ callDate: '', contactName: '', phoneNumber: '', subject: '', result: '', followUpNeeded: false })
-    setShowForm(false)
+    setSubmitting(true)
+    setError('')
+    try {
+      const res = await fetch('/api/agents/calls', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      if (!res.ok) {
+        const d = await res.json() as { error?: string }
+        setError(d.error ?? 'Failed to save call')
+        setSubmitting(false)
+        return
+      }
+      const data = await res.json() as { call: CallLogRow; hasTranscript: boolean }
+      const newCall: CallLogRow = { ...data.call, review: null }
+      setCalls(prev => [newCall, ...prev])
+      setForm({
+        callDate: new Date().toISOString().split('T')[0],
+        contactName: '', phoneNumber: '', subject: '', result: '',
+        followUpNeeded: false, transcriptText: '',
+      })
+      setShowForm(false)
+      setSubmitting(false)
+
+      // If transcript submitted, trigger analysis
+      if (data.hasTranscript) {
+        setAnalyzingCallIds(prev => new Set(prev).add(newCall.id))
+        fetch(`/api/agents/calls/${newCall.id}/review`, { method: 'POST' })
+          .then(r => r.json())
+          .then((d: { review?: CallReviewData; error?: string }) => {
+            if (d.review) {
+              setAnalyzingCallIds(prev => {
+                const next = new Set(prev)
+                next.delete(newCall.id)
+                return next
+              })
+              setCalls(prev => prev.map(c => c.id === newCall.id ? {
+                ...c,
+                review: {
+                  id: d.review!.id,
+                  overallScore: d.review!.overallScore,
+                  flaggedForCoaching: d.review!.flaggedForCoaching,
+                  reviewedAt: d.review!.reviewedAt,
+                },
+              } : c))
+            } else if (d.error) {
+              setAnalyzingCallIds(prev => {
+                const next = new Set(prev)
+                next.delete(newCall.id)
+                return next
+              })
+              setError(d.error)
+            }
+          })
+      }
+    } catch {
+      setError('Network error — please try again')
+      setSubmitting(false)
+    }
   }
 
+  const openReview = async (call: CallLogRow) => {
+    if (!call.review) return
+    const res = await fetch(`/api/agents/calls/${call.id}/review`)
+    if (!res.ok) return
+    const data = await res.json() as { review: CallReviewData | null }
+    if (data.review) setViewingReview({ call, review: data.review })
+  }
+
+  const formRow: React.CSSProperties = isMobile
+    ? { display: 'flex', flexDirection: 'column', gap: 12 }
+    : { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }
+
   return (
-    <div style={{ ...card, padding: '24px 28px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div style={sectionLabel}>Call Logs ({calls.length})</div>
-        <button onClick={() => setShowForm(!showForm)} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>+ Log Call</button>
+    <>
+      <div style={{ ...card, padding: isMobile ? '18px 16px' : '24px 28px' }}>
+        {/* ── Hero explainer card ── */}
+        <div style={{
+          marginBottom: 20,
+          padding: '16px 18px',
+          borderRadius: 6,
+          background: 'linear-gradient(135deg, rgba(201,169,110,0.08), rgba(201,169,110,0.02))',
+          border: '1px solid rgba(201,169,110,0.2)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: '50%',
+              background: 'rgba(201,169,110,0.15)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: '1px solid rgba(201,169,110,0.35)',
+              flexShrink: 0,
+            }}>
+              <span style={{ color: '#C9A96E', fontSize: 13 }}>◆</span>
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#ffffff' }}>AI Call Coaching</div>
+          </div>
+          <div style={{ fontSize: 12, color: '#9BB0C4', lineHeight: 1.55 }}>
+            After each call, paste your Fathom transcript here. Claude reviews it against the AFF methodology and gives you concrete coaching tips in about 10 seconds. Your scores stay private — they&apos;re for your growth, not a leaderboard. Trainers can see them to coach you, but nothing affects phase promotion.
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 10, flexWrap: 'wrap' }}>
+          <div style={sectionLabel}>Call Logs ({calls.length})</div>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            style={{
+              background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4,
+              padding: '10px 16px', fontSize: 11, fontWeight: 700,
+              letterSpacing: '0.1em', textTransform: 'uppercase',
+              cursor: 'pointer', minHeight: 40,
+            }}
+          >
+            {showForm ? 'Cancel' : '+ Log Call'}
+          </button>
+        </div>
+
+        {showForm && (
+          <form
+            onSubmit={add}
+            style={{
+              marginBottom: 20,
+              display: 'flex', flexDirection: 'column', gap: 12,
+              padding: 16, background: 'rgba(255,255,255,0.02)',
+              borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)',
+            }}
+          >
+            <div style={formRow}>
+              <div>
+                <label style={fieldLabel}>Date *</label>
+                <input
+                  required type="date" style={inputStyle}
+                  value={form.callDate}
+                  onChange={e => setForm(f => ({ ...f, callDate: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label style={fieldLabel}>Contact Name *</label>
+                <input
+                  required style={inputStyle}
+                  value={form.contactName}
+                  onChange={e => setForm(f => ({ ...f, contactName: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div style={formRow}>
+              <div>
+                <label style={fieldLabel}>Phone</label>
+                <input
+                  style={inputStyle} inputMode="tel"
+                  value={form.phoneNumber}
+                  onChange={e => setForm(f => ({ ...f, phoneNumber: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label style={fieldLabel}>Subject</label>
+                <input
+                  style={inputStyle}
+                  value={form.subject}
+                  onChange={e => setForm(f => ({ ...f, subject: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div>
+              <label style={fieldLabel}>Result</label>
+              <input
+                style={inputStyle}
+                placeholder="e.g. scheduled follow-up, client signed, not interested"
+                value={form.result}
+                onChange={e => setForm(f => ({ ...f, result: e.target.value }))}
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 32 }}>
+              <input
+                type="checkbox" id="fu"
+                checked={form.followUpNeeded}
+                onChange={e => setForm(f => ({ ...f, followUpNeeded: e.target.checked }))}
+                style={{ accentColor: '#C9A96E', width: 16, height: 16 }}
+              />
+              <label htmlFor="fu" style={{ fontSize: 12, color: '#9BB0C4', cursor: 'pointer' }}>
+                Follow-up needed
+              </label>
+            </div>
+
+            {/* Transcript section */}
+            <div style={{ borderTop: '1px dashed rgba(201,169,110,0.15)', paddingTop: 14, marginTop: 4 }}>
+              <label style={{ ...fieldLabel, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ color: '#C9A96E' }}>◆</span> Paste Fathom Transcript (optional)
+              </label>
+              <textarea
+                value={form.transcriptText}
+                onChange={e => setForm(f => ({ ...f, transcriptText: e.target.value }))}
+                placeholder="Paste your Fathom transcript here to get AI coaching feedback. Needs at least 100 words. From Fathom: open the call, click Share, choose Copy Transcript."
+                rows={isMobile ? 6 : 7}
+                style={{
+                  ...inputStyle,
+                  minHeight: 140, fontFamily: 'inherit',
+                  resize: 'vertical',
+                  lineHeight: 1.5,
+                }}
+              />
+              {form.transcriptText.trim().length > 0 && (
+                <div style={{ fontSize: 10, color: '#6B8299', marginTop: 4 }}>
+                  {form.transcriptText.trim().split(/\s+/).length} words — Claude will review this after you save.
+                </div>
+              )}
+            </div>
+
+            {error && (
+              <div style={{ fontSize: 11, color: '#f87171', padding: '8px 12px', background: 'rgba(248,113,113,0.08)', borderRadius: 4, border: '1px solid rgba(248,113,113,0.2)' }}>
+                {error}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8, flexDirection: isMobile ? 'column-reverse' : 'row', paddingTop: 4 }}>
+              <button
+                type="button"
+                onClick={() => setShowForm(false)}
+                disabled={submitting}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  color: '#9BB0C4', borderRadius: 4,
+                  padding: '12px 18px', fontSize: 11, fontWeight: 700,
+                  letterSpacing: '0.1em', textTransform: 'uppercase',
+                  cursor: submitting ? 'wait' : 'pointer',
+                  minHeight: 44, flex: isMobile ? undefined : 'none',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitting}
+                style={{
+                  background: submitting ? 'rgba(201,169,110,0.5)' : '#C9A96E',
+                  color: '#142D48', border: 'none', borderRadius: 4,
+                  padding: '12px 20px', fontSize: 11, fontWeight: 700,
+                  letterSpacing: '0.1em', textTransform: 'uppercase',
+                  cursor: submitting ? 'wait' : 'pointer',
+                  minHeight: 44, flex: 1,
+                }}
+              >
+                {submitting ? 'Saving...' : (form.transcriptText.trim() ? 'Save & Analyze' : 'Save Call')}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {loading ? (
+          <div style={{ color: '#6B8299', fontSize: 13 }}>Loading...</div>
+        ) : calls.length === 0 ? (
+          <div style={{ color: '#6B8299', fontSize: 13, padding: '20px 0' }}>
+            No calls logged yet. Click <strong style={{ color: '#C9A96E' }}>+ Log Call</strong> to get started.
+          </div>
+        ) : isMobile ? (
+          // Mobile: stacked cards
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {calls.map(c => <CallRowMobile key={c.id} call={c} analyzing={analyzingCallIds.has(c.id)} onViewReview={() => openReview(c)} />)}
+          </div>
+        ) : (
+          // Desktop: table
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: 720, borderCollapse: 'collapse' }}>
+              <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                {['Date', 'Contact', 'Subject', 'Result', 'Follow Up', 'AI Review'].map(h => (
+                  <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#C9A96E' }}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {calls.map(c => (
+                  <tr key={c.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{new Date(c.callDate).toLocaleDateString()}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#ffffff' }}>{c.contactName}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{c.subject ?? '—'}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{c.result ?? '—'}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: c.followUpNeeded ? '#f59e0b' : '#4B5563' }}>{c.followUpNeeded ? 'Yes' : 'No'}</td>
+                    <td style={{ padding: '10px 12px' }}>
+                      <ReviewCell call={c} analyzing={analyzingCallIds.has(c.id)} onClick={() => openReview(c)} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
-      {showForm && (
-        <form onSubmit={add} style={{ marginBottom: 20, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, padding: 16, background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)' }}>
-          <div><label style={fieldLabel}>Date *</label><input required type="date" style={inputStyle} value={form.callDate} onChange={e => setForm(f => ({ ...f, callDate: e.target.value }))} /></div>
-          <div><label style={fieldLabel}>Contact Name *</label><input required style={inputStyle} value={form.contactName} onChange={e => setForm(f => ({ ...f, contactName: e.target.value }))} /></div>
-          <div><label style={fieldLabel}>Phone</label><input style={inputStyle} value={form.phoneNumber} onChange={e => setForm(f => ({ ...f, phoneNumber: e.target.value }))} /></div>
-          <div><label style={fieldLabel}>Subject</label><input style={inputStyle} value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} /></div>
-          <div><label style={fieldLabel}>Result</label><input style={inputStyle} value={form.result} onChange={e => setForm(f => ({ ...f, result: e.target.value }))} /></div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 20 }}>
-            <input type="checkbox" id="fu" checked={form.followUpNeeded} onChange={e => setForm(f => ({ ...f, followUpNeeded: e.target.checked }))} style={{ accentColor: '#C9A96E' }} />
-            <label htmlFor="fu" style={{ fontSize: 12, color: '#9BB0C4', cursor: 'pointer' }}>Follow-up needed</label>
-          </div>
-          <div style={{ gridColumn: 'span 2', display: 'flex', gap: 8 }}>
-            <button type="submit" style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Save</button>
-            <button type="button" onClick={() => setShowForm(false)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#6B8299', borderRadius: 4, padding: '6px 14px', fontSize: 11, cursor: 'pointer' }}>Cancel</button>
-          </div>
-        </form>
+
+      {viewingReview && (
+        <CallReviewModal
+          review={viewingReview.review}
+          callDate={viewingReview.call.callDate}
+          contactName={viewingReview.call.contactName}
+          onClose={() => setViewingReview(null)}
+        />
       )}
-      {loading ? <div style={{ color: '#6B8299', fontSize: 13 }}>Loading...</div> :
-        calls.length === 0 ? <div style={{ color: '#4B5563', fontSize: 13 }}>No calls logged yet.</div> :
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-            {['Date', 'Contact', 'Subject', 'Result', 'Follow Up'].map(h => (
-              <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#C9A96E' }}>{h}</th>
-            ))}
-          </tr></thead>
-          <tbody>
-            {calls.map(c => (
-              <tr key={c.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{new Date(c.callDate).toLocaleDateString()}</td>
-                <td style={{ padding: '10px 12px', fontSize: 12, color: '#ffffff' }}>{c.contactName}</td>
-                <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{c.subject ?? '—'}</td>
-                <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{c.result ?? '—'}</td>
-                <td style={{ padding: '10px 12px', fontSize: 12, color: c.followUpNeeded ? '#f59e0b' : '#4B5563' }}>{c.followUpNeeded ? 'Yes' : 'No'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      }
+    </>
+  )
+}
+
+function ReviewCell({ call, analyzing, onClick }: { call: CallLogRow; analyzing: boolean; onClick: () => void }) {
+  if (analyzing) {
+    return <span style={{ fontSize: 11, color: '#C9A96E', fontStyle: 'italic' }}>Analyzing...</span>
+  }
+  if (!call.review) {
+    return <span style={{ fontSize: 11, color: '#4B5563' }}>—</span>
+  }
+  const color = call.review.overallScore >= 80 ? '#4ade80' : call.review.overallScore >= 60 ? '#f59e0b' : '#f87171'
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        background: 'transparent',
+        border: `1px solid ${color}40`,
+        borderRadius: 4,
+        padding: '4px 10px',
+        fontSize: 11, fontWeight: 700,
+        color,
+        cursor: 'pointer',
+        display: 'inline-flex', alignItems: 'center', gap: 6,
+        minHeight: 28,
+      }}
+    >
+      {call.review.overallScore}
+      {call.review.flaggedForCoaching && <span>⚑</span>}
+      <span style={{ opacity: 0.7, fontSize: 9 }}>VIEW</span>
+    </button>
+  )
+}
+
+function CallRowMobile({ call, analyzing, onViewReview }: { call: CallLogRow; analyzing: boolean; onViewReview: () => void }) {
+  const scoreColor = call.review
+    ? call.review.overallScore >= 80 ? '#4ade80' : call.review.overallScore >= 60 ? '#f59e0b' : '#f87171'
+    : '#4B5563'
+  return (
+    <div style={{
+      background: 'rgba(255,255,255,0.02)',
+      border: '1px solid rgba(201,169,110,0.08)',
+      borderRadius: 6,
+      padding: '12px 14px',
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 500, color: '#ffffff', marginBottom: 2 }}>{call.contactName}</div>
+          <div style={{ fontSize: 10, color: '#6B8299' }}>
+            {new Date(call.callDate).toLocaleDateString()} {call.subject ? `· ${call.subject}` : ''}
+          </div>
+          {call.result && (
+            <div style={{ fontSize: 11, color: '#9BB0C4', marginTop: 6 }}>{call.result}</div>
+          )}
+        </div>
+        {analyzing ? (
+          <div style={{ fontSize: 10, color: '#C9A96E', fontStyle: 'italic', flexShrink: 0 }}>Analyzing...</div>
+        ) : call.review ? (
+          <button
+            onClick={onViewReview}
+            style={{
+              background: `${scoreColor}12`,
+              border: `1px solid ${scoreColor}50`,
+              borderRadius: 4,
+              padding: '8px 10px',
+              fontSize: 12, fontWeight: 700,
+              color: scoreColor,
+              cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 4,
+              minHeight: 40, minWidth: 56,
+              flexShrink: 0,
+            }}
+          >
+            {call.review.overallScore}
+            {call.review.flaggedForCoaching && <span style={{ fontSize: 10 }}>⚑</span>}
+          </button>
+        ) : null}
+      </div>
+      {call.followUpNeeded && (
+        <div style={{
+          marginTop: 8, display: 'inline-block',
+          fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+          color: '#f59e0b',
+          padding: '3px 8px', borderRadius: 3,
+          background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)',
+        }}>
+          Follow-up needed
+        </div>
+      )}
     </div>
   )
 }
