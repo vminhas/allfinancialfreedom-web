@@ -1,7 +1,19 @@
 import { db } from './db'
 import { listPublicFolder, downloadPublicFile, filterTrainingFlyers, type DriveFile } from './google-drive'
 import { parseTrainingFlyer, type ParsedTrainingEvent } from './training-parser'
-import { createGuildScheduledEvent, sendChannelMessage } from './discord'
+import { createGuildScheduledEvent, sendChannelMessage, editChannelMessage } from './discord'
+import { getSetting, setSetting } from './settings'
+
+// Setting key for the Discord message ID of the current weekly roundup
+// message. When we post a roundup, we save the message ID here so the
+// next call can edit the same message in place instead of creating
+// duplicates.
+const ROUNDUP_MESSAGE_KEY = 'DISCORD_WEEKLY_ROUNDUP_MESSAGE_ID'
+
+// Setting keys for sync activity timestamps, surfaced in the admin UI
+// so admins can see when the cron last ran and when it last did real work.
+const SYNC_LAST_CHECKED_KEY = 'TRAINING_SYNC_LAST_CHECKED_AT'
+const SYNC_LAST_UPDATED_KEY = 'TRAINING_SYNC_LAST_UPDATED_AT'
 
 /**
  * Build a clickable Zoom-style join URL from a stream/meeting ID.
@@ -123,6 +135,10 @@ export async function syncTrainingsFromDrive(opts: SyncOptions = {}): Promise<Sy
   // (instead of pinging on each one).
   const newDiscordRowIds: string[] = []
 
+  // Mark this sync run as "checked" immediately so the admin UI shows
+  // activity even if the run ends up as a no-op (no changes detected).
+  await setSetting(SYNC_LAST_CHECKED_KEY, new Date().toISOString())
+
   const all = await listPublicFolder(folderId)
   const files = filterTrainingFlyers(all)
   stats.scanned = files.length
@@ -202,6 +218,13 @@ export async function syncTrainingsFromDrive(opts: SyncOptions = {}): Promise<Sy
     }
   }
 
+  // If the sync actually produced changes (new parses, new Discord events,
+  // or updated rows), record the "last updated" timestamp so the admin UI
+  // can distinguish a no-op check from a meaningful update.
+  if (stats.upserted > 0 || stats.parsed > 0 || stats.discordEventsCreated > 0) {
+    await setSetting(SYNC_LAST_UPDATED_KEY, new Date().toISOString())
+  }
+
   // After the loop — if we created any new Discord scheduled events,
   // post a single @everyone roundup message in the training-and-events
   // channel so members get notified about the new week of trainings
@@ -238,17 +261,17 @@ export async function syncTrainingsFromDrive(opts: SyncOptions = {}): Promise<Sy
  */
 export async function postWeeklyRoundupForRows(
   rows: { id: string; title: string; startsAt: Date; discordEventId: string | null; audienceRestriction: string | null }[]
-): Promise<{ posted: boolean; eventCount: number }> {
+): Promise<{ posted: boolean; eventCount: number; action: 'edited' | 'created' | 'skipped' }> {
   const channelId = process.env.DISCORD_TRAINING_CHANNEL_ID ?? '1295044213590982725'
   const guildId = process.env.DISCORD_GUILD_ID
   if (!guildId || !process.env.DISCORD_BOT_TOKEN) {
-    return { posted: false, eventCount: 0 }
+    return { posted: false, eventCount: 0, action: 'skipped' }
   }
 
   // Only include rows that actually have a Discord event ID — we can't
   // link to non-existent events.
   const linkable = rows.filter(r => r.discordEventId)
-  if (linkable.length === 0) return { posted: false, eventCount: 0 }
+  if (linkable.length === 0) return { posted: false, eventCount: 0, action: 'skipped' }
 
   // Group by date so the post reads as a week-at-a-glance
   const groups = new Map<string, typeof linkable>()
@@ -280,26 +303,58 @@ export async function postWeeklyRoundupForRows(
   const eventCount = linkable.length
   const dayCount = groups.size
 
-  await sendChannelMessage(channelId, {
+  const embed = {
+    title: `${eventCount} training${eventCount === 1 ? '' : 's'} this week`,
+    description: [
+      `${eventCount} GFI training session${eventCount === 1 ? '' : 's'} ${eventCount === 1 ? 'is' : 'are'} on the calendar across ${dayCount} day${dayCount === 1 ? '' : 's'}.`,
+      '',
+      '**Tap any session below** to open the event and click **Interested** — Discord will send you a personal reminder one hour before it starts and again when it goes live.',
+      '',
+      'A 15-minute heads-up will also post here for every session.',
+    ].join('\n'),
+    color: 0xC9A96E,
+    fields,
+    footer: { text: 'AFF Concierge · last updated' },
+    timestamp: new Date().toISOString(),
+  }
+
+  // Prefer editing the existing roundup message in place so there's only
+  // ever ONE roundup in the channel, always up to date, and we don't re-ping
+  // members every time it's refreshed. If the stored message was deleted in
+  // Discord, catch the 404 and fall through to posting a fresh one.
+  const existingMessageId = await getSetting(ROUNDUP_MESSAGE_KEY)
+
+  if (existingMessageId) {
+    try {
+      await editChannelMessage(channelId, existingMessageId, {
+        content: '@everyone',
+        embeds: [embed],
+        // Empty parse array = no re-ping on edit (Discord doesn't re-notify
+        // for edits anyway, but explicit for clarity)
+        allowedMentions: { parse: [] },
+      })
+      return { posted: true, eventCount, action: 'edited' }
+    } catch (err) {
+      const status = (err as { status?: number }).status
+      if (status !== 404) {
+        // Non-404 error — propagate so caller sees it
+        throw err
+      }
+      // 404 means the message was deleted in Discord — clear the stale ID
+      // and fall through to create a fresh message (which will re-ping).
+      await setSetting(ROUNDUP_MESSAGE_KEY, '')
+    }
+  }
+
+  // No existing message (or previous one was deleted) — create fresh
+  const created = await sendChannelMessage(channelId, {
     content: '@everyone',
-    embeds: [{
-      title: `${eventCount} training${eventCount === 1 ? '' : 's'} this week`,
-      description: [
-        `${eventCount} GFI training session${eventCount === 1 ? '' : 's'} ${eventCount === 1 ? 'is' : 'are'} on the calendar across ${dayCount} day${dayCount === 1 ? '' : 's'}.`,
-        '',
-        '**Tap any session below** to open the event and click **Interested** — Discord will send you a personal reminder one hour before it starts and again when it goes live.',
-        '',
-        'A 15-minute heads-up will also post here for every session.',
-      ].join('\n'),
-      color: 0xC9A96E,
-      fields,
-      footer: { text: 'AFF Concierge · auto-posted from /vault/trainings' },
-      timestamp: new Date().toISOString(),
-    }],
+    embeds: [embed],
     allowedMentions: { parse: ['everyone'] },
   })
+  await setSetting(ROUNDUP_MESSAGE_KEY, created.id)
 
-  return { posted: true, eventCount }
+  return { posted: true, eventCount, action: 'created' }
 }
 
 function shapeEventForDb(

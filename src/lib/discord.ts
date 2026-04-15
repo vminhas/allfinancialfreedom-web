@@ -144,6 +144,42 @@ export async function deleteGuildScheduledEvent(eventId: string): Promise<void> 
 
 // ─── Channel messages ────────────────────────────────────────────────────────
 
+/**
+ * Edit an existing channel message. Returns the updated message.
+ * Throws with the response body if Discord rejects the edit (including
+ * 404 when the message was deleted — caller can catch to fall through
+ * to a fresh post).
+ */
+export async function editChannelMessage(channelId: string, messageId: string, payload: {
+  content?: string
+  embeds?: DiscordEmbed[]
+  allowedMentions?: { parse?: ('everyone' | 'roles' | 'users')[] }
+}): Promise<{ id: string }> {
+  const body: Record<string, unknown> = {
+    content: payload.content,
+    embeds: payload.embeds,
+  }
+  if (payload.allowedMentions) {
+    body.allowed_mentions = {
+      parse: payload.allowedMentions.parse ?? [],
+    }
+  }
+
+  const res = await discordFetch(`${API}/channels/${channelId}/messages/${messageId}`, {
+    method: 'PATCH',
+    headers: authHeaders(),
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    const err = new Error(`Discord editChannelMessage failed (${res.status}): ${text.slice(0, 400)}`) as Error & { status: number }
+    err.status = res.status
+    throw err
+  }
+  return res.json() as Promise<{ id: string }>
+}
+
+
 export interface DiscordEmbed {
   title?: string
   description?: string

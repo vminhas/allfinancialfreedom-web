@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/permissions'
+import { getSetting } from '@/lib/settings'
 
 // GET /api/admin/trainings
 // Returns parsed training events grouped relative to "now":
@@ -23,7 +24,7 @@ export async function GET(_req: NextRequest) {
   // that lands in Recent Past even if the duration hasn't technically elapsed.
   const lookbackStart = new Date(now.getTime() - 3 * 60 * 60 * 1000)
 
-  const [recentAndFuture, earlierPast, errored, futureMissingDiscord] = await Promise.all([
+  const [recentAndFuture, earlierPast, errored, futureMissingDiscord, lastCheckedAt, lastUpdatedAt] = await Promise.all([
     db.trainingEvent.findMany({
       where: { startsAt: { gte: lookbackStart } },
       orderBy: { startsAt: 'asc' },
@@ -47,6 +48,8 @@ export async function GET(_req: NextRequest) {
         discordEventId: null,
       },
     }),
+    getSetting('TRAINING_SYNC_LAST_CHECKED_AT'),
+    getSetting('TRAINING_SYNC_LAST_UPDATED_AT'),
   ])
 
   // Live Now  : started already AND still within its duration window
@@ -84,6 +87,10 @@ export async function GET(_req: NextRequest) {
     upcoming,
     recentPast,
     parseErrors: errored,
+    syncActivity: {
+      lastCheckedAt: lastCheckedAt || null,
+      lastUpdatedAt: lastUpdatedAt || null,
+    },
     stats: {
       totalUpcoming: liveNow.length + startingSoon.length + upcoming.length,
       reminderQueue: [...liveNow, ...startingSoon, ...upcoming].filter(e => !e.reminderSentAt).length,

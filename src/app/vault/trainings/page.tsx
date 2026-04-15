@@ -35,6 +35,10 @@ interface TrainingsPayload {
   upcoming: TrainingEvent[]
   recentPast: TrainingEvent[]
   parseErrors: TrainingEvent[]
+  syncActivity: {
+    lastCheckedAt: string | null
+    lastUpdatedAt: string | null
+  }
   stats: {
     totalUpcoming: number
     reminderQueue: number
@@ -199,6 +203,18 @@ export default function TrainingsPage() {
             <p style={{ color: '#6B8299', fontSize: 13, margin: 0, lineHeight: 1.55 }}>
               Auto-synced hourly from the GFI Weekly Training Drive folder. Each flyer is parsed by Claude vision into a structured event. Announcements fire 15 minutes before each training starts in the <strong style={{ color: '#C9A96E' }}>training-and-events</strong> Discord channel.
             </p>
+            {data?.syncActivity && (
+              <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 14, fontSize: 10, color: '#6B8299' }}>
+                <div>
+                  <span style={{ fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#9BB0C4' }}>Last checked:</span>{' '}
+                  <span style={{ color: '#C9A96E' }}>{formatRelative(data.syncActivity.lastCheckedAt)}</span>
+                </div>
+                <div>
+                  <span style={{ fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#9BB0C4' }}>Last updated:</span>{' '}
+                  <span style={{ color: '#C9A96E' }}>{formatRelative(data.syncActivity.lastUpdatedAt)}</span>
+                </div>
+              </div>
+            )}
           </div>
           <div style={{
             display: 'grid',
@@ -749,6 +765,22 @@ function TrainingCard({ event, highlight, muted }: { event: TrainingEvent; highl
       )}
     </div>
   )
+}
+
+function formatRelative(iso: string | null): string {
+  if (!iso) return 'never'
+  const then = new Date(iso).getTime()
+  if (isNaN(then)) return 'never'
+  const diffSec = Math.round((Date.now() - then) / 1000)
+  if (diffSec < 5) return 'just now'
+  if (diffSec < 60) return `${diffSec}s ago`
+  const diffMin = Math.round(diffSec / 60)
+  if (diffMin < 60) return `${diffMin}m ago`
+  const diffHr = Math.round(diffMin / 60)
+  if (diffHr < 24) return `${diffHr}h ago`
+  const diffDay = Math.round(diffHr / 24)
+  if (diffDay < 7) return `${diffDay}d ago`
+  return new Date(iso).toLocaleDateString()
 }
 
 function Tag({ color, children }: { color: string; children: React.ReactNode }) {
