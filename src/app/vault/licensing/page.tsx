@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { TOPIC_LABELS, type LicensingRequestTopic } from '@/components/LicensingRequestModal'
 import { useIsMobile } from '@/lib/useIsMobile'
+import { CARRIERS } from '@/lib/agent-constants'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -70,6 +71,8 @@ export default function LicensingWorkspacePage() {
   const isLC = viewerRole === 'licensing_coordinator'
 
   const [tab, setTab] = useState<'inbox' | 'agents' | 'profile'>('inbox')
+  const [showAddAgentModal, setShowAddAgentModal] = useState(false)
+  const [agentsRefreshNonce, setAgentsRefreshNonce] = useState(0)
 
   return (
     <div>
@@ -79,18 +82,46 @@ export default function LicensingWorkspacePage() {
         padding: '28px 0 20px',
         borderBottom: '1px solid rgba(201,169,110,0.08)',
       }}>
-        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 6 }}>
-          {isLC ? 'Your workspace' : 'Licensing Oversight'}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 6 }}>
+              {isLC ? 'Your workspace' : 'Licensing Oversight'}
+            </div>
+            <h1 style={{ fontSize: 'clamp(22px, 5vw, 32px)', fontWeight: 300, color: '#ffffff', margin: '0 0 6px', letterSpacing: '-0.02em' }}>
+              Licensing Inbox
+            </h1>
+            <p style={{ color: '#6B8299', fontSize: 13, margin: 0, lineHeight: 1.55 }}>
+              {isLC
+                ? 'This is where requests from agents come in. Assign them to yourself to start working, then mark them resolved when you\u2019re done.'
+                : 'Oversight of all licensing coordinator requests. You can see every inbox, reassign, and jump into any request.'}
+            </p>
+          </div>
+          <button
+            onClick={() => setShowAddAgentModal(true)}
+            style={{
+              background: '#C9A96E', color: '#142D48',
+              border: 'none', borderRadius: 4,
+              padding: '12px 22px', fontSize: 11, fontWeight: 700,
+              letterSpacing: '0.12em', textTransform: 'uppercase',
+              cursor: 'pointer', minHeight: 44,
+              boxShadow: '0 0 20px rgba(201,169,110,0.2)',
+              flexShrink: 0,
+            }}
+          >
+            + Add Agent
+          </button>
         </div>
-        <h1 style={{ fontSize: 'clamp(22px, 5vw, 32px)', fontWeight: 300, color: '#ffffff', margin: '0 0 6px', letterSpacing: '-0.02em' }}>
-          Licensing Inbox
-        </h1>
-        <p style={{ color: '#6B8299', fontSize: 13, margin: 0, lineHeight: 1.55 }}>
-          {isLC
-            ? 'This is where requests from agents come in. Assign them to yourself to start working, then mark them resolved when you\u2019re done.'
-            : 'Oversight of all licensing coordinator requests. You can see every inbox, reassign, and jump into any request.'}
-        </p>
       </div>
+
+      {showAddAgentModal && (
+        <LicensingAddAgentModal
+          onClose={() => setShowAddAgentModal(false)}
+          onCreated={() => {
+            setShowAddAgentModal(false)
+            setAgentsRefreshNonce(n => n + 1)
+          }}
+        />
+      )}
 
       {/* Tabs */}
       <div style={{
@@ -117,7 +148,7 @@ export default function LicensingWorkspacePage() {
       </div>
 
       {tab === 'inbox' && <InboxTab viewerId={viewerId} isLC={isLC} />}
-      {tab === 'agents' && <AgentsTab />}
+      {tab === 'agents' && <AgentsTab refreshNonce={agentsRefreshNonce} />}
       {tab === 'profile' && <ProfileTab />}
     </div>
   )
@@ -487,7 +518,7 @@ function RequestDetail({
 
 // ─── Agents tab ───────────────────────────────────────────────────────────────
 
-function AgentsTab() {
+function AgentsTab({ refreshNonce }: { refreshNonce: number }) {
   const [agents, setAgents] = useState<LicensingAgent[]>([])
   const [loading, setLoading] = useState(true)
   const [needsAttention, setNeedsAttention] = useState(false)
@@ -507,7 +538,7 @@ function AgentsTab() {
     setLoading(false)
   }, [needsAttention, query])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load() }, [load, refreshNonce])
 
   const updateField = async (id: string, field: string, value: string | null) => {
     const res = await fetch(`/api/vault/licensing-agents/${id}`, {
@@ -628,13 +659,61 @@ function AgentRow({
 
       {expanded && (
         <div style={{
-          padding: '14px 16px 16px',
           borderTop: '1px solid rgba(201,169,110,0.08)',
           background: 'rgba(255,255,255,0.015)',
         }}>
-          <div style={{ fontSize: 11, color: '#6B8299', marginBottom: 12, lineHeight: 1.5 }}>
-            {agent.phone ?? 'No phone'} · {agent.email}
-          </div>
+          <ExpandedAgentDetail agent={agent} onUpdate={onUpdate} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Expanded agent detail (Details / Carriers / Notes sub-tabs) ──────────────
+
+function ExpandedAgentDetail({
+  agent,
+  onUpdate,
+}: {
+  agent: LicensingAgent
+  onUpdate: (id: string, field: string, value: string | null) => void
+}) {
+  const [subtab, setSubtab] = useState<'details' | 'carriers' | 'notes'>('details')
+
+  const tabBtn = (t: typeof subtab, label: string) => (
+    <button
+      key={t}
+      onClick={() => setSubtab(t)}
+      style={{
+        background: 'none', border: 'none', whiteSpace: 'nowrap',
+        padding: '10px 14px', cursor: 'pointer',
+        fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase',
+        color: subtab === t ? '#C9A96E' : '#6B8299',
+        borderBottom: subtab === t ? '2px solid #C9A96E' : '2px solid transparent',
+        marginBottom: -1,
+      }}
+    >
+      {label}
+    </button>
+  )
+
+  return (
+    <div>
+      <div style={{ fontSize: 11, color: '#6B8299', padding: '12px 16px 0', lineHeight: 1.5 }}>
+        {agent.phone ?? 'No phone'} · {agent.email}
+      </div>
+      <div style={{
+        display: 'flex', gap: 0, marginTop: 8,
+        borderBottom: '1px solid rgba(255,255,255,0.06)',
+        padding: '0 12px',
+      }}>
+        {tabBtn('details', 'Licensing Details')}
+        {tabBtn('carriers', 'Carriers')}
+        {tabBtn('notes', 'Notes')}
+      </div>
+
+      <div style={{ padding: '14px 16px 16px' }}>
+        {subtab === 'details' && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
             <EditableField label="Exam Date" type="date" value={agent.examDate} onSave={v => onUpdate(agent.id, 'examDate', v)} />
             <EditableField label="License #" type="text" value={agent.licenseNumber} onSave={v => onUpdate(agent.id, 'licenseNumber', v)} />
@@ -642,6 +721,424 @@ function AgentRow({
             <EditableField label="License Lines" type="text" value={agent.licenseLines} onSave={v => onUpdate(agent.id, 'licenseLines', v)} />
             <EditableField label="Submitted to GFI" type="date" value={agent.dateSubmittedToGfi} onSave={v => onUpdate(agent.id, 'dateSubmittedToGfi', v)} />
           </div>
+        )}
+
+        {subtab === 'carriers' && <CarriersEditor agentId={agent.id} />}
+        {subtab === 'notes' && <NotesTimeline agentId={agent.id} />}
+      </div>
+    </div>
+  )
+}
+
+// ─── Carriers editor ──────────────────────────────────────────────────────────
+
+interface CarrierAppointmentRow {
+  carrier: string
+  status: 'NOT_STARTED' | 'PENDING' | 'APPOINTED' | 'JIT'
+  producerNumber: string | null
+  appointedDate: string | null
+}
+
+function CarriersEditor({ agentId }: { agentId: string }) {
+  const [rows, setRows] = useState<CarrierAppointmentRow[] | null>(null)
+  const [savingKey, setSavingKey] = useState<string | null>(null)
+  const [dirty, setDirty] = useState<Record<string, { status?: string; producerNumber?: string }>>({})
+
+  useEffect(() => {
+    fetch(`/api/admin/agents/${agentId}/carriers`)
+      .then(r => r.json())
+      .then((data: CarrierAppointmentRow[]) => {
+        // Ensure all known carriers are represented (fill missing with NOT_STARTED)
+        const byCarrier = new Map(data.map(d => [d.carrier, d]))
+        const full = CARRIERS.map(name => byCarrier.get(name) ?? {
+          carrier: name,
+          status: 'NOT_STARTED' as const,
+          producerNumber: null,
+          appointedDate: null,
+        })
+        setRows(full)
+      })
+  }, [agentId])
+
+  const setLocal = (carrier: string, patch: { status?: string; producerNumber?: string }) => {
+    setRows(prev => prev?.map(r => r.carrier === carrier ? { ...r, ...patch } as CarrierAppointmentRow : r) ?? null)
+    setDirty(d => ({ ...d, [carrier]: { ...d[carrier], ...patch } }))
+  }
+
+  const save = async (carrier: string) => {
+    const row = rows?.find(r => r.carrier === carrier)
+    if (!row) return
+    setSavingKey(carrier)
+    await fetch(`/api/admin/agents/${agentId}/carriers`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify([{
+        carrier: row.carrier,
+        status: row.status,
+        producerNumber: row.producerNumber || undefined,
+      }]),
+    })
+    setDirty(d => {
+      const next = { ...d }
+      delete next[carrier]
+      return next
+    })
+    setSavingKey(null)
+  }
+
+  if (!rows) return <div style={{ fontSize: 12, color: '#6B8299' }}>Loading carriers...</div>
+
+  return (
+    <div>
+      <div style={{ fontSize: 10, color: '#6B8299', marginBottom: 10, lineHeight: 1.5 }}>
+        Set each carrier&apos;s status and enter the producer number when the agent is appointed. Producer numbers are optional but recommended.
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {rows.map(row => {
+          const isDirty = !!dirty[row.carrier]
+          const isSaving = savingKey === row.carrier
+          const statusColor =
+            row.status === 'APPOINTED' ? '#4ade80' :
+            row.status === 'PENDING'   ? '#f59e0b' :
+            row.status === 'JIT'       ? '#9B6DFF' : '#6B8299'
+          return (
+            <div
+              key={row.carrier}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(140px, 1.4fr) minmax(120px, 1fr) minmax(120px, 1.2fr) auto',
+                gap: 8,
+                alignItems: 'center',
+                padding: '8px 10px',
+                background: row.status === 'APPOINTED' ? 'rgba(74,222,128,0.04)' : 'rgba(255,255,255,0.02)',
+                border: `1px solid ${row.status === 'APPOINTED' ? 'rgba(74,222,128,0.18)' : 'rgba(255,255,255,0.05)'}`,
+                borderRadius: 4,
+              }}
+            >
+              <div style={{ fontSize: 12, color: '#ffffff', fontWeight: 500, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {row.carrier}
+              </div>
+              <select
+                value={row.status}
+                onChange={e => setLocal(row.carrier, { status: e.target.value })}
+                style={{
+                  background: '#0A1628',
+                  border: `1px solid ${statusColor}40`,
+                  borderRadius: 4, color: statusColor,
+                  padding: '7px 8px', fontSize: 11, fontWeight: 600,
+                  appearance: 'auto',
+                }}
+              >
+                <option value="NOT_STARTED">Not Started</option>
+                <option value="PENDING">Pending</option>
+                <option value="APPOINTED">Appointed</option>
+                <option value="JIT">JIT</option>
+              </select>
+              <input
+                value={row.producerNumber ?? ''}
+                onChange={e => setLocal(row.carrier, { producerNumber: e.target.value })}
+                placeholder="Producer #"
+                style={{
+                  background: '#0A1628',
+                  border: '1px solid rgba(201,169,110,0.15)',
+                  borderRadius: 4, color: '#d1d9e2',
+                  padding: '7px 10px', fontSize: 11,
+                  fontFamily: 'monospace',
+                  minWidth: 0,
+                }}
+              />
+              {isDirty ? (
+                <button
+                  onClick={() => save(row.carrier)}
+                  disabled={isSaving}
+                  style={{
+                    background: '#C9A96E', color: '#142D48',
+                    border: 'none', borderRadius: 4,
+                    padding: '6px 10px', fontSize: 9, fontWeight: 700,
+                    letterSpacing: '0.08em', textTransform: 'uppercase',
+                    cursor: isSaving ? 'wait' : 'pointer',
+                    minHeight: 30, whiteSpace: 'nowrap',
+                  }}
+                >
+                  {isSaving ? '...' : 'Save'}
+                </button>
+              ) : (
+                <span style={{ fontSize: 9, color: '#4B5563', textAlign: 'right' }}>—</span>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ─── Notes timeline ───────────────────────────────────────────────────────────
+
+interface NoteAuthor {
+  id: string
+  name: string
+  role: 'ADMIN' | 'LICENSING_COORDINATOR'
+}
+
+interface NoteItem {
+  id: string
+  body: string
+  scope: 'LICENSING' | 'ADMIN_ONLY'
+  createdAt: string
+  updatedAt: string
+  author: NoteAuthor
+}
+
+function NotesTimeline({ agentId }: { agentId: string }) {
+  const { data: session } = useSession()
+  const viewerRole = (session?.user as { role?: string } | undefined)?.role
+  const viewerId = (session?.user as { id?: string } | undefined)?.id ?? null
+  const isAdminUser = viewerRole === 'admin'
+
+  const [notes, setNotes] = useState<NoteItem[] | null>(null)
+  const [draft, setDraft] = useState('')
+  const [draftScope, setDraftScope] = useState<'LICENSING' | 'ADMIN_ONLY'>('LICENSING')
+  const [submitting, setSubmitting] = useState(false)
+
+  const load = useCallback(async () => {
+    const res = await fetch(`/api/vault/licensing-agents/${agentId}/notes`)
+    if (res.ok) {
+      const d = await res.json() as { notes: NoteItem[] }
+      setNotes(d.notes)
+    }
+  }, [agentId])
+
+  useEffect(() => { load() }, [load])
+
+  const submit = async () => {
+    if (!draft.trim()) return
+    setSubmitting(true)
+    const res = await fetch(`/api/vault/licensing-agents/${agentId}/notes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body: draft, scope: isAdminUser ? draftScope : 'LICENSING' }),
+    })
+    if (res.ok) {
+      const d = await res.json() as { note: NoteItem }
+      setNotes(prev => [d.note, ...(prev ?? [])])
+      setDraft('')
+    }
+    setSubmitting(false)
+  }
+
+  const remove = async (id: string) => {
+    if (!confirm('Delete this note?')) return
+    const res = await fetch(`/api/vault/licensing-notes/${id}`, { method: 'DELETE' })
+    if (res.ok) {
+      setNotes(prev => prev?.filter(n => n.id !== id) ?? null)
+    }
+  }
+
+  // Group notes by date label (Today / Yesterday / This week / Month, Year)
+  const groupedNotes = (() => {
+    if (!notes) return []
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const yesterday = new Date(today.getTime() - 86400000)
+    const weekAgo = new Date(today.getTime() - 7 * 86400000)
+    const groups = new Map<string, NoteItem[]>()
+    for (const n of notes) {
+      const created = new Date(n.createdAt)
+      let label: string
+      if (created >= today) label = 'Today'
+      else if (created >= yesterday) label = 'Yesterday'
+      else if (created >= weekAgo) label = 'Earlier this week'
+      else if (created.getFullYear() === now.getFullYear()) {
+        label = created.toLocaleDateString(undefined, { month: 'long' })
+      } else {
+        label = created.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+      }
+      const existing = groups.get(label) ?? []
+      existing.push(n)
+      groups.set(label, existing)
+    }
+    return Array.from(groups.entries())
+  })()
+
+  return (
+    <div>
+      {/* Add note form */}
+      <div style={{
+        marginBottom: 18,
+        padding: 12,
+        background: 'rgba(255,255,255,0.02)',
+        border: '1px solid rgba(201,169,110,0.12)',
+        borderRadius: 6,
+      }}>
+        <textarea
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          rows={3}
+          placeholder="Add a note about this agent's licensing journey..."
+          style={{
+            width: '100%', boxSizing: 'border-box',
+            background: '#0A1628',
+            border: '1px solid rgba(201,169,110,0.15)',
+            borderRadius: 4, color: '#d1d9e2',
+            padding: '10px 12px', fontSize: 12,
+            fontFamily: 'inherit', resize: 'vertical',
+            minHeight: 70,
+          }}
+        />
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: 10, marginTop: 8, flexWrap: 'wrap',
+        }}>
+          {/* Admin-only scope selector */}
+          {isAdminUser ? (
+            <div style={{ display: 'flex', gap: 4, padding: 3, background: '#0A1628', borderRadius: 4, border: '1px solid rgba(201,169,110,0.12)' }}>
+              {(['LICENSING', 'ADMIN_ONLY'] as const).map(s => (
+                <button
+                  key={s}
+                  onClick={() => setDraftScope(s)}
+                  style={{
+                    background: draftScope === s ? (s === 'ADMIN_ONLY' ? 'rgba(248,113,113,0.14)' : 'rgba(201,169,110,0.14)') : 'transparent',
+                    color: draftScope === s ? (s === 'ADMIN_ONLY' ? '#f87171' : '#C9A96E') : '#6B8299',
+                    border: 'none', borderRadius: 3,
+                    padding: '6px 10px', fontSize: 9, fontWeight: 700,
+                    letterSpacing: '0.1em', textTransform: 'uppercase',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {s === 'LICENSING' ? '👁 Visible to LC' : '🔒 Admin only'}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <span style={{ fontSize: 10, color: '#6B8299' }}>Visible to all licensing staff</span>
+          )}
+          <button
+            onClick={submit}
+            disabled={submitting || !draft.trim()}
+            style={{
+              background: submitting || !draft.trim() ? 'rgba(201,169,110,0.4)' : '#C9A96E',
+              color: '#142D48', border: 'none', borderRadius: 4,
+              padding: '8px 16px', fontSize: 10, fontWeight: 700,
+              letterSpacing: '0.1em', textTransform: 'uppercase',
+              cursor: submitting ? 'wait' : 'pointer',
+              minHeight: 36,
+            }}
+          >
+            {submitting ? 'Saving...' : '+ Add Note'}
+          </button>
+        </div>
+      </div>
+
+      {/* Timeline */}
+      {notes === null ? (
+        <div style={{ fontSize: 12, color: '#6B8299' }}>Loading...</div>
+      ) : notes.length === 0 ? (
+        <div style={{
+          padding: '24px 16px', textAlign: 'center',
+          fontSize: 12, color: '#6B8299',
+          background: 'rgba(255,255,255,0.02)',
+          border: '1px dashed rgba(201,169,110,0.12)',
+          borderRadius: 6,
+        }}>
+          No notes yet. Add the first one above to start tracking this agent&apos;s licensing journey.
+        </div>
+      ) : (
+        <div style={{ position: 'relative', paddingLeft: 22 }}>
+          {/* Timeline vertical line */}
+          <div style={{
+            position: 'absolute', left: 7, top: 6, bottom: 6,
+            width: 2, background: 'linear-gradient(180deg, rgba(201,169,110,0.4), rgba(201,169,110,0.05))',
+            borderRadius: 1,
+          }} />
+
+          {groupedNotes.map(([groupLabel, groupNotes]) => (
+            <div key={groupLabel} style={{ marginBottom: 18 }}>
+              {/* Group header */}
+              <div style={{
+                fontSize: 9, fontWeight: 700, letterSpacing: '0.18em',
+                textTransform: 'uppercase', color: '#C9A96E',
+                marginBottom: 10, marginLeft: -22, paddingLeft: 22,
+                position: 'relative',
+              }}>
+                {groupLabel}
+              </div>
+
+              {/* Notes in group */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {groupNotes.map(note => {
+                  const canEdit = note.author.id === viewerId || isAdminUser
+                  const isAdminOnly = note.scope === 'ADMIN_ONLY'
+                  const authorRoleColor = note.author.role === 'LICENSING_COORDINATOR' ? '#9B6DFF' : '#C9A96E'
+                  return (
+                    <div key={note.id} style={{ position: 'relative' }}>
+                      {/* Timeline dot */}
+                      <div style={{
+                        position: 'absolute', left: -18, top: 12,
+                        width: 10, height: 10, borderRadius: '50%',
+                        background: isAdminOnly ? '#f87171' : authorRoleColor,
+                        border: '2px solid #0C1E30',
+                        boxShadow: `0 0 0 2px ${isAdminOnly ? '#f87171' : authorRoleColor}33`,
+                      }} />
+                      <div style={{
+                        background: isAdminOnly ? 'rgba(248,113,113,0.04)' : 'rgba(255,255,255,0.025)',
+                        border: `1px solid ${isAdminOnly ? 'rgba(248,113,113,0.2)' : 'rgba(201,169,110,0.12)'}`,
+                        borderRadius: 6, padding: '11px 14px',
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: 12, color: '#ffffff', fontWeight: 500 }}>
+                              {note.author.name}
+                            </span>
+                            <span style={{
+                              fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
+                              padding: '2px 7px', borderRadius: 3,
+                              background: `${authorRoleColor}14`,
+                              color: authorRoleColor,
+                              border: `1px solid ${authorRoleColor}30`,
+                            }}>
+                              {note.author.role === 'LICENSING_COORDINATOR' ? 'Licensing' : 'Admin'}
+                            </span>
+                            {isAdminOnly && (
+                              <span style={{
+                                fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
+                                padding: '2px 7px', borderRadius: 3,
+                                background: 'rgba(248,113,113,0.12)',
+                                color: '#f87171',
+                                border: '1px solid rgba(248,113,113,0.35)',
+                              }}>
+                                🔒 Admin only
+                              </span>
+                            )}
+                          </div>
+                          <span style={{ fontSize: 10, color: '#6B8299' }}>
+                            {new Date(note.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 12, color: '#d1d9e2', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
+                          {note.body}
+                        </div>
+                        {canEdit && (
+                          <div style={{ marginTop: 6 }}>
+                            <button
+                              onClick={() => remove(note.id)}
+                              style={{
+                                background: 'none', border: 'none',
+                                color: '#6B8299', fontSize: 10,
+                                cursor: 'pointer', padding: '2px 0',
+                              }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -852,4 +1349,195 @@ function timeAgo(iso: string): string {
   if (hrs < 24) return `${hrs}h ago`
   const days = Math.floor(hrs / 24)
   return `${days}d ago`
+}
+
+// ─── Add Agent modal (LC can onboard new agents from here) ────────────────────
+
+const US_STATES = [
+  'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
+  'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
+  'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT',
+  'VA','WA','WV','WI','WY','DC',
+]
+
+function LicensingAddAgentModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const isMobile = useIsMobile()
+  const [form, setForm] = useState({
+    firstName: '', lastName: '', email: '', agentCode: '',
+    state: '', phone: '', icaDate: '',
+  })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  // Lock body scroll
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
+
+  // Close on Escape
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setForm(f => ({ ...f, [k]: e.target.value }))
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    const res = await fetch('/api/admin/agents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form),
+    })
+    const data = await res.json() as { ok?: boolean; error?: string; agentUserId?: string }
+    if (!res.ok) {
+      setError(data.error ?? 'Failed to create agent')
+      setLoading(false)
+      return
+    }
+    // Send invite email (non-blocking — still notify success if this fails)
+    await fetch('/api/admin/agents/invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agentUserId: data.agentUserId }),
+    }).catch(() => {})
+    onCreated()
+  }
+
+  const input: React.CSSProperties = {
+    width: '100%', boxSizing: 'border-box',
+    background: '#0A1628',
+    border: '1px solid rgba(201,169,110,0.15)',
+    borderRadius: 4, color: '#d1d9e2',
+    padding: '10px 12px', fontSize: 13,
+    fontFamily: 'inherit',
+  }
+  const label: React.CSSProperties = {
+    display: 'block',
+    fontSize: 9, fontWeight: 700, letterSpacing: '0.18em',
+    textTransform: 'uppercase', color: '#C9A96E',
+    marginBottom: 5,
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 80,
+        background: 'rgba(0,0,0,0.75)',
+        display: 'flex',
+        alignItems: isMobile ? 'flex-end' : 'center',
+        justifyContent: 'center',
+        padding: isMobile ? 0 : 16,
+        backdropFilter: 'blur(3px)',
+      }}
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div style={{
+        background: '#142D48',
+        border: '1px solid rgba(201,169,110,0.2)',
+        borderRadius: isMobile ? '16px 16px 0 0' : 8,
+        width: isMobile ? '100%' : 'min(500px, 100vw)',
+        maxHeight: isMobile ? '92vh' : '90vh',
+        overflowY: 'auto',
+        boxShadow: '0 -24px 80px rgba(0,0,0,0.55)',
+      }}>
+        <div style={{
+          padding: isMobile ? '18px 20px 14px' : '22px 28px 16px',
+          borderBottom: '1px solid rgba(201,169,110,0.1)',
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12,
+          position: 'sticky', top: 0, background: '#142D48', zIndex: 2,
+        }}>
+          <div>
+            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 4 }}>
+              New Agent
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 500, color: '#ffffff' }}>Onboard into AFF</div>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            style={{
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(201,169,110,0.25)',
+              borderRadius: 6, width: 40, height: 40,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', color: '#C9A96E', fontSize: 16, lineHeight: 1,
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        <form onSubmit={submit} style={{ padding: isMobile ? '18px 20px 20px' : '22px 28px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ fontSize: 11, color: '#9BB0C4', lineHeight: 1.55, padding: '10px 12px', background: 'rgba(155,109,255,0.06)', border: '1px solid rgba(155,109,255,0.2)', borderRadius: 4 }}>
+            Create the agent record and send the portal invite. They&apos;ll get an email with a link to set their password. Trainer assignment and goal can be filled in later.
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
+            <div><label style={label}>First Name *</label><input required style={input} value={form.firstName} onChange={set('firstName')} /></div>
+            <div><label style={label}>Last Name *</label><input required style={input} value={form.lastName} onChange={set('lastName')} /></div>
+            <div><label style={label}>Email *</label><input required type="email" style={input} value={form.email} onChange={set('email')} /></div>
+            <div><label style={label}>Agent Code *</label><input required style={input} value={form.agentCode} onChange={set('agentCode')} placeholder="e.g. F2030" /></div>
+            <div>
+              <label style={label}>State</label>
+              <select style={{ ...input, appearance: 'auto' }} value={form.state} onChange={set('state')}>
+                <option value="">Select state</option>
+                {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div><label style={label}>Phone</label><input style={input} inputMode="tel" value={form.phone} onChange={set('phone')} /></div>
+            <div><label style={label}>ICA Date</label><input type="date" style={input} value={form.icaDate} onChange={set('icaDate')} /></div>
+          </div>
+
+          {error && (
+            <div style={{ fontSize: 12, color: '#f87171', padding: '8px 12px', background: 'rgba(248,113,113,0.08)', borderRadius: 4, border: '1px solid rgba(248,113,113,0.2)' }}>
+              {error}
+            </div>
+          )}
+
+          <div style={{
+            display: 'flex', gap: 10,
+            flexDirection: isMobile ? 'column-reverse' : 'row',
+            justifyContent: 'flex-end',
+            paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)',
+          }}>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              style={{
+                background: 'transparent',
+                border: '1px solid rgba(255,255,255,0.12)',
+                color: '#9BB0C4', borderRadius: 4,
+                padding: '12px 18px', fontSize: 11, fontWeight: 700,
+                letterSpacing: '0.1em', textTransform: 'uppercase',
+                cursor: loading ? 'wait' : 'pointer', minHeight: 44,
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                background: loading ? 'rgba(201,169,110,0.4)' : '#C9A96E',
+                color: '#142D48', border: 'none', borderRadius: 4,
+                padding: '12px 22px', fontSize: 11, fontWeight: 700,
+                letterSpacing: '0.1em', textTransform: 'uppercase',
+                cursor: loading ? 'wait' : 'pointer', minHeight: 44, flex: 1,
+              }}
+            >
+              {loading ? 'Creating...' : 'Create & Send Invite'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
 }

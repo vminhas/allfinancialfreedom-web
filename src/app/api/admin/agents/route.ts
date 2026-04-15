@@ -109,9 +109,11 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/admin/agents — create new agent + AgentUser + seed items
+// Both admins and licensing coordinators can create agents (LC onboards them)
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'admin') {
+  const role = (session?.user as { role?: string } | undefined)?.role
+  if (!session || (role !== 'admin' && role !== 'licensing_coordinator')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

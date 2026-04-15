@@ -10,7 +10,10 @@ export const metadata = { title: 'Vault — AFF' }
 
 // Paths a Licensing Coordinator is allowed to visit. Everything else redirects
 // back to /vault/licensing. Admins can visit anything.
-const LC_ALLOWED_PREFIXES = ['/vault/licensing', '/vault/settings']
+// LC profile + password change live inside /vault/licensing as a tab — they
+// are NOT allowed into /vault/settings (which exposes admin API keys, GHL
+// config, etc.).
+const LC_ALLOWED_PREFIXES = ['/vault/licensing']
 
 export default async function VaultLayout({ children }: { children: ReactNode }) {
   const headersList = await headers()

@@ -4,13 +4,14 @@ import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { randomUUID } from 'crypto'
 import { getGhlConfig, sendGhlEmail, ghlPost, ghlPut } from '@/lib/ghl'
+import { requireRole } from '@/lib/permissions'
 
-// POST /api/admin/agents/invite — resend invite email for an agent
+// POST /api/admin/agents/invite — send/resend invite email for an agent
+// Both admins and licensing coordinators can invite (LC onboards new agents too)
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'admin') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const denied = requireRole(session, 'admin', 'licensing_coordinator')
+  if (denied) return denied
 
   const { agentUserId } = await req.json() as { agentUserId: string }
   if (!agentUserId) return NextResponse.json({ error: 'agentUserId required' }, { status: 400 })

@@ -31,7 +31,7 @@ export const PHASE_ITEMS: Record<number, PhaseItemDef[]> = {
     {
       key: 'licensing_class',
       label: 'Licensing Class / Schedule Test',
-      description: "Schedule your pre-licensing course and exam with the licensing coordinator. She'll walk you through the process, help you pick a test date, and answer any questions along the way. Use the button below to reach her directly.",
+      description: "Schedule your pre-licensing course and exam with the licensing coordinator. They'll walk you through the process, help you pick a test date, and answer any questions along the way. Use the button below to reach them directly.",
       coordinatorTopic: 'SCHEDULE_EXAM',
     },
     {
@@ -57,19 +57,19 @@ export const PHASE_ITEMS: Record<number, PhaseItemDef[]> = {
     {
       key: 'pass_license_test',
       label: 'Pass Life License Test',
-      description: "Pass your state life insurance exam. The moment you pass, schedule your post-licensing call with the licensing coordinator and your EMD — that's where your next steps get mapped out. Use the button below to reach the coordinator.",
+      description: "Pass your state life insurance exam. The moment you pass, schedule your post-licensing call with the licensing coordinator and your EMD — that's where your next steps get mapped out. Use the button below to reach out.",
       coordinatorTopic: 'PASS_POST_LICENSING',
     },
     {
       key: 'fingerprints_apply',
       label: 'Fingerprints + Apply for License',
-      description: "Schedule your fingerprinting and file your state license application. The licensing coordinator handles this with you — use the button below to get in her queue.",
+      description: "Schedule your fingerprinting and file your state license application. The licensing coordinator handles this with you — use the button below to send a request.",
       coordinatorTopic: 'FINGERPRINTS_APPLY',
     },
     {
       key: 'submit_to_aff',
       label: 'Submit to GFI',
-      description: "This is what gets you appointed to all of the different carriers. The licensing coordinator handles the submission for you — reach out to her directly from this item.",
+      description: "This is what gets you appointed to all of the different carriers. The licensing coordinator handles the submission for you — send a request directly from this item.",
       coordinatorTopic: 'GFI_APPOINTMENTS',
     },
     {

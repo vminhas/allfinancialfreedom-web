@@ -21,7 +21,6 @@ const NAV_ADMIN = [
 
 const NAV_LC = [
   { href: '/vault/licensing', label: 'Licensing Inbox', icon: '◎' },
-  { href: '/vault/settings', label: 'Profile', icon: '⚙' },
 ]
 
 export default function VaultSidebar() {
@@ -45,12 +44,36 @@ export default function VaultSidebar() {
     }
   }, [open])
 
+  const isLC = role === 'licensing_coordinator'
+  const userName = (session?.user as { name?: string } | undefined)?.name
+
   const brand = (
-    <div style={{ padding: '0 24px 24px', borderBottom: '1px solid rgba(201,169,110,0.12)' }}>
+    <div style={{ padding: '0 24px 22px', borderBottom: '1px solid rgba(201,169,110,0.12)' }}>
       <p style={{ color: '#C9A96E', fontSize: 9, letterSpacing: '0.25em', textTransform: 'uppercase', fontWeight: 600, margin: '0 0 4px' }}>
         All Financial Freedom
       </p>
-      <p style={{ color: '#ffffff', fontSize: 18, fontWeight: 300, margin: 0 }}>Vault</p>
+      <p style={{ color: '#ffffff', fontSize: 18, fontWeight: 300, margin: '0 0 10px' }}>{brandSubtitle}</p>
+      {/* Role badge — persistent so the user always knows what they're logged in as */}
+      <div style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6,
+        padding: '4px 10px', borderRadius: 999,
+        background: isLC ? 'rgba(155,109,255,0.12)' : 'rgba(201,169,110,0.12)',
+        border: `1px solid ${isLC ? 'rgba(155,109,255,0.35)' : 'rgba(201,169,110,0.35)'}`,
+      }}>
+        <span style={{
+          width: 6, height: 6, borderRadius: '50%',
+          background: isLC ? '#9B6DFF' : '#C9A96E',
+        }} />
+        <span style={{
+          fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
+          color: isLC ? '#9B6DFF' : '#C9A96E',
+        }}>
+          {isLC ? 'Licensing Coordinator' : 'Admin'}
+        </span>
+      </div>
+      {userName && (
+        <p style={{ fontSize: 11, color: '#9BB0C4', margin: '8px 0 0' }}>{userName}</p>
+      )}
     </div>
   )
 

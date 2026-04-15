@@ -222,7 +222,7 @@ export default function LicensingRequestModal({
                 Request sent
               </div>
               <div style={{ fontSize: 12, color: '#9BB0C4', maxWidth: 360, margin: '0 auto', lineHeight: 1.55 }}>
-                She&apos;ll get in touch soon. You can check the status on this item anytime.
+                The licensing coordinator will get in touch soon. You can check the status on this item anytime.
               </div>
               <button
                 onClick={onClose}

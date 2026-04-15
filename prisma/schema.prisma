@@ -26,6 +26,7 @@ model AdminUser {
   lastLoginAt  DateTime?
 
   assignedRequests CoordinatorRequest[] @relation("AssignedCoordinator")
+  authoredLicensingNotes LicensingNote[]
 
   @@map("admin_users")
 }
@@ -177,6 +178,7 @@ model AgentProfile {
   callLogs              CallLog[]
   callReviews           CallReview[]
   coordinatorRequests   CoordinatorRequest[]
+  licensingNotes        LicensingNote[]
 
   @@map("agent_profiles")
 }
@@ -368,4 +370,24 @@ model CoordinatorRequest {
   @@index([agentProfileId, status])
   @@index([status, assignedToId])
   @@map("coordinator_requests")
+}
+
+enum NoteScope {
+  LICENSING   // visible to licensing coordinators AND admins
+  ADMIN_ONLY  // visible to admins only — LC cannot see these
+}
+
+model LicensingNote {
+  id             String       @id @default(cuid())
+  agentProfileId String
+  agentProfile   AgentProfile @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+  authorId       String
+  author         AdminUser    @relation(fields: [authorId], references: [id])
+  body           String
+  scope          NoteScope    @default(LICENSING)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([agentProfileId, scope, createdAt])
+  @@map("licensing_notes")
 }
