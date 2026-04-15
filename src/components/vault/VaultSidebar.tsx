@@ -14,6 +14,7 @@ const NAV = [
   { href: '/vault/sequence', label: 'Sequences', icon: '⟳' },
   { href: '/vault/contacts', label: 'Contacts', icon: '◉' },
   { href: '/vault/tracker', label: 'AFF Tracker', icon: '◑' },
+  { href: '/vault/call-review', label: 'Call Review', icon: '◐' },
   { href: '/vault/settings', label: 'Settings', icon: '⚙' },
 ]
 
