@@ -62,11 +62,19 @@ async function ensureDiscordEvent(rowId: string): Promise<boolean> {
     })
     await db.trainingEvent.update({
       where: { id: row.id },
-      data: { discordEventId: discordEvent.id, discordEventCreatedAt: new Date() },
+      data: {
+        discordEventId: discordEvent.id,
+        discordEventCreatedAt: new Date(),
+        // Clear any stale error from a previous failed attempt so the
+        // T-15 reminder cron doesn't keep excluding this row.
+        parseError: null,
+      },
     })
     return true
   } catch (err) {
-    // Log the error onto the row so the admin UI can surface it
+    // Log the error onto the row so the admin UI can surface it.
+    // The T-15 reminder cron no longer filters on parseError so this
+    // won't prevent reminders from firing.
     await db.trainingEvent.update({
       where: { id: row.id },
       data: {

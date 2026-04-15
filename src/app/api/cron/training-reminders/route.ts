@@ -31,11 +31,16 @@ export async function GET(req: NextRequest) {
   const windowStart = new Date(now + 8 * 60_000)
   const windowEnd = new Date(now + 16 * 60_000)
 
+  // Don't filter by parseError — a Discord scheduled-event creation failure
+  // writes a string into parseError, but that shouldn't block the T-15
+  // reminder. We only need the core fields (title, startsAt, streamId) to
+  // be populated, which vision parsing always sets if it succeeded at all.
   const events = await db.trainingEvent.findMany({
     where: {
       startsAt: { gte: windowStart, lte: windowEnd },
       reminderSentAt: null,
-      parseError: null,
+      // Exclude rows where the vision parse itself failed (no title yet).
+      title: { not: '' },
     },
     orderBy: { startsAt: 'asc' },
   })

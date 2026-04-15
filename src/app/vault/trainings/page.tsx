@@ -87,6 +87,18 @@ export default function TrainingsPage() {
 
   useEffect(() => { load() }, [load])
 
+  const clearStaleErrors = async () => {
+    setSyncMsg(null)
+    const res = await fetch('/api/admin/trainings/clear-stale-errors', { method: 'POST' })
+    const d = await res.json() as { cleared?: number; error?: string }
+    if (res.ok) {
+      setSyncMsg({ ok: true, text: `Cleared stale errors on ${d.cleared ?? 0} row(s). T-15 reminders will now fire for them.` })
+      await load()
+    } else {
+      setSyncMsg({ ok: false, text: d.error ?? 'Failed to clear errors' })
+    }
+  }
+
   const runDiscordTest = async () => {
     setTestingDiscord(true)
     setDiscordTestResult(null)
@@ -205,6 +217,22 @@ export default function TrainingsPage() {
               }}
             >
               {testingDiscord ? 'Testing...' : '🛠 Test Discord'}
+            </button>
+            <button
+              onClick={clearStaleErrors}
+              title="Wipe stale parseError strings on rows that already have a valid Discord event — unblocks T-15 reminders"
+              style={{
+                background: 'transparent',
+                color: '#6B8299',
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: 4,
+                padding: '12px 16px', fontSize: 10, fontWeight: 700,
+                letterSpacing: '0.12em', textTransform: 'uppercase',
+                cursor: 'pointer',
+                minHeight: 44,
+              }}
+            >
+              Clear Errors
             </button>
           </div>
         </div>
