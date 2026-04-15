@@ -1,0 +1,375 @@
+'use client'
+
+import { useEffect, useState, useCallback } from 'react'
+
+interface Presenter { name: string; role: string }
+
+interface TrainingEvent {
+  id: string
+  driveFileId: string
+  driveFileName: string
+  driveThumbnailUrl: string | null
+  title: string
+  subtitle: string | null
+  category: string | null
+  startsAt: string
+  durationMinutes: number
+  presenters: Presenter[] | unknown
+  streamType: 'GFI_LIVE' | 'ZOOM'
+  streamRoomName: string | null
+  streamId: string | null
+  passcode: string | null
+  audienceRestriction: string | null
+  partnerBrand: string | null
+  targetRegion: string | null
+  discordEventId: string | null
+  reminderSentAt: string | null
+  parseError: string | null
+  manuallyEdited: boolean
+}
+
+interface TrainingsPayload {
+  liveOrSoon: TrainingEvent[]
+  upcoming: TrainingEvent[]
+  recentPast: TrainingEvent[]
+  parseErrors: TrainingEvent[]
+  stats: {
+    totalUpcoming: number
+    reminderQueue: number
+    discordEventsCreated: number
+    parseErrorCount: number
+  }
+}
+
+interface SyncResponse {
+  scanned: number
+  skippedExisting: number
+  parsed: number
+  parseErrors: number
+  upserted: number
+  errors: { fileName: string; error: string }[]
+}
+
+export default function TrainingsPage() {
+  const [data, setData] = useState<TrainingsPayload | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [syncing, setSyncing] = useState(false)
+  const [syncResult, setSyncResult] = useState<SyncResponse | null>(null)
+  const [syncMsg, setSyncMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    const res = await fetch('/api/admin/trainings')
+    if (res.ok) setData(await res.json() as TrainingsPayload)
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const runSync = async (force: boolean) => {
+    setSyncing(true)
+    setSyncResult(null)
+    setSyncMsg(null)
+    try {
+      const res = await fetch(`/api/admin/trainings/sync${force ? '?force=true' : ''}`, { method: 'POST' })
+      const json = await res.json() as SyncResponse | { error: string }
+      if (!res.ok || 'error' in json) {
+        setSyncMsg({ ok: false, text: ('error' in json ? json.error : 'Sync failed') })
+      } else {
+        setSyncResult(json)
+        setSyncMsg({ ok: true, text: `Scanned ${json.scanned} files · ${json.upserted} events upserted · ${json.skippedExisting} unchanged` })
+        await load()
+      }
+    } catch (err) {
+      setSyncMsg({ ok: false, text: err instanceof Error ? err.message : String(err) })
+    }
+    setSyncing(false)
+  }
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{
+        marginBottom: 28,
+        padding: '28px 0 24px',
+        borderBottom: '1px solid rgba(201,169,110,0.08)',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 6 }}>
+              All Financial Freedom
+            </div>
+            <h1 style={{ fontSize: 'clamp(22px, 5vw, 32px)', fontWeight: 300, color: '#ffffff', margin: '0 0 6px', letterSpacing: '-0.02em' }}>
+              Training Calendar
+            </h1>
+            <p style={{ color: '#6B8299', fontSize: 13, margin: 0, lineHeight: 1.55 }}>
+              Auto-synced hourly from the GFI Weekly Training Drive folder. Each flyer is parsed by Claude vision into a structured event. Edits in the AFF Concierge bot will fire 15 minutes before each training starts in the <strong style={{ color: '#C9A96E' }}>training-and-events</strong> Discord channel.
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => runSync(false)}
+              disabled={syncing}
+              style={{
+                background: '#C9A96E', color: '#142D48',
+                border: 'none', borderRadius: 4,
+                padding: '12px 20px', fontSize: 11, fontWeight: 700,
+                letterSpacing: '0.12em', textTransform: 'uppercase',
+                cursor: syncing ? 'wait' : 'pointer',
+                minHeight: 44,
+              }}
+            >
+              {syncing ? 'Syncing...' : '↻ Sync Now'}
+            </button>
+            <button
+              onClick={() => runSync(true)}
+              disabled={syncing}
+              title="Re-parse every file even if unchanged. Use after tweaking the prompt."
+              style={{
+                background: 'transparent',
+                color: '#9BB0C4',
+                border: '1px solid rgba(201,169,110,0.25)',
+                borderRadius: 4,
+                padding: '12px 16px', fontSize: 10, fontWeight: 700,
+                letterSpacing: '0.12em', textTransform: 'uppercase',
+                cursor: syncing ? 'wait' : 'pointer',
+                minHeight: 44,
+              }}
+            >
+              Force
+            </button>
+          </div>
+        </div>
+        {syncMsg && (
+          <div style={{
+            marginTop: 14, fontSize: 12,
+            color: syncMsg.ok ? '#4ade80' : '#f87171',
+            padding: '10px 14px',
+            background: syncMsg.ok ? 'rgba(74,222,128,0.06)' : 'rgba(248,113,113,0.06)',
+            border: `1px solid ${syncMsg.ok ? 'rgba(74,222,128,0.2)' : 'rgba(248,113,113,0.2)'}`,
+            borderRadius: 4,
+          }}>
+            {syncMsg.ok ? '✓ ' : '✗ '}{syncMsg.text}
+            {syncResult && syncResult.errors.length > 0 && (
+              <ul style={{ marginTop: 6, marginBottom: 0, paddingLeft: 18, color: '#f87171', fontSize: 11 }}>
+                {syncResult.errors.map((e, i) => (
+                  <li key={i}>{e.fileName}: {e.error}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Stats */}
+      {data && (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+          gap: 12,
+          marginBottom: 24,
+        }}>
+          <StatCard label="Upcoming" value={data.stats.totalUpcoming} color="#C9A96E" />
+          <StatCard label="Reminder Queue" value={data.stats.reminderQueue} color="#9B6DFF" />
+          <StatCard label="Discord Events" value={data.stats.discordEventsCreated} color="#4ade80" />
+          <StatCard label="Parse Errors" value={data.stats.parseErrorCount} color={data.stats.parseErrorCount > 0 ? '#f87171' : '#6B8299'} />
+        </div>
+      )}
+
+      {loading ? (
+        <div style={{ color: '#6B8299', fontSize: 13, padding: '40px 0' }}>Loading training events...</div>
+      ) : !data || (data.liveOrSoon.length === 0 && data.upcoming.length === 0 && data.recentPast.length === 0) ? (
+        <div style={{
+          padding: '40px 20px', textAlign: 'center',
+          background: 'rgba(255,255,255,0.02)',
+          border: '1px dashed rgba(201,169,110,0.15)',
+          borderRadius: 8,
+        }}>
+          <div style={{ fontSize: 14, color: '#9BB0C4', marginBottom: 4 }}>No training events yet</div>
+          <div style={{ fontSize: 12, color: '#6B8299' }}>
+            Click <strong style={{ color: '#C9A96E' }}>Sync Now</strong> above to pull from Drive, or wait for the hourly cron.
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+          {data.liveOrSoon.length > 0 && <Section label="Starting Soon (next 60 minutes)" color="#C9A96E" highlight events={data.liveOrSoon} />}
+          {data.upcoming.length > 0 && <Section label="Upcoming" color="#9BB0C4" events={data.upcoming} />}
+          {data.parseErrors.length > 0 && <Section label="Parse Errors" color="#f87171" events={data.parseErrors} />}
+          {data.recentPast.length > 0 && <Section label="Recent Past" color="#6B8299" events={data.recentPast} muted />}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div style={{
+      background: '#142D48',
+      border: '1px solid rgba(201,169,110,0.08)',
+      borderRadius: 6, padding: '16px 20px',
+    }}>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#6B8299', marginBottom: 8 }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 28, fontWeight: 600, color, lineHeight: 1 }}>{value}</div>
+    </div>
+  )
+}
+
+function Section({ label, color, events, highlight, muted }: {
+  label: string
+  color: string
+  events: TrainingEvent[]
+  highlight?: boolean
+  muted?: boolean
+}) {
+  return (
+    <div>
+      <div style={{
+        fontSize: 10, fontWeight: 700, letterSpacing: '0.2em',
+        textTransform: 'uppercase', color, marginBottom: 12,
+        display: 'flex', alignItems: 'center', gap: 8,
+      }}>
+        {label}
+        <span style={{ fontSize: 9, color: '#6B8299', fontWeight: 500, letterSpacing: '0.05em' }}>({events.length})</span>
+      </div>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+        gap: 12,
+      }}>
+        {events.map(ev => <TrainingCard key={ev.id} event={ev} highlight={highlight} muted={muted} />)}
+      </div>
+    </div>
+  )
+}
+
+function TrainingCard({ event, highlight, muted }: { event: TrainingEvent; highlight?: boolean; muted?: boolean }) {
+  const presenters = Array.isArray(event.presenters) ? event.presenters as Presenter[] : []
+  const startsAt = new Date(event.startsAt)
+  const day = startsAt.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+  const time = startsAt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York', timeZoneName: 'short' })
+  const isError = !!event.parseError
+
+  return (
+    <div style={{
+      background: highlight ? 'linear-gradient(135deg, rgba(201,169,110,0.14), rgba(201,169,110,0.04))' : '#142D48',
+      border: `1px solid ${
+        isError ? 'rgba(248,113,113,0.35)'
+        : highlight ? 'rgba(201,169,110,0.45)'
+        : 'rgba(201,169,110,0.08)'
+      }`,
+      borderRadius: 6,
+      padding: '16px 18px',
+      opacity: muted ? 0.65 : 1,
+      boxShadow: highlight ? '0 0 24px rgba(201,169,110,0.15)' : 'none',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 10,
+    }}>
+      {/* Date strip */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#C9A96E' }}>
+          {day} · {time}
+        </div>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {event.discordEventId && (
+            <span style={{
+              fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+              padding: '2px 7px', borderRadius: 3,
+              background: 'rgba(74,222,128,0.12)',
+              border: '1px solid rgba(74,222,128,0.35)',
+              color: '#4ade80',
+            }}>
+              Discord ✓
+            </span>
+          )}
+          {event.reminderSentAt && (
+            <span style={{
+              fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+              padding: '2px 7px', borderRadius: 3,
+              background: 'rgba(155,109,255,0.12)',
+              border: '1px solid rgba(155,109,255,0.35)',
+              color: '#9B6DFF',
+            }}>
+              Notified
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Title */}
+      <div>
+        {event.category && (
+          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#9B6DFF', marginBottom: 3 }}>
+            {event.category}
+          </div>
+        )}
+        <div style={{ fontSize: 15, fontWeight: 600, color: '#ffffff', lineHeight: 1.3 }}>{event.title}</div>
+        {event.subtitle && (
+          <div style={{ fontSize: 11, color: '#9BB0C4', marginTop: 3 }}>{event.subtitle}</div>
+        )}
+      </div>
+
+      {/* Presenters */}
+      {presenters.length > 0 && (
+        <div style={{ fontSize: 11, color: '#9BB0C4', lineHeight: 1.5 }}>
+          {presenters.map((p, i) => (
+            <span key={i}>
+              <strong style={{ color: '#ffffff' }}>{p.name}</strong>
+              {p.role && <span style={{ color: '#6B8299' }}> · {p.role}</span>}
+              {i < presenters.length - 1 && <br />}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Stream + tags */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, fontSize: 10, color: '#6B8299' }}>
+        {event.streamType === 'GFI_LIVE' ? '📺' : '🎥'} {event.streamId ?? '—'}
+        {event.passcode && <span> · pw {event.passcode}</span>}
+      </div>
+      {(event.audienceRestriction || event.targetRegion || event.partnerBrand) && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+          {event.audienceRestriction && (
+            <Tag color="#f87171">🔒 {event.audienceRestriction}</Tag>
+          )}
+          {event.targetRegion && <Tag color="#9B6DFF">🌍 {event.targetRegion}</Tag>}
+          {event.partnerBrand && <Tag color="#C9A96E">🤝 {event.partnerBrand}</Tag>}
+        </div>
+      )}
+
+      {event.parseError && (
+        <div style={{
+          fontSize: 10, color: '#f87171',
+          padding: '6px 8px',
+          background: 'rgba(248,113,113,0.06)',
+          borderRadius: 3,
+          border: '1px solid rgba(248,113,113,0.2)',
+        }}>
+          ⚠ {event.parseError}
+        </div>
+      )}
+
+      <div style={{ fontSize: 9, color: '#4B5563', marginTop: 'auto' }}>
+        {event.driveFileName}
+        {event.manuallyEdited && <span style={{ color: '#C9A96E' }}> · manually edited</span>}
+      </div>
+    </div>
+  )
+}
+
+function Tag({ color, children }: { color: string; children: React.ReactNode }) {
+  return (
+    <span style={{
+      fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+      padding: '3px 8px', borderRadius: 3,
+      background: `${color}14`,
+      border: `1px solid ${color}40`,
+      color,
+    }}>
+      {children}
+    </span>
+  )
+}

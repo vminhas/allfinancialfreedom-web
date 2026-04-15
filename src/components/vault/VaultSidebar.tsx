@@ -15,6 +15,7 @@ const NAV_ADMIN = [
   { href: '/vault/contacts', label: 'Contacts', icon: '◉' },
   { href: '/vault/tracker', label: 'AFF Tracker', icon: '◑' },
   { href: '/vault/licensing', label: 'Licensing Inbox', icon: '◎' },
+  { href: '/vault/trainings', label: 'Trainings', icon: '▶' },
   { href: '/vault/call-review', label: 'Call Review', icon: '◐' },
   { href: '/vault/birthdays', label: 'Birthdays', icon: '✦' },
   { href: '/vault/settings', label: 'Settings', icon: '⚙' },

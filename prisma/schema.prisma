@@ -377,6 +377,60 @@ enum NoteScope {
   ADMIN_ONLY  // visible to admins only — LC cannot see these
 }
 
+enum TrainingStreamType {
+  GFI_LIVE
+  ZOOM
+}
+
+model TrainingEvent {
+  id                    String             @id @default(cuid())
+  driveFileId           String
+  eventIndex            Int                @default(0)   // for multi-event posters; usually 0
+  driveFileName         String
+  driveModifiedTime     DateTime
+  driveThumbnailUrl     String?
+
+  title                 String
+  subtitle              String?
+  category              String?
+  startsAt              DateTime           // canonical UTC
+  durationMinutes       Int                @default(60)
+  presenters            Json               // [{ name, role }]
+
+  streamType            TrainingStreamType @default(GFI_LIVE)
+  streamRoomName        String?
+  streamId              String?
+  passcode              String?
+
+  audienceRestriction   String?
+  partnerBrand          String?
+  targetRegion          String?
+
+  // Discord plumbing — populated in a later phase
+  discordEventId        String?
+  discordEventCreatedAt DateTime?
+  reminderSentAt        DateTime?
+
+  // Parse metadata
+  parsedAt              DateTime           @default(now())
+  parseError            String?
+  rawParseJson          Json?
+  modelId               String?
+  inputTokens           Int                @default(0)
+  outputTokens          Int                @default(0)
+
+  // Manual override flag — admin edited the parsed values, don't re-overwrite
+  manuallyEdited        Boolean            @default(false)
+
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  @@unique([driveFileId, eventIndex])
+  @@index([startsAt])
+  @@index([reminderSentAt])
+  @@map("training_events")
+}
+
 model LicensingNote {
   id             String       @id @default(cuid())
   agentProfileId String
