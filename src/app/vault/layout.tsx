@@ -4,6 +4,7 @@ import { headers } from 'next/headers'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import VaultSidebar from '@/components/vault/VaultSidebar'
+import VaultSessionProvider from './VaultSessionProvider'
 
 export const metadata = { title: 'Vault — AFF' }
 
@@ -40,11 +41,13 @@ export default async function VaultLayout({ children }: { children: ReactNode })
   }
 
   return (
-    <div className="vault-shell">
-      <VaultSidebar />
-      <main className="vault-main">
-        {children}
-      </main>
-    </div>
+    <VaultSessionProvider>
+      <div className="vault-shell">
+        <VaultSidebar />
+        <main className="vault-main">
+          {children}
+        </main>
+      </div>
+    </VaultSessionProvider>
   )
 }
