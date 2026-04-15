@@ -287,12 +287,12 @@ export default function TrackerPage() {
         padding: '28px 0 24px',
         borderBottom: '1px solid rgba(201,169,110,0.08)',
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 12 }}>
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 6 }}>
               All Financial Freedom
             </div>
-            <h1 style={{ fontSize: 32, fontWeight: 300, color: '#ffffff', margin: '0 0 6px', letterSpacing: '-0.02em' }}>
+            <h1 style={{ fontSize: 'clamp(22px, 5vw, 32px)', fontWeight: 300, color: '#ffffff', margin: '0 0 6px', letterSpacing: '-0.02em' }}>
               AFF Tracker
             </h1>
             <p style={{ color: '#6B8299', fontSize: 13, margin: 0 }}>
@@ -319,7 +319,7 @@ export default function TrackerPage() {
       {stats && (
         <div style={{ marginBottom: 28 }}>
           {/* KPI row */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 16 }}>
             {/* Active Agents */}
             <div
               onClick={() => { setStatusFilter(activeAgentsFilterOn ? '' : 'active'); setPage(1) }}
@@ -392,7 +392,7 @@ export default function TrackerPage() {
           </div>
 
           {/* Phase pipeline + trend chart side by side */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12, marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12, marginBottom: 16 }}>
             {/* Phase pipeline */}
             <div style={{ background: '#142D48', border: '1px solid rgba(201,169,110,0.08)', borderRadius: 6, padding: '18px 24px' }}>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 14 }}>
@@ -605,7 +605,8 @@ export default function TrackerPage() {
         border: '1px solid rgba(201,169,110,0.08)',
         borderRadius: 6, overflow: 'hidden',
       }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <table style={{ width: '100%', minWidth: 900, borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: 'rgba(12,30,48,0.8)' }}>
               {['Agent', 'State', 'Phase', 'Progress', 'Days', 'Carriers', 'Trainer', 'Status', ''].map(h => (
@@ -726,6 +727,7 @@ export default function TrackerPage() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Pagination */}
@@ -760,10 +762,10 @@ export default function TrackerPage() {
           onClick={e => { if (e.target === e.currentTarget) { setSelectedAgent(null); setInviteMsg('') } }}
         >
           <div style={{
-            width: 540, height: '100%', overflow: 'auto',
+            width: 'min(540px, 100vw)', height: '100%', overflow: 'auto',
             background: '#0C1E30',
             borderLeft: '1px solid rgba(201,169,110,0.15)',
-            padding: 32,
+            padding: 'clamp(16px, 4vw, 32px)',
           }}>
             {drawerLoading ? (
               <div style={{ color: '#6B8299', fontSize: 13 }}>Loading...</div>
@@ -1486,12 +1488,12 @@ function AddAgentModal({ onClose, onCreated, trainers }: { onClose: () => void; 
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 12 }}>
       <div style={{
         background: '#142D48',
         border: '1px solid rgba(201,169,110,0.15)',
-        borderRadius: 8, padding: 32,
-        width: 480, maxHeight: '90vh', overflowY: 'auto',
+        borderRadius: 8, padding: 'clamp(20px, 4vw, 32px)',
+        width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto',
         boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>

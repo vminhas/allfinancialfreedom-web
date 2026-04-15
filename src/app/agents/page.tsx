@@ -192,8 +192,9 @@ function AgentDashboardInner() {
       {/* Top nav */}
       <div style={{
         borderBottom: '1px solid rgba(201,169,110,0.1)',
-        padding: '14px 32px',
+        padding: '14px clamp(16px, 4vw, 32px)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        gap: 12, flexWrap: 'wrap',
         background: '#0A1628', position: 'sticky', top: 0, zIndex: 10,
       }}>
         <div>
@@ -231,7 +232,7 @@ function AgentDashboardInner() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 960, margin: '0 auto', padding: '36px 24px' }}>
+      <div style={{ maxWidth: 960, margin: '0 auto', padding: 'clamp(20px, 5vw, 36px) clamp(16px, 4vw, 24px)' }}>
 
         {/* Header */}
         <div style={{ marginBottom: 24 }}>
@@ -252,7 +253,7 @@ function AgentDashboardInner() {
         </div>
 
         {/* Quick stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 24 }}>
           {[
             { label: 'Discord Role', value: data.discordRoleName ?? `Phase ${data.phase}`, color: PHASE_COLORS[data.phase] },
             { label: 'Days in Phase', value: daysInPhase != null ? `${daysInPhase}d` : '—', color: '#9BB0C4' },

@@ -257,7 +257,7 @@ export default function OutreachPage() {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24 }}>
 
         {/* Left: contacts + context */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

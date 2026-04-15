@@ -29,9 +29,9 @@ export default async function VaultLayout({ children }: { children: ReactNode })
   }
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#0C1E30' }}>
+    <div className="vault-shell">
       <VaultSidebar />
-      <main style={{ flex: 1, padding: '40px 48px', overflowY: 'auto' }}>
+      <main className="vault-main">
         {children}
       </main>
     </div>
