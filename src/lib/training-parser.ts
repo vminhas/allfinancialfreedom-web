@@ -4,16 +4,18 @@ import { getSetting } from './settings'
 
 const MODEL_ID = 'claude-sonnet-4-5-20250929'
 
-// Anthropic vision caps source images at 5 MB base64. We target 4 MB raw to
-// leave headroom for base64 inflation (~1.33x). Anything larger gets resized
-// + recompressed via sharp before being sent.
-const MAX_RAW_BYTES = 4 * 1024 * 1024
+// Anthropic vision caps source images at 5 MB base64. base64 inflates raw
+// bytes by ~1.37x (4/3 + line breaks). Working backwards: 5 MB / 1.37 ≈ 3.6 MB
+// raw is the absolute ceiling. We target 2 MB raw to leave a wide safety
+// margin — anything larger gets resized + recompressed via sharp.
+const MAX_RAW_BYTES = 2 * 1024 * 1024
 
 /**
- * If the image is over the 4 MB budget, downscale it. Returns the original
+ * If the image is over the 2 MB budget, downscale it. Returns the original
  * buffer + mimeType if it's already under the limit, or a freshly compressed
- * JPEG buffer if it had to shrink. Always preserves enough resolution for
- * Claude vision to read text on the flyer.
+ * JPEG buffer if it had to shrink. Defensively wrapped so that a sharp
+ * failure surfaces a useful error instead of leaking a too-large buffer
+ * through to the Claude API.
  */
 async function shrinkIfNeeded(
   buffer: Buffer,
@@ -23,27 +25,34 @@ async function shrinkIfNeeded(
     return { buffer, mimeType }
   }
 
-  // Walk down the size ladder until we fit. JPEG quality 85 + max 1600px wide
-  // is plenty for OCR; rarely needs to drop further but the loop is defensive.
-  const widths = [1600, 1280, 1024, 800]
-  for (const width of widths) {
-    const out = await sharp(buffer, { failOn: 'none' })
-      .rotate()        // honour EXIF orientation
-      .resize({ width, withoutEnlargement: true })
-      .jpeg({ quality: 85, mozjpeg: true })
-      .toBuffer()
-    if (out.byteLength <= MAX_RAW_BYTES) {
-      return { buffer: out, mimeType: 'image/jpeg' }
+  try {
+    // Walk down the size ladder until we fit. JPEG quality 85 + max 1600px wide
+    // is plenty of resolution for OCR — Claude vision reads dense flyer text
+    // without trouble at that size.
+    const widths = [1600, 1280, 1024, 800]
+    for (const width of widths) {
+      const out = await sharp(buffer, { failOn: 'none' })
+        .rotate()        // honour EXIF orientation
+        .resize({ width, withoutEnlargement: true })
+        .jpeg({ quality: 85, mozjpeg: true })
+        .toBuffer()
+      if (out.byteLength <= MAX_RAW_BYTES) {
+        return { buffer: out, mimeType: 'image/jpeg' }
+      }
     }
-  }
 
-  // Last resort — aggressive crunch
-  const out = await sharp(buffer, { failOn: 'none' })
-    .rotate()
-    .resize({ width: 800, withoutEnlargement: true })
-    .jpeg({ quality: 70, mozjpeg: true })
-    .toBuffer()
-  return { buffer: out, mimeType: 'image/jpeg' }
+    // Last resort — aggressive crunch
+    const out = await sharp(buffer, { failOn: 'none' })
+      .rotate()
+      .resize({ width: 800, withoutEnlargement: true })
+      .jpeg({ quality: 70, mozjpeg: true })
+      .toBuffer()
+    return { buffer: out, mimeType: 'image/jpeg' }
+  } catch (err) {
+    throw new Error(
+      `Image shrink failed (raw ${buffer.byteLength} bytes, ${mimeType}): ${err instanceof Error ? err.message : String(err)}`
+    )
+  }
 }
 
 const SYSTEM_PROMPT = `You are an extraction system for GFI / All Financial Freedom training event flyers.
