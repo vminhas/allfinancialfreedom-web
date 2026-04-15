@@ -896,6 +896,46 @@ function AgentDrawer({
   onClose: () => void
 }) {
   const [activeTab, setActiveTab] = useState<'progress' | 'carriers' | 'calls' | 'info' | 'edit'>('progress')
+  const [drawerChecklistPhase, setDrawerChecklistPhase] = useState<number>(agent.phase)
+  const [togglingKey, setTogglingKey] = useState<string | null>(null)
+  const [localPhaseItems, setLocalPhaseItems] = useState(agent.phaseItems)
+
+  // Keep local view in sync when the agent prop changes (e.g. after re-fetch)
+  useEffect(() => {
+    setLocalPhaseItems(agent.phaseItems)
+  }, [agent.phaseItems])
+  useEffect(() => {
+    setDrawerChecklistPhase(agent.phase)
+  }, [agent.id, agent.phase])
+
+  const toggleAgentItem = async (itemKey: string, phase: number, completed: boolean) => {
+    setTogglingKey(itemKey)
+    // Optimistic update
+    setLocalPhaseItems(prev => {
+      const idx = prev.findIndex(p => p.phase === phase && p.itemKey === itemKey)
+      const updated = {
+        phase,
+        itemKey,
+        completed,
+        completedAt: completed ? new Date().toISOString() : null,
+      }
+      if (idx >= 0) {
+        const next = [...prev]
+        next[idx] = updated
+        return next
+      }
+      return [...prev, updated]
+    })
+    try {
+      await fetch(`/api/admin/agents/${agent.id}/progress`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemKey, phase, completed }),
+      })
+    } finally {
+      setTogglingKey(null)
+    }
+  }
   const [editingCarrier, setEditingCarrier] = useState<string | null>(null)
   const [carrierStatus, setCarrierStatus] = useState('')
   const [carrierPN, setCarrierPN] = useState('')
@@ -1170,30 +1210,84 @@ function AgentDrawer({
       {/* Progress tab */}
       {activeTab === 'progress' && (
         <div>
-          <div style={sLabel}>Phase {agent.phase} Checklist</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            {(PHASE_ITEMS[agent.phase] ?? []).map(item => {
-              const phaseItem = agent.phaseItems.find(pi => pi.phase === agent.phase && pi.itemKey === item.key)
-              const done = phaseItem?.completed ?? false
+          {/* Phase sub-tabs — bounce between phases independently of current phase */}
+          <div style={{ display: 'flex', gap: 4, marginBottom: 16, flexWrap: 'wrap' }}>
+            {[1, 2, 3, 4, 5].map(ph => {
+              const items = PHASE_ITEMS[ph] ?? []
+              const done = localPhaseItems.filter(p => p.phase === ph && p.completed).length
+              const total = items.length
+              const pct = total > 0 ? Math.round((done / total) * 100) : 0
+              const isActive = drawerChecklistPhase === ph
+              const isCurrent = ph === agent.phase
+              const isPast = ph < agent.phase
               return (
-                <div key={item.key} style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '8px 12px', borderRadius: 4,
-                  background: done ? 'rgba(74,222,128,0.05)' : 'rgba(255,255,255,0.02)',
-                  border: `1px solid ${done ? 'rgba(74,222,128,0.12)' : 'rgba(255,255,255,0.04)'}`,
-                }}>
-                  <span style={{ fontSize: 12, color: done ? '#4ade80' : '#4B5563', flexShrink: 0 }}>
-                    {done ? '✓' : '○'}
+                <button
+                  key={ph}
+                  onClick={() => setDrawerChecklistPhase(ph)}
+                  style={{
+                    padding: '7px 14px', borderRadius: 4, cursor: 'pointer',
+                    fontSize: 11, fontWeight: isActive ? 700 : 500,
+                    letterSpacing: '0.08em',
+                    border: `1px solid ${isActive ? PHASE_COLORS[ph] : 'rgba(255,255,255,0.08)'}`,
+                    background: isActive ? `${PHASE_COLORS[ph]}18` : 'transparent',
+                    color: isActive ? PHASE_COLORS[ph] : isPast ? '#4ade80' : isCurrent ? '#9BB0C4' : '#4B5563',
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    minHeight: 36,
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {isPast && <span style={{ fontSize: 9 }}>✓</span>}
+                  Phase {ph}
+                  {isCurrent && !isActive && <span style={{ fontSize: 8, color: '#C9A96E', fontWeight: 700 }}>NOW</span>}
+                  <span style={{ fontSize: 9, opacity: 0.7 }}>{pct}%</span>
+                </button>
+              )
+            })}
+          </div>
+
+          <div style={sLabel}>Phase {drawerChecklistPhase} — {PHASE_LABELS[drawerChecklistPhase]?.title}</div>
+          <div style={{ fontSize: 11, color: '#6B8299', marginBottom: 12, lineHeight: 1.5 }}>
+            Click any item to toggle it. Agents work on phases asynchronously — you can check items here even if it&apos;s not the agent&apos;s current phase.
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            {(PHASE_ITEMS[drawerChecklistPhase] ?? []).map(item => {
+              const phaseItem = localPhaseItems.find(pi => pi.phase === drawerChecklistPhase && pi.itemKey === item.key)
+              const done = phaseItem?.completed ?? false
+              const isToggling = togglingKey === item.key
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => toggleAgentItem(item.key, drawerChecklistPhase, !done)}
+                  disabled={isToggling}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '10px 12px', borderRadius: 4, minHeight: 40,
+                    background: done ? 'rgba(74,222,128,0.05)' : 'rgba(255,255,255,0.02)',
+                    border: `1px solid ${done ? 'rgba(74,222,128,0.2)' : 'rgba(255,255,255,0.05)'}`,
+                    cursor: isToggling ? 'wait' : 'pointer',
+                    opacity: isToggling ? 0.6 : 1,
+                    textAlign: 'left',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  <span style={{
+                    width: 16, height: 16, borderRadius: 3, flexShrink: 0,
+                    background: done ? '#4ade80' : 'transparent',
+                    border: `2px solid ${done ? '#4ade80' : 'rgba(255,255,255,0.2)'}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 9, color: '#0A1628', fontWeight: 700,
+                  }}>
+                    {done && '✓'}
                   </span>
-                  <span style={{ fontSize: 12, color: done ? '#9BB0C4' : '#6B8299', flex: 1 }}>
+                  <span style={{ fontSize: 12, color: done ? '#9BB0C4' : '#ffffff', flex: 1 }}>
                     {item.label}
                   </span>
                   {phaseItem?.completedAt && (
-                    <span style={{ marginLeft: 'auto', fontSize: 9, color: '#4B5563' }}>
+                    <span style={{ fontSize: 9, color: '#4B5563', flexShrink: 0 }}>
                       {new Date(phaseItem.completedAt).toLocaleDateString()}
                     </span>
                   )}
-                </div>
+                </button>
               )
             })}
           </div>

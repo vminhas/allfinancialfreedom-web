@@ -3,13 +3,18 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { PHASE_ITEMS } from '@/lib/agent-constants'
+import { requireRole } from '@/lib/permissions'
 
-// PUT /api/agents/progress — toggle a phase item checkbox
-export async function PUT(req: NextRequest) {
+// PUT /api/admin/agents/[id]/progress — admin toggles a phase item on behalf of an agent
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const denied = requireRole(session, 'admin')
+  if (denied) return denied
+
+  const { id } = await params
 
   const { itemKey, phase, completed } = await req.json() as {
     itemKey: string
@@ -21,24 +26,19 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'itemKey and phase required' }, { status: 400 })
   }
 
-  const agentUser = await db.agentUser.findUnique({
-    where: { email: session.user!.email! },
-    include: { profile: { select: { id: true, phase: true } } },
-  })
-  if (!agentUser?.profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
-
-  // Agents can toggle items across any phase — onboarding progresses
-  // asynchronously (e.g. you can schedule FTAs in Phase 2 while still waiting
-  // on your license from Phase 1). Just validate the item exists in that phase.
   const validKeys = PHASE_ITEMS[phase]?.map(i => i.key) ?? []
   if (!validKeys.includes(itemKey)) {
     return NextResponse.json({ error: 'Invalid item key for this phase' }, { status: 400 })
   }
 
+  // Verify agent exists
+  const profile = await db.agentProfile.findUnique({ where: { id }, select: { id: true } })
+  if (!profile) return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
+
   const item = await db.phaseItem.upsert({
     where: {
       agentProfileId_phase_itemKey: {
-        agentProfileId: agentUser.profile.id,
+        agentProfileId: id,
         phase,
         itemKey,
       },
@@ -48,7 +48,7 @@ export async function PUT(req: NextRequest) {
       completedAt: completed ? new Date() : null,
     },
     create: {
-      agentProfileId: agentUser.profile.id,
+      agentProfileId: id,
       phase,
       itemKey,
       completed,
