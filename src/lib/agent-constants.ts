@@ -1,90 +1,119 @@
 // Phase checklist items — stored as PhaseItem rows per agent
-export const PHASE_ITEMS: Record<number, { key: string; label: string; description: string; tab?: string }[]> = {
+// Each item has a first-person vignette (description) read by the agent during
+// onboarding. Items handled by the Licensing Coordinator include a
+// `coordinatorTopic` so the agent portal can render a direct-request button.
+export type LicensingCoordinatorTopic =
+  | 'SCHEDULE_EXAM'
+  | 'PASS_POST_LICENSING'
+  | 'FINGERPRINTS_APPLY'
+  | 'GFI_APPOINTMENTS'
+  | 'CE_COURSES'
+  | 'EO_INSURANCE'
+  | 'DIRECT_DEPOSIT'
+  | 'UNDERWRITING'
+  | 'GENERAL'
+
+export interface PhaseItemDef {
+  key: string
+  label: string
+  description: string
+  tab?: string
+  coordinatorTopic?: LicensingCoordinatorTopic
+}
+
+export const PHASE_ITEMS: Record<number, PhaseItemDef[]> = {
   1: [
     {
       key: 'week1_onboarding',
       label: 'Week 1 Onboarding',
-      description: 'Complete your first week orientation with AFF. Connect with your CFT trainer, access your portal, and review the agent roadmap. This sets the foundation for everything ahead.',
+      description: "This week your trainer walks you through AFF's flagship products and the reasons behind them. By the end of the week you'll understand exactly what you're offering to clients and why it matters.",
     },
     {
       key: 'licensing_class',
       label: 'Licensing Class / Schedule Test',
-      description: 'Register and attend your state life insurance pre-licensing course. Schedule your exam date immediately after — the sooner you test, the sooner you can start serving clients.',
+      description: "Schedule your pre-licensing course and exam with the licensing coordinator. She'll walk you through the process, help you pick a test date, and answer any questions along the way. Use the button below to reach her directly.",
+      coordinatorTopic: 'SCHEDULE_EXAM',
     },
     {
       key: 'pfr',
       label: 'Personal Financial Review',
-      description: 'Complete your own Personal Financial Review (PFR) with your trainer. This is both a personal financial planning session and your first hands-on experience with a core AFF client tool.',
+      description: "Sit down with your trainer for your own Personal Financial Review. This is both a real planning session for your finances and your first hands-on experience with the tool you'll use to help families.",
     },
     {
       key: 'fast_start_school',
       label: 'Fast Start School',
-      description: 'Attend AFF Fast Start School — a focused multi-day training on the AFF business model, products, and how to build your agency from day one.',
+      description: "A company-wide walkthrough of what to focus on in your first 30 days. Held Saturdays at 11am Eastern — your trainer will send you the link and details.",
     },
     {
       key: 'week2_onboarding',
       label: 'Week 2 Onboarding',
-      description: 'Second-week check-in with your trainer. Review your progress, address any questions, and sharpen your approach going into your license exam.',
-    },
-    {
-      key: '3_business_partners',
-      label: '3 Business Partners',
-      description: 'Identify your first 3 business partners — people from your network who you\'d introduce to the AFF opportunity. Your trainer will guide you through the introduction process.',
-      tab: 'partners',
+      description: "This week you'll build out your lead-generation marketing plan with your trainer. Come prepared with ideas about your natural market.",
     },
     {
       key: 'business_marketing_plan',
       label: 'Business Marketing Plan',
-      description: 'Build your Business Marketing Plan (BMP) with your CFT. This defines your target market, daily activity goals, and 90-day growth strategy — your personal playbook.',
+      description: "Work with your CFT to build your personal Business Marketing Plan. This becomes your 90-day playbook: target market, daily activity targets, and growth goals.",
     },
     {
       key: 'pass_license_test',
       label: 'Pass Life License Test',
-      description: 'Pass your state life insurance licensing exam. This is the most critical milestone in Phase 1 — your license is what authorizes you to serve clients and earn commissions.',
+      description: "Pass your state life insurance exam. The moment you pass, schedule your post-licensing call with the licensing coordinator and your EMD — that's where your next steps get mapped out. Use the button below to reach the coordinator.",
+      coordinatorTopic: 'PASS_POST_LICENSING',
     },
     {
       key: 'fingerprints_apply',
       label: 'Fingerprints + Apply for License',
-      description: 'Submit your fingerprints and file your life license application with your state Department of Insurance. Processing typically takes 2–4 weeks. Do this immediately after passing your exam.',
+      description: "Schedule your fingerprinting and file your state license application. The licensing coordinator handles this with you — use the button below to get in her queue.",
+      coordinatorTopic: 'FINGERPRINTS_APPLY',
     },
     {
       key: 'submit_to_aff',
-      label: 'Submit to AFF',
-      description: 'Submit your completed contracting paperwork and license application details to AFF. Your recruiter will confirm receipt and guide you through next steps.',
+      label: 'Submit to GFI',
+      description: "This is what gets you appointed to all of the different carriers. The licensing coordinator handles the submission for you — reach out to her directly from this item.",
+      coordinatorTopic: 'GFI_APPOINTMENTS',
     },
     {
       key: 'ce_courses',
       label: 'Complete CE Courses (AML, Annuity & Ethics)',
-      description: 'Complete the required Continuing Education courses: Anti-Money Laundering (AML), Annuity Product Training, and Ethics. Required by most carriers before you can be fully appointed.',
+      description: "Complete your Continuing Education courses: AML, Annuity, and Ethics. The licensing coordinator will point you to the provider and help you past any snags.",
+      coordinatorTopic: 'CE_COURSES',
     },
     {
       key: 'errors_and_omissions',
       label: 'Errors & Omissions Insurance',
-      description: 'Obtain your Errors & Omissions (E&O) insurance policy. E&O is required by most carriers and protects you professionally. Coverage must be active before appointments can be processed.',
+      description: "Apply for your Errors & Omissions (E&O) insurance policy. The licensing coordinator walks you through the application.",
+      coordinatorTopic: 'EO_INSURANCE',
     },
     {
       key: 'direct_deposit',
       label: 'Set Up Direct Deposit',
-      description: 'Set up your direct deposit with AFF so your commissions are paid directly to your bank account. Required before your first policy can pay out.',
+      description: "Set up direct deposit so your commissions land in your account automatically. The licensing coordinator will help you finish this.",
+      coordinatorTopic: 'DIRECT_DEPOSIT',
     },
     {
       key: 'week3_onboarding',
       label: 'Week 3 Onboarding',
-      description: 'Third-week check-in covering post-exam next steps, carrier contracting setup, and your transition into active field training.',
+      description: "This week you'll start scheduling Field Training Appointments (FTAs) with your Certified Field Trainer.",
     },
     {
       key: 'master_scripts',
       label: 'Master Scripts',
-      description: 'Learn and practice the core AFF scripts: the Phone Script, the Interview Script, and the Warm Transfer. These are the tools you\'ll use daily — drill until they feel completely natural.',
+      description: "Learn the scheduling and presentation scripts you'll use on your Field Training calls. Drill them until they feel natural.",
     },
     {
       key: 'schedule_10_trainings',
       label: 'Schedule 10 Training Appointments',
-      description: 'Schedule your first 10 Field Training Appointments (FTAs) with your CFT. These are live joint appointments where you observe first, then begin co-presenting alongside your trainer.',
+      description: "Schedule your first 10 Field Training Appointments alongside your trainer. Once these are booked, you're ready to move into Phase 2.",
       tab: 'partners',
     },
   ],
   2: [
+    {
+      key: '3_business_partners',
+      label: '3 Business Partners',
+      description: "Identify the first 3 people from your network you'd like to introduce to the AFF opportunity. Your trainer will guide you through the conversations — these become the foundation for your field training.",
+      tab: 'partners',
+    },
     {
       key: 'fta_1',
       label: 'Field Training 1 (Spouse / Parents)',

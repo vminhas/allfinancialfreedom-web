@@ -7,6 +7,10 @@ import VaultSidebar from '@/components/vault/VaultSidebar'
 
 export const metadata = { title: 'Vault — AFF' }
 
+// Paths a Licensing Coordinator is allowed to visit. Everything else redirects
+// back to /vault/licensing. Admins can visit anything.
+const LC_ALLOWED_PREFIXES = ['/vault/licensing', '/vault/settings']
+
 export default async function VaultLayout({ children }: { children: ReactNode }) {
   const headersList = await headers()
   const pathname = headersList.get('x-pathname') ?? ''
@@ -14,18 +18,25 @@ export default async function VaultLayout({ children }: { children: ReactNode })
 
   const session = await getServerSession(authOptions)
   const role = (session?.user as { role?: string } | undefined)?.role
-  const isAdmin = session && role === 'admin'
+  const isAdmin = !!session && role === 'admin'
+  const isLc = !!session && role === 'licensing_coordinator'
+  const isStaff = isAdmin || isLc
 
-  // On the login page: redirect admins straight to /vault, show bare page for everyone else
+  // On the login page: redirect logged-in users to their home, show bare page for everyone else
   if (isLoginPage) {
     if (isAdmin) redirect('/vault')
+    if (isLc) redirect('/vault/licensing')
     return <>{children}</>
   }
 
-  // All other vault pages: require admin session (middleware already enforces this,
-  // but be defensive in case of a race or direct server render)
-  if (!isAdmin) {
+  // All other vault pages: require a staff session
+  if (!isStaff) {
     return <>{children}</>
+  }
+
+  // Licensing Coordinator: restrict to their allowed pages
+  if (isLc && pathname && !LC_ALLOWED_PREFIXES.some(p => pathname.startsWith(p))) {
+    redirect('/vault/licensing')
   }
 
   return (

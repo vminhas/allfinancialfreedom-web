@@ -29,7 +29,8 @@ export const authOptions: NextAuthOptions = {
           data: { lastLoginAt: new Date() },
         })
 
-        return { id: user.id, email: user.email, name: user.name, role: 'admin' }
+        const role = user.role === 'LICENSING_COORDINATOR' ? 'licensing_coordinator' : 'admin'
+        return { id: user.id, email: user.email, name: user.name, role }
       },
     }),
 

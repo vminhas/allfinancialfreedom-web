@@ -21,10 +21,18 @@ model AdminUser {
   email        String    @unique
   passwordHash String
   name         String
+  role         AdminRole @default(ADMIN)
   createdAt    DateTime  @default(now())
   lastLoginAt  DateTime?
 
+  assignedRequests CoordinatorRequest[] @relation("AssignedCoordinator")
+
   @@map("admin_users")
+}
+
+enum AdminRole {
+  ADMIN
+  LICENSING_COORDINATOR
 }
 
 model ImportJob {
@@ -168,6 +176,7 @@ model AgentProfile {
   policies              PolicyEntry[]
   callLogs              CallLog[]
   callReviews           CallReview[]
+  coordinatorRequests   CoordinatorRequest[]
 
   @@map("agent_profiles")
 }
@@ -320,4 +329,43 @@ model CallReview {
 
   @@index([agentProfileId, reviewedAt])
   @@map("call_reviews")
+}
+
+enum LicensingRequestTopic {
+  SCHEDULE_EXAM
+  PASS_POST_LICENSING
+  FINGERPRINTS_APPLY
+  GFI_APPOINTMENTS
+  CE_COURSES
+  EO_INSURANCE
+  DIRECT_DEPOSIT
+  UNDERWRITING
+  GENERAL
+}
+
+enum LicensingRequestStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+model CoordinatorRequest {
+  id             String                 @id @default(cuid())
+  agentProfileId String
+  agentProfile   AgentProfile           @relation(fields: [agentProfileId], references: [id])
+  phaseItemKey   String?
+  topic          LicensingRequestTopic
+  message        String
+  status         LicensingRequestStatus @default(OPEN)
+  assignedToId   String?
+  assignedTo     AdminUser?             @relation("AssignedCoordinator", fields: [assignedToId], references: [id])
+  resolutionNote String?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  resolvedAt     DateTime?
+
+  @@index([agentProfileId, status])
+  @@index([status, assignedToId])
+  @@map("coordinator_requests")
 }

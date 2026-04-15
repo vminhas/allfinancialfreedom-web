@@ -2,11 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { signOut } from 'next-auth/react'
+import { signOut, useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import { useIsMobile } from '@/lib/useIsMobile'
 
-const NAV = [
+const NAV_ADMIN = [
   { href: '/vault', label: 'Dashboard', icon: '◈' },
   { href: '/vault/import', label: 'Import', icon: '↑' },
   { href: '/vault/outreach', label: 'Outreach', icon: '✉' },
@@ -14,14 +14,24 @@ const NAV = [
   { href: '/vault/sequence', label: 'Sequences', icon: '⟳' },
   { href: '/vault/contacts', label: 'Contacts', icon: '◉' },
   { href: '/vault/tracker', label: 'AFF Tracker', icon: '◑' },
+  { href: '/vault/licensing', label: 'Licensing Inbox', icon: '◎' },
   { href: '/vault/call-review', label: 'Call Review', icon: '◐' },
   { href: '/vault/settings', label: 'Settings', icon: '⚙' },
+]
+
+const NAV_LC = [
+  { href: '/vault/licensing', label: 'Licensing Inbox', icon: '◎' },
+  { href: '/vault/settings', label: 'Profile', icon: '⚙' },
 ]
 
 export default function VaultSidebar() {
   const pathname = usePathname()
   const isMobile = useIsMobile()
   const [open, setOpen] = useState(false)
+  const { data: session } = useSession()
+  const role = (session?.user as { role?: string } | undefined)?.role
+  const NAV = role === 'licensing_coordinator' ? NAV_LC : NAV_ADMIN
+  const brandSubtitle = role === 'licensing_coordinator' ? 'Licensing' : 'Vault'
 
   // Close drawer when navigating
   useEffect(() => { setOpen(false) }, [pathname])
