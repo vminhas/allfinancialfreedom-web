@@ -326,9 +326,32 @@ function TrainingCard({ event, highlight, muted }: { event: TrainingEvent; highl
       )}
 
       {/* Stream + tags */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, fontSize: 10, color: '#6B8299' }}>
-        {event.streamType === 'GFI_LIVE' ? '📺' : '🎥'} {event.streamId ?? '—'}
-        {event.passcode && <span> · pw {event.passcode}</span>}
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, fontSize: 11 }}>
+        <span style={{ color: '#6B8299' }}>{event.streamType === 'GFI_LIVE' ? '📺' : '🎥'}</span>
+        {event.streamId ? (
+          <a
+            href={`https://zoom.us/j/${event.streamId.replace(/[\s-]/g, '')}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: '#9B6DFF',
+              textDecoration: 'none',
+              fontFamily: 'monospace',
+              fontWeight: 600,
+              borderBottom: '1px dashed rgba(155,109,255,0.4)',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {event.streamId}
+          </a>
+        ) : (
+          <span style={{ color: '#4B5563' }}>—</span>
+        )}
+        {event.passcode && (
+          <span style={{ color: '#6B8299' }}>
+            · pw <span style={{ color: '#C9A96E', fontFamily: 'monospace', userSelect: 'all' }}>{event.passcode}</span>
+          </span>
+        )}
       </div>
       {(event.audienceRestriction || event.targetRegion || event.partnerBrand) && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>

@@ -3,6 +3,80 @@ import { listPublicFolder, downloadPublicFile, filterTrainingFlyers, type DriveF
 import { parseTrainingFlyer, type ParsedTrainingEvent } from './training-parser'
 import { createGuildScheduledEvent } from './discord'
 
+/**
+ * Build a clickable Zoom-style join URL from a stream/meeting ID.
+ * Both "GFI Live - Impact TV" and direct Zoom meetings share the format
+ * https://zoom.us/j/{digits}, so we treat them the same way.
+ */
+function buildJoinUrl(streamId: string | null): string | null {
+  if (!streamId) return null
+  const digits = streamId.replace(/[\s-]/g, '')
+  if (!/^\d{8,}$/.test(digits)) return null
+  return `https://zoom.us/j/${digits}`
+}
+
+/**
+ * Try to create the Discord scheduled event for a TrainingEvent row.
+ * Skips silently if Discord env isn't configured or the event is in the
+ * past. Returns true on success, false on failure (writes the error to
+ * the row's parseError field for visibility, but doesn't throw).
+ */
+async function ensureDiscordEvent(rowId: string): Promise<boolean> {
+  if (!process.env.DISCORD_BOT_TOKEN || !process.env.DISCORD_GUILD_ID) return false
+
+  const row = await db.trainingEvent.findUnique({ where: { id: rowId } })
+  if (!row) return false
+  if (row.discordEventId) return true            // already has one
+  if (row.startsAt <= new Date()) return false   // in the past, no point
+
+  const presenters = Array.isArray(row.presenters) ? (row.presenters as { name: string; role: string }[]) : []
+  const presenterLine = presenters.map(p => `${p.name} (${p.role})`).join(' · ')
+  const joinUrl = buildJoinUrl(row.streamId)
+
+  const description = [
+    row.subtitle,
+    presenterLine && `**Presenters:** ${presenterLine}`,
+    row.streamRoomName && `**Stream:** ${row.streamRoomName}`,
+    row.streamId && `**ID:** \`${row.streamId}\``,
+    row.passcode && `**Passcode:** \`${row.passcode}\``,
+    joinUrl && `**Join:** ${joinUrl}`,
+    row.audienceRestriction && `🔒 ${row.audienceRestriction}`,
+    row.partnerBrand && `🤝 Partner: ${row.partnerBrand}`,
+  ].filter(Boolean).join('\n')
+
+  // Discord scheduled-event location must be a string under 100 chars.
+  // Prefer the actual join URL — Discord shows it as a clickable link in
+  // the event UI. Fall back to a human-readable string.
+  const location = joinUrl
+    ?? (row.streamRoomName ? `${row.streamRoomName} · ID ${row.streamId ?? '—'}` : `Stream ID ${row.streamId ?? '—'}`)
+
+  const endsAt = new Date(row.startsAt.getTime() + (row.durationMinutes ?? 60) * 60_000)
+
+  try {
+    const discordEvent = await createGuildScheduledEvent({
+      name: row.title,
+      description,
+      scheduledStartTime: row.startsAt.toISOString(),
+      scheduledEndTime: endsAt.toISOString(),
+      location,
+    })
+    await db.trainingEvent.update({
+      where: { id: row.id },
+      data: { discordEventId: discordEvent.id, discordEventCreatedAt: new Date() },
+    })
+    return true
+  } catch (err) {
+    // Log the error onto the row so the admin UI can surface it
+    await db.trainingEvent.update({
+      where: { id: row.id },
+      data: {
+        parseError: `Discord event creation failed: ${err instanceof Error ? err.message : String(err)}`,
+      },
+    })
+    return false
+  }
+}
+
 export interface SyncStats {
   scanned: number
   skippedExisting: number
@@ -41,15 +115,28 @@ export async function syncTrainingsFromDrive(opts: SyncOptions = {}): Promise<Sy
     try {
       const existing = await db.trainingEvent.findFirst({
         where: { driveFileId: file.id },
-        select: { id: true, driveModifiedTime: true, manuallyEdited: true },
+        select: { id: true, driveModifiedTime: true, manuallyEdited: true, discordEventId: true, startsAt: true },
       })
       const fileModified = new Date(file.modifiedTime)
 
-      if (existing && !opts.force) {
-        if (existing.manuallyEdited) { stats.skippedExisting += 1; continue }
-        if (existing.driveModifiedTime.getTime() >= fileModified.getTime()) { stats.skippedExisting += 1; continue }
+      // Decide whether to re-parse this file
+      const needsReparse = !existing
+        || (opts.force && !existing.manuallyEdited)
+        || (!existing.manuallyEdited && existing.driveModifiedTime.getTime() < fileModified.getTime())
+
+      if (!needsReparse) {
+        stats.skippedExisting += 1
+        // Even if we skip parsing, retroactively backfill missing Discord events
+        // (covers the case where Discord env was set AFTER the row was first parsed).
+        if (existing && !existing.discordEventId && existing.startsAt > new Date()) {
+          const ok = await ensureDiscordEvent(existing.id)
+          if (ok) stats.discordEventsCreated += 1
+          else stats.discordErrors += 1
+        }
+        continue
       }
 
+      // Re-parse path
       const bytes = await downloadPublicFile(file.id)
       const mimeType: 'image/jpeg' | 'image/png' = file.mimeType === 'image/png' ? 'image/png' : 'image/jpeg'
       const result = await parseTrainingFlyer({ imageBytes: bytes, mimeType, fileName: file.name })
@@ -72,49 +159,12 @@ export async function syncTrainingsFromDrive(opts: SyncOptions = {}): Promise<Sy
         idx += 1
         stats.upserted += 1
 
-        // Try to create the Discord scheduled event. Failures are non-fatal —
-        // we mark them but continue so the row still lands and the T-15
-        // reminder can still post via the cron.
-        try {
-          if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_GUILD_ID && created.startsAt > new Date()) {
-            const startsAt = created.startsAt
-            const endsAt = new Date(startsAt.getTime() + (created.durationMinutes ?? 60) * 60_000)
-            const presenters = Array.isArray(created.presenters) ? (created.presenters as { name: string; role: string }[]) : []
-            const presenterLine = presenters.map(p => p.name).join(' · ')
-            const description = [
-              created.subtitle,
-              presenterLine && `Presenters: ${presenterLine}`,
-              created.audienceRestriction && `🔒 ${created.audienceRestriction}`,
-              created.partnerBrand && `Partner: ${created.partnerBrand}`,
-            ].filter(Boolean).join('\n')
-
-            const location = created.streamRoomName
-              ? `${created.streamRoomName} · ID ${created.streamId ?? '—'}${created.passcode ? ` · pw ${created.passcode}` : ''}`
-              : `Stream ID ${created.streamId ?? '—'}`
-
-            const discordEvent = await createGuildScheduledEvent({
-              name: created.title,
-              description,
-              scheduledStartTime: startsAt.toISOString(),
-              scheduledEndTime: endsAt.toISOString(),
-              location,
-            })
-
-            await db.trainingEvent.update({
-              where: { id: created.id },
-              data: {
-                discordEventId: discordEvent.id,
-                discordEventCreatedAt: new Date(),
-              },
-            })
-            stats.discordEventsCreated += 1
-          }
-        } catch (err) {
+        const ok = await ensureDiscordEvent(created.id)
+        if (ok) stats.discordEventsCreated += 1
+        else if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_GUILD_ID && created.startsAt > new Date()) {
+          // Only count as an error if Discord is configured but we still failed
           stats.discordErrors += 1
-          stats.errors.push({
-            fileName: `${file.name} (Discord event)`,
-            error: err instanceof Error ? err.message : String(err),
-          })
+          stats.errors.push({ fileName: `${file.name} (Discord)`, error: 'Discord event creation failed — see row parseError' })
         }
       }
     } catch (err) {
