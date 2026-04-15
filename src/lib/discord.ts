@@ -156,25 +156,60 @@ export interface DiscordEmbed {
   timestamp?: string
 }
 
+export interface DiscordAttachment {
+  filename: string
+  contentType: string  // 'image/png', 'image/jpeg', etc.
+  data: Buffer
+}
+
 export async function sendChannelMessage(channelId: string, payload: {
   content?: string
   embeds?: DiscordEmbed[]
   allowedMentions?: { parse?: ('everyone' | 'roles' | 'users')[] }
+  attachments?: DiscordAttachment[]
 }): Promise<{ id: string }> {
-  const body: Record<string, unknown> = {
+  const payloadJson: Record<string, unknown> = {
     content: payload.content,
     embeds: payload.embeds,
   }
   if (payload.allowedMentions) {
-    body.allowed_mentions = {
+    payloadJson.allowed_mentions = {
       parse: payload.allowedMentions.parse ?? [],
     }
   }
 
+  // If there are attachments, send as multipart/form-data so Discord can
+  // host the files and render them inline in the embed (via attachment://).
+  if (payload.attachments && payload.attachments.length > 0) {
+    const form = new FormData()
+    form.append('payload_json', JSON.stringify(payloadJson))
+    for (let i = 0; i < payload.attachments.length; i++) {
+      const att = payload.attachments[i]
+      // Copy into a fresh Uint8Array so the Blob accepts it — Node's Buffer
+      // type can be backed by SharedArrayBuffer which Blob() doesn't like.
+      const bytes = new Uint8Array(att.data.byteLength)
+      bytes.set(att.data)
+      form.append(`files[${i}]`, new Blob([bytes], { type: att.contentType }), att.filename)
+    }
+    // NOTE: do NOT set Content-Type header — let fetch set the multipart
+    // boundary automatically. Authorization still needed.
+    const res = await discordFetch(`${API}/channels/${channelId}/messages`, {
+      method: 'POST',
+      headers: { Authorization: `Bot ${botToken()}` },
+      body: form,
+    })
+    if (!res.ok) {
+      const text = await res.text()
+      throw new Error(`Discord sendChannelMessage (multipart) failed (${res.status}): ${text.slice(0, 400)}`)
+    }
+    return res.json() as Promise<{ id: string }>
+  }
+
+  // No attachments — plain JSON body
   const res = await discordFetch(`${API}/channels/${channelId}/messages`, {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify(body),
+    body: JSON.stringify(payloadJson),
   })
   if (!res.ok) {
     const text = await res.text()

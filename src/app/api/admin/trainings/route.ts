@@ -18,15 +18,19 @@ export async function GET(_req: NextRequest) {
 
   const now = new Date()
   const inOneHour = new Date(now.getTime() + 60 * 60 * 1000)
+  // Look back up to 3 hours so we catch events that started but haven't
+  // ended yet (in case a flyer says a 60-min training). Anything older than
+  // that lands in Recent Past even if the duration hasn't technically elapsed.
+  const lookbackStart = new Date(now.getTime() - 3 * 60 * 60 * 1000)
 
-  const [allFuture, recentPast, errored, futureMissingDiscord] = await Promise.all([
+  const [recentAndFuture, earlierPast, errored, futureMissingDiscord] = await Promise.all([
     db.trainingEvent.findMany({
-      where: { startsAt: { gte: new Date(now.getTime() - 60 * 60 * 1000) } },
+      where: { startsAt: { gte: lookbackStart } },
       orderBy: { startsAt: 'asc' },
       take: 200,
     }),
     db.trainingEvent.findMany({
-      where: { startsAt: { lt: new Date(now.getTime() - 60 * 60 * 1000) } },
+      where: { startsAt: { lt: lookbackStart } },
       orderBy: { startsAt: 'desc' },
       take: 30,
     }),
@@ -45,18 +49,45 @@ export async function GET(_req: NextRequest) {
     }),
   ])
 
-  const liveOrSoon = allFuture.filter(e => e.startsAt <= inOneHour)
-  const upcoming = allFuture.filter(e => e.startsAt > inOneHour)
+  // Live Now  : started already AND still within its duration window
+  // Starting Soon: hasn't started yet AND starts within 60 minutes
+  // Upcoming   : more than 60 minutes out
+  // Recent Past: ended (now > startsAt + duration), within the lookback window
+  const liveNow: typeof recentAndFuture = []
+  const startingSoon: typeof recentAndFuture = []
+  const upcoming: typeof recentAndFuture = []
+  const endedWithinLookback: typeof recentAndFuture = []
+
+  for (const ev of recentAndFuture) {
+    const starts = ev.startsAt.getTime()
+    const ends = starts + (ev.durationMinutes ?? 60) * 60_000
+    const nowMs = now.getTime()
+
+    if (nowMs >= starts && nowMs < ends) {
+      liveNow.push(ev)
+    } else if (nowMs < starts && starts <= inOneHour.getTime()) {
+      startingSoon.push(ev)
+    } else if (nowMs < starts) {
+      upcoming.push(ev)
+    } else {
+      endedWithinLookback.push(ev)
+    }
+  }
+
+  // Merge already-ended events (within lookback) with older past events,
+  // most recent first, capped at 30
+  const recentPast = [...endedWithinLookback.reverse(), ...earlierPast].slice(0, 30)
 
   return NextResponse.json({
-    liveOrSoon,
+    liveNow,
+    startingSoon,
     upcoming,
     recentPast,
     parseErrors: errored,
     stats: {
-      totalUpcoming: allFuture.length,
-      reminderQueue: allFuture.filter(e => !e.reminderSentAt).length,
-      discordEventsCreated: allFuture.filter(e => e.discordEventId).length,
+      totalUpcoming: liveNow.length + startingSoon.length + upcoming.length,
+      reminderQueue: [...liveNow, ...startingSoon, ...upcoming].filter(e => !e.reminderSentAt).length,
+      discordEventsCreated: [...liveNow, ...startingSoon, ...upcoming].filter(e => e.discordEventId).length,
       futureMissingDiscord,
       parseErrorCount: errored.length,
     },

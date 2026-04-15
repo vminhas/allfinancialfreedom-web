@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 interface Presenter { name: string; role: string }
 
@@ -29,7 +30,8 @@ interface TrainingEvent {
 }
 
 interface TrainingsPayload {
-  liveOrSoon: TrainingEvent[]
+  liveNow: TrainingEvent[]
+  startingSoon: TrainingEvent[]
   upcoming: TrainingEvent[]
   recentPast: TrainingEvent[]
   parseErrors: TrainingEvent[]
@@ -64,6 +66,7 @@ interface SyncResponse {
 }
 
 export default function TrainingsPage() {
+  const isMobile = useIsMobile()
   const [data, setData] = useState<TrainingsPayload | null>(null)
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
@@ -164,11 +167,17 @@ export default function TrainingsPage() {
     <div>
       {/* Header */}
       <div style={{
-        marginBottom: 28,
-        padding: '28px 0 24px',
+        marginBottom: 24,
+        padding: isMobile ? '20px 0 18px' : '28px 0 24px',
         borderBottom: '1px solid rgba(201,169,110,0.08)',
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{
+          display: 'flex',
+          flexDirection: isMobile ? 'column' : 'row',
+          alignItems: isMobile ? 'stretch' : 'flex-start',
+          justifyContent: 'space-between',
+          gap: 16,
+        }}>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 6 }}>
               All Financial Freedom
@@ -177,20 +186,27 @@ export default function TrainingsPage() {
               Training Calendar
             </h1>
             <p style={{ color: '#6B8299', fontSize: 13, margin: 0, lineHeight: 1.55 }}>
-              Auto-synced hourly from the GFI Weekly Training Drive folder. Each flyer is parsed by Claude vision into a structured event. Edits in the AFF Concierge bot will fire 15 minutes before each training starts in the <strong style={{ color: '#C9A96E' }}>training-and-events</strong> Discord channel.
+              Auto-synced hourly from the GFI Weekly Training Drive folder. Each flyer is parsed by Claude vision into a structured event. Announcements fire 15 minutes before each training starts in the <strong style={{ color: '#C9A96E' }}>training-and-events</strong> Discord channel.
             </p>
           </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fit, minmax(120px, max-content))',
+            gap: 8,
+            flexShrink: 0,
+            width: isMobile ? '100%' : 'auto',
+          }}>
             <button
               onClick={() => runSync(false)}
               disabled={syncing}
               style={{
                 background: '#C9A96E', color: '#142D48',
                 border: 'none', borderRadius: 4,
-                padding: '12px 20px', fontSize: 11, fontWeight: 700,
-                letterSpacing: '0.12em', textTransform: 'uppercase',
+                padding: '12px 16px', fontSize: 11, fontWeight: 700,
+                letterSpacing: '0.1em', textTransform: 'uppercase',
                 cursor: syncing ? 'wait' : 'pointer',
-                minHeight: 44,
+                minHeight: 44, width: '100%',
+                gridColumn: isMobile ? '1 / -1' : undefined,
               }}
             >
               {syncing ? 'Syncing...' : '↻ Sync Now'}
@@ -204,10 +220,10 @@ export default function TrainingsPage() {
                 color: '#9BB0C4',
                 border: '1px solid rgba(201,169,110,0.25)',
                 borderRadius: 4,
-                padding: '12px 16px', fontSize: 10, fontWeight: 700,
-                letterSpacing: '0.12em', textTransform: 'uppercase',
+                padding: '12px 12px', fontSize: 10, fontWeight: 700,
+                letterSpacing: '0.1em', textTransform: 'uppercase',
                 cursor: syncing ? 'wait' : 'pointer',
-                minHeight: 44,
+                minHeight: 44, width: '100%',
               }}
             >
               Force
@@ -221,10 +237,10 @@ export default function TrainingsPage() {
                 color: '#9B6DFF',
                 border: '1px solid rgba(155,109,255,0.35)',
                 borderRadius: 4,
-                padding: '12px 16px', fontSize: 10, fontWeight: 700,
-                letterSpacing: '0.12em', textTransform: 'uppercase',
+                padding: '12px 12px', fontSize: 10, fontWeight: 700,
+                letterSpacing: '0.1em', textTransform: 'uppercase',
                 cursor: testingDiscord ? 'wait' : 'pointer',
-                minHeight: 44,
+                minHeight: 44, width: '100%',
               }}
             >
               {testingDiscord ? 'Testing...' : '🛠 Test Discord'}
@@ -237,10 +253,10 @@ export default function TrainingsPage() {
                 color: '#6B8299',
                 border: '1px solid rgba(255,255,255,0.12)',
                 borderRadius: 4,
-                padding: '12px 16px', fontSize: 10, fontWeight: 700,
-                letterSpacing: '0.12em', textTransform: 'uppercase',
+                padding: '12px 12px', fontSize: 10, fontWeight: 700,
+                letterSpacing: '0.1em', textTransform: 'uppercase',
                 cursor: 'pointer',
-                minHeight: 44,
+                minHeight: 44, width: '100%',
               }}
             >
               Clear Errors
@@ -253,13 +269,14 @@ export default function TrainingsPage() {
                 color: '#4ade80',
                 border: '1px solid rgba(74,222,128,0.35)',
                 borderRadius: 4,
-                padding: '12px 16px', fontSize: 10, fontWeight: 700,
-                letterSpacing: '0.12em', textTransform: 'uppercase',
+                padding: '12px 12px', fontSize: 10, fontWeight: 700,
+                letterSpacing: '0.1em', textTransform: 'uppercase',
                 cursor: 'pointer',
-                minHeight: 44,
+                minHeight: 44, width: '100%',
+                gridColumn: isMobile ? '1 / -1' : undefined,
               }}
             >
-              📣 Preview Announcement
+              📣 Preview
             </button>
           </div>
         </div>
@@ -359,7 +376,7 @@ export default function TrainingsPage() {
 
       {loading ? (
         <div style={{ color: '#6B8299', fontSize: 13, padding: '40px 0' }}>Loading training events...</div>
-      ) : !data || (data.liveOrSoon.length === 0 && data.upcoming.length === 0 && data.recentPast.length === 0) ? (
+      ) : !data || (data.liveNow.length === 0 && data.startingSoon.length === 0 && data.upcoming.length === 0 && data.recentPast.length === 0) ? (
         <div style={{
           padding: '40px 20px', textAlign: 'center',
           background: 'rgba(255,255,255,0.02)',
@@ -373,7 +390,8 @@ export default function TrainingsPage() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
-          {data.liveOrSoon.length > 0 && <Section label="Starting Soon (next 60 minutes)" color="#C9A96E" highlight events={data.liveOrSoon} />}
+          {data.liveNow.length > 0 && <Section label="🔴 Live Now" color="#f87171" highlight events={data.liveNow} />}
+          {data.startingSoon.length > 0 && <Section label="Starting Soon (next 60 minutes)" color="#C9A96E" highlight events={data.startingSoon} />}
           {data.upcoming.length > 0 && <Section label="Upcoming" color="#9BB0C4" events={data.upcoming} />}
           {data.parseErrors.length > 0 && <Section label="Parse Errors" color="#f87171" events={data.parseErrors} />}
           {data.recentPast.length > 0 && <Section label="Recent Past" color="#6B8299" events={data.recentPast} muted />}
@@ -514,6 +532,35 @@ function TrainingCard({ event, highlight, muted }: { event: TrainingEvent; highl
   const time = startsAt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York', timeZoneName: 'short' })
   const isError = !!event.parseError
 
+  const [posting, setPosting] = useState(false)
+  const [postStatus, setPostStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [postError, setPostError] = useState('')
+
+  const postToDiscord = async () => {
+    setPosting(true)
+    setPostStatus('idle')
+    setPostError('')
+    try {
+      const res = await fetch('/api/admin/trainings/preview-announcement', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId: event.id }),
+      })
+      const data = await res.json() as { posted?: boolean; error?: string }
+      if (res.ok && data.posted) {
+        setPostStatus('success')
+        setTimeout(() => setPostStatus('idle'), 4000)
+      } else {
+        setPostStatus('error')
+        setPostError(data.error ?? 'Failed to post')
+      }
+    } catch (err) {
+      setPostStatus('error')
+      setPostError(err instanceof Error ? err.message : String(err))
+    }
+    setPosting(false)
+  }
+
   return (
     <div style={{
       background: highlight ? 'linear-gradient(135deg, rgba(201,169,110,0.14), rgba(201,169,110,0.04))' : '#142D48',
@@ -637,10 +684,41 @@ function TrainingCard({ event, highlight, muted }: { event: TrainingEvent; highl
         </div>
       )}
 
-      <div style={{ fontSize: 9, color: '#4B5563', marginTop: 'auto' }}>
-        {event.driveFileName}
-        {event.manuallyEdited && <span style={{ color: '#C9A96E' }}> · manually edited</span>}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        gap: 8, marginTop: 'auto', paddingTop: 8,
+        borderTop: '1px dashed rgba(201,169,110,0.1)',
+      }}>
+        <div style={{ fontSize: 9, color: '#4B5563', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {event.driveFileName}
+          {event.manuallyEdited && <span style={{ color: '#C9A96E' }}> · edited</span>}
+        </div>
+        <button
+          onClick={postToDiscord}
+          disabled={posting}
+          title="Post this event's announcement directly to the Discord training-and-events channel right now"
+          style={{
+            background: postStatus === 'success' ? 'rgba(74,222,128,0.14)' : postStatus === 'error' ? 'rgba(248,113,113,0.14)' : 'transparent',
+            color: postStatus === 'success' ? '#4ade80' : postStatus === 'error' ? '#f87171' : '#9B6DFF',
+            border: `1px solid ${postStatus === 'success' ? 'rgba(74,222,128,0.4)' : postStatus === 'error' ? 'rgba(248,113,113,0.4)' : 'rgba(155,109,255,0.35)'}`,
+            borderRadius: 3,
+            padding: '6px 10px',
+            fontSize: 9,
+            fontWeight: 700,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+            cursor: posting ? 'wait' : 'pointer',
+            flexShrink: 0,
+            whiteSpace: 'nowrap',
+            minHeight: 28,
+          }}
+        >
+          {posting ? 'Posting...' : postStatus === 'success' ? '✓ Posted' : postStatus === 'error' ? '✗ Failed' : '📣 Post'}
+        </button>
       </div>
+      {postStatus === 'error' && postError && (
+        <div style={{ fontSize: 9, color: '#f87171', marginTop: -4 }}>{postError}</div>
+      )}
     </div>
   )
 }
