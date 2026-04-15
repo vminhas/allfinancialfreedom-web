@@ -109,25 +109,14 @@ function buildPhaseEmbed(phaseData) {
 
 // ─── Events ──────────────────────────────────────────────────────────────────
 
-// New member joins
+// New member joins — DM-only welcome. No channel post, so the welcome
+// doesn't push active announcements (training reminders, weekly roundup,
+// etc.) out of view in the #welcome channel.
 client.on(Events.GuildMemberAdd, async (member) => {
   try {
-    // DM the new member (no content mention needed in a DM)
     await member.send({ embeds: [buildWelcomeEmbed(member)] });
   } catch {
-    // Member may have DMs disabled — that's okay
-  }
-
-  // Post welcome in #welcome channel. Mention goes in `content` so it
-  // renders as a clickable @username + actually pings them. The embed
-  // itself uses the member's displayName in bold for a clean look.
-  const welcomeChannel = member.guild.channels.cache.get(CHANNELS.WELCOME);
-  if (welcomeChannel) {
-    await welcomeChannel.send({
-      content: `👋 Welcome <@${member.id}>!`,
-      embeds: [buildWelcomeEmbed(member)],
-      allowedMentions: { parse: ['users'] },
-    });
+    // Member may have DMs disabled — nothing we can do. That's okay.
   }
 });
 
