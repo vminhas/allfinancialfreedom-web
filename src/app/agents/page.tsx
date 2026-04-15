@@ -234,11 +234,21 @@ function AgentDashboardInner() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 960, margin: '0 auto', padding: 'clamp(20px, 5vw, 36px) clamp(16px, 4vw, 24px)' }}>
+      {/* Branded masthead strip */}
+      <div style={{
+        height: 'clamp(120px, 18vw, 180px)',
+        backgroundImage: "linear-gradient(180deg, rgba(10,22,40,0.35) 0%, rgba(10,22,40,0.7) 60%, #0A1628 100%), url('/brand/banner-lines.jpg')",
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        marginTop: -1,
+      }} />
+
+      <div style={{ maxWidth: 960, margin: '0 auto', padding: '0 clamp(16px, 4vw, 24px) clamp(20px, 5vw, 36px)', marginTop: 'clamp(-60px, -8vw, -40px)', position: 'relative' }}>
 
         {/* Header */}
         <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 26, fontWeight: 300, color: '#ffffff' }}>My Progression</div>
+          <div style={{ fontSize: 'clamp(22px, 5vw, 28px)', fontWeight: 300, color: '#ffffff', textShadow: '0 2px 20px rgba(0,0,0,0.5)' }}>My Progression</div>
           <div style={{ fontSize: 12, color: '#6B8299', marginTop: 4 }}>
             {data.state && `${data.state} · `}
             {data.cft && `Trainer: ${data.cft} · `}
@@ -1771,8 +1781,26 @@ function CallLogsTab() {
         {loading ? (
           <div style={{ color: '#6B8299', fontSize: 13 }}>Loading...</div>
         ) : calls.length === 0 ? (
-          <div style={{ color: '#6B8299', fontSize: 13, padding: '20px 0' }}>
-            No calls logged yet. Click <strong style={{ color: '#C9A96E' }}>+ Log Call</strong> to get started.
+          <div style={{
+            position: 'relative',
+            padding: 'clamp(32px, 6vw, 56px) clamp(20px, 4vw, 32px)',
+            borderRadius: 8,
+            overflow: 'hidden',
+            backgroundImage: "linear-gradient(135deg, rgba(10,22,40,0.85) 0%, rgba(19,34,56,0.7) 100%), url('/brand/phone-marble.jpg')",
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            border: '1px solid rgba(201,169,110,0.15)',
+            textAlign: 'center',
+          }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 8 }}>
+              Ready when you are
+            </div>
+            <div style={{ fontSize: 'clamp(16px, 3vw, 18px)', color: '#ffffff', fontWeight: 500, marginBottom: 6, textShadow: '0 2px 12px rgba(0,0,0,0.6)' }}>
+              Your coaching history starts here
+            </div>
+            <div style={{ fontSize: 12, color: '#9BB0C4', maxWidth: 380, margin: '0 auto', lineHeight: 1.6 }}>
+              Paste a Fathom transcript into <strong style={{ color: '#C9A96E' }}>+ Log Call</strong> and Claude will give you concrete coaching tips in about 10 seconds — tailored to what actually happened on your call.
+            </div>
           </div>
         ) : isMobile ? (
           // Mobile: stacked cards

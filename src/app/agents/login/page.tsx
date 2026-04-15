@@ -40,14 +40,21 @@ export default function AgentLoginPage() {
       justifyContent: 'center',
       padding: 24,
       background: '#0A1628',
+      backgroundImage: "linear-gradient(rgba(10,22,40,0.78), rgba(10,22,40,0.92)), url('/brand/login-hero.jpg')",
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat',
     }}>
       <div style={{
         width: '100%',
         maxWidth: 400,
-        background: '#132238',
-        border: '1px solid rgba(201,169,110,0.12)',
+        background: 'rgba(19,34,56,0.88)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+        border: '1px solid rgba(201,169,110,0.18)',
         borderRadius: 8,
         padding: 40,
+        boxShadow: '0 24px 80px rgba(0,0,0,0.5)',
       }}>
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
