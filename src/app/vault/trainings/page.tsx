@@ -119,6 +119,18 @@ export default function TrainingsPage() {
     }
   }
 
+  const purgeOrphanEvents = async () => {
+    setSyncMsg(null)
+    const res = await fetch('/api/admin/trainings/purge-orphan-events', { method: 'POST' })
+    const d = await res.json() as { orphansFound?: number; orphansDeleted?: number; remaining?: number; error?: string }
+    if (res.ok) {
+      setSyncMsg({ ok: true, text: `Purged ${d.orphansDeleted ?? 0} orphaned Discord events. ${d.remaining ?? '?'} events remaining in server.` })
+      await load()
+    } else {
+      setSyncMsg({ ok: false, text: d.error ?? 'Purge failed' })
+    }
+  }
+
   const clearStaleErrors = async () => {
     setSyncMsg(null)
     const res = await fetch('/api/admin/trainings/clear-stale-errors', { method: 'POST' })
@@ -287,6 +299,22 @@ export default function TrainingsPage() {
               }}
             >
               {testingDiscord ? 'Testing...' : '🛠 Test Discord'}
+            </button>
+            <button
+              onClick={purgeOrphanEvents}
+              title="Delete Discord scheduled events that have no matching row in the database (orphans from earlier syncs)"
+              style={{
+                background: 'transparent',
+                color: '#f87171',
+                border: '1px solid rgba(248,113,113,0.3)',
+                borderRadius: 4,
+                padding: '12px 12px', fontSize: 10, fontWeight: 700,
+                letterSpacing: '0.1em', textTransform: 'uppercase',
+                cursor: 'pointer',
+                minHeight: 44, width: '100%',
+              }}
+            >
+              🗑 Purge Orphans
             </button>
             <button
               onClick={clearStaleErrors}
