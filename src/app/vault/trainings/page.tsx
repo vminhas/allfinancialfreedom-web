@@ -982,10 +982,28 @@ function TrainingCard({ event, highlight, muted, onUpdate, onDelete }: {
         borderTop: '1px dashed rgba(201,169,110,0.1)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: 9, color: '#4B5563', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
-            {event.driveFileName ?? 'Manual event'}
-            {event.manuallyEdited && <span style={{ color: '#C9A96E' }}> · edited</span>}
-            {!event.driveFileId && <span style={{ color: '#9B6DFF' }}> · custom</span>}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+            <div style={{ fontSize: 9, color: '#4B5563', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+              {event.driveFileName ?? 'Manual event'}
+              {event.manuallyEdited && <span style={{ color: '#C9A96E' }}> · edited</span>}
+              {!event.driveFileId && <span style={{ color: '#9B6DFF' }}> · custom</span>}
+            </div>
+            {/* Resync image button — always visible for Drive-synced cards */}
+            {event.driveFileId && (
+              <button
+                onClick={resyncImage}
+                disabled={resyncing}
+                title="Re-download flyer from Drive + re-upload to Blob (fixes broken images)"
+                style={{
+                  background: 'transparent', border: 'none',
+                  color: resyncing ? '#C9A96E' : '#6B8299',
+                  fontSize: 11, cursor: resyncing ? 'wait' : 'pointer',
+                  padding: '2px 4px', flexShrink: 0,
+                }}
+              >
+                {resyncing ? '...' : '↻'}
+              </button>
+            )}
           </div>
           {/* Delete button */}
           {!confirmDelete ? (
