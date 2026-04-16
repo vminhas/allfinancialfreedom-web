@@ -25,22 +25,40 @@ export async function POST(
     return NextResponse.json({ error: 'Manual event — no Drive file to resync. Upload an image via edit instead.' }, { status: 400 })
   }
 
-  try {
-    const bytes = await downloadPublicFile(ev.driveFileId)
-    const ext = (ev.driveFileName ?? '').toLowerCase().includes('.png') ? 'png' : 'jpg'
-    const contentType = ext === 'png' ? 'image/png' : 'image/jpeg'
-    const flyerImageUrl = await uploadFlyerToBlob(`${ev.driveFileId}.${ext}`, bytes, contentType)
-
-    await db.trainingEvent.update({
-      where: { id },
-      data: { flyerImageUrl },
-    })
-
-    return NextResponse.json({ ok: true, flyerImageUrl, sizeBytes: bytes.byteLength })
-  } catch (err) {
+  // Verify Blob is configured
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
     return NextResponse.json(
-      { error: `Resync failed: ${err instanceof Error ? err.message : String(err)}` },
+      { error: 'BLOB_READ_WRITE_TOKEN not set in Vercel env — cannot upload images to Blob storage' },
       { status: 500 }
     )
   }
+
+  let bytes: Buffer
+  try {
+    bytes = await downloadPublicFile(ev.driveFileId)
+  } catch (err) {
+    return NextResponse.json(
+      { error: `Drive download failed: ${err instanceof Error ? err.message : String(err)}`, step: 'download' },
+      { status: 500 }
+    )
+  }
+
+  let flyerImageUrl: string
+  try {
+    const ext = (ev.driveFileName ?? '').toLowerCase().includes('.png') ? 'png' : 'jpg'
+    const contentType = ext === 'png' ? 'image/png' : 'image/jpeg'
+    flyerImageUrl = await uploadFlyerToBlob(`${ev.driveFileId}.${ext}`, bytes, contentType)
+  } catch (err) {
+    return NextResponse.json(
+      { error: `Blob upload failed: ${err instanceof Error ? err.message : String(err)}`, step: 'upload', sizeBytes: bytes.byteLength },
+      { status: 500 }
+    )
+  }
+
+  await db.trainingEvent.update({
+    where: { id },
+    data: { flyerImageUrl },
+  })
+
+  return NextResponse.json({ ok: true, flyerImageUrl, sizeBytes: bytes.byteLength })
 }

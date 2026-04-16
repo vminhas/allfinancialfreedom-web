@@ -80,6 +80,9 @@ export default function TrainingsPage() {
   const [syncResult, setSyncResult] = useState<SyncResponse | null>(null)
   const [syncMsg, setSyncMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [testingDiscord, setTestingDiscord] = useState(false)
+  const [purging, setPurging] = useState(false)
+  const [clearing, setClearing] = useState(false)
+  const [postingRoundup, setPostingRoundup] = useState(false)
   const [discordTestResult, setDiscordTestResult] = useState<{
     ok: boolean
     summary: string
@@ -109,38 +112,47 @@ export default function TrainingsPage() {
   }
 
   const postWeeklyRoundup = async () => {
+    setPostingRoundup(true)
     setSyncMsg(null)
-    const res = await fetch('/api/admin/trainings/post-roundup', { method: 'POST' })
-    const d = await res.json() as { posted?: boolean; eventCount?: number; error?: string }
-    if (res.ok && d.posted) {
-      setSyncMsg({ ok: true, text: `📣 Weekly roundup posted to Discord with ${d.eventCount} training${d.eventCount === 1 ? '' : 's'}` })
-    } else {
-      setSyncMsg({ ok: false, text: d.error ?? 'Failed to post roundup' })
-    }
+    try {
+      const res = await fetch('/api/admin/trainings/post-roundup', { method: 'POST' })
+      const d = await res.json() as { posted?: boolean; eventCount?: number; error?: string }
+      if (res.ok && d.posted) {
+        setSyncMsg({ ok: true, text: `📣 Weekly roundup posted to Discord with ${d.eventCount} training${d.eventCount === 1 ? '' : 's'}` })
+      } else {
+        setSyncMsg({ ok: false, text: d.error ?? 'Failed to post roundup' })
+      }
+    } finally { setPostingRoundup(false) }
   }
 
   const purgeOrphanEvents = async () => {
+    setPurging(true)
     setSyncMsg(null)
-    const res = await fetch('/api/admin/trainings/purge-orphan-events', { method: 'POST' })
-    const d = await res.json() as { orphansFound?: number; orphansDeleted?: number; remaining?: number; error?: string }
-    if (res.ok) {
-      setSyncMsg({ ok: true, text: `Purged ${d.orphansDeleted ?? 0} orphaned Discord events. ${d.remaining ?? '?'} events remaining in server.` })
-      await load()
-    } else {
-      setSyncMsg({ ok: false, text: d.error ?? 'Purge failed' })
-    }
+    try {
+      const res = await fetch('/api/admin/trainings/purge-orphan-events', { method: 'POST' })
+      const d = await res.json() as { orphansFound?: number; orphansDeleted?: number; remaining?: number; error?: string }
+      if (res.ok) {
+        setSyncMsg({ ok: true, text: `Purged ${d.orphansDeleted ?? 0} orphaned Discord events. ${d.remaining ?? '?'} events remaining in server.` })
+        await load()
+      } else {
+        setSyncMsg({ ok: false, text: d.error ?? 'Purge failed' })
+      }
+    } finally { setPurging(false) }
   }
 
   const clearStaleErrors = async () => {
+    setClearing(true)
     setSyncMsg(null)
-    const res = await fetch('/api/admin/trainings/clear-stale-errors', { method: 'POST' })
-    const d = await res.json() as { cleared?: number; error?: string }
-    if (res.ok) {
-      setSyncMsg({ ok: true, text: `Cleared stale errors on ${d.cleared ?? 0} row(s). T-15 reminders will now fire for them.` })
-      await load()
-    } else {
-      setSyncMsg({ ok: false, text: d.error ?? 'Failed to clear errors' })
-    }
+    try {
+      const res = await fetch('/api/admin/trainings/clear-stale-errors', { method: 'POST' })
+      const d = await res.json() as { cleared?: number; error?: string }
+      if (res.ok) {
+        setSyncMsg({ ok: true, text: `Cleared stale errors on ${d.cleared ?? 0} row(s). T-15 reminders will now fire for them.` })
+        await load()
+      } else {
+        setSyncMsg({ ok: false, text: d.error ?? 'Failed to clear errors' })
+      }
+    } finally { setClearing(false) }
   }
 
   const runDiscordTest = async () => {
@@ -238,8 +250,10 @@ export default function TrainingsPage() {
             flexShrink: 0,
             width: isMobile ? '100%' : 'auto',
           }}>
+            {/* ── Primary actions ── */}
             <button
               onClick={() => setShowAddEvent(true)}
+              title="Create a custom training event from scratch — fill in the details and upload a flyer image. Gets published to Discord automatically."
               style={{
                 background: '#C9A96E', color: '#142D48',
                 border: 'none', borderRadius: 4,
@@ -255,6 +269,7 @@ export default function TrainingsPage() {
             <button
               onClick={() => runSync(false)}
               disabled={syncing}
+              title="Check the Google Drive folder for new or updated flyer images. New flyers get parsed by Claude AI and published to Discord. Runs automatically every hour."
               style={{
                 background: 'transparent', color: '#C9A96E',
                 border: '1px solid rgba(201,169,110,0.4)', borderRadius: 4,
@@ -264,107 +279,102 @@ export default function TrainingsPage() {
                 minHeight: 44, width: '100%',
               }}
             >
-              {syncing ? 'Syncing...' : '↻ Sync Now'}
+              {syncing ? '↻ Syncing...' : '↻ Sync Now'}
             </button>
+
+            {/* ── Secondary actions ── */}
             <button
               onClick={() => runSync(true)}
               disabled={syncing}
-              title="Re-parse every file even if unchanged. Use after tweaking the prompt."
+              title="Force re-parse every flyer from Drive even if the file hasn't changed. Use this after fixing images or if events look wrong. Costs ~$0.50 in Claude API."
               style={{
-                background: 'transparent',
-                color: '#9BB0C4',
-                border: '1px solid rgba(201,169,110,0.25)',
-                borderRadius: 4,
+                background: 'transparent', color: '#9BB0C4',
+                border: '1px solid rgba(201,169,110,0.25)', borderRadius: 4,
                 padding: '12px 12px', fontSize: 10, fontWeight: 700,
                 letterSpacing: '0.1em', textTransform: 'uppercase',
                 cursor: syncing ? 'wait' : 'pointer',
                 minHeight: 44, width: '100%',
               }}
             >
-              Force
+              {syncing ? 'Working...' : 'Force Re-parse'}
             </button>
+            <button
+              onClick={postWeeklyRoundup}
+              disabled={postingRoundup}
+              title="Post or update the @everyone weekly schedule message in the Discord training channel. If a message already exists, it edits in place (no duplicate ping)."
+              style={{
+                background: 'transparent', color: '#C9A96E',
+                border: '1px solid rgba(201,169,110,0.45)', borderRadius: 4,
+                padding: '12px 12px', fontSize: 10, fontWeight: 700,
+                letterSpacing: '0.1em', textTransform: 'uppercase',
+                cursor: postingRoundup ? 'wait' : 'pointer',
+                minHeight: 44, width: '100%',
+                gridColumn: isMobile ? '1 / -1' : undefined,
+              }}
+            >
+              {postingRoundup ? '📢 Posting...' : '📢 Post Week Roundup'}
+            </button>
+            <button
+              onClick={previewAnnouncement}
+              title="Post a sample 'starting now' Discord announcement for the next upcoming event. Use this to test what the 15-minute reminder will look like. Does NOT affect the real reminder schedule."
+              style={{
+                background: 'transparent', color: '#4ade80',
+                border: '1px solid rgba(74,222,128,0.35)', borderRadius: 4,
+                padding: '12px 12px', fontSize: 10, fontWeight: 700,
+                letterSpacing: '0.1em', textTransform: 'uppercase',
+                cursor: 'pointer',
+                minHeight: 44, width: '100%',
+                gridColumn: isMobile ? '1 / -1' : undefined,
+              }}
+            >
+              📣 Preview Reminder
+            </button>
+
+            {/* ── Maintenance / diagnostics ── */}
             <button
               onClick={runDiscordTest}
               disabled={testingDiscord}
-              title="Verify the Discord bot can reach the configured guild + channel"
+              title="Run a connectivity check to make sure the Discord bot token and guild ID are working correctly. Creates a test event, deletes it, and posts a test message."
               style={{
-                background: 'transparent',
-                color: '#9B6DFF',
-                border: '1px solid rgba(155,109,255,0.35)',
-                borderRadius: 4,
+                background: 'transparent', color: '#9B6DFF',
+                border: '1px solid rgba(155,109,255,0.35)', borderRadius: 4,
                 padding: '12px 12px', fontSize: 10, fontWeight: 700,
                 letterSpacing: '0.1em', textTransform: 'uppercase',
                 cursor: testingDiscord ? 'wait' : 'pointer',
                 minHeight: 44, width: '100%',
               }}
             >
-              {testingDiscord ? 'Testing...' : '🛠 Test Discord'}
+              {testingDiscord ? '🛠 Testing...' : '🛠 Test Discord'}
             </button>
             <button
               onClick={purgeOrphanEvents}
-              title="Delete Discord scheduled events that have no matching row in the database (orphans from earlier syncs)"
+              disabled={purging}
+              title="Delete orphaned Discord events that have no matching event in the vault. These can pile up after Force syncs. Compares Discord's event list against the database and removes any extras."
               style={{
-                background: 'transparent',
-                color: '#f87171',
-                border: '1px solid rgba(248,113,113,0.3)',
-                borderRadius: 4,
+                background: 'transparent', color: '#f87171',
+                border: '1px solid rgba(248,113,113,0.3)', borderRadius: 4,
                 padding: '12px 12px', fontSize: 10, fontWeight: 700,
                 letterSpacing: '0.1em', textTransform: 'uppercase',
-                cursor: 'pointer',
+                cursor: purging ? 'wait' : 'pointer',
                 minHeight: 44, width: '100%',
               }}
             >
-              🗑 Purge Orphans
+              {purging ? '🗑 Purging...' : '🗑 Purge Orphans'}
             </button>
             <button
               onClick={clearStaleErrors}
-              title="Wipe stale parseError strings on rows that already have a valid Discord event — unblocks T-15 reminders"
+              disabled={clearing}
+              title="Clear error messages on events that already have a working Discord event. Sometimes earlier sync failures leave error labels stuck on events even after they've been fixed."
               style={{
-                background: 'transparent',
-                color: '#6B8299',
-                border: '1px solid rgba(255,255,255,0.12)',
-                borderRadius: 4,
+                background: 'transparent', color: '#6B8299',
+                border: '1px solid rgba(255,255,255,0.12)', borderRadius: 4,
                 padding: '12px 12px', fontSize: 10, fontWeight: 700,
                 letterSpacing: '0.1em', textTransform: 'uppercase',
-                cursor: 'pointer',
+                cursor: clearing ? 'wait' : 'pointer',
                 minHeight: 44, width: '100%',
               }}
             >
-              Clear Errors
-            </button>
-            <button
-              onClick={postWeeklyRoundup}
-              title="Post a fresh @everyone weekly roundup covering every current + upcoming training in the next 7 days. Use this to correct or update the roundup at any time."
-              style={{
-                background: 'transparent',
-                color: '#C9A96E',
-                border: '1px solid rgba(201,169,110,0.45)',
-                borderRadius: 4,
-                padding: '12px 12px', fontSize: 10, fontWeight: 700,
-                letterSpacing: '0.1em', textTransform: 'uppercase',
-                cursor: 'pointer',
-                minHeight: 44, width: '100%',
-                gridColumn: isMobile ? '1 / -1' : undefined,
-              }}
-            >
-              📢 Post Week Roundup
-            </button>
-            <button
-              onClick={previewAnnouncement}
-              title="Post a 'live now' announcement for the next upcoming event so you can see what the T-15 reminder looks like in the real channel"
-              style={{
-                background: 'transparent',
-                color: '#4ade80',
-                border: '1px solid rgba(74,222,128,0.35)',
-                borderRadius: 4,
-                padding: '12px 12px', fontSize: 10, fontWeight: 700,
-                letterSpacing: '0.1em', textTransform: 'uppercase',
-                cursor: 'pointer',
-                minHeight: 44, width: '100%',
-                gridColumn: isMobile ? '1 / -1' : undefined,
-              }}
-            >
-              📣 Preview
+              {clearing ? 'Clearing...' : 'Clear Errors'}
             </button>
           </div>
         </div>
@@ -693,12 +703,21 @@ function TrainingCard({ event, highlight, muted, onUpdate, onDelete }: {
   const imageUrl = event.flyerImageUrl ?? event.driveThumbnailUrl
   const [resyncing, setResyncing] = useState(false)
 
+  const [resyncError, setResyncError] = useState('')
   const resyncImage = async () => {
     if (!event.driveFileId) return
     setResyncing(true)
+    setResyncError('')
     try {
       const res = await fetch(`/api/admin/trainings/${event.id}/resync-image`, { method: 'POST' })
-      if (res.ok) onUpdate?.({ ...event, flyerImageUrl: (await res.json()).flyerImageUrl } as TrainingEvent)
+      const data = await res.json() as { ok?: boolean; flyerImageUrl?: string; error?: string; step?: string }
+      if (res.ok && data.flyerImageUrl) {
+        onUpdate?.({ ...event, flyerImageUrl: data.flyerImageUrl } as TrainingEvent)
+      } else {
+        setResyncError(data.error ?? 'Resync failed')
+      }
+    } catch (err) {
+      setResyncError(err instanceof Error ? err.message : 'Network error')
     } finally { setResyncing(false) }
   }
 
