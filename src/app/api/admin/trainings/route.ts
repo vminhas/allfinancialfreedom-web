@@ -105,6 +105,7 @@ export async function GET(_req: NextRequest) {
       discordBotToken: !!process.env.DISCORD_BOT_TOKEN,
       discordGuildId: !!process.env.DISCORD_GUILD_ID,
       discordChannelId: process.env.DISCORD_TRAINING_CHANNEL_ID || '1295044213590982725 (default)',
+      discordScheduleChannelId: process.env.DISCORD_SCHEDULE_CHANNEL_ID || 'not set (using announcements channel)',
       cronSecret: !!process.env.CRON_SECRET,
     },
   })

@@ -285,7 +285,10 @@ export async function syncTrainingsFromDrive(opts: SyncOptions = {}): Promise<Sy
 export async function postWeeklyRoundupForRows(
   rows: { id: string; title: string; startsAt: Date; discordEventId: string | null; audienceRestriction: string | null }[]
 ): Promise<{ posted: boolean; eventCount: number; action: 'edited' | 'created' | 'skipped' }> {
-  const channelId = process.env.DISCORD_TRAINING_CHANNEL_ID ?? '1295044213590982725'
+  // The weekly schedule card goes to the dedicated #training-schedule channel
+  // (locked, bot-only) so it never gets pushed down by chat.
+  // Falls back to the announcements channel if the schedule channel isn't set.
+  const channelId = process.env.DISCORD_SCHEDULE_CHANNEL_ID ?? process.env.DISCORD_TRAINING_CHANNEL_ID ?? '1295044213590982725'
   const guildId = process.env.DISCORD_GUILD_ID
   if (!guildId || !process.env.DISCORD_BOT_TOKEN) {
     return { posted: false, eventCount: 0, action: 'skipped' }
