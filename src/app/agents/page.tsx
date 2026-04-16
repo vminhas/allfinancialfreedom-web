@@ -545,7 +545,10 @@ function AgentDashboardInner() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {(PHASE_ITEMS[activeChecklistPhase] ?? []).map(item => {
                 const phaseItem = currentPhaseItems.find(i => i.itemKey === item.key)
-                const done = phaseItem?.completed ?? false
+                // Auto-complete connect_discord when Discord is linked
+                const done = item.key === 'connect_discord'
+                  ? !!data.discordUserId
+                  : (phaseItem?.completed ?? false)
                 const isToggling = togglingKey === item.key
                 const isExpanded = expandedItem === item.key
 
@@ -619,6 +622,60 @@ function AgentDashboardInner() {
                           <div style={{ fontSize: 12, color: '#9BB0C4', lineHeight: 1.6 }}>
                             {item.description}
                           </div>
+
+                          {/* Discord connect — inline action for connect_discord item */}
+                          {item.key === 'connect_discord' && (
+                            <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px dashed rgba(155,109,255,0.2)' }}>
+                              {data.discordUserId ? (
+                                <div style={{
+                                  display: 'flex', alignItems: 'center', gap: 10,
+                                  padding: '12px 14px',
+                                  background: 'rgba(74,222,128,0.06)',
+                                  border: '1px solid rgba(74,222,128,0.25)',
+                                  borderRadius: 6,
+                                }}>
+                                  <div style={{
+                                    width: 28, height: 28, borderRadius: '50%',
+                                    background: 'rgba(74,222,128,0.15)',
+                                    border: '1px solid rgba(74,222,128,0.4)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    fontSize: 14, color: '#4ade80',
+                                  }}>
+                                    ✓
+                                  </div>
+                                  <div>
+                                    <div style={{ fontSize: 12, fontWeight: 600, color: '#4ade80' }}>Discord connected</div>
+                                    <div style={{ fontSize: 10, color: '#6B8299', marginTop: 1 }}>
+                                      {data.discordRoleName && <span>Role: {data.discordRoleName} · </span>}
+                                      ID: {data.discordUserId}
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <a
+                                  href="/api/agents/discord-connect"
+                                  style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 10,
+                                    padding: '14px 20px',
+                                    background: 'linear-gradient(135deg, #5865F2, #4752C4)',
+                                    color: '#ffffff',
+                                    border: 'none', borderRadius: 8,
+                                    fontSize: 13, fontWeight: 700,
+                                    textDecoration: 'none',
+                                    cursor: 'pointer',
+                                    boxShadow: '0 4px 16px rgba(88,101,242,0.35)',
+                                    transition: 'all 0.15s',
+                                    minHeight: 48,
+                                  }}
+                                >
+                                  <svg width="20" height="16" viewBox="0 0 71 55" fill="white">
+                                    <path d="M60.1 4.9A58.5 58.5 0 0045.4.2a.2.2 0 00-.2.1 41 41 0 00-1.8 3.7 54 54 0 00-16.2 0A37 37 0 0025.4.3a.2.2 0 00-.2-.1A58.4 58.4 0 0010.5 5a.2.2 0 00-.1 0C1.5 17.7-.9 30 .3 42.1a.2.2 0 000 .2 58.7 58.7 0 0017.7 9 .2.2 0 00.3-.1 42 42 0 003.6-5.9.2.2 0 00-.1-.3 38.7 38.7 0 01-5.5-2.6.2.2 0 01 0-.4 31 31 0 001.1-.9.2.2 0 01.2 0c11.6 5.3 24.1 5.3 35.5 0a.2.2 0 01.2 0 29 29 0 001.1.9.2.2 0 010 .3 36.3 36.3 0 01-5.5 2.6.2.2 0 00-.1.4 47 47 0 003.6 5.8.2.2 0 00.2.1 58.5 58.5 0 0017.7-9 .2.2 0 000-.1c1.4-14.5-2.4-27.1-10-38.3a.2.2 0 00-.1 0zM23.7 34.6c-3.3 0-6-3-6-6.8s2.7-6.8 6-6.8 6.1 3.1 6 6.8c0 3.7-2.6 6.8-6 6.8zm22.2 0c-3.3 0-6-3-6-6.8s2.6-6.8 6-6.8 6 3.1 6 6.8c0 3.7-2.6 6.8-6 6.8z"/>
+                                  </svg>
+                                  Connect Discord
+                                </a>
+                              )}
+                            </div>
+                          )}
 
                           {item.coordinatorTopic && (
                             <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed rgba(201,169,110,0.12)' }}>

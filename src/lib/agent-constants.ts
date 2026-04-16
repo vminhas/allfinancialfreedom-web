@@ -29,6 +29,11 @@ export const PHASE_ITEMS: Record<number, PhaseItemDef[]> = {
       description: "This week your trainer walks you through AFF's flagship products and the reasons behind them. By the end of the week you'll understand exactly what you're offering to clients and why it matters.",
     },
     {
+      key: 'connect_discord',
+      label: 'Connect Discord',
+      description: "Join the AFF Discord server and link your account so you get access to your phase training channels, weekly training reminders, and team resources. Use the button below to connect — it takes 10 seconds.",
+    },
+    {
       key: 'licensing_class',
       label: 'Licensing Class / Schedule Test',
       description: "Schedule your pre-licensing course and exam with the licensing coordinator. They'll walk you through the process, help you pick a test date, and answer any questions along the way. Use the button below to reach them directly.",
