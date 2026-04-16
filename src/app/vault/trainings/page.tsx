@@ -663,56 +663,100 @@ function TrainingCard({ event, highlight, muted, onUpdate, onDelete }: {
   }
 
   const imageUrl = event.flyerImageUrl ?? event.driveThumbnailUrl
+  const [resyncing, setResyncing] = useState(false)
+
+  const resyncImage = async () => {
+    if (!event.driveFileId) return
+    setResyncing(true)
+    try {
+      const res = await fetch(`/api/admin/trainings/${event.id}/resync-image`, { method: 'POST' })
+      if (res.ok) onUpdate?.({ ...event, flyerImageUrl: (await res.json()).flyerImageUrl } as TrainingEvent)
+    } finally { setResyncing(false) }
+  }
 
   return (
     <div style={{
-      background: highlight ? 'linear-gradient(135deg, rgba(201,169,110,0.14), rgba(201,169,110,0.04))' : '#142D48',
+      position: 'relative',
+      borderRadius: 8,
+      overflow: 'hidden',
       border: `1px solid ${
         isError ? 'rgba(248,113,113,0.35)'
         : !event.published ? 'rgba(107,130,153,0.25)'
-        : highlight ? 'rgba(201,169,110,0.45)'
-        : 'rgba(201,169,110,0.08)'
+        : highlight ? 'rgba(201,169,110,0.55)'
+        : 'rgba(201,169,110,0.12)'
       }`,
-      borderRadius: 6,
-      overflow: 'hidden',
       opacity: muted ? 0.65 : 1,
-      boxShadow: highlight ? '0 0 24px rgba(201,169,110,0.15)' : 'none',
-      display: 'flex',
-      flexDirection: 'column',
+      boxShadow: highlight ? '0 0 30px rgba(201,169,110,0.2)' : '0 2px 12px rgba(0,0,0,0.15)',
+      minHeight: imageUrl ? 340 : undefined,
     }}>
-      {/* Flyer image banner */}
-      {imageUrl ? (
+      {/* Full-card flyer background image */}
+      {imageUrl && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={imageUrl}
-          alt={event.title}
+          alt=""
           style={{
+            position: 'absolute',
+            inset: 0,
             width: '100%',
-            height: 160,
+            height: '100%',
             objectFit: 'cover',
             objectPosition: 'top center',
-            display: 'block',
-            borderBottom: '1px solid rgba(201,169,110,0.1)',
+            zIndex: 0,
           }}
         />
-      ) : (
-        <div style={{
-          height: 56,
-          background: 'rgba(255,255,255,0.02)',
-          borderBottom: '1px solid rgba(201,169,110,0.08)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 6,
-          fontSize: 10,
-          color: '#6B8299',
-        }}>
-          <span style={{ fontSize: 14 }}>📷</span>
-          No flyer image — T-15 reminder will post without an image
-        </div>
       )}
 
-      <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* Dark gradient overlay — heavier at the bottom so text is legible,
+          lighter at the top so the flyer image shows through */}
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        background: imageUrl
+          ? 'linear-gradient(to bottom, rgba(10,22,40,0.4) 0%, rgba(10,22,40,0.65) 30%, rgba(10,22,40,0.88) 60%, rgba(10,22,40,0.96) 100%)'
+          : '#142D48',
+        zIndex: 1,
+      }} />
+
+      {/* Card content — sits above the overlay */}
+      <div style={{
+        position: 'relative',
+        zIndex: 2,
+        padding: '14px 18px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+        minHeight: imageUrl ? 320 : undefined,
+      }}>
+      {/* No-image warning + resync button */}
+      {!imageUrl && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+          padding: '8px 10px', marginBottom: 2,
+          background: 'rgba(245,158,11,0.06)',
+          border: '1px dashed rgba(245,158,11,0.25)',
+          borderRadius: 4,
+          fontSize: 10, color: '#f59e0b',
+        }}>
+          <span>📷 No image — T-15 will post text-only</span>
+          {event.driveFileId && (
+            <button
+              onClick={resyncImage}
+              disabled={resyncing}
+              style={{
+                background: 'rgba(201,169,110,0.12)',
+                border: '1px solid rgba(201,169,110,0.3)',
+                borderRadius: 3,
+                padding: '4px 8px', fontSize: 9, fontWeight: 700,
+                color: '#C9A96E', cursor: resyncing ? 'wait' : 'pointer',
+                letterSpacing: '0.08em', textTransform: 'uppercase',
+              }}
+            >
+              {resyncing ? '...' : '↻ Fix'}
+            </button>
+          )}
+        </div>
+      )}
       {/* Date strip + publish toggle */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
         <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: event.published ? '#C9A96E' : '#6B8299' }}>
@@ -782,7 +826,7 @@ function TrainingCard({ event, highlight, muted, onUpdate, onDelete }: {
             {event.category}
           </div>
         )}
-        <div style={{ fontSize: 15, fontWeight: 600, color: '#ffffff', lineHeight: 1.3 }}>{event.title}</div>
+        <div style={{ fontSize: 15, fontWeight: 600, color: '#ffffff', lineHeight: 1.3, textShadow: imageUrl ? '0 1px 8px rgba(0,0,0,0.6)' : 'none' }}>{event.title}</div>
         {event.subtitle && (
           <div style={{ fontSize: 11, color: '#9BB0C4', marginTop: 3 }}>{event.subtitle}</div>
         )}
@@ -922,7 +966,7 @@ function TrainingCard({ event, highlight, muted, onUpdate, onDelete }: {
       {postStatus === 'error' && postError && (
         <div style={{ fontSize: 9, color: '#f87171', marginTop: -4 }}>{postError}</div>
       )}
-      </div>{/* close inner padding div */}
+      </div>{/* close card content */}
     </div>
   )
 }
