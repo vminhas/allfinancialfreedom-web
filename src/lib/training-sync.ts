@@ -58,11 +58,12 @@ async function ensureDiscordEvent(rowId: string): Promise<boolean> {
     row.partnerBrand && `🤝 Partner: ${row.partnerBrand}`,
   ].filter(Boolean).join('\n')
 
-  // Discord scheduled-event location must be a string under 100 chars.
-  // Prefer the actual join URL — Discord shows it as a clickable link in
-  // the event UI. Fall back to a human-readable string.
+  // Discord scheduled-event location — under 100 chars. Include passcode
+  // so members can see it at a glance without opening the full description.
+  const passcodeStr = row.passcode ? ` · pw ${row.passcode}` : ''
   const location = joinUrl
-    ?? (row.streamRoomName ? `${row.streamRoomName} · ID ${row.streamId ?? '—'}` : `Stream ID ${row.streamId ?? '—'}`)
+    ? `${joinUrl}${passcodeStr}`.slice(0, 100)
+    : `${row.streamRoomName ?? 'Stream'} · ID ${row.streamId ?? '—'}${passcodeStr}`.slice(0, 100)
 
   const endsAt = new Date(row.startsAt.getTime() + (row.durationMinutes ?? 60) * 60_000)
 

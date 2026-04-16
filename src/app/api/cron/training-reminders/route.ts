@@ -95,42 +95,93 @@ export async function GET(req: NextRequest) {
       // Restricted audiences: drop @everyone ping, just post the embed
       const isRestricted = !!ev.audienceRestriction
 
-      // Attach the flyer image via multipart for reliable rendering.
-      // Prefer Blob URL (CDN, fast), fall back to Drive thumbnail URL.
+      // Build the join URL for easy access
+      const joinUrl = ev.streamId ? `https://zoom.us/j/${ev.streamId.replace(/[\s-]/g, '')}` : null
+
+      // Make passcode prominent — it's the thing people need most urgently at T-15
+      if (ev.streamRoomName || ev.streamId) {
+        const streamParts: string[] = []
+        if (ev.streamRoomName) streamParts.push(`**${ev.streamRoomName}**`)
+        if (ev.streamId) streamParts.push(`ID: \`${ev.streamId}\``)
+        if (ev.passcode) streamParts.push(`**Passcode: \`${ev.passcode}\`**`)
+        if (joinUrl) streamParts.push(`[**Join now →**](${joinUrl})`)
+        // Replace the old stream field with a more prominent version
+        const existingStreamIdx = fields.findIndex(f => f.name === 'Stream' || f.name === 'Zoom' || f.name.includes('Live'))
+        if (existingStreamIdx >= 0) {
+          fields[existingStreamIdx] = {
+            name: ev.streamType === 'ZOOM' ? '🎥 Zoom' : '📺 GFI Live · Impact TV',
+            value: streamParts.join('\n'),
+            inline: false,
+          }
+        } else {
+          fields.push({
+            name: ev.streamType === 'ZOOM' ? '🎥 Zoom' : '📺 GFI Live · Impact TV',
+            value: streamParts.join('\n'),
+            inline: false,
+          })
+        }
+      }
+
+      // Try to attach the flyer image. If it fails for ANY reason, fall back
+      // to text-only. The reminder MUST go out even if the image is broken.
       let attachments: { filename: string; contentType: string; data: Buffer }[] | undefined
       let embedImageUrl: string | undefined
 
       const imageSource = ev.flyerImageUrl ?? ev.driveThumbnailUrl
       if (imageSource) {
         try {
-          const res = await fetch(imageSource)
-          if (res.ok) {
-            const buf = Buffer.from(await res.arrayBuffer())
-            const ct = res.headers.get('content-type') ?? 'image/jpeg'
-            const ext = ct.includes('png') ? 'png' : 'jpg'
-            const filename = `reminder-${ev.id}.${ext}`
-            attachments = [{ filename, contentType: ct, data: buf }]
-            embedImageUrl = `attachment://${filename}`
+          const imgRes = await fetch(imageSource)
+          if (imgRes.ok) {
+            const buf = Buffer.from(await imgRes.arrayBuffer())
+            if (buf.byteLength > 100) { // sanity check — not an empty response
+              const ct = imgRes.headers.get('content-type') ?? 'image/jpeg'
+              const ext = ct.includes('png') ? 'png' : 'jpg'
+              const filename = `reminder-${ev.id}.${ext}`
+              attachments = [{ filename, contentType: ct, data: buf }]
+              embedImageUrl = `attachment://${filename}`
+            }
           }
         } catch {
-          // Image fetch failed — embed without image
+          // Image fetch failed — will post without image
         }
       }
 
-      await sendChannelMessage(channelId, {
-        content: isRestricted ? `📢 ${ev.audienceRestriction} — heads up!` : '@everyone',
-        embeds: [{
-          title: `🎯 ${ev.title}`,
-          description,
-          color: 0xC9A96E,
-          fields,
-          image: embedImageUrl ? { url: embedImageUrl } : undefined,
-          footer: { text: 'AFF Concierge · auto-posted from /vault/trainings' },
-          timestamp: startsAt.toISOString(),
-        }],
-        allowedMentions: { parse: isRestricted ? [] : ['everyone'] },
-        attachments,
-      })
+      const content = isRestricted ? `📢 ${ev.audienceRestriction} — heads up!` : '@everyone'
+      const mentionParse: ('everyone' | 'roles' | 'users')[] = isRestricted ? [] : ['everyone']
+      const embed = {
+        title: `🎯 ${ev.title}`,
+        description,
+        color: 0xC9A96E,
+        fields,
+        image: embedImageUrl ? { url: embedImageUrl } : undefined,
+        footer: { text: 'AFF Concierge · auto-posted from /vault/trainings' },
+        timestamp: startsAt.toISOString(),
+      }
+
+      // Primary attempt: with image attachment
+      let posted = false
+      if (attachments) {
+        try {
+          await sendChannelMessage(channelId, {
+            content,
+            embeds: [embed],
+            allowedMentions: { parse: mentionParse },
+            attachments,
+          })
+          posted = true
+        } catch {
+          // Multipart upload failed — fall through to text-only
+        }
+      }
+
+      // Fallback: post without image if multipart failed or no image available
+      if (!posted) {
+        await sendChannelMessage(channelId, {
+          content,
+          embeds: [{ ...embed, image: undefined }],
+          allowedMentions: { parse: mentionParse },
+        })
+      }
 
       await db.trainingEvent.update({
         where: { id: ev.id },
