@@ -3,6 +3,7 @@ import { listPublicFolder, downloadPublicFile, filterTrainingFlyers, type DriveF
 import { parseTrainingFlyer, type ParsedTrainingEvent } from './training-parser'
 import { createGuildScheduledEvent, sendChannelMessage, editChannelMessage } from './discord'
 import { getSetting, setSetting } from './settings'
+import { uploadFlyerToBlob } from './blob-upload'
 
 // Setting key for the Discord message ID of the current weekly roundup
 // message. When we post a roundup, we save the message ID here so the
@@ -39,6 +40,7 @@ async function ensureDiscordEvent(rowId: string): Promise<boolean> {
   const row = await db.trainingEvent.findUnique({ where: { id: rowId } })
   if (!row) return false
   if (row.discordEventId) return true            // already has one
+  if (!row.published) return false               // unpublished — don't create
   if (row.startsAt <= new Date()) return false   // in the past, no point
 
   const presenters = Array.isArray(row.presenters) ? (row.presenters as { name: string; role: string }[]) : []
@@ -154,7 +156,7 @@ export async function syncTrainingsFromDrive(opts: SyncOptions = {}): Promise<Sy
       // Decide whether to re-parse this file
       const needsReparse = !existing
         || (opts.force && !existing.manuallyEdited)
-        || (!existing.manuallyEdited && existing.driveModifiedTime.getTime() < fileModified.getTime())
+        || (!existing.manuallyEdited && (existing.driveModifiedTime?.getTime() ?? 0) < fileModified.getTime())
 
       if (!needsReparse) {
         stats.skippedExisting += 1
@@ -187,13 +189,23 @@ export async function syncTrainingsFromDrive(opts: SyncOptions = {}): Promise<Sy
         continue
       }
 
+      // Mirror the flyer image to Vercel Blob for reliable Discord embeds.
+      // This replaces the Drive thumbnail URL (which Discord often can't fetch).
+      let flyerImageUrl: string | null = null
+      try {
+        const ext = mimeType === 'image/png' ? 'png' : 'jpg'
+        flyerImageUrl = await uploadFlyerToBlob(`${file.id}.${ext}`, bytes, mimeType)
+      } catch (err) {
+        console.error('[sync] Blob upload failed for', file.name, err)
+      }
+
       // Wipe non-manual rows for this file and recreate
       await db.trainingEvent.deleteMany({ where: { driveFileId: file.id, manuallyEdited: false } })
 
       let idx = 0
       for (const ev of result.events) {
         const created = await db.trainingEvent.create({
-          data: shapeEventForDb(ev, idx, file, fileModified, result),
+          data: { ...shapeEventForDb(ev, idx, file, fileModified, result), flyerImageUrl },
         })
         idx += 1
         stats.upserted += 1

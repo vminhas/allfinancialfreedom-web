@@ -7,9 +7,11 @@ interface Presenter { name: string; role: string }
 
 interface TrainingEvent {
   id: string
-  driveFileId: string
-  driveFileName: string
+  driveFileId: string | null
+  driveFileName: string | null
   driveThumbnailUrl: string | null
+  flyerImageUrl: string | null
+  published: boolean
   title: string
   subtitle: string | null
   category: string | null
@@ -72,6 +74,7 @@ interface SyncResponse {
 export default function TrainingsPage() {
   const isMobile = useIsMobile()
   const [data, setData] = useState<TrainingsPayload | null>(null)
+  const [showAddEvent, setShowAddEvent] = useState(false)
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<SyncResponse | null>(null)
@@ -224,16 +227,29 @@ export default function TrainingsPage() {
             width: isMobile ? '100%' : 'auto',
           }}>
             <button
-              onClick={() => runSync(false)}
-              disabled={syncing}
+              onClick={() => setShowAddEvent(true)}
               style={{
                 background: '#C9A96E', color: '#142D48',
                 border: 'none', borderRadius: 4,
                 padding: '12px 16px', fontSize: 11, fontWeight: 700,
                 letterSpacing: '0.1em', textTransform: 'uppercase',
-                cursor: syncing ? 'wait' : 'pointer',
+                cursor: 'pointer',
                 minHeight: 44, width: '100%',
                 gridColumn: isMobile ? '1 / -1' : undefined,
+              }}
+            >
+              + Add Event
+            </button>
+            <button
+              onClick={() => runSync(false)}
+              disabled={syncing}
+              style={{
+                background: 'transparent', color: '#C9A96E',
+                border: '1px solid rgba(201,169,110,0.4)', borderRadius: 4,
+                padding: '12px 16px', fontSize: 11, fontWeight: 700,
+                letterSpacing: '0.1em', textTransform: 'uppercase',
+                cursor: syncing ? 'wait' : 'pointer',
+                minHeight: 44, width: '100%',
               }}
             >
               {syncing ? 'Syncing...' : '↻ Sync Now'}
@@ -434,12 +450,19 @@ export default function TrainingsPage() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
-          {data.liveNow.length > 0 && <Section label="🔴 Live Now" color="#f87171" highlight events={data.liveNow} />}
-          {data.startingSoon.length > 0 && <Section label="Starting Soon (next 60 minutes)" color="#C9A96E" highlight events={data.startingSoon} />}
-          {data.upcoming.length > 0 && <Section label="Upcoming" color="#9BB0C4" events={data.upcoming} />}
-          {data.parseErrors.length > 0 && <Section label="Parse Errors" color="#f87171" events={data.parseErrors} />}
-          {data.recentPast.length > 0 && <Section label="Recent Past" color="#6B8299" events={data.recentPast} muted />}
+          {data.liveNow.length > 0 && <Section label="🔴 Live Now" color="#f87171" highlight events={data.liveNow} onUpdate={() => load()} onDelete={() => load()} />}
+          {data.startingSoon.length > 0 && <Section label="Starting Soon (next 60 minutes)" color="#C9A96E" highlight events={data.startingSoon} onUpdate={() => load()} onDelete={() => load()} />}
+          {data.upcoming.length > 0 && <Section label="Upcoming" color="#9BB0C4" events={data.upcoming} onUpdate={() => load()} onDelete={() => load()} />}
+          {data.parseErrors.length > 0 && <Section label="Parse Errors" color="#f87171" events={data.parseErrors} onUpdate={() => load()} onDelete={() => load()} />}
+          {data.recentPast.length > 0 && <Section label="Recent Past" color="#6B8299" events={data.recentPast} muted onUpdate={() => load()} onDelete={() => load()} />}
         </div>
+      )}
+
+      {showAddEvent && (
+        <AddEventModal
+          onClose={() => setShowAddEvent(false)}
+          onCreated={() => { setShowAddEvent(false); load() }}
+        />
       )}
     </div>
   )
@@ -541,12 +564,14 @@ function ConfigStatusPanel({
   )
 }
 
-function Section({ label, color, events, highlight, muted }: {
+function Section({ label, color, events, highlight, muted, onUpdate, onDelete }: {
   label: string
   color: string
   events: TrainingEvent[]
   highlight?: boolean
   muted?: boolean
+  onUpdate?: (updated: TrainingEvent) => void
+  onDelete?: (id: string) => void
 }) {
   return (
     <div>
@@ -563,13 +588,19 @@ function Section({ label, color, events, highlight, muted }: {
         gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
         gap: 12,
       }}>
-        {events.map(ev => <TrainingCard key={ev.id} event={ev} highlight={highlight} muted={muted} />)}
+        {events.map(ev => <TrainingCard key={ev.id} event={ev} highlight={highlight} muted={muted} onUpdate={onUpdate} onDelete={onDelete} />)}
       </div>
     </div>
   )
 }
 
-function TrainingCard({ event, highlight, muted }: { event: TrainingEvent; highlight?: boolean; muted?: boolean }) {
+function TrainingCard({ event, highlight, muted, onUpdate, onDelete }: {
+  event: TrainingEvent
+  highlight?: boolean
+  muted?: boolean
+  onUpdate?: (updated: TrainingEvent) => void
+  onDelete?: (id: string) => void
+}) {
   const presenters = Array.isArray(event.presenters) ? event.presenters as Presenter[] : []
   const startsAt = new Date(event.startsAt)
   const day = startsAt.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
@@ -579,6 +610,32 @@ function TrainingCard({ event, highlight, muted }: { event: TrainingEvent; highl
   const [posting, setPosting] = useState(false)
   const [postStatus, setPostStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [postError, setPostError] = useState('')
+  const [toggling, setToggling] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  const togglePublished = async () => {
+    setToggling(true)
+    try {
+      const res = await fetch(`/api/admin/trainings/${event.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ published: !event.published }),
+      })
+      if (res.ok) {
+        const d = await res.json() as { event: TrainingEvent }
+        onUpdate?.(d.event)
+      }
+    } finally { setToggling(false) }
+  }
+
+  const deleteEvent = async () => {
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/admin/trainings/${event.id}`, { method: 'DELETE' })
+      if (res.ok) onDelete?.(event.id)
+    } finally { setDeleting(false) }
+  }
 
   const postToDiscord = async () => {
     setPosting(true)
@@ -621,19 +678,26 @@ function TrainingCard({ event, highlight, muted }: { event: TrainingEvent; highl
       flexDirection: 'column',
       gap: 10,
     }}>
-      {/* Date strip */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#C9A96E' }}>
+      {/* Date strip + publish toggle */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: event.published ? '#C9A96E' : '#6B8299' }}>
           {day} · {time}
         </div>
-        <div style={{ display: 'flex', gap: 4 }}>
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+          {!event.published && (
+            <span style={{
+              fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+              padding: '2px 7px', borderRadius: 3,
+              background: 'rgba(107,130,153,0.12)', border: '1px solid rgba(107,130,153,0.35)', color: '#6B8299',
+            }}>
+              Unpublished
+            </span>
+          )}
           {event.discordEventId && (
             <span style={{
               fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
               padding: '2px 7px', borderRadius: 3,
-              background: 'rgba(74,222,128,0.12)',
-              border: '1px solid rgba(74,222,128,0.35)',
-              color: '#4ade80',
+              background: 'rgba(74,222,128,0.12)', border: '1px solid rgba(74,222,128,0.35)', color: '#4ade80',
             }}>
               Discord ✓
             </span>
@@ -642,13 +706,37 @@ function TrainingCard({ event, highlight, muted }: { event: TrainingEvent; highl
             <span style={{
               fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
               padding: '2px 7px', borderRadius: 3,
-              background: 'rgba(155,109,255,0.12)',
-              border: '1px solid rgba(155,109,255,0.35)',
-              color: '#9B6DFF',
+              background: 'rgba(155,109,255,0.12)', border: '1px solid rgba(155,109,255,0.35)', color: '#9B6DFF',
             }}>
               Notified
             </span>
           )}
+          {/* Publish toggle */}
+          <button
+            onClick={togglePublished}
+            disabled={toggling}
+            title={event.published ? 'Unpublish — removes Discord event + skips T-15 reminder' : 'Publish — creates Discord event + enables T-15 reminder'}
+            style={{
+              background: event.published ? '#C9A96E' : 'rgba(107,130,153,0.2)',
+              border: 'none', borderRadius: 10,
+              width: 36, height: 18,
+              position: 'relative',
+              cursor: toggling ? 'wait' : 'pointer',
+              transition: 'background 0.2s',
+              flexShrink: 0,
+            }}
+          >
+            <div style={{
+              width: 14, height: 14,
+              borderRadius: '50%',
+              background: '#ffffff',
+              position: 'absolute',
+              top: 2,
+              left: event.published ? 20 : 2,
+              transition: 'left 0.2s',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+            }} />
+          </button>
         </div>
       </div>
 
@@ -733,25 +821,61 @@ function TrainingCard({ event, highlight, muted }: { event: TrainingEvent; highl
         gap: 8, marginTop: 'auto', paddingTop: 8,
         borderTop: '1px dashed rgba(201,169,110,0.1)',
       }}>
-        <div style={{ fontSize: 9, color: '#4B5563', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {event.driveFileName}
-          {event.manuallyEdited && <span style={{ color: '#C9A96E' }}> · edited</span>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
+          <div style={{ fontSize: 9, color: '#4B5563', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+            {event.driveFileName ?? 'Manual event'}
+            {event.manuallyEdited && <span style={{ color: '#C9A96E' }}> · edited</span>}
+            {!event.driveFileId && <span style={{ color: '#9B6DFF' }}> · custom</span>}
+          </div>
+          {/* Delete button */}
+          {!confirmDelete ? (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              title="Delete this event"
+              style={{
+                background: 'transparent', border: 'none', cursor: 'pointer',
+                color: '#6B8299', fontSize: 12, padding: '2px 4px', flexShrink: 0,
+                opacity: 0.5, transition: 'opacity 0.15s',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+              onMouseLeave={e => (e.currentTarget.style.opacity = '0.5')}
+            >
+              🗑
+            </button>
+          ) : (
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
+              <span style={{ fontSize: 9, color: '#f87171' }}>Delete?</span>
+              <button
+                onClick={deleteEvent}
+                disabled={deleting}
+                style={{ background: '#f87171', color: '#fff', border: 'none', borderRadius: 3, padding: '2px 8px', fontSize: 9, fontWeight: 700, cursor: deleting ? 'wait' : 'pointer' }}
+              >
+                Yes
+              </button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                style={{ background: 'transparent', color: '#6B8299', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 3, padding: '2px 6px', fontSize: 9, cursor: 'pointer' }}
+              >
+                No
+              </button>
+            </div>
+          )}
         </div>
         <button
           onClick={postToDiscord}
-          disabled={posting}
-          title="Post this event's announcement directly to the Discord training-and-events channel right now"
+          disabled={posting || !event.published}
+          title={event.published ? 'Post this event to the Discord training-and-events channel' : 'Publish the event first to post to Discord'}
           style={{
             background: postStatus === 'success' ? 'rgba(74,222,128,0.14)' : postStatus === 'error' ? 'rgba(248,113,113,0.14)' : 'transparent',
-            color: postStatus === 'success' ? '#4ade80' : postStatus === 'error' ? '#f87171' : '#9B6DFF',
-            border: `1px solid ${postStatus === 'success' ? 'rgba(74,222,128,0.4)' : postStatus === 'error' ? 'rgba(248,113,113,0.4)' : 'rgba(155,109,255,0.35)'}`,
+            color: !event.published ? '#4B5563' : postStatus === 'success' ? '#4ade80' : postStatus === 'error' ? '#f87171' : '#9B6DFF',
+            border: `1px solid ${postStatus === 'success' ? 'rgba(74,222,128,0.4)' : postStatus === 'error' ? 'rgba(248,113,113,0.4)' : !event.published ? 'rgba(255,255,255,0.08)' : 'rgba(155,109,255,0.35)'}`,
             borderRadius: 3,
             padding: '6px 10px',
             fontSize: 9,
             fontWeight: 700,
             letterSpacing: '0.1em',
             textTransform: 'uppercase',
-            cursor: posting ? 'wait' : 'pointer',
+            cursor: posting || !event.published ? 'not-allowed' : 'pointer',
             flexShrink: 0,
             whiteSpace: 'nowrap',
             minHeight: 28,
@@ -794,5 +918,250 @@ function Tag({ color, children }: { color: string; children: React.ReactNode }) 
     }}>
       {children}
     </span>
+  )
+}
+
+// ─── Add Event Modal ──────────────────────────────────────────────────────────
+
+function AddEventModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const isMobile = useIsMobile()
+  const [form, setForm] = useState({
+    title: '',
+    startsAt: '',
+    startsAtTime: '12:00',
+    durationMinutes: '60',
+    subtitle: '',
+    category: '',
+    streamType: 'GFI_LIVE' as 'GFI_LIVE' | 'ZOOM',
+    streamRoomName: 'GFI Live - Impact TV',
+    streamId: '',
+    passcode: '',
+    audienceRestriction: '',
+    partnerBrand: '',
+    presenterName: '',
+    presenterRole: '',
+  })
+  const [image, setImage] = useState<File | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setForm(f => ({ ...f, [k]: e.target.value }))
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!form.title || !form.startsAt) { setError('Title and date are required'); return }
+    setSubmitting(true)
+    setError('')
+
+    const startsAtIso = new Date(`${form.startsAt}T${form.startsAtTime}:00`).toISOString()
+    const presenters = form.presenterName
+      ? [{ name: form.presenterName, role: form.presenterRole || 'Presenter' }]
+      : []
+
+    const fd = new FormData()
+    fd.append('title', form.title)
+    fd.append('startsAt', startsAtIso)
+    fd.append('durationMinutes', form.durationMinutes)
+    if (form.subtitle) fd.append('subtitle', form.subtitle)
+    if (form.category) fd.append('category', form.category)
+    fd.append('streamType', form.streamType)
+    if (form.streamRoomName) fd.append('streamRoomName', form.streamRoomName)
+    if (form.streamId) fd.append('streamId', form.streamId)
+    if (form.passcode) fd.append('passcode', form.passcode)
+    if (form.audienceRestriction) fd.append('audienceRestriction', form.audienceRestriction)
+    if (form.partnerBrand) fd.append('partnerBrand', form.partnerBrand)
+    if (presenters.length > 0) fd.append('presenters', JSON.stringify(presenters))
+    if (image) fd.append('flyerImage', image)
+
+    try {
+      const res = await fetch('/api/admin/trainings/create', { method: 'POST', body: fd })
+      if (!res.ok) {
+        const d = await res.json() as { error?: string }
+        setError(d.error ?? 'Failed to create event')
+        setSubmitting(false)
+        return
+      }
+      onCreated()
+    } catch {
+      setError('Network error')
+      setSubmitting(false)
+    }
+  }
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%', boxSizing: 'border-box',
+    background: '#0A1628',
+    border: '1px solid rgba(201,169,110,0.15)',
+    borderRadius: 4, color: '#d1d9e2',
+    padding: '10px 12px', fontSize: 13,
+    fontFamily: 'inherit',
+  }
+  const labelStyle: React.CSSProperties = {
+    display: 'block',
+    fontSize: 9, fontWeight: 700, letterSpacing: '0.18em',
+    textTransform: 'uppercase', color: '#C9A96E',
+    marginBottom: 5,
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 80,
+        background: 'rgba(0,0,0,0.75)',
+        display: 'flex',
+        alignItems: isMobile ? 'flex-end' : 'center',
+        justifyContent: 'center',
+        padding: isMobile ? 0 : 16,
+        backdropFilter: 'blur(3px)',
+      }}
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div style={{
+        background: '#142D48',
+        border: '1px solid rgba(201,169,110,0.2)',
+        borderRadius: isMobile ? '16px 16px 0 0' : 8,
+        width: isMobile ? '100%' : 'min(560px, 100vw)',
+        maxHeight: isMobile ? '92vh' : '90vh',
+        overflowY: 'auto',
+        boxShadow: '0 -24px 80px rgba(0,0,0,0.55)',
+      }}>
+        <div style={{
+          padding: isMobile ? '18px 20px 14px' : '22px 28px 16px',
+          borderBottom: '1px solid rgba(201,169,110,0.1)',
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12,
+          position: 'sticky', top: 0, background: '#142D48', zIndex: 2,
+        }}>
+          <div>
+            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 4 }}>
+              New Training
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 500, color: '#ffffff' }}>Create a custom event</div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(201,169,110,0.25)',
+              borderRadius: 6, width: 40, height: 40,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', color: '#C9A96E', fontSize: 16, lineHeight: 1,
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        <form onSubmit={submit} style={{ padding: isMobile ? '18px 20px 20px' : '22px 28px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
+            <div style={{ gridColumn: isMobile ? undefined : '1 / -1' }}>
+              <label style={labelStyle}>Title *</label>
+              <input required value={form.title} onChange={set('title')} placeholder="e.g. AFF Team Training" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Date *</label>
+              <input required type="date" value={form.startsAt} onChange={set('startsAt')} style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Time (ET) *</label>
+              <input required type="time" value={form.startsAtTime} onChange={set('startsAtTime')} style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Duration (min)</label>
+              <input type="number" value={form.durationMinutes} onChange={set('durationMinutes')} style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Subtitle</label>
+              <input value={form.subtitle} onChange={set('subtitle')} placeholder="Optional tagline" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Category</label>
+              <input value={form.category} onChange={set('category')} placeholder="e.g. Technology Tuesday" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Stream type</label>
+              <select value={form.streamType} onChange={set('streamType')} style={{ ...inputStyle, appearance: 'auto' }}>
+                <option value="GFI_LIVE">GFI Live - Impact TV</option>
+                <option value="ZOOM">Zoom</option>
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Stream / Meeting ID</label>
+              <input value={form.streamId} onChange={set('streamId')} placeholder="e.g. 839 5426 5128" style={{ ...inputStyle, fontFamily: 'monospace' }} />
+            </div>
+            <div>
+              <label style={labelStyle}>Passcode</label>
+              <input value={form.passcode} onChange={set('passcode')} placeholder="e.g. 776748" style={{ ...inputStyle, fontFamily: 'monospace' }} />
+            </div>
+            <div>
+              <label style={labelStyle}>Presenter name</label>
+              <input value={form.presenterName} onChange={set('presenterName')} placeholder="e.g. Vick Minhas" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Presenter role</label>
+              <input value={form.presenterRole} onChange={set('presenterRole')} placeholder="e.g. CEO" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Audience restriction</label>
+              <input value={form.audienceRestriction} onChange={set('audienceRestriction')} placeholder="e.g. CFTs & Above Only" style={inputStyle} />
+            </div>
+          </div>
+
+          {/* Image upload */}
+          <div>
+            <label style={labelStyle}>Flyer image (optional)</label>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={e => setImage(e.target.files?.[0] ?? null)}
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                background: '#0A1628',
+                border: '1px dashed rgba(201,169,110,0.3)',
+                borderRadius: 4, color: '#9BB0C4',
+                padding: '14px 12px', fontSize: 12,
+              }}
+            />
+            {image && (
+              <div style={{ fontSize: 10, color: '#4ade80', marginTop: 4 }}>
+                {image.name} ({(image.size / 1024).toFixed(0)} KB)
+              </div>
+            )}
+          </div>
+
+          {error && (
+            <div style={{ fontSize: 12, color: '#f87171', padding: '8px 12px', background: 'rgba(248,113,113,0.08)', borderRadius: 4, border: '1px solid rgba(248,113,113,0.2)' }}>
+              {error}
+            </div>
+          )}
+
+          <div style={{
+            display: 'flex', gap: 10,
+            flexDirection: isMobile ? 'column-reverse' : 'row',
+            justifyContent: 'flex-end',
+            paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)',
+          }}>
+            <button type="button" onClick={onClose} disabled={submitting} style={{
+              background: 'transparent', border: '1px solid rgba(255,255,255,0.12)',
+              color: '#9BB0C4', borderRadius: 4,
+              padding: '12px 18px', fontSize: 11, fontWeight: 700,
+              letterSpacing: '0.1em', textTransform: 'uppercase',
+              cursor: submitting ? 'wait' : 'pointer', minHeight: 44,
+            }}>
+              Cancel
+            </button>
+            <button type="submit" disabled={submitting} style={{
+              background: submitting ? 'rgba(201,169,110,0.4)' : '#C9A96E',
+              color: '#142D48', border: 'none', borderRadius: 4,
+              padding: '12px 22px', fontSize: 11, fontWeight: 700,
+              letterSpacing: '0.1em', textTransform: 'uppercase',
+              cursor: submitting ? 'wait' : 'pointer', minHeight: 44, flex: 1,
+            }}>
+              {submitting ? 'Creating...' : 'Create & Publish'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   )
 }

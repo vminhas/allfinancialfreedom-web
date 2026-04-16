@@ -384,11 +384,20 @@ enum TrainingStreamType {
 
 model TrainingEvent {
   id                    String             @id @default(cuid())
-  driveFileId           String
-  eventIndex            Int                @default(0)   // for multi-event posters; usually 0
-  driveFileName         String
-  driveModifiedTime     DateTime
+  driveFileId           String?            // null for manually created events
+  eventIndex            Int                @default(0)
+  driveFileName         String?            // nullable (manual events have no Drive file)
+  driveModifiedTime     DateTime?          // nullable
   driveThumbnailUrl     String?
+
+  // Vercel Blob URL — reliable public CDN for Discord embeds.
+  // Populated during sync (mirror from Drive) or on manual upload.
+  flyerImageUrl         String?
+
+  // Publish toggle — controls Discord scheduled event + T-15 reminders.
+  // Default true so auto-synced events publish immediately.
+  // Set false to suppress without deleting the row.
+  published             Boolean            @default(true)
 
   title                 String
   subtitle              String?
@@ -406,12 +415,12 @@ model TrainingEvent {
   partnerBrand          String?
   targetRegion          String?
 
-  // Discord plumbing — populated in a later phase
+  // Discord plumbing
   discordEventId        String?
   discordEventCreatedAt DateTime?
   reminderSentAt        DateTime?
 
-  // Parse metadata
+  // Parse metadata (Drive-synced events only)
   parsedAt              DateTime           @default(now())
   parseError            String?
   rawParseJson          Json?
@@ -425,9 +434,12 @@ model TrainingEvent {
   createdAt             DateTime           @default(now())
   updatedAt             DateTime           @updatedAt
 
+  // PostgreSQL allows multiple NULLs in unique constraints, so manual events
+  // (driveFileId=null) won't conflict with each other.
   @@unique([driveFileId, eventIndex])
   @@index([startsAt])
   @@index([reminderSentAt])
+  @@index([published, startsAt])
   @@map("training_events")
 }
 

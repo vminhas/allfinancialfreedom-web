@@ -31,15 +31,11 @@ export async function GET(req: NextRequest) {
   const windowStart = new Date(now + 8 * 60_000)
   const windowEnd = new Date(now + 16 * 60_000)
 
-  // Don't filter by parseError — a Discord scheduled-event creation failure
-  // writes a string into parseError, but that shouldn't block the T-15
-  // reminder. We only need the core fields (title, startsAt, streamId) to
-  // be populated, which vision parsing always sets if it succeeded at all.
   const events = await db.trainingEvent.findMany({
     where: {
       startsAt: { gte: windowStart, lte: windowEnd },
       reminderSentAt: null,
-      // Exclude rows where the vision parse itself failed (no title yet).
+      published: true,          // unpublished events don't get reminders
       title: { not: '' },
     },
     orderBy: { startsAt: 'asc' },
@@ -99,6 +95,28 @@ export async function GET(req: NextRequest) {
       // Restricted audiences: drop @everyone ping, just post the embed
       const isRestricted = !!ev.audienceRestriction
 
+      // Attach the flyer image via multipart for reliable rendering.
+      // Prefer Blob URL (CDN, fast), fall back to Drive thumbnail URL.
+      let attachments: { filename: string; contentType: string; data: Buffer }[] | undefined
+      let embedImageUrl: string | undefined
+
+      const imageSource = ev.flyerImageUrl ?? ev.driveThumbnailUrl
+      if (imageSource) {
+        try {
+          const res = await fetch(imageSource)
+          if (res.ok) {
+            const buf = Buffer.from(await res.arrayBuffer())
+            const ct = res.headers.get('content-type') ?? 'image/jpeg'
+            const ext = ct.includes('png') ? 'png' : 'jpg'
+            const filename = `reminder-${ev.id}.${ext}`
+            attachments = [{ filename, contentType: ct, data: buf }]
+            embedImageUrl = `attachment://${filename}`
+          }
+        } catch {
+          // Image fetch failed — embed without image
+        }
+      }
+
       await sendChannelMessage(channelId, {
         content: isRestricted ? `📢 ${ev.audienceRestriction} — heads up!` : '@everyone',
         embeds: [{
@@ -106,11 +124,12 @@ export async function GET(req: NextRequest) {
           description,
           color: 0xC9A96E,
           fields,
-          image: ev.driveThumbnailUrl ? { url: ev.driveThumbnailUrl } : undefined,
+          image: embedImageUrl ? { url: embedImageUrl } : undefined,
           footer: { text: 'AFF Concierge · auto-posted from /vault/trainings' },
           timestamp: startsAt.toISOString(),
         }],
         allowedMentions: { parse: isRestricted ? [] : ['everyone'] },
+        attachments,
       })
 
       await db.trainingEvent.update({

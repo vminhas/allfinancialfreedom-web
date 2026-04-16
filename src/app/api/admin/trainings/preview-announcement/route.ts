@@ -106,19 +106,34 @@ export async function POST(req: NextRequest) {
   let attachments: { filename: string; contentType: string; data: Buffer }[] | undefined
   let embedImageUrl: string | undefined
 
-  try {
-    const bytes = await downloadPublicFile(ev.driveFileId)
-    const ext = ev.driveFileName.toLowerCase().endsWith('.jpg') || ev.driveFileName.toLowerCase().endsWith('.jpeg')
-      ? 'jpg'
-      : 'png'
-    const contentType = ext === 'jpg' ? 'image/jpeg' : 'image/png'
-    const filename = `flyer-${ev.id}.${ext}`
-    attachments = [{ filename, contentType, data: bytes }]
-    embedImageUrl = `attachment://${filename}`
-  } catch (err) {
-    console.error('[preview-announcement] Failed to download flyer:', err)
-    if (ev.driveThumbnailUrl) {
-      embedImageUrl = ev.driveThumbnailUrl
+  // Prefer Vercel Blob URL (CDN, fast), then try Drive download, then thumbnail fallback
+  const imageSource = ev.flyerImageUrl ?? ev.driveThumbnailUrl
+  if (imageSource) {
+    try {
+      const fetchRes = await fetch(imageSource)
+      if (fetchRes.ok) {
+        const buf = Buffer.from(await fetchRes.arrayBuffer())
+        const ct = fetchRes.headers.get('content-type') ?? 'image/jpeg'
+        const ext = ct.includes('png') ? 'png' : 'jpg'
+        const filename = `flyer-${ev.id}.${ext}`
+        attachments = [{ filename, contentType: ct, data: buf }]
+        embedImageUrl = `attachment://${filename}`
+      }
+    } catch (err) {
+      console.error('[preview-announcement] Failed to fetch flyer image:', err)
+    }
+  }
+  // Try direct Drive download if Blob/thumbnail failed and driveFileId exists
+  if (!attachments && ev.driveFileId) {
+    try {
+      const bytes = await downloadPublicFile(ev.driveFileId)
+      const ext = (ev.driveFileName ?? '').toLowerCase().includes('.png') ? 'png' : 'jpg'
+      const contentType = ext === 'png' ? 'image/png' : 'image/jpeg'
+      const filename = `flyer-${ev.id}.${ext}`
+      attachments = [{ filename, contentType, data: bytes }]
+      embedImageUrl = `attachment://${filename}`
+    } catch (err) {
+      console.error('[preview-announcement] Drive download also failed:', err)
     }
   }
 

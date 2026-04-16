@@ -36,7 +36,8 @@ export async function POST() {
   const rawRows = await db.trainingEvent.findMany({
     where: {
       startsAt: { gte: lookbackStart, lte: sevenDaysOut },
-      discordEventId: { not: null },  // only events that exist in Discord
+      published: true,                 // only published events
+      discordEventId: { not: null },   // only events that exist in Discord
     },
     orderBy: { startsAt: 'asc' },
     select: {
