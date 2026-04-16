@@ -677,23 +677,27 @@ function TrainingCard({ event, highlight, muted, onUpdate, onDelete }: {
   return (
     <div style={{
       position: 'relative',
-      borderRadius: 8,
+      borderRadius: 10,
       overflow: 'hidden',
       border: `1px solid ${
         isError ? 'rgba(248,113,113,0.35)'
         : !event.published ? 'rgba(107,130,153,0.25)'
         : highlight ? 'rgba(201,169,110,0.55)'
-        : 'rgba(201,169,110,0.12)'
+        : 'rgba(255,255,255,0.08)'
       }`,
       opacity: muted ? 0.65 : 1,
-      boxShadow: highlight ? '0 0 30px rgba(201,169,110,0.2)' : '0 2px 12px rgba(0,0,0,0.15)',
+      boxShadow: highlight ? '0 0 30px rgba(201,169,110,0.2)' : '0 4px 20px rgba(0,0,0,0.25)',
       background: '#0C1E30',
+      // When we have an image, the card is taller to show the full flyer
+      minHeight: imageUrl ? 420 : undefined,
+      display: 'flex',
+      flexDirection: 'column',
     }}>
-      {/* Flyer image at the TOP — clearly visible, lightly darkened.
-          Fades into solid dark background via a long gradient.
-          All text lives BELOW the fade on a near-opaque surface. */}
+      {/* FULL flyer image — fills the entire card as a background.
+          The glassmorphism panel at the bottom sits over it. The
+          image is completely visible above the panel. */}
       {imageUrl && (
-        <div style={{ position: 'relative', height: 180 }}>
+        <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={imageUrl}
@@ -705,28 +709,74 @@ function TrainingCard({ event, highlight, muted, onUpdate, onDelete }: {
               height: '100%',
               objectFit: 'cover',
               objectPosition: 'top center',
+              zIndex: 0,
             }}
           />
-          {/* Gradient fade: image → solid dark background.
-              The bottom 30% of the image zone is near-opaque so the
-              transition into the text area is seamless. */}
+          {/* Subtle vignette so the top badges are legible against bright images */}
           <div style={{
             position: 'absolute',
             inset: 0,
-            background: 'linear-gradient(to bottom, rgba(12,30,48,0.08) 0%, rgba(12,30,48,0.15) 40%, rgba(12,30,48,0.6) 70%, rgba(12,30,48,0.95) 90%, #0C1E30 100%)',
+            background: 'linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0) 18%, rgba(0,0,0,0) 50%, rgba(0,0,0,0.15) 100%)',
+            zIndex: 1,
           }} />
+        </>
+      )}
+
+      {/* Floating top-right badges + toggle for image cards */}
+      {imageUrl && (
+        <div style={{
+          position: 'absolute', top: 10, right: 12, zIndex: 3,
+          display: 'flex', gap: 4, alignItems: 'center',
+        }}>
+          {!event.published && (
+            <span style={{
+              fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+              padding: '3px 8px', borderRadius: 4,
+              background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+              color: '#6B8299',
+            }}>
+              Off
+            </span>
+          )}
+          <button
+            onClick={togglePublished}
+            disabled={toggling}
+            title={event.published ? 'Unpublish' : 'Publish'}
+            style={{
+              background: event.published ? 'rgba(201,169,110,0.9)' : 'rgba(107,130,153,0.5)',
+              border: 'none', borderRadius: 10,
+              width: 36, height: 18,
+              position: 'relative',
+              cursor: toggling ? 'wait' : 'pointer',
+              transition: 'background 0.2s',
+              boxShadow: '0 1px 6px rgba(0,0,0,0.4)',
+            }}
+          >
+            <div style={{
+              width: 14, height: 14, borderRadius: '50%',
+              background: '#ffffff',
+              position: 'absolute', top: 2,
+              left: event.published ? 20 : 2,
+              transition: 'left 0.2s',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+            }} />
+          </button>
         </div>
       )}
 
-      {/* Card content — on solid dark background, fully legible */}
+      {/* Glass panel content (text content area) */}
       <div style={{
+        marginTop: imageUrl ? 'auto' : 0,
+        position: 'relative',
+        zIndex: 2,
+        background: imageUrl ? 'rgba(12,30,48,0.78)' : '#142D48',
+        backdropFilter: imageUrl ? 'blur(16px) saturate(1.2)' : undefined,
+        WebkitBackdropFilter: imageUrl ? 'blur(16px) saturate(1.2)' : undefined,
+        borderTop: imageUrl ? '1px solid rgba(201,169,110,0.12)' : undefined,
         padding: '14px 18px',
         display: 'flex',
         flexDirection: 'column',
         gap: 10,
-        marginTop: imageUrl ? -20 : 0,
-        position: 'relative',
-        zIndex: 1,
       }}>
       {/* No-image warning + resync button */}
       {!imageUrl && (
@@ -790,32 +840,35 @@ function TrainingCard({ event, highlight, muted, onUpdate, onDelete }: {
               Notified
             </span>
           )}
-          {/* Publish toggle */}
-          <button
-            onClick={togglePublished}
-            disabled={toggling}
-            title={event.published ? 'Unpublish — removes Discord event + skips T-15 reminder' : 'Publish — creates Discord event + enables T-15 reminder'}
-            style={{
-              background: event.published ? '#C9A96E' : 'rgba(107,130,153,0.2)',
-              border: 'none', borderRadius: 10,
-              width: 36, height: 18,
-              position: 'relative',
-              cursor: toggling ? 'wait' : 'pointer',
-              transition: 'background 0.2s',
-              flexShrink: 0,
-            }}
-          >
-            <div style={{
-              width: 14, height: 14,
-              borderRadius: '50%',
-              background: '#ffffff',
-              position: 'absolute',
-              top: 2,
-              left: event.published ? 20 : 2,
-              transition: 'left 0.2s',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-            }} />
-          </button>
+          {/* Publish toggle — only shown here for non-image cards; image cards
+              have the toggle floating over the image in the top-right */}
+          {!imageUrl && (
+            <button
+              onClick={togglePublished}
+              disabled={toggling}
+              title={event.published ? 'Unpublish' : 'Publish'}
+              style={{
+                background: event.published ? '#C9A96E' : 'rgba(107,130,153,0.2)',
+                border: 'none', borderRadius: 10,
+                width: 36, height: 18,
+                position: 'relative',
+                cursor: toggling ? 'wait' : 'pointer',
+                transition: 'background 0.2s',
+                flexShrink: 0,
+              }}
+            >
+              <div style={{
+                width: 14, height: 14,
+                borderRadius: '50%',
+                background: '#ffffff',
+                position: 'absolute',
+                top: 2,
+                left: event.published ? 20 : 2,
+                transition: 'left 0.2s',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+              }} />
+            </button>
+          )}
         </div>
       </div>
 
