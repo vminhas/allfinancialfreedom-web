@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { requireRole } from '@/lib/permissions'
 import { deleteGuildScheduledEvent, createGuildScheduledEvent } from '@/lib/discord'
 import { deleteFlyerFromBlob } from '@/lib/blob-upload'
+import { postWeeklyRoundupForRows } from '@/lib/training-sync'
 
 // Helper to build Discord event for a training row
 function buildJoinUrl(streamId: string | null): string | null {
@@ -114,6 +115,35 @@ export async function PATCH(
   }
 
   const updated = await db.trainingEvent.update({ where: { id }, data })
+
+  // If published status changed, auto-refresh the weekly roundup message
+  // so the Discord card always reflects the current published set.
+  if (body.published !== undefined && body.published !== existing.published) {
+    try {
+      const now = new Date()
+      const sevenDaysOut = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+      const lookback = new Date(now.getTime() - 3 * 60 * 60 * 1000)
+      const currentPublished = await db.trainingEvent.findMany({
+        where: {
+          startsAt: { gte: lookback, lte: sevenDaysOut },
+          published: true,
+          discordEventId: { not: null },
+        },
+        orderBy: { startsAt: 'asc' },
+        select: { id: true, title: true, startsAt: true, discordEventId: true, audienceRestriction: true, durationMinutes: true },
+      })
+      // Filter to events still in progress or future
+      const active = currentPublished.filter(r => {
+        const ends = r.startsAt.getTime() + (r.durationMinutes ?? 60) * 60_000
+        return ends > now.getTime()
+      })
+      await postWeeklyRoundupForRows(active)
+    } catch (err) {
+      // Non-fatal — the toggle itself succeeded, roundup update is best-effort
+      console.error('[trainings] Failed to refresh roundup after publish toggle:', err)
+    }
+  }
+
   return NextResponse.json({ event: updated })
 }
 
@@ -145,5 +175,29 @@ export async function DELETE(
   }
 
   await db.trainingEvent.delete({ where: { id } })
+
+  // Refresh the weekly roundup to remove the deleted event
+  try {
+    const now = new Date()
+    const sevenDaysOut = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+    const lookback = new Date(now.getTime() - 3 * 60 * 60 * 1000)
+    const remaining = await db.trainingEvent.findMany({
+      where: {
+        startsAt: { gte: lookback, lte: sevenDaysOut },
+        published: true,
+        discordEventId: { not: null },
+      },
+      orderBy: { startsAt: 'asc' },
+      select: { id: true, title: true, startsAt: true, discordEventId: true, audienceRestriction: true, durationMinutes: true },
+    })
+    const active = remaining.filter(r => {
+      const ends = r.startsAt.getTime() + (r.durationMinutes ?? 60) * 60_000
+      return ends > now.getTime()
+    })
+    await postWeeklyRoundupForRows(active)
+  } catch {
+    // Non-fatal
+  }
+
   return NextResponse.json({ ok: true })
 }
