@@ -7,12 +7,12 @@ import { deleteGuildScheduledEvent, createGuildScheduledEvent } from '@/lib/disc
 import { deleteFlyerFromBlob } from '@/lib/blob-upload'
 import { postWeeklyRoundupForRows } from '@/lib/training-sync'
 
-// Helper to build Discord event for a training row
-function buildJoinUrl(streamId: string | null): string | null {
+function buildJoinUrl(streamId: string | null, passcode?: string | null): string | null {
   if (!streamId) return null
   const digits = streamId.replace(/[\s-]/g, '')
   if (!/^\d{8,}$/.test(digits)) return null
-  return `https://zoom.us/j/${digits}`
+  const base = `https://zoom.us/j/${digits}`
+  return passcode ? `${base}?pwd=${encodeURIComponent(passcode)}` : base
 }
 
 // GET /api/admin/trainings/[id] — fetch a single training event
@@ -95,7 +95,7 @@ export async function PATCH(
           const startsAt = body.startsAt ? new Date(body.startsAt) : existing.startsAt
           const duration = body.durationMinutes ?? existing.durationMinutes ?? 60
           const endsAt = new Date(startsAt.getTime() + duration * 60_000)
-          const joinUrl = buildJoinUrl(body.streamId ?? existing.streamId)
+          const joinUrl = buildJoinUrl(body.streamId ?? existing.streamId, existing.passcode)
           const location = joinUrl ?? (existing.streamRoomName ? `${existing.streamRoomName} · ID ${existing.streamId}` : 'TBD')
 
           const discordEvent = await createGuildScheduledEvent({

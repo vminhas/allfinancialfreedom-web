@@ -95,8 +95,10 @@ export async function GET(req: NextRequest) {
       // Restricted audiences: drop @everyone ping, just post the embed
       const isRestricted = !!ev.audienceRestriction
 
-      // Build the join URL for easy access
-      const joinUrl = ev.streamId ? `https://zoom.us/j/${ev.streamId.replace(/[\s-]/g, '')}` : null
+      // Build the join URL with passcode so one click gets you straight in
+      const joinUrl = ev.streamId
+        ? `https://zoom.us/j/${ev.streamId.replace(/[\s-]/g, '')}${ev.passcode ? `?pwd=${encodeURIComponent(ev.passcode)}` : ''}`
+        : null
 
       // Make passcode prominent — it's the thing people need most urgently at T-15
       if (ev.streamRoomName || ev.streamId) {

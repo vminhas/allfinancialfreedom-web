@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
   }
 
   const presenters = Array.isArray(ev.presenters) ? (ev.presenters as { name: string; role: string }[]) : []
-  const joinUrl = ev.streamId ? `https://zoom.us/j/${ev.streamId.replace(/[\s-]/g, '')}` : null
+  const joinUrl = ev.streamId ? `https://zoom.us/j/${ev.streamId.replace(/[\s-]/g, '')}${ev.passcode ? `?pwd=${encodeURIComponent(ev.passcode)}` : ''}` : null
 
   const msUntil = ev.startsAt.getTime() - Date.now()
   const minutesAway = Math.round(msUntil / 60_000)

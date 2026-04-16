@@ -117,8 +117,9 @@ export async function POST(req: NextRequest) {
     try {
       const { createGuildScheduledEvent } = await import('@/lib/discord')
       const endsAt = new Date(parsedStartsAt.getTime() + durationMinutes * 60_000)
-      const joinUrl = streamId ? `https://zoom.us/j/${streamId.replace(/[\s-]/g, '')}` : null
-      const location = joinUrl ?? (streamRoomName ? `${streamRoomName} · ID ${streamId}` : 'TBD')
+      const joinUrl = streamId ? `https://zoom.us/j/${streamId.replace(/[\s-]/g, '')}${passcode ? `?pwd=${encodeURIComponent(passcode)}` : ''}` : null
+      const pcStr = passcode ? ` · pw ${passcode}` : ''
+      const location = joinUrl ? `${joinUrl}`.slice(0, 100) : (streamRoomName ? `${streamRoomName} · ID ${streamId}${pcStr}`.slice(0, 100) : 'TBD')
 
       const discordEvent = await createGuildScheduledEvent({
         name: title.slice(0, 100),

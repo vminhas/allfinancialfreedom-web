@@ -950,7 +950,7 @@ function TrainingCard({ event, highlight, muted, onUpdate, onDelete }: {
         <span style={{ color: '#6B8299' }}>{event.streamType === 'GFI_LIVE' ? '📺' : '🎥'}</span>
         {event.streamId ? (
           <a
-            href={`https://zoom.us/j/${event.streamId.replace(/[\s-]/g, '')}`}
+            href={`https://zoom.us/j/${event.streamId.replace(/[\s-]/g, '')}${event.passcode ? `?pwd=${encodeURIComponent(event.passcode)}` : ''}`}
             target="_blank"
             rel="noopener noreferrer"
             style={{

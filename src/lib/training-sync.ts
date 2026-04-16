@@ -21,11 +21,12 @@ const SYNC_LAST_UPDATED_KEY = 'TRAINING_SYNC_LAST_UPDATED_AT'
  * Both "GFI Live - Impact TV" and direct Zoom meetings share the format
  * https://zoom.us/j/{digits}, so we treat them the same way.
  */
-function buildJoinUrl(streamId: string | null): string | null {
+function buildJoinUrl(streamId: string | null, passcode?: string | null): string | null {
   if (!streamId) return null
   const digits = streamId.replace(/[\s-]/g, '')
   if (!/^\d{8,}$/.test(digits)) return null
-  return `https://zoom.us/j/${digits}`
+  const base = `https://zoom.us/j/${digits}`
+  return passcode ? `${base}?pwd=${encodeURIComponent(passcode)}` : base
 }
 
 /**
@@ -45,7 +46,7 @@ async function ensureDiscordEvent(rowId: string): Promise<boolean> {
 
   const presenters = Array.isArray(row.presenters) ? (row.presenters as { name: string; role: string }[]) : []
   const presenterLine = presenters.map(p => `${p.name} (${p.role})`).join(' · ')
-  const joinUrl = buildJoinUrl(row.streamId)
+  const joinUrl = buildJoinUrl(row.streamId, row.passcode)
 
   const description = [
     row.subtitle,
