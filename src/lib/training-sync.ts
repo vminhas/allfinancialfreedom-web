@@ -149,7 +149,7 @@ export async function syncTrainingsFromDrive(opts: SyncOptions = {}): Promise<Sy
     try {
       const existing = await db.trainingEvent.findFirst({
         where: { driveFileId: file.id },
-        select: { id: true, driveModifiedTime: true, manuallyEdited: true, discordEventId: true, startsAt: true },
+        select: { id: true, driveModifiedTime: true, manuallyEdited: true, discordEventId: true, published: true, startsAt: true },
       })
       const fileModified = new Date(file.modifiedTime)
 
@@ -160,9 +160,9 @@ export async function syncTrainingsFromDrive(opts: SyncOptions = {}): Promise<Sy
 
       if (!needsReparse) {
         stats.skippedExisting += 1
-        // Even if we skip parsing, retroactively backfill missing Discord events
-        // (covers the case where Discord env was set AFTER the row was first parsed).
-        if (existing && !existing.discordEventId && existing.startsAt > new Date()) {
+        // Retroactively backfill missing Discord events for PUBLISHED events only.
+        // Unpublished events intentionally don't have Discord events — not an error.
+        if (existing && !existing.discordEventId && existing.published && existing.startsAt > new Date()) {
           const ok = await ensureDiscordEvent(existing.id)
           if (ok) {
             stats.discordEventsCreated += 1
@@ -170,8 +170,6 @@ export async function syncTrainingsFromDrive(opts: SyncOptions = {}): Promise<Sy
           } else {
             stats.discordErrors += 1
           }
-          // Discord per-guild rate limit on scheduled-event creation is ~5 per
-          // 10 seconds. 3s spacing keeps us comfortably under it.
           await new Promise(r => setTimeout(r, 3000))
         }
         continue
@@ -336,7 +334,7 @@ export async function postWeeklyRoundupForRows(
       '',
       '**Tap any session below** to open the event and click **Interested** — Discord will send you a personal reminder one hour before it starts and again when it goes live.',
       '',
-      'A 15-minute heads-up will also post here for every session.',
+      'A 15-minute heads-up with join links will post in <#' + (process.env.DISCORD_TRAINING_CHANNEL_ID ?? '1295044213590982725') + '> before every session.',
     ].join('\n'),
     color: 0xC9A96E,
     fields,
