@@ -328,13 +328,11 @@ export async function postWeeklyRoundupForRows(
   const dayCount = groups.size
 
   const embed = {
-    title: `${eventCount} training${eventCount === 1 ? '' : 's'} this week`,
+    title: `📅 This Week's Training Schedule`,
     description: [
-      `${eventCount} GFI training session${eventCount === 1 ? '' : 's'} ${eventCount === 1 ? 'is' : 'are'} on the calendar across ${dayCount} day${dayCount === 1 ? '' : 's'}.`,
+      `**${eventCount} session${eventCount === 1 ? '' : 's'}** across ${dayCount} day${dayCount === 1 ? '' : 's'}. Tap any session to mark yourself **Interested** and get a personal reminder from Discord.`,
       '',
-      '**Tap any session below** to open the event and click **Interested** — Discord will send you a personal reminder one hour before it starts and again when it goes live.',
-      '',
-      'A 15-minute heads-up with join links will post in <#' + (process.env.DISCORD_TRAINING_CHANNEL_ID ?? '1295044213590982725') + '> before every session.',
+      'Reminders with join links post in <#' + (process.env.DISCORD_TRAINING_CHANNEL_ID ?? '1295044213590982725') + '> 15 minutes before each session.',
     ].join('\n'),
     color: 0xC9A96E,
     fields,
