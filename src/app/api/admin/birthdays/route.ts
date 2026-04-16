@@ -29,8 +29,12 @@ export async function GET() {
     },
   })
 
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  // Compute "today" in Eastern Time, not UTC — otherwise a birthday on
+  // April 16 ET shows as "Today" when it's still April 15 ET because the
+  // server runs in UTC and UTC midnight is 8pm/7pm ET the day before.
+  const etDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }) // YYYY-MM-DD format
+  const [etYear, etMonth, etDay] = etDate.split('-').map(Number)
+  const today = new Date(etYear, etMonth - 1, etDay) // month is 0-indexed
 
   const enriched = profiles
     .map(p => {
@@ -40,8 +44,8 @@ export async function GET() {
       const birthYear = dob.getUTCFullYear()
 
       // Next birthday (this year if not yet passed, else next year)
-      let next = new Date(today.getFullYear(), month, day)
-      if (next < today) next = new Date(today.getFullYear() + 1, month, day)
+      let next = new Date(etYear, month, day)
+      if (next < today) next = new Date(etYear + 1, month, day)
 
       const daysUntil = Math.round((next.getTime() - today.getTime()) / 86400000)
       const turningAge = next.getFullYear() - birthYear

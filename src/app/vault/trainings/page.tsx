@@ -687,46 +687,46 @@ function TrainingCard({ event, highlight, muted, onUpdate, onDelete }: {
       }`,
       opacity: muted ? 0.65 : 1,
       boxShadow: highlight ? '0 0 30px rgba(201,169,110,0.2)' : '0 2px 12px rgba(0,0,0,0.15)',
-      minHeight: imageUrl ? 340 : undefined,
+      background: '#0C1E30',
     }}>
-      {/* Full-card flyer background image */}
+      {/* Flyer image at the TOP — clearly visible, lightly darkened.
+          Fades into solid dark background via a long gradient.
+          All text lives BELOW the fade on a near-opaque surface. */}
       {imageUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={imageUrl}
-          alt=""
-          style={{
+        <div style={{ position: 'relative', height: 180 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imageUrl}
+            alt=""
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              objectPosition: 'top center',
+            }}
+          />
+          {/* Gradient fade: image → solid dark background.
+              The bottom 30% of the image zone is near-opaque so the
+              transition into the text area is seamless. */}
+          <div style={{
             position: 'absolute',
             inset: 0,
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            objectPosition: 'top center',
-            zIndex: 0,
-          }}
-        />
+            background: 'linear-gradient(to bottom, rgba(12,30,48,0.08) 0%, rgba(12,30,48,0.15) 40%, rgba(12,30,48,0.6) 70%, rgba(12,30,48,0.95) 90%, #0C1E30 100%)',
+          }} />
+        </div>
       )}
 
-      {/* Dark gradient overlay — heavier at the bottom so text is legible,
-          lighter at the top so the flyer image shows through */}
+      {/* Card content — on solid dark background, fully legible */}
       <div style={{
-        position: 'absolute',
-        inset: 0,
-        background: imageUrl
-          ? 'linear-gradient(to bottom, rgba(10,22,40,0.4) 0%, rgba(10,22,40,0.65) 30%, rgba(10,22,40,0.88) 60%, rgba(10,22,40,0.96) 100%)'
-          : '#142D48',
-        zIndex: 1,
-      }} />
-
-      {/* Card content — sits above the overlay */}
-      <div style={{
-        position: 'relative',
-        zIndex: 2,
         padding: '14px 18px',
         display: 'flex',
         flexDirection: 'column',
         gap: 10,
-        minHeight: imageUrl ? 320 : undefined,
+        marginTop: imageUrl ? -20 : 0,
+        position: 'relative',
+        zIndex: 1,
       }}>
       {/* No-image warning + resync button */}
       {!imageUrl && (
@@ -826,7 +826,7 @@ function TrainingCard({ event, highlight, muted, onUpdate, onDelete }: {
             {event.category}
           </div>
         )}
-        <div style={{ fontSize: 15, fontWeight: 600, color: '#ffffff', lineHeight: 1.3, textShadow: imageUrl ? '0 1px 8px rgba(0,0,0,0.6)' : 'none' }}>{event.title}</div>
+        <div style={{ fontSize: 15, fontWeight: 600, color: '#ffffff', lineHeight: 1.3 }}>{event.title}</div>
         {event.subtitle && (
           <div style={{ fontSize: 11, color: '#9BB0C4', marginTop: 3 }}>{event.subtitle}</div>
         )}

@@ -1,7 +1,7 @@
 import { db } from './db'
 import { listPublicFolder, downloadPublicFile, filterTrainingFlyers, type DriveFile } from './google-drive'
 import { parseTrainingFlyer, type ParsedTrainingEvent } from './training-parser'
-import { createGuildScheduledEvent, sendChannelMessage, editChannelMessage } from './discord'
+import { createGuildScheduledEvent, deleteGuildScheduledEvent, sendChannelMessage, editChannelMessage } from './discord'
 import { getSetting, setSetting } from './settings'
 import { uploadFlyerToBlob } from './blob-upload'
 
@@ -199,7 +199,18 @@ export async function syncTrainingsFromDrive(opts: SyncOptions = {}): Promise<Sy
         console.error('[sync] Blob upload failed for', file.name, err)
       }
 
-      // Wipe non-manual rows for this file and recreate
+      // Before wiping rows, clean up their Discord scheduled events so we
+      // don't leave orphaned events in the server (the root cause of
+      // "17 events showing when only 14 should exist" after Force syncs).
+      const toDelete = await db.trainingEvent.findMany({
+        where: { driveFileId: file.id, manuallyEdited: false },
+        select: { discordEventId: true },
+      })
+      for (const old of toDelete) {
+        if (old.discordEventId) {
+          try { await deleteGuildScheduledEvent(old.discordEventId) } catch { /* best effort */ }
+        }
+      }
       await db.trainingEvent.deleteMany({ where: { driveFileId: file.id, manuallyEdited: false } })
 
       let idx = 0
