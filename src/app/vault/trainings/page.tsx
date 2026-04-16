@@ -662,22 +662,57 @@ function TrainingCard({ event, highlight, muted, onUpdate, onDelete }: {
     setPosting(false)
   }
 
+  const imageUrl = event.flyerImageUrl ?? event.driveThumbnailUrl
+
   return (
     <div style={{
       background: highlight ? 'linear-gradient(135deg, rgba(201,169,110,0.14), rgba(201,169,110,0.04))' : '#142D48',
       border: `1px solid ${
         isError ? 'rgba(248,113,113,0.35)'
+        : !event.published ? 'rgba(107,130,153,0.25)'
         : highlight ? 'rgba(201,169,110,0.45)'
         : 'rgba(201,169,110,0.08)'
       }`,
       borderRadius: 6,
-      padding: '16px 18px',
+      overflow: 'hidden',
       opacity: muted ? 0.65 : 1,
       boxShadow: highlight ? '0 0 24px rgba(201,169,110,0.15)' : 'none',
       display: 'flex',
       flexDirection: 'column',
-      gap: 10,
     }}>
+      {/* Flyer image banner */}
+      {imageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={imageUrl}
+          alt={event.title}
+          style={{
+            width: '100%',
+            height: 160,
+            objectFit: 'cover',
+            objectPosition: 'top center',
+            display: 'block',
+            borderBottom: '1px solid rgba(201,169,110,0.1)',
+          }}
+        />
+      ) : (
+        <div style={{
+          height: 56,
+          background: 'rgba(255,255,255,0.02)',
+          borderBottom: '1px solid rgba(201,169,110,0.08)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 6,
+          fontSize: 10,
+          color: '#6B8299',
+        }}>
+          <span style={{ fontSize: 14 }}>📷</span>
+          No flyer image — T-15 reminder will post without an image
+        </div>
+      )}
+
+      <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
       {/* Date strip + publish toggle */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
         <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: event.published ? '#C9A96E' : '#6B8299' }}>
@@ -887,6 +922,7 @@ function TrainingCard({ event, highlight, muted, onUpdate, onDelete }: {
       {postStatus === 'error' && postError && (
         <div style={{ fontSize: 9, color: '#f87171', marginTop: -4 }}>{postError}</div>
       )}
+      </div>{/* close inner padding div */}
     </div>
   )
 }
