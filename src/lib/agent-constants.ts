@@ -179,10 +179,8 @@ export const PHASE_ITEMS: Record<number, PhaseItemDef[]> = {
     { key: 'client_3', label: 'Help Your 3rd Client', group: 'milestones',
       description: 'Help your third client. Three cases demonstrates consistent client service, a major milestone.',
       action: { type: 'navigate-tab', tab: 'policies', label: 'Log a policy' } },
-    { key: 'net_license', label: 'Net License', group: 'milestones',
-      description: 'Receive and activate your physical or digital life insurance license from your state. You are now fully authorized to sell and earn commissions.' },
-    { key: 'first_1000', label: "Make Your 1st $1,000", group: 'milestones',
-      description: 'Earn your first $1,000 in commission from issued and paid policies. This milestone proves the system works and it is just the start of what is possible.',
+    { key: 'first_1000', label: "Net License — Make Your 1st $1,000", group: 'milestones',
+      description: 'Earn your first $1,000 in commission from issued and paid policies. This is your net license milestone and proves the system works. It is just the start of what is possible.',
       action: { type: 'navigate-tab', tab: 'policies', label: 'View policies' } },
   ],
   3: [
@@ -482,8 +480,8 @@ export const SYSTEM_PROGRESSIONS: {
   {
     key: 'net_license',
     label: 'Net License',
-    description: 'Received and activated your life insurance license.',
-    achievedWhen: 'phase2_net_license',
+    description: 'Earned your first $1,000 in commission from issued and paid policies.',
+    achievedWhen: 'phase2_first_1000',
   },
   {
     key: 'cft_in_progress',
