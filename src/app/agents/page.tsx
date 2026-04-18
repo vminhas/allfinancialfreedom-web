@@ -115,7 +115,21 @@ function AgentDashboardInner() {
     discordParam ? 'profile' : 'checklist'
   )
   const [togglingKey, setTogglingKey] = useState<string | null>(null)
-  const [expandedItem, setExpandedItem] = useState<string | null>(null)
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
+
+  const toggleExpanded = (key: string) => {
+    setExpandedItems(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+  const expandAll = (phase: number) => {
+    const keys = (PHASE_ITEMS[phase] ?? []).map(i => i.key)
+    setExpandedItems(new Set(keys))
+  }
+  const collapseAll = () => setExpandedItems(new Set())
   const [selectedProgression, setSelectedProgression] = useState<string | null>(null)
   const [checklistPhase, setChecklistPhase] = useState<number | null>(null)
 
@@ -542,6 +556,31 @@ function AgentDashboardInner() {
               }} />
             </div>
 
+            {/* Expand all / Collapse all */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 8 }}>
+              <button
+                onClick={() => expandAll(activeChecklistPhase)}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                  color: '#6B8299',
+                }}
+              >
+                Expand all
+              </button>
+              <span style={{ color: '#4B5563', fontSize: 10 }}>|</span>
+              <button
+                onClick={collapseAll}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                  color: '#6B8299',
+                }}
+              >
+                Collapse all
+              </button>
+            </div>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {(PHASE_ITEMS[activeChecklistPhase] ?? []).map(item => {
                 const phaseItem = currentPhaseItems.find(i => i.itemKey === item.key)
@@ -550,62 +589,65 @@ function AgentDashboardInner() {
                   ? !!data.discordUserId
                   : (phaseItem?.completed ?? false)
                 const isToggling = togglingKey === item.key
-                const isExpanded = expandedItem === item.key
+                const isExpanded = expandedItems.has(item.key)
 
                 return (
                   <div key={item.key} style={{ borderRadius: 6, overflow: 'hidden' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-                      {/* Checkbox button */}
+                    {/* Card row — clicking ANYWHERE on the card expands/collapses.
+                        The checkbox is a separate click target that stops propagation. */}
+                    <div
+                      onClick={() => toggleExpanded(item.key)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '11px 16px',
+                        background: done ? 'rgba(74,222,128,0.06)' : 'rgba(255,255,255,0.02)',
+                        border: `1px solid ${done ? 'rgba(74,222,128,0.2)' : 'rgba(255,255,255,0.05)'}`,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'all 0.15s',
+                        borderRadius: isExpanded ? '6px 6px 0 0' : '6px',
+                      }}
+                    >
+                      {/* Checkbox — click stops propagation so it only toggles completion */}
                       <button
-                        onClick={() => toggleItem(item.key, activeChecklistPhase, done)}
+                        onClick={e => { e.stopPropagation(); toggleItem(item.key, activeChecklistPhase, done) }}
                         disabled={isToggling}
                         style={{
-                          display: 'flex', alignItems: 'center', gap: 12,
-                          padding: '11px 16px', flex: 1,
-                          background: done ? 'rgba(74,222,128,0.06)' : 'rgba(255,255,255,0.02)',
-                          border: `1px solid ${done ? 'rgba(74,222,128,0.2)' : 'rgba(255,255,255,0.05)'}`,
-                          borderRight: item.tab ? `1px solid ${done ? 'rgba(74,222,128,0.2)' : 'rgba(255,255,255,0.05)'}` : undefined,
-                          cursor: isToggling ? 'not-allowed' : 'pointer',
-                          textAlign: 'left',
-                          transition: 'all 0.15s',
-                          opacity: isToggling ? 0.6 : 1,
-                          borderRadius: isExpanded ? '6px 6px 0 0' : '6px',
+                          background: 'none', border: 'none', padding: 0, cursor: isToggling ? 'not-allowed' : 'pointer',
+                          opacity: isToggling ? 0.6 : 1, flexShrink: 0,
                         }}
                       >
                         <div style={{
-                          width: 18, height: 18, borderRadius: 4, flexShrink: 0,
+                          width: 20, height: 20, borderRadius: 4,
                           background: done ? '#4ade80' : 'transparent',
                           border: `2px solid ${done ? '#4ade80' : 'rgba(255,255,255,0.2)'}`,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           fontSize: 10, color: '#0A1628', fontWeight: 700,
+                          transition: 'all 0.15s',
                         }}>
                           {done && '✓'}
                         </div>
-                        <span style={{ fontSize: 13, color: done ? '#9BB0C4' : '#ffffff', flex: 1 }}>
-                          {item.label}
-                        </span>
-                        {phaseItem?.completedAt && (
-                          <span style={{ fontSize: 10, color: '#4B5563', flexShrink: 0 }}>
-                            {new Date(phaseItem.completedAt).toLocaleDateString()}
-                          </span>
-                        )}
-                        {/* Description expand toggle */}
-                        <button
-                          onClick={e => { e.stopPropagation(); setExpandedItem(isExpanded ? null : item.key) }}
-                          style={{ background: 'none', border: 'none', color: '#4B5563', fontSize: 11, cursor: 'pointer', padding: '0 4px', flexShrink: 0 }}
-                        >
-                          {isExpanded ? '▲' : '▼'}
-                        </button>
-                        {item.tab && (
-                          <button
-                            onClick={e => { e.stopPropagation(); setActiveTab(item.tab as typeof activeTab) }}
-                            style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 11, cursor: 'pointer', padding: '0 4px', flexShrink: 0 }}
-                            title={`Go to ${item.tab} tab`}
-                          >
-                            →
-                          </button>
-                        )}
                       </button>
+                      <span style={{ fontSize: 13, color: done ? '#9BB0C4' : '#ffffff', flex: 1 }}>
+                        {item.label}
+                      </span>
+                      {phaseItem?.completedAt && (
+                        <span style={{ fontSize: 10, color: '#4B5563', flexShrink: 0 }}>
+                          {new Date(phaseItem.completedAt).toLocaleDateString()}
+                        </span>
+                      )}
+                      <span style={{ color: '#4B5563', fontSize: 11, flexShrink: 0, transition: 'transform 0.2s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                        ▼
+                      </span>
+                      {item.tab && (
+                        <button
+                          onClick={e => { e.stopPropagation(); setActiveTab(item.tab as typeof activeTab) }}
+                          style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 11, cursor: 'pointer', padding: '0 4px', flexShrink: 0 }}
+                          title={`Go to ${item.tab} tab`}
+                        >
+                          →
+                        </button>
+                      )}
                     </div>
                     {/* Expanded description */}
                     {isExpanded && (() => {
