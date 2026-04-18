@@ -99,8 +99,8 @@ export default function LicensingCoordinatorPanel({ items, phaseItems, requests,
                   color: STATUS_COLORS[latestReq.status] ?? '#6B8299',
                 }}>
                   {latestReq.status === 'IN_PROGRESS' ? 'In Progress' : latestReq.status === 'RESOLVED'
-                    ? `Done ${new Date(latestReq.resolvedAt ?? latestReq.createdAt).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}`
-                    : latestReq.status.charAt(0) + latestReq.status.slice(1).toLowerCase()}
+                    ? 'Resolved'
+                    : latestReq.status === 'OPEN' ? 'Pending' : latestReq.status.charAt(0) + latestReq.status.slice(1).toLowerCase()}
                 </span>
               )}
               {!done && !hasOpenReq && (
