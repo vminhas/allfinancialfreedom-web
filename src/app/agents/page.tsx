@@ -7,8 +7,12 @@ import {
   PHASE_LABELS, PHASE_ITEMS, PHASE_GROUPS, CARRIERS,
   CARRIER_UNLOCK_PHASE, LICENSING_CHECKLIST, SYSTEM_PROGRESSIONS,
 } from '@/lib/agent-constants'
+import { GROUP_ICONS, Mail, ChevronDown, ArrowRight, ExternalLink, UserCheck } from '@/lib/checklist-icons'
 import CallReviewModal, { CallReviewData } from '@/components/CallReviewModal'
 import LicensingRequestModal, { type LicensingRequestTopic } from '@/components/LicensingRequestModal'
+import LicensingCoordinatorPanel from '@/components/LicensingCoordinatorPanel'
+import FTALogModal from '@/components/FTALogModal'
+import InlinePartnerLog from '@/components/InlinePartnerLog'
 import { useIsMobile } from '@/lib/useIsMobile'
 
 interface PhaseProgress { phase: number; total: number; completed: number; pct: number }
@@ -116,6 +120,9 @@ function AgentDashboardInner() {
   )
   const [togglingKey, setTogglingKey] = useState<string | null>(null)
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  const [setupResources, setSetupResources] = useState<Record<string, string>>({})
+  const [ftaModalKey, setFtaModalKey] = useState<string | null>(null)
 
   const toggleExpanded = (key: string) => {
     setExpandedItems(prev => {
@@ -128,8 +135,13 @@ function AgentDashboardInner() {
   const expandAll = (phase: number) => {
     const keys = (PHASE_ITEMS[phase] ?? []).map(i => i.key)
     setExpandedItems(new Set(keys))
+    setCollapsedGroups(new Set())
   }
-  const collapseAll = () => setExpandedItems(new Set())
+  const collapseAll = () => {
+    setExpandedItems(new Set())
+    const groups = PHASE_GROUPS[activeChecklistPhase] ?? []
+    setCollapsedGroups(new Set(groups.map(g => g.key)))
+  }
   const [selectedProgression, setSelectedProgression] = useState<string | null>(null)
   const [checklistPhase, setChecklistPhase] = useState<number | null>(null)
 
@@ -173,6 +185,13 @@ function AgentDashboardInner() {
   }, [router])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  useEffect(() => {
+    fetch('/api/agents/setup-resources')
+      .then(r => r.ok ? r.json() : { resources: {} })
+      .then((d: { resources: Record<string, string> }) => setSetupResources(d.resources ?? {}))
+      .catch(() => {})
+  }, [])
 
   const toggleItem = async (itemKey: string, phase: number, current: boolean) => {
     if (!data) return
@@ -610,36 +629,40 @@ function AgentDashboardInner() {
                     return currentPhaseItems.some(i => i.itemKey === item.key && i.completed)
                   }).length
 
+                  const isGroupCollapsed = group ? collapsedGroups.has(group.key) : false
+                  const GroupIcon = group?.icon ? GROUP_ICONS[group.icon] : null
+
                   return (
                     <div key={group?.key ?? 'ungrouped'}>
                       {/* Group header */}
                       {group && (
                         <div
                           onClick={() => {
-                            // Toggle all items in this group
-                            const groupKeys = groupItems.map(i => i.key)
-                            const allExpanded = groupKeys.every(k => expandedItems.has(k))
-                            setExpandedItems(prev => {
+                            setCollapsedGroups(prev => {
                               const next = new Set(prev)
-                              groupKeys.forEach(k => allExpanded ? next.delete(k) : next.add(k))
+                              if (next.has(group.key)) next.delete(group.key)
+                              else next.add(group.key)
                               return next
                             })
                           }}
                           style={{
                             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                            padding: '10px 14px', marginBottom: 6, cursor: 'pointer',
+                            padding: '10px 14px', marginBottom: isGroupCollapsed ? 0 : 6, cursor: 'pointer',
                             background: 'rgba(201,169,110,0.04)',
                             border: '1px solid rgba(201,169,110,0.1)',
                             borderRadius: 6,
                           }}
                         >
-                          <div>
-                            <div style={{ fontSize: 12, fontWeight: 600, color: '#ffffff' }}>
-                              {group.label}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            {GroupIcon && <GroupIcon size={16} color="#C9A96E" />}
+                            <div>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: '#ffffff' }}>
+                                {group.label}
+                              </div>
+                              {group.description && !isGroupCollapsed && (
+                                <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2 }}>{group.description}</div>
+                              )}
                             </div>
-                            {group.description && (
-                              <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2 }}>{group.description}</div>
-                            )}
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                             <span style={{
@@ -661,12 +684,23 @@ function AgentDashboardInner() {
                                 transition: 'width 0.3s',
                               }} />
                             </span>
+                            <ChevronDown size={14} color="#6B8299" style={{ transition: 'transform 0.2s', transform: isGroupCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }} />
                           </div>
                         </div>
                       )}
 
-                      {/* Items in this group */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {/* Consolidated coordinator panel for licensing group */}
+                      {group?.key === 'licensing' && !isGroupCollapsed && (
+                        <LicensingCoordinatorPanel
+                          items={groupItems.filter(i => i.coordinatorTopic)}
+                          phaseItems={currentPhaseItems}
+                          requests={coordinatorRequests}
+                          onRequestHelp={(itemKey) => setRequestModalItemKey(itemKey)}
+                        />
+                      )}
+
+                      {/* Items in this group — hidden when collapsed */}
+                      {!isGroupCollapsed && <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                         {groupItems.map(item => {
                 const phaseItem = currentPhaseItems.find(i => i.itemKey === item.key)
                 // Auto-complete connect_discord when Discord is linked
@@ -722,30 +756,54 @@ function AgentDashboardInner() {
                         </span>
                       )}
                       {item.coordinatorTopic && (
-                        <span style={{ fontSize: 10, color: '#C9A96E', flexShrink: 0 }} title="Licensing coordinator can help">📩</span>
+                        <span style={{ flexShrink: 0, display: 'flex' }} title="Licensing coordinator can help"><Mail size={13} color="#C9A96E" /></span>
                       )}
                       {phaseItem?.completedAt && (
                         <span style={{ fontSize: 10, color: '#4B5563', flexShrink: 0 }}>
                           {new Date(phaseItem.completedAt).toLocaleDateString()}
                         </span>
                       )}
-                      <span style={{ color: '#4B5563', fontSize: 11, flexShrink: 0, transition: 'transform 0.2s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
-                        ▼
-                      </span>
-                      {item.tab && (
+                      <ChevronDown size={13} color="#4B5563" style={{ flexShrink: 0, transition: 'transform 0.2s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                      {item.action?.type === 'navigate-tab' && item.action.tab && (
                         <button
-                          onClick={e => { e.stopPropagation(); setActiveTab(item.tab as typeof activeTab) }}
-                          style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 11, cursor: 'pointer', padding: '0 4px', flexShrink: 0 }}
-                          title={`Go to ${item.tab} tab`}
+                          onClick={e => { e.stopPropagation(); setActiveTab(item.action!.tab as typeof activeTab) }}
+                          style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 10, cursor: 'pointer', padding: '0 4px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 3 }}
+                          title={item.action.label ?? `Go to ${item.action.tab}`}
                         >
-                          →
+                          {item.action.label ?? item.action.tab} <ArrowRight size={11} />
+                        </button>
+                      )}
+                      {item.action?.type === 'resource-link' && (() => {
+                        const url = setupResources[item.action!.resourceKey!]
+                        if (!url) return null
+                        return (
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            style={{ color: '#C9A96E', fontSize: 10, textDecoration: 'none', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 3 }}
+                          >
+                            {item.action!.label ?? 'Open'} <ExternalLink size={11} />
+                          </a>
+                        )
+                      })()}
+                      {item.action?.type === 'inline-form' && (
+                        <button
+                          onClick={e => {
+                            e.stopPropagation()
+                            if (item.action!.modal === 'fta-log' || item.action!.modal === 'fta-schedule') {
+                              setFtaModalKey(item.key)
+                            }
+                          }}
+                          style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 10, cursor: 'pointer', padding: '0 4px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 3 }}
+                        >
+                          {item.action.label ?? 'Open'} <ArrowRight size={11} />
                         </button>
                       )}
                     </div>
                     {/* Expanded description */}
                     {isExpanded && (() => {
-                      const itemRequests = coordinatorRequests.filter(r => r.phaseItemKey === item.key)
-                      const openCount = itemRequests.filter(r => r.status === 'OPEN' || r.status === 'IN_PROGRESS').length
                       return (
                         <div style={{
                           padding: '12px 16px 14px 46px',
@@ -757,6 +815,20 @@ function AgentDashboardInner() {
                           <div style={{ fontSize: 12, color: '#9BB0C4', lineHeight: 1.6 }}>
                             {item.description}
                           </div>
+
+                          {/* Trainer display */}
+                          {item.showTrainer && data.cft && (
+                            <div style={{
+                              marginTop: 8, padding: '8px 12px',
+                              background: 'rgba(201,169,110,0.06)',
+                              border: '1px solid rgba(201,169,110,0.15)',
+                              borderRadius: 4,
+                              display: 'flex', alignItems: 'center', gap: 8,
+                            }}>
+                              <UserCheck size={14} color="#C9A96E" />
+                              <span style={{ fontSize: 11, color: '#C9A96E' }}>Your trainer: {data.cft}</span>
+                            </div>
+                          )}
 
                           {/* Discord connect — inline action for connect_discord item */}
                           {item.key === 'connect_discord' && (
@@ -812,60 +884,18 @@ function AgentDashboardInner() {
                             </div>
                           )}
 
-                          {item.coordinatorTopic && (
-                            <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed rgba(201,169,110,0.12)' }}>
-                              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 6 }}>
-                                Licensing Coordinator
-                              </div>
-                              {/* Request history */}
-                              {itemRequests.length > 0 && (
-                                <div style={{ marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                  {itemRequests.slice(0, 3).map(r => (
-                                    <div key={r.id} style={{ fontSize: 11, color: '#9BB0C4', lineHeight: 1.5 }}>
-                                      <span style={{
-                                        color: r.status === 'OPEN' ? '#f59e0b' : r.status === 'IN_PROGRESS' ? '#9B6DFF' : r.status === 'RESOLVED' ? '#4ade80' : '#6B8299',
-                                        fontWeight: 700,
-                                        textTransform: 'uppercase', fontSize: 9, letterSpacing: '0.08em',
-                                      }}>
-                                        {r.status === 'IN_PROGRESS' ? 'IN PROGRESS' : r.status}
-                                      </span>
-                                      {' · '}
-                                      <span style={{ color: '#6B8299' }}>
-                                        sent {new Date(r.createdAt).toLocaleDateString()}
-                                      </span>
-                                      {r.resolutionNote && (
-                                        <div style={{ marginTop: 2, marginLeft: 0, color: '#d1d9e2', fontStyle: 'italic', fontSize: 11 }}>
-                                          &ldquo;{r.resolutionNote}&rdquo;
-                                        </div>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                              <button
-                                onClick={() => setRequestModalItemKey(item.key)}
-                                style={{
-                                  display: 'inline-flex', alignItems: 'center', gap: 8,
-                                  background: 'transparent',
-                                  border: '1px solid rgba(201,169,110,0.3)',
-                                  color: '#C9A96E', borderRadius: 4,
-                                  padding: '10px 14px', fontSize: 10, fontWeight: 700,
-                                  letterSpacing: '0.12em', textTransform: 'uppercase',
-                                  cursor: 'pointer', minHeight: 40,
-                                }}
-                              >
-                                {openCount > 0 ? 'Send another request' : 'Request help from the licensing coordinator'}
-                                <span>→</span>
-                              </button>
-                            </div>
+                          {/* Inline partner log for recruit items */}
+                          {item.action?.type === 'inline-form' && item.action.modal === 'partner-log' && (
+                            <InlinePartnerLog phaseItemKey={item.key} onSaved={fetchData} />
                           )}
+
                         </div>
                       )
                     })()}
                   </div>
                 )
               })}
-                      </div>{/* close items in group */}
+                      </div>}{/* close items in group */}
                     </div>
                   )
                 })
@@ -938,6 +968,22 @@ function AgentDashboardInner() {
                 ...prev,
               ])
             }}
+          />
+        )
+      })()}
+
+      {/* FTA Log Modal */}
+      {ftaModalKey && (() => {
+        const item = Object.values(PHASE_ITEMS).flat().find(i => i.key === ftaModalKey)
+        if (!item) return null
+        return (
+          <FTALogModal
+            ftaKey={item.key}
+            ftaLabel={item.label}
+            trainerName={data.cft}
+            defaultName={item.key === 'fta_1' ? '' : undefined}
+            onClose={() => setFtaModalKey(null)}
+            onSaved={fetchData}
           />
         )
       })()}

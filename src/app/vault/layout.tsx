@@ -13,7 +13,7 @@ export const metadata = { title: 'Vault — AFF' }
 // LC profile + password change live inside /vault/licensing as a tab — they
 // are NOT allowed into /vault/settings (which exposes admin API keys, GHL
 // config, etc.).
-const LC_ALLOWED_PREFIXES = ['/vault/licensing']
+const LC_ALLOWED_PREFIXES = ['/vault/licensing', '/vault/setup']
 
 export default async function VaultLayout({ children }: { children: ReactNode }) {
   const headersList = await headers()

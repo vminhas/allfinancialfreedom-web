@@ -6,7 +6,8 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine,
 } from 'recharts'
-import { PHASE_LABELS, CARRIERS, getAtRiskStatus, PHASE_ITEMS } from '@/lib/agent-constants'
+import { PHASE_LABELS, CARRIERS, getAtRiskStatus, PHASE_ITEMS, PHASE_GROUPS } from '@/lib/agent-constants'
+import { GROUP_ICONS, ChevronDown } from '@/lib/checklist-icons'
 import CallReviewModal, { CallReviewData } from '@/components/CallReviewModal'
 
 interface Agent {
@@ -1273,47 +1274,125 @@ function AgentDrawer({
           <div style={{ fontSize: 11, color: '#6B8299', marginBottom: 12, lineHeight: 1.5 }}>
             Click any item to toggle it. Agents work on phases asynchronously — you can check items here even if it&apos;s not the agent&apos;s current phase.
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            {(PHASE_ITEMS[drawerChecklistPhase] ?? []).map(item => {
-              const phaseItem = localPhaseItems.find(pi => pi.phase === drawerChecklistPhase && pi.itemKey === item.key)
-              const done = phaseItem?.completed ?? false
-              const isToggling = togglingKey === item.key
-              return (
-                <button
-                  key={item.key}
-                  onClick={() => toggleAgentItem(item.key, drawerChecklistPhase, !done)}
-                  disabled={isToggling}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '10px 12px', borderRadius: 4, minHeight: 40,
-                    background: done ? 'rgba(74,222,128,0.05)' : 'rgba(255,255,255,0.02)',
-                    border: `1px solid ${done ? 'rgba(74,222,128,0.2)' : 'rgba(255,255,255,0.05)'}`,
-                    cursor: isToggling ? 'wait' : 'pointer',
-                    opacity: isToggling ? 0.6 : 1,
-                    textAlign: 'left',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  <span style={{
-                    width: 16, height: 16, borderRadius: 3, flexShrink: 0,
-                    background: done ? '#4ade80' : 'transparent',
-                    border: `2px solid ${done ? '#4ade80' : 'rgba(255,255,255,0.2)'}`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 9, color: '#0A1628', fontWeight: 700,
-                  }}>
-                    {done && '✓'}
-                  </span>
-                  <span style={{ fontSize: 12, color: done ? '#9BB0C4' : '#ffffff', flex: 1 }}>
-                    {item.label}
-                  </span>
-                  {phaseItem?.completedAt && (
-                    <span style={{ fontSize: 9, color: '#4B5563', flexShrink: 0 }}>
-                      {new Date(phaseItem.completedAt).toLocaleDateString()}
-                    </span>
-                  )}
-                </button>
-              )
-            })}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {(() => {
+              const allItems = PHASE_ITEMS[drawerChecklistPhase] ?? []
+              const groups = PHASE_GROUPS[drawerChecklistPhase] ?? []
+
+              const groupedItems: { group: typeof groups[0] | null; items: typeof allItems }[] = []
+              const usedKeys = new Set<string>()
+
+              for (const g of groups) {
+                const gItems = allItems.filter(i => i.group === g.key)
+                if (gItems.length > 0) {
+                  groupedItems.push({ group: g, items: gItems })
+                  gItems.forEach(i => usedKeys.add(i.key))
+                }
+              }
+              const ungrouped = allItems.filter(i => !usedKeys.has(i.key))
+              if (ungrouped.length > 0) {
+                groupedItems.push({ group: null, items: ungrouped })
+              }
+
+              return groupedItems.map(({ group, items: groupItems }) => {
+                const groupCompleted = groupItems.filter(item => {
+                  return localPhaseItems.some(pi => pi.phase === drawerChecklistPhase && pi.itemKey === item.key && pi.completed)
+                }).length
+
+                const GIcon = group?.icon ? GROUP_ICONS[group.icon] : null
+
+                return (
+                  <div key={group?.key ?? 'ungrouped'}>
+                    {group && (
+                      <div style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '8px 12px', marginBottom: 4,
+                        background: 'rgba(201,169,110,0.04)',
+                        border: '1px solid rgba(201,169,110,0.1)',
+                        borderRadius: 4,
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          {GIcon && <GIcon size={14} color="#C9A96E" />}
+                          <div>
+                            <div style={{ fontSize: 11, fontWeight: 600, color: '#ffffff' }}>{group.label}</div>
+                            {group.description && (
+                              <div style={{ fontSize: 9, color: '#6B8299', marginTop: 1 }}>{group.description}</div>
+                            )}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                          <span style={{
+                            fontSize: 9, fontWeight: 700,
+                            color: groupCompleted === groupItems.length ? '#4ade80' : '#C9A96E',
+                          }}>
+                            {groupCompleted}/{groupItems.length}
+                          </span>
+                          <span style={{
+                            width: 36, height: 3, borderRadius: 2,
+                            background: 'rgba(255,255,255,0.06)', overflow: 'hidden',
+                            display: 'inline-block',
+                          }}>
+                            <span style={{
+                              display: 'block', height: '100%',
+                              width: `${groupItems.length > 0 ? Math.round((groupCompleted / groupItems.length) * 100) : 0}%`,
+                              background: groupCompleted === groupItems.length ? '#4ade80' : '#C9A96E',
+                              borderRadius: 2, transition: 'width 0.3s',
+                            }} />
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
+                      {groupItems.map(item => {
+                        const phaseItem = localPhaseItems.find(pi => pi.phase === drawerChecklistPhase && pi.itemKey === item.key)
+                        const done = phaseItem?.completed ?? false
+                        const isToggling = togglingKey === item.key
+                        return (
+                          <button
+                            key={item.key}
+                            onClick={() => toggleAgentItem(item.key, drawerChecklistPhase, !done)}
+                            disabled={isToggling}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 10,
+                              padding: '9px 12px', borderRadius: 4, minHeight: 36,
+                              background: done ? 'rgba(74,222,128,0.05)' : 'rgba(255,255,255,0.02)',
+                              border: `1px solid ${done ? 'rgba(74,222,128,0.2)' : 'rgba(255,255,255,0.05)'}`,
+                              cursor: isToggling ? 'wait' : 'pointer',
+                              opacity: isToggling ? 0.6 : 1,
+                              textAlign: 'left', transition: 'all 0.15s',
+                            }}
+                          >
+                            <span style={{
+                              width: 14, height: 14, borderRadius: 3, flexShrink: 0,
+                              background: done ? '#4ade80' : 'transparent',
+                              border: `2px solid ${done ? '#4ade80' : 'rgba(255,255,255,0.2)'}`,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: 8, color: '#0A1628', fontWeight: 700,
+                            }}>
+                              {done && '✓'}
+                            </span>
+                            <span style={{ fontSize: 11, color: done ? '#9BB0C4' : '#ffffff', flex: 1 }}>
+                              {item.label}
+                            </span>
+                            {item.duration && (
+                              <span style={{ fontSize: 9, color: '#4B5563', flexShrink: 0 }}>
+                                {item.duration}
+                              </span>
+                            )}
+                            {phaseItem?.completedAt && (
+                              <span style={{ fontSize: 9, color: '#4B5563', flexShrink: 0 }}>
+                                {new Date(phaseItem.completedAt).toLocaleDateString()}
+                              </span>
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })
+            })()}
           </div>
         </div>
       )}

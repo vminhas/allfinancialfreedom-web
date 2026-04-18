@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
     characterTraits?: string
     appointmentDate?: string
     notes?: string
+    phaseItemKey?: string
   }
 
   if (!body.name) return NextResponse.json({ error: 'name required' }, { status: 400 })
@@ -75,6 +76,7 @@ export async function POST(req: NextRequest) {
       characterTraits: body.characterTraits,
       appointmentDate: body.appointmentDate ? new Date(body.appointmentDate) : null,
       notes: body.notes,
+      phaseItemKey: body.phaseItemKey,
     },
   })
 

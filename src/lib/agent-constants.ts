@@ -13,75 +13,85 @@ export type LicensingCoordinatorTopic =
   | 'UNDERWRITING'
   | 'GENERAL'
 
+export interface PhaseItemAction {
+  type: 'navigate-tab' | 'resource-link' | 'inline-form'
+  tab?: string
+  modal?: string
+  resourceKey?: string
+  label?: string
+}
+
 export interface PhaseItemDef {
   key: string
   label: string
   description: string
   duration?: string
   group?: string
-  tab?: string
+  action?: PhaseItemAction
   coordinatorTopic?: LicensingCoordinatorTopic
+  showTrainer?: boolean
 }
 
 export interface PhaseGroupDef {
   key: string
   label: string
+  icon?: string
   description?: string
 }
 
 export const PHASE_GROUPS: Record<number, PhaseGroupDef[]> = {
   1: [
-    { key: 'onboarding', label: '📚 Onboarding Academy', description: 'Your first three training sessions with your trainer.' },
-    { key: 'setup', label: '🔗 Account Setup', description: 'Connect your tools and get your accounts ready.' },
-    { key: 'licensing', label: '📋 Licensing & Compliance', description: 'Everything you need to get licensed and appointed with carriers.' },
-    { key: 'training_prep', label: '🚀 Training Prep', description: 'Build your foundation before moving into field training.' },
+    { key: 'onboarding', label: 'Onboarding Academy', icon: 'BookOpen', description: 'Your first three training sessions with your trainer.' },
+    { key: 'setup', label: 'Account Setup', icon: 'Link', description: 'Connect your tools and get your accounts ready.' },
+    { key: 'licensing', label: 'Licensing & Compliance', icon: 'ClipboardCheck', description: 'Everything you need to get licensed and appointed with carriers.' },
+    { key: 'training_prep', label: 'Training Prep', icon: 'Rocket', description: 'Build your foundation before moving into field training.' },
   ],
   2: [
-    { key: 'partners', label: '👥 Business Partners', description: 'Build your referral network.' },
-    { key: 'fta', label: '🎯 Field Training Appointments', description: 'Complete 10 live appointments with your CFT trainer.' },
-    { key: 'milestones', label: '📈 Growth Milestones', description: 'Hit the key targets that qualify you for Phase 3.' },
+    { key: 'partners', label: 'Business Partners', icon: 'Users', description: 'Build your referral network.' },
+    { key: 'fta', label: 'Field Training Appointments', icon: 'Target', description: 'Complete 10 live appointments with your CFT trainer.' },
+    { key: 'milestones', label: 'Growth Milestones', icon: 'TrendingUp', description: 'Hit the key targets that qualify you for Phase 3.' },
   ],
   3: [
-    { key: 'signoffs', label: '✅ CFT Sign-Offs', description: 'Get approved by your trainer, coordinator, and EMD.' },
-    { key: 'skills', label: '📞 Independent Skills', description: 'Prove you can run appointments and recruit on your own.' },
-    { key: 'products', label: '📦 Product Mastery', description: 'Learn the core AFF product suite inside and out.' },
+    { key: 'signoffs', label: 'CFT Sign-Offs', icon: 'CheckCircle', description: 'Get approved by your trainer, coordinator, and EMD.' },
+    { key: 'skills', label: 'Independent Skills', icon: 'Phone', description: 'Prove you can run appointments and recruit on your own.' },
+    { key: 'products', label: 'Product Mastery', icon: 'Package', description: 'Learn the core AFF product suite inside and out.' },
   ],
   4: [
-    { key: 'production', label: '📊 Production Goals', description: 'Hit the production numbers for Marketing Director.' },
-    { key: 'team', label: '👥 Team Building', description: 'Build and maintain a team of 5 active licensed agents.' },
+    { key: 'production', label: 'Production Goals', icon: 'BarChart3', description: 'Hit the production numbers for Marketing Director.' },
+    { key: 'team', label: 'Team Building', icon: 'UserPlus', description: 'Build and maintain a team of 5 active licensed agents.' },
   ],
   5: [
-    { key: 'leadership', label: '📊 Leadership Production', description: 'Lead a high-performing organization.' },
-    { key: 'org', label: '👥 Organization Growth', description: 'Grow your organization to 20 active licensed agents.' },
+    { key: 'leadership', label: 'Leadership Production', icon: 'Crown', description: 'Lead a high-performing organization.' },
+    { key: 'org', label: 'Organization Growth', icon: 'Network', description: 'Grow your organization to 20 active licensed agents.' },
   ],
 }
 
 export const PHASE_ITEMS: Record<number, PhaseItemDef[]> = {
   1: [
-    // 📚 Onboarding Academy
+    // Onboarding Academy
     { key: 'week1_onboarding', label: 'Onboarding Academy Class 1', group: 'onboarding', duration: '1 Hour',
-      description: "On this meeting your trainer walks you through AFF's flagship products and the reasons behind them. By the end of this meeting you'll understand exactly what you're offering to clients and why it matters." },
+      description: "On this meeting your trainer walks you through AFF's flagship products and the reasons behind them. By the end of this meeting you'll understand exactly what you're offering to clients and why it matters.", showTrainer: true },
     { key: 'week2_onboarding', label: 'Onboarding Academy Class 2', group: 'onboarding', duration: '1 Hour',
-      description: 'In this meeting you will learn how to build out your referral sources and expand your outreach and learn the benefits of being an Agency Owner.' },
+      description: 'In this meeting you will learn how to build out your referral sources and expand your outreach and learn the benefits of being an Agency Owner.', showTrainer: true },
     { key: 'week3_onboarding', label: 'Onboarding Academy Class 3', group: 'onboarding', duration: '1 Hour',
-      description: "This week you'll start scheduling Field Training Appointments (FTAs) with your Certified Field Trainer." },
+      description: "This week you'll start scheduling Field Training Appointments (FTAs) with your Certified Field Trainer.", showTrainer: true },
 
-    // 🔗 Account Setup
+    // Account Setup
     { key: 'connect_discord', label: 'Connect Discord', group: 'setup', duration: '15 mins',
       description: 'Join the AFF Discord server and link your account so you get access to your phase training channels, weekly training reminders, and team resources. Use the button below to connect.' },
 
-    // 📋 Licensing & Compliance
+    // Licensing & Compliance
     { key: 'licensing_class', label: 'Licensing Class / Schedule Test', group: 'licensing', duration: '20 mins',
-      description: "Schedule your pre-licensing course and exam with the licensing coordinator. They'll walk you through the process, help you pick a test date, and answer any questions along the way. Use the button below to reach them directly.",
+      description: "Schedule your pre-licensing course and exam with the licensing coordinator. They'll walk you through the process, help you pick a test date, and answer any questions along the way.",
       coordinatorTopic: 'SCHEDULE_EXAM' },
     { key: 'pass_license_test', label: 'Pass Life License Test', group: 'licensing', duration: '1.5 Hours',
-      description: 'Pass your state life insurance exam. The moment you pass, schedule your post-licensing call with the licensing coordinator and your EMD. That is where your next steps get mapped out. Use the button below to reach out.',
+      description: 'Pass your state life insurance exam. The moment you pass, schedule your post-licensing call with the licensing coordinator and your EMD. That is where your next steps get mapped out.',
       coordinatorTopic: 'PASS_POST_LICENSING' },
     { key: 'fingerprints_apply', label: 'Fingerprints + Apply for License', group: 'licensing', duration: '10 mins',
-      description: 'Schedule your fingerprinting and file your state license application. The licensing coordinator handles this with you. Use the button below to send a request.',
+      description: 'Schedule your fingerprinting and file your state license application. The licensing coordinator handles this with you.',
       coordinatorTopic: 'FINGERPRINTS_APPLY' },
     { key: 'submit_to_aff', label: 'Submit to GFI', group: 'licensing', duration: '5 mins',
-      description: 'This is what gets you appointed to all of the different carriers. The licensing coordinator handles the submission for you. Send a request directly from this item.',
+      description: 'This is what gets you appointed to all of the different carriers. The licensing coordinator handles the submission for you.',
       coordinatorTopic: 'GFI_APPOINTMENTS' },
     { key: 'ce_courses', label: 'Complete CE Courses (AML, Annuity & Ethics)', group: 'licensing', duration: '5 Hours',
       description: 'Complete your Continuing Education courses: AML, Annuity, and Ethics. The licensing coordinator will point you to the provider and help you past any snags.',
@@ -93,86 +103,118 @@ export const PHASE_ITEMS: Record<number, PhaseItemDef[]> = {
       description: 'Set up direct deposit so your commissions land in your account automatically. The licensing coordinator will help you finish this.',
       coordinatorTopic: 'DIRECT_DEPOSIT' },
 
-    // 🚀 Training Prep
+    // Training Prep
     { key: 'pfr', label: 'Personal Financial Review', group: 'training_prep', duration: '1 Hour',
-      description: "Sit down with your trainer for your own Personal Financial Review. This is both a real planning session for your finances and your first hands-on experience with the tool you'll use to help families." },
+      description: "Sit down with your trainer for your own Personal Financial Review. This is both a real planning session for your finances and your first hands-on experience with the tool you'll use to help families.",
+      showTrainer: true },
     { key: 'fast_start_school', label: 'Fast Start School', group: 'training_prep', duration: '1 Hour',
-      description: "A company-wide walkthrough of what to focus on in your first 30 days. Held Saturdays at 11am Eastern. Your trainer will send you the link and details." },
+      description: "A company-wide walkthrough of what to focus on in your first 30 days. Held Saturdays at 11am Eastern. Your trainer will send you the link and details.",
+      action: { type: 'resource-link', resourceKey: 'fast_start_link', label: 'Join Fast Start' } },
     { key: 'business_marketing_plan', label: 'Business Marketing Plan', group: 'training_prep', duration: '1 Hour',
-      description: 'Meet with your CFT within 24 hours of attending onboarding to build out your Business Marketing list for expansion and your agency plan.' },
+      description: 'Meet with your CFT within 24 hours of attending onboarding to build out your Business Marketing list for expansion and your agency plan.',
+      showTrainer: true },
     { key: 'master_scripts', label: 'Master Scripts', group: 'training_prep', duration: '2 Hours',
-      description: "Learn the scheduling and presentation scripts you'll use on your Field Training calls. Drill them until they feel natural." },
+      description: "Learn the scheduling and presentation scripts you'll use on your Field Training calls. Drill them until they feel natural.",
+      action: { type: 'resource-link', resourceKey: 'scripts_presentation', label: 'View scripts' } },
     { key: 'schedule_10_trainings', label: 'Schedule 10 Training Appointments', group: 'training_prep', duration: '1 Hour',
       description: "Schedule your first 10 Field Training Appointments alongside your trainer. Once these are booked, you're ready to move into Phase 2.",
-      tab: 'partners' },
+      showTrainer: true, action: { type: 'inline-form', modal: 'fta-schedule', label: 'Schedule appointments' } },
   ],
   2: [
-    // 👥 Business Partners
+    // Business Partners
     { key: '3_business_partners', label: '3 Business Partners', group: 'partners',
       description: "Identify the first 3 people from your network you'd like to introduce to the AFF opportunity. Your trainer will guide you through the conversations. These become the foundation for your field training.",
-      tab: 'partners' },
+      action: { type: 'navigate-tab', tab: 'partners', label: 'View partners' } },
 
-    // 🎯 Field Training Appointments
+    // Field Training Appointments
     { key: 'fta_1', label: 'Field Training 1 (Spouse / Parents)', group: 'fta', duration: '1 Hour',
-      description: 'Your first Field Training Appointment. A live appointment with your CFT trainer. FTA 1 is typically with your immediate family (spouse, parents) to practice in a supportive environment.',
-      tab: 'partners' },
-    { key: 'fta_2', label: 'Field Training 2', group: 'fta', duration: '1 Hour', description: 'Field Training Appointment 2. Continue building confidence running live appointments alongside your CFT trainer.', tab: 'partners' },
-    { key: 'fta_3', label: 'Field Training 3', group: 'fta', duration: '1 Hour', description: 'Field Training Appointment 3. Your presenter role should be growing. Aim to lead more of the appointment with your trainer observing.', tab: 'partners' },
-    { key: 'fta_4', label: 'Field Training 4', group: 'fta', duration: '1 Hour', description: 'Field Training Appointment 4.', tab: 'partners' },
-    { key: 'fta_5', label: 'Field Training 5', group: 'fta', duration: '1 Hour', description: 'Field Training Appointment 5. Halfway point. By now you should feel comfortable with the full AFF presentation flow.', tab: 'partners' },
-    { key: 'fta_6', label: 'Field Training 6', group: 'fta', duration: '1 Hour', description: 'Field Training Appointment 6.', tab: 'partners' },
-    { key: 'fta_7', label: 'Field Training 7', group: 'fta', duration: '1 Hour', description: 'Field Training Appointment 7.', tab: 'partners' },
-    { key: 'fta_8', label: 'Field Training 8', group: 'fta', duration: '1 Hour', description: 'Field Training Appointment 8.', tab: 'partners' },
-    { key: 'fta_9', label: 'Field Training 9', group: 'fta', duration: '1 Hour', description: 'Field Training Appointment 9.', tab: 'partners' },
+      description: 'Your first appointment. Your trainer leads, you observe and take notes. Best to start with family (spouse, parents) in a comfortable setting.',
+      showTrainer: true, action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
+    { key: 'fta_2', label: 'Field Training 2', group: 'fta', duration: '1 Hour',
+      description: 'Shadow your trainer again but start engaging. Ask one discovery question during the appointment.',
+      showTrainer: true, action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
+    { key: 'fta_3', label: 'Field Training 3', group: 'fta', duration: '1 Hour',
+      description: 'Start presenting the introduction. Your trainer handles the rest while you build confidence opening conversations.',
+      showTrainer: true, action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
+    { key: 'fta_4', label: 'Field Training 4', group: 'fta', duration: '1 Hour',
+      description: 'Focus on objection handling. Your trainer will let some common objections come to you naturally during the appointment.',
+      showTrainer: true, action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
+    { key: 'fta_5', label: 'Field Training 5', group: 'fta', duration: '1 Hour',
+      description: 'Halfway mark. You should be presenting about 50% of the appointment. Your trainer fills in the gaps and coaches in real time.',
+      showTrainer: true, action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
+    { key: 'fta_6', label: 'Field Training 6', group: 'fta', duration: '1 Hour',
+      description: 'Take the lead on most of the presentation. Your trainer coaches from the side and only steps in when needed.',
+      showTrainer: true, action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
+    { key: 'fta_7', label: 'Field Training 7', group: 'fta', duration: '1 Hour',
+      description: 'Run the full needs analysis and product recommendation. Your trainer observes and gives feedback after the appointment.',
+      showTrainer: true, action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
+    { key: 'fta_8', label: 'Field Training 8', group: 'fta', duration: '1 Hour',
+      description: 'Lead the entire appointment from start to finish. Your trainer is there as backup but lets you run the show.',
+      showTrainer: true, action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
+    { key: 'fta_9', label: 'Field Training 9', group: 'fta', duration: '1 Hour',
+      description: 'Almost there. Run the full appointment solo with your trainer observing. Focus on closing the case naturally.',
+      showTrainer: true, action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
     { key: 'fta_10', label: 'Field Training 10', group: 'fta', duration: '1 Hour',
-      description: 'Field Training Appointment 10. Completing all 10 FTAs demonstrates you are ready to run appointments independently and begin building your team.',
-      tab: 'partners' },
+      description: 'Your final FTA. Demonstrate full independence. Your trainer is there for backup only. Completing all 10 FTAs means you are ready to run appointments on your own.',
+      showTrainer: true, action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
 
-    // 📈 Growth Milestones
+    // Growth Milestones
     { key: 'associate_promotion', label: 'Senior Associate Promotion', group: 'milestones',
       description: "Officially promoted to Senior Associate level within AFF. This recognizes your completion of Phase 1 requirements and confirms you're ready for independent field work." },
-    { key: 'direct_1', label: 'Direct 1', group: 'milestones',
+    { key: 'direct_1', label: 'Recruit & Onboard Your 1st Agent', group: 'milestones',
       description: 'Sponsor and onboard your first direct agent. Someone you personally recruited who has joined AFF. Building your team starts here.',
-      tab: 'partners' },
-    { key: 'direct_2', label: 'Direct 2', group: 'milestones',
-      description: 'Sponsor and onboard your second direct agent on your team.', tab: 'partners' },
-    { key: 'direct_3', label: 'Direct 3', group: 'milestones',
-      description: 'Sponsor and onboard your third direct agent. Three actives is the foundation of a growing agency.', tab: 'partners' },
-    { key: 'client_1', label: 'Client Helped 1', group: 'milestones',
-      description: 'Help your first client. Complete a full financial needs analysis and present a real solution. Document the case in your Policies tab.', tab: 'policies' },
-    { key: 'client_2', label: 'Client Helped 2', group: 'milestones',
-      description: 'Help your second client. Each client you serve builds your experience and your track record.', tab: 'policies' },
-    { key: 'client_3', label: 'Client Helped 3', group: 'milestones',
-      description: 'Help your third client. Three cases demonstrates consistent client service, a major milestone.', tab: 'policies' },
+      action: { type: 'inline-form', modal: 'partner-log', label: 'Log your recruit' } },
+    { key: 'direct_2', label: 'Recruit & Onboard Your 2nd Agent', group: 'milestones',
+      description: 'Sponsor and onboard your second direct agent on your team.',
+      action: { type: 'inline-form', modal: 'partner-log', label: 'Log your recruit' } },
+    { key: 'direct_3', label: 'Recruit & Onboard Your 3rd Agent', group: 'milestones',
+      description: 'Sponsor and onboard your third direct agent. Three actives is the foundation of a growing agency.',
+      action: { type: 'inline-form', modal: 'partner-log', label: 'Log your recruit' } },
+    { key: 'client_1', label: 'Help Your 1st Client (Policy Issued)', group: 'milestones',
+      description: 'Help your first client. Complete a full financial needs analysis and present a real solution. Document the case in your Policies tab.',
+      action: { type: 'navigate-tab', tab: 'policies', label: 'Log a policy' } },
+    { key: 'client_2', label: 'Help Your 2nd Client', group: 'milestones',
+      description: 'Help your second client. Each client you serve builds your experience and your track record.',
+      action: { type: 'navigate-tab', tab: 'policies', label: 'Log a policy' } },
+    { key: 'client_3', label: 'Help Your 3rd Client', group: 'milestones',
+      description: 'Help your third client. Three cases demonstrates consistent client service, a major milestone.',
+      action: { type: 'navigate-tab', tab: 'policies', label: 'Log a policy' } },
     { key: 'net_license', label: 'Net License', group: 'milestones',
       description: 'Receive and activate your physical or digital life insurance license from your state. You are now fully authorized to sell and earn commissions.' },
     { key: 'first_1000', label: "Make Your 1st $1,000", group: 'milestones',
-      description: 'Earn your first $1,000 in commission from issued and paid policies. This milestone proves the system works and it is just the start of what is possible.', tab: 'policies' },
+      description: 'Earn your first $1,000 in commission from issued and paid policies. This milestone proves the system works and it is just the start of what is possible.',
+      action: { type: 'navigate-tab', tab: 'policies', label: 'View policies' } },
   ],
   3: [
-    // ✅ CFT Sign-Offs
+    // CFT Sign-Offs
     { key: 'cft_classes', label: 'Attend CFT in Progress Classes', group: 'signoffs', duration: '1 Hour',
-      description: 'Attend CFT (Certified Field Trainer) In Progress sessions hosted by AFF leadership. These are the advanced classes that teach you how to train and develop new agents.' },
+      description: 'Attend CFT (Certified Field Trainer) In Progress sessions hosted by AFF leadership. These are the advanced classes that teach you how to train and develop new agents.',
+      showTrainer: true },
     { key: 'trainer_signoff', label: 'Signed Off by Trainer', group: 'signoffs',
-      description: 'Your CFT trainer officially signs off that you can run appointments independently and are ready to begin training others. This is a formal milestone in your development.' },
+      description: 'Your CFT trainer officially signs off that you can run appointments independently and are ready to begin training others. This is a formal milestone in your development.',
+      showTrainer: true },
     { key: 'cft_coordinator_signoff', label: 'CFT Coordinator Sign Off', group: 'signoffs',
       description: 'The CFT Coordinator, a senior AFF trainer, reviews your performance and approves your readiness for CFT designation.' },
     { key: 'emd_signoff', label: 'EMD Sign Off', group: 'signoffs',
       description: 'The Executive Marketing Director reviews and signs off on your CFT designation. This is the final approval before you advance to Phase 4.' },
 
-    // 📞 Independent Skills
-    { key: 'client_1st_apt', label: 'Client 1st Appointment', group: 'skills',
-      description: 'Run a complete first client appointment independently. Conduct the financial needs analysis and present solutions without your trainer present.', tab: 'policies' },
-    { key: 'client_2nd_apt', label: 'Client 2nd Appointment', group: 'skills',
-      description: 'Run the follow-up (second) appointment independently. Complete a PFR, present personalized solutions, and close the case on your own.', tab: 'policies' },
+    // Independent Skills
+    { key: 'client_1st_apt', label: 'Solo Client 1st Appointment', group: 'skills',
+      description: 'Run a complete first client appointment independently. Conduct the financial needs analysis and present solutions without your trainer present.',
+      action: { type: 'navigate-tab', tab: 'policies', label: 'Log a policy' } },
+    { key: 'client_2nd_apt', label: 'Solo Client 2nd Appointment', group: 'skills',
+      description: 'Run the follow-up (second) appointment independently. Complete a PFR, present personalized solutions, and close the case on your own.',
+      action: { type: 'navigate-tab', tab: 'policies', label: 'Log a policy' } },
     { key: 'phone_call_scripts', label: 'Phone Call Scripts', group: 'skills',
-      description: 'Master all phone scripts: reference call script, ETHOR call script, recruiting calls, and follow-up calls. Demonstrate the ability to set quality appointments via phone alone.', tab: 'calls' },
+      description: 'Master all phone scripts: reference call script, ETHOR call script, recruiting calls, and follow-up calls. Demonstrate the ability to set quality appointments via phone alone.',
+      action: { type: 'resource-link', resourceKey: 'scripts_phone', label: 'View call scripts' } },
     { key: 'recruiting_interview', label: 'Recruiting Interview', group: 'skills',
-      description: 'Conduct a full recruiting interview with a prospective agent candidate using the official AFF interview process. Document it in your Business Partners tab.', tab: 'partners' },
+      description: 'Conduct a full recruiting interview with a prospective agent candidate using the official AFF interview process.',
+      action: { type: 'navigate-tab', tab: 'partners', label: 'Log interview' } },
     { key: 'system_knowledge', label: 'System Knowledge', group: 'skills',
       description: 'Demonstrate comprehensive knowledge of the full AFF system: the business model, compensation structure, agent career path, and how to explain it to prospects.' },
 
-    // 📦 Product Mastery
+    // Product Mastery
     { key: 'top_5_products', label: 'Top 5 Products', group: 'products',
       description: 'Develop working knowledge of the top 5 AFF products. You must be able to identify which product fits each client scenario and explain the core benefits clearly.' },
     { key: 'fixed_indexed_annuity', label: 'Fixed Indexed Annuity', group: 'products',
@@ -187,80 +229,71 @@ export const PHASE_ITEMS: Record<number, PhaseItemDef[]> = {
       description: 'Complete training on the Million Dollar Baby strategy. An IUL funded for infants or children that grows into a tax-advantaged wealth vehicle over their lifetime.' },
   ],
   4: [
-    // 📊 Production Goals
+    // Production Goals
     { key: '45k_points', label: '45,000 Points', group: 'production',
       description: 'Accumulate 45,000 production points from issued and paid policies. This is the primary production threshold for Marketing Director (MD) qualification.',
-      tab: 'policies',
-    },
-    {
-      key: 'month1_premium',
-      label: 'Month 1: $1,250 Premium', group: 'production',
+      action: { type: 'navigate-tab', tab: 'policies', label: 'View policies' } },
+    { key: 'month1_premium', label: 'Month 1: $1,250 Premium', group: 'production',
       description: 'Maintain at least $1,250 in monthly premium production during Month 1. Consistent monthly premium demonstrates sustainable client activity.',
-      tab: 'policies',
-    },
-    {
-      key: 'month2_premium',
-      label: 'Month 2: $1,250 Premium', group: 'production',
+      action: { type: 'navigate-tab', tab: 'policies', label: 'View policies' } },
+    { key: 'month2_premium', label: 'Month 2: $1,250 Premium', group: 'production',
       description: 'Maintain at least $1,250 in monthly premium production during Month 2.',
-      tab: 'policies',
-    },
-    {
-      key: 'month3_premium',
-      label: 'Month 3: $1,250 Premium', group: 'production',
+      action: { type: 'navigate-tab', tab: 'policies', label: 'View policies' } },
+    { key: 'month3_premium', label: 'Month 3: $1,250 Premium', group: 'production',
       description: 'Maintain at least $1,250 in monthly premium production during Month 3. Three consecutive months proves you have a repeatable, sustainable business.',
-      tab: 'policies',
-    },
-    {
-      key: 'license_net_1', label: 'License 1 (Net)', group: 'team',
-      description: 'Net License 1, an active, licensed agent on your team who you directly or indirectly sponsored. Net means they are currently active and producing.',
-      tab: 'partners',
-    },
-    { key: 'license_net_2', label: 'License 2 (Net)', group: 'team', description: 'Net License 2, a second active licensed agent on your team.', tab: 'partners' },
-    { key: 'license_net_3', label: 'License 3 (Net)', group: 'team', description: 'Net License 3, a third active licensed agent on your team.', tab: 'partners' },
-    { key: 'license_net_4', label: 'License 4 (Net)', group: 'team', description: 'Net License 4, a fourth active licensed agent on your team.', tab: 'partners' },
-    {
-      key: 'license_net_5', label: 'License 5 (Net)', group: 'team',
-      description: 'Net License 5, five active licensed agents on your team. This is the team size required to qualify for Marketing Director.',
-      tab: 'partners',
-    },
+      action: { type: 'navigate-tab', tab: 'policies', label: 'View policies' } },
+
+    // Team Building
+    { key: 'license_net_1', label: 'Active Licensed Agent 1', group: 'team',
+      description: 'An active, licensed agent on your team who you directly or indirectly sponsored. Net means they are currently active and producing.',
+      action: { type: 'navigate-tab', tab: 'partners', label: 'View team' } },
+    { key: 'license_net_2', label: 'Active Licensed Agent 2', group: 'team',
+      description: 'A second active licensed agent on your team.',
+      action: { type: 'navigate-tab', tab: 'partners', label: 'View team' } },
+    { key: 'license_net_3', label: 'Active Licensed Agent 3', group: 'team',
+      description: 'A third active licensed agent on your team.',
+      action: { type: 'navigate-tab', tab: 'partners', label: 'View team' } },
+    { key: 'license_net_4', label: 'Active Licensed Agent 4', group: 'team',
+      description: 'A fourth active licensed agent on your team.',
+      action: { type: 'navigate-tab', tab: 'partners', label: 'View team' } },
+    { key: 'license_net_5', label: 'Active Licensed Agent 5', group: 'team',
+      description: 'Five active licensed agents on your team. This is the team size required to qualify for Marketing Director.',
+      action: { type: 'navigate-tab', tab: 'partners', label: 'View team' } },
   ],
   5: [
-    {
-      key: '150k_net_6mo', group: 'leadership',
+    // Leadership Production
+    { key: '150k_net_6mo', group: 'leadership',
       label: '150,000 Net Points in 6 Months',
       description: 'Maintain 150,000 net production points over any consecutive 6-month period. This demonstrates that you are leading a high-performing team, not just an active producer.',
-      tab: 'policies',
-    },
-    {
-      key: '1_marketing_director', group: 'leadership',
+      action: { type: 'navigate-tab', tab: 'policies', label: 'View policies' } },
+    { key: '1_marketing_director', group: 'leadership',
       label: '1 Marketing Director',
       description: 'Develop and promote at least one agent from your team to Marketing Director level. Leadership multiplication, not just your own production, defines the EMD path.',
-      tab: 'partners',
-    },
-    { key: 'license_1', label: 'License 1', group: 'org', description: 'Net License 1 of 20 required for EMD, an active licensed agent in your organization.', tab: 'partners' },
-    { key: 'license_2', label: 'License 2', group: 'org', description: 'Net License 2 of 20.', tab: 'partners' },
-    { key: 'license_3', label: 'License 3', group: 'org', description: 'Net License 3 of 20.', tab: 'partners' },
-    { key: 'license_4', label: 'License 4', group: 'org', description: 'Net License 4 of 20.', tab: 'partners' },
-    { key: 'license_5', label: 'License 5', group: 'org', description: 'Net License 5 of 20.', tab: 'partners' },
-    { key: 'license_6', label: 'License 6', group: 'org', description: 'Net License 6 of 20.', tab: 'partners' },
-    { key: 'license_7', label: 'License 7', group: 'org', description: 'Net License 7 of 20.', tab: 'partners' },
-    { key: 'license_8', label: 'License 8', group: 'org', description: 'Net License 8 of 20.', tab: 'partners' },
-    { key: 'license_9', label: 'License 9', group: 'org', description: 'Net License 9 of 20.', tab: 'partners' },
-    { key: 'license_10', label: 'License 10', group: 'org', description: 'Net License 10 of 20, halfway to EMD team size.', tab: 'partners' },
-    { key: 'license_11', label: 'License 11', group: 'org', description: 'Net License 11 of 20.', tab: 'partners' },
-    { key: 'license_12', label: 'License 12', group: 'org', description: 'Net License 12 of 20.', tab: 'partners' },
-    { key: 'license_13', label: 'License 13', group: 'org', description: 'Net License 13 of 20.', tab: 'partners' },
-    { key: 'license_14', label: 'License 14', group: 'org', description: 'Net License 14 of 20.', tab: 'partners' },
-    { key: 'license_15', label: 'License 15', group: 'org', description: 'Net License 15 of 20.', tab: 'partners' },
-    { key: 'license_16', label: 'License 16', group: 'org', description: 'Net License 16 of 20.', tab: 'partners' },
-    { key: 'license_17', label: 'License 17', group: 'org', description: 'Net License 17 of 20.', tab: 'partners' },
-    { key: 'license_18', label: 'License 18', group: 'org', description: 'Net License 18 of 20.', tab: 'partners' },
-    { key: 'license_19', label: 'License 19', group: 'org', description: 'Net License 19 of 20.', tab: 'partners' },
-    {
-      key: 'license_20', label: 'License 20', group: 'org',
+      action: { type: 'navigate-tab', tab: 'partners', label: 'View your MDs' } },
+
+    // Organization Growth
+    { key: 'license_1', label: 'Organization License 1', group: 'org', description: 'Net License 1 of 20 required for EMD, an active licensed agent in your organization.', action: { type: 'navigate-tab', tab: 'partners', label: 'View organization' } },
+    { key: 'license_2', label: 'Organization License 2', group: 'org', description: 'Net License 2 of 20.', action: { type: 'navigate-tab', tab: 'partners', label: 'View organization' } },
+    { key: 'license_3', label: 'Organization License 3', group: 'org', description: 'Net License 3 of 20.', action: { type: 'navigate-tab', tab: 'partners', label: 'View organization' } },
+    { key: 'license_4', label: 'Organization License 4', group: 'org', description: 'Net License 4 of 20.', action: { type: 'navigate-tab', tab: 'partners', label: 'View organization' } },
+    { key: 'license_5', label: 'Organization License 5', group: 'org', description: 'Net License 5 of 20.', action: { type: 'navigate-tab', tab: 'partners', label: 'View organization' } },
+    { key: 'license_6', label: 'Organization License 6', group: 'org', description: 'Net License 6 of 20.', action: { type: 'navigate-tab', tab: 'partners', label: 'View organization' } },
+    { key: 'license_7', label: 'Organization License 7', group: 'org', description: 'Net License 7 of 20.', action: { type: 'navigate-tab', tab: 'partners', label: 'View organization' } },
+    { key: 'license_8', label: 'Organization License 8', group: 'org', description: 'Net License 8 of 20.', action: { type: 'navigate-tab', tab: 'partners', label: 'View organization' } },
+    { key: 'license_9', label: 'Organization License 9', group: 'org', description: 'Net License 9 of 20.', action: { type: 'navigate-tab', tab: 'partners', label: 'View organization' } },
+    { key: 'license_10', label: 'Organization License 10', group: 'org', description: 'Net License 10 of 20, halfway to EMD team size.', action: { type: 'navigate-tab', tab: 'partners', label: 'View organization' } },
+    { key: 'license_11', label: 'Organization License 11', group: 'org', description: 'Net License 11 of 20.', action: { type: 'navigate-tab', tab: 'partners', label: 'View organization' } },
+    { key: 'license_12', label: 'Organization License 12', group: 'org', description: 'Net License 12 of 20.', action: { type: 'navigate-tab', tab: 'partners', label: 'View organization' } },
+    { key: 'license_13', label: 'Organization License 13', group: 'org', description: 'Net License 13 of 20.', action: { type: 'navigate-tab', tab: 'partners', label: 'View organization' } },
+    { key: 'license_14', label: 'Organization License 14', group: 'org', description: 'Net License 14 of 20.', action: { type: 'navigate-tab', tab: 'partners', label: 'View organization' } },
+    { key: 'license_15', label: 'Organization License 15', group: 'org', description: 'Net License 15 of 20.', action: { type: 'navigate-tab', tab: 'partners', label: 'View organization' } },
+    { key: 'license_16', label: 'Organization License 16', group: 'org', description: 'Net License 16 of 20.', action: { type: 'navigate-tab', tab: 'partners', label: 'View organization' } },
+    { key: 'license_17', label: 'Organization License 17', group: 'org', description: 'Net License 17 of 20.', action: { type: 'navigate-tab', tab: 'partners', label: 'View organization' } },
+    { key: 'license_18', label: 'Organization License 18', group: 'org', description: 'Net License 18 of 20.', action: { type: 'navigate-tab', tab: 'partners', label: 'View organization' } },
+    { key: 'license_19', label: 'Organization License 19', group: 'org', description: 'Net License 19 of 20.', action: { type: 'navigate-tab', tab: 'partners', label: 'View organization' } },
+    { key: 'license_20', label: 'Organization License 20', group: 'org',
       description: 'Net License 20 of 20, the final team size requirement for Elite Marketing Director. You have built a true agency.',
-      tab: 'partners',
-    },
+      action: { type: 'navigate-tab', tab: 'partners', label: 'View organization' } },
   ],
 }
 
