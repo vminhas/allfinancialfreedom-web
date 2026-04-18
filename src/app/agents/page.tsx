@@ -1676,17 +1676,35 @@ interface Partner {
   occupation: string | null; appointmentDate: string | null; notes: string | null
 }
 
+interface Referral {
+  id: string; firstName: string; lastName: string; email: string
+  phone: string | null; state: string | null; notes: string | null
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'; createdAt: string
+}
+
+const REFERRAL_STATUS_COLORS: Record<string, string> = {
+  PENDING: '#f59e0b', APPROVED: '#4ade80', REJECTED: '#f87171',
+}
+
 function BusinessPartnersTab() {
   const [partners, setPartners] = useState<Partner[]>([])
+  const [referrals, setReferrals] = useState<Referral[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState({ name: '', email: '', phone: '', occupation: '', notes: '', appointmentDate: '' })
+  const [showReferForm, setShowReferForm] = useState(false)
+  const [referForm, setReferForm] = useState({ firstName: '', lastName: '', email: '', phone: '', state: '', notes: '' })
   const [saving, setSaving] = useState(false)
+  const [referError, setReferError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/agents/partners').then(r => r.json()).then((d: { partners: Partner[] }) => {
-      setPartners(d.partners ?? [])
+    Promise.all([
+      fetch('/api/agents/partners').then(r => r.json()),
+      fetch('/api/agents/referrals').then(r => r.json()),
+    ]).then(([pd, rd]: [{ partners: Partner[] }, { referrals: Referral[] }]) => {
+      setPartners(pd.partners ?? [])
+      setReferrals(rd.referrals ?? [])
       setLoading(false)
     })
   }, [])
@@ -1699,11 +1717,8 @@ function BusinessPartnersTab() {
 
   const startEdit = (p: Partner) => {
     setForm({
-      name: p.name,
-      email: p.email ?? '',
-      phone: p.phone ?? '',
-      occupation: p.occupation ?? '',
-      notes: p.notes ?? '',
+      name: p.name, email: p.email ?? '', phone: p.phone ?? '',
+      occupation: p.occupation ?? '', notes: p.notes ?? '',
       appointmentDate: p.appointmentDate ? p.appointmentDate.slice(0, 10) : '',
     })
     setEditingId(p.id)
@@ -1716,77 +1731,153 @@ function BusinessPartnersTab() {
     try {
       if (editingId) {
         const res = await fetch('/api/agents/partners', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: editingId, ...form }),
         })
         const updated = await res.json() as Partner
         setPartners(prev => prev.map(p => p.id === editingId ? updated : p))
       } else {
         const res = await fetch('/api/agents/partners', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(form),
         })
         const p = await res.json() as Partner
         setPartners(prev => [...prev, p])
       }
       resetForm()
-    } finally {
-      setSaving(false)
-    }
+    } finally { setSaving(false) }
+  }
+
+  const handleRefer = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+    setReferError(null)
+    try {
+      const res = await fetch('/api/agents/referrals', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(referForm),
+      })
+      if (!res.ok) {
+        const d = await res.json() as { error?: string }
+        setReferError(d.error ?? 'Failed to submit')
+        return
+      }
+      const r = await res.json() as Referral
+      setReferrals(prev => [r, ...prev])
+      setReferForm({ firstName: '', lastName: '', email: '', phone: '', state: '', notes: '' })
+      setShowReferForm(false)
+    } finally { setSaving(false) }
   }
 
   return (
-    <div style={{ ...card, padding: '24px 28px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div style={sectionLabel}>Business Partners ({partners.length})</div>
-        <button onClick={() => { resetForm(); setShowForm(!showForm) }} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-          + Add
-        </button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Refer a New Agent */}
+      <div style={{ ...card, padding: '24px 28px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div>
+            <div style={sectionLabel}>Refer a New Agent</div>
+            <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>Submit someone to join your team. The coordinator will review and send them an invite.</div>
+          </div>
+          <button onClick={() => setShowReferForm(!showReferForm)} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+            + Refer
+          </button>
+        </div>
+
+        {showReferForm && (
+          <form onSubmit={handleRefer} style={{ marginBottom: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, padding: 16, background: 'rgba(201,169,110,0.03)', borderRadius: 6, border: '1px solid rgba(201,169,110,0.12)' }}>
+            <div><label style={fieldLabel}>First Name *</label><input required style={inputStyle} value={referForm.firstName} onChange={e => setReferForm(f => ({ ...f, firstName: e.target.value }))} /></div>
+            <div><label style={fieldLabel}>Last Name *</label><input required style={inputStyle} value={referForm.lastName} onChange={e => setReferForm(f => ({ ...f, lastName: e.target.value }))} /></div>
+            <div><label style={fieldLabel}>Email *</label><input required type="email" style={inputStyle} value={referForm.email} onChange={e => setReferForm(f => ({ ...f, email: e.target.value }))} placeholder="recruit@email.com" /></div>
+            <div><label style={fieldLabel}>Phone</label><input style={inputStyle} value={referForm.phone} onChange={e => setReferForm(f => ({ ...f, phone: e.target.value }))} /></div>
+            <div><label style={fieldLabel}>State</label><input style={inputStyle} value={referForm.state} onChange={e => setReferForm(f => ({ ...f, state: e.target.value }))} placeholder="e.g., CA" /></div>
+            <div><label style={fieldLabel}>Notes</label><input style={inputStyle} value={referForm.notes} onChange={e => setReferForm(f => ({ ...f, notes: e.target.value }))} placeholder="How do you know them?" /></div>
+            {referError && <div style={{ gridColumn: 'span 2', fontSize: 11, color: '#f87171' }}>{referError}</div>}
+            <div style={{ gridColumn: 'span 2', display: 'flex', gap: 8 }}>
+              <button type="submit" disabled={saving} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+                {saving ? 'Submitting...' : 'Submit for Approval'}
+              </button>
+              <button type="button" onClick={() => setShowReferForm(false)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#6B8299', borderRadius: 4, padding: '6px 14px', fontSize: 11, cursor: 'pointer' }}>Cancel</button>
+            </div>
+          </form>
+        )}
+
+        {referrals.length > 0 && (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+              {['Name', 'Email', 'State', 'Status', 'Submitted'].map(h => (
+                <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#C9A96E' }}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {referrals.map(r => (
+                <tr key={r.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                  <td style={{ padding: '10px 12px', fontSize: 12, color: '#ffffff' }}>{r.firstName} {r.lastName}</td>
+                  <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{r.email}</td>
+                  <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{r.state ?? '—'}</td>
+                  <td style={{ padding: '10px 12px' }}>
+                    <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: REFERRAL_STATUS_COLORS[r.status] ?? '#6B8299' }}>
+                      {r.status}
+                    </span>
+                  </td>
+                  <td style={{ padding: '10px 12px', fontSize: 11, color: '#4B5563' }}>{new Date(r.createdAt).toLocaleDateString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
-      {showForm && (
-        <form onSubmit={handleSubmit} style={{ marginBottom: 20, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, padding: 16, background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)' }}>
-          <div><label style={fieldLabel}>Name *</label><input required style={inputStyle} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
-          <div><label style={fieldLabel}>Email</label><input type="email" style={inputStyle} value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="partner@email.com" /></div>
-          <div><label style={fieldLabel}>Phone</label><input style={inputStyle} value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} /></div>
-          <div><label style={fieldLabel}>Occupation</label><input style={inputStyle} value={form.occupation} onChange={e => setForm(f => ({ ...f, occupation: e.target.value }))} /></div>
-          <div><label style={fieldLabel}>Appt Date</label><input type="date" style={inputStyle} value={form.appointmentDate} onChange={e => setForm(f => ({ ...f, appointmentDate: e.target.value }))} /></div>
-          <div><label style={fieldLabel}>Notes</label><input style={inputStyle} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
-          <div style={{ gridColumn: 'span 2', display: 'flex', gap: 8 }}>
-            <button type="submit" disabled={saving} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>
-              {saving ? 'Saving...' : editingId ? 'Update' : 'Save'}
-            </button>
-            <button type="button" onClick={resetForm} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#6B8299', borderRadius: 4, padding: '6px 14px', fontSize: 11, cursor: 'pointer' }}>Cancel</button>
-          </div>
-        </form>
-      )}
+      {/* Business Partners / Contacts */}
+      <div style={{ ...card, padding: '24px 28px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <div style={sectionLabel}>Contacts & Prospects ({partners.length})</div>
+          <button onClick={() => { resetForm(); setShowForm(!showForm) }} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+            + Add
+          </button>
+        </div>
 
-      {loading ? <div style={{ color: '#6B8299', fontSize: 13 }}>Loading...</div> :
-        partners.length === 0 ? <div style={{ color: '#4B5563', fontSize: 13 }}>No business partners yet. Add your top prospects.</div> :
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-            {['Name', 'Email', 'Phone', 'Occupation', 'Appt Date', ''].map(h => (
-              <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#C9A96E' }}>{h}</th>
-            ))}
-          </tr></thead>
-          <tbody>
-            {partners.map(p => (
-              <tr key={p.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                <td style={{ padding: '10px 12px', fontSize: 12, color: '#ffffff' }}>{p.name}</td>
-                <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{p.email ?? '—'}</td>
-                <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{p.phone ?? '—'}</td>
-                <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{p.occupation ?? '—'}</td>
-                <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{p.appointmentDate ? new Date(p.appointmentDate).toLocaleDateString() : '—'}</td>
-                <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                  <button onClick={() => startEdit(p)} style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 11, cursor: 'pointer' }}>Edit</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      }
+        {showForm && (
+          <form onSubmit={handleSubmit} style={{ marginBottom: 20, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, padding: 16, background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)' }}>
+            <div><label style={fieldLabel}>Name *</label><input required style={inputStyle} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
+            <div><label style={fieldLabel}>Email</label><input type="email" style={inputStyle} value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="contact@email.com" /></div>
+            <div><label style={fieldLabel}>Phone</label><input style={inputStyle} value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} /></div>
+            <div><label style={fieldLabel}>Occupation</label><input style={inputStyle} value={form.occupation} onChange={e => setForm(f => ({ ...f, occupation: e.target.value }))} /></div>
+            <div><label style={fieldLabel}>Appt Date</label><input type="date" style={inputStyle} value={form.appointmentDate} onChange={e => setForm(f => ({ ...f, appointmentDate: e.target.value }))} /></div>
+            <div><label style={fieldLabel}>Notes</label><input style={inputStyle} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
+            <div style={{ gridColumn: 'span 2', display: 'flex', gap: 8 }}>
+              <button type="submit" disabled={saving} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+                {saving ? 'Saving...' : editingId ? 'Update' : 'Save'}
+              </button>
+              <button type="button" onClick={resetForm} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#6B8299', borderRadius: 4, padding: '6px 14px', fontSize: 11, cursor: 'pointer' }}>Cancel</button>
+            </div>
+          </form>
+        )}
+
+        {loading ? <div style={{ color: '#6B8299', fontSize: 13 }}>Loading...</div> :
+          partners.length === 0 ? <div style={{ color: '#4B5563', fontSize: 13 }}>No contacts yet. Add your top prospects.</div> :
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+              {['Name', 'Email', 'Phone', 'Occupation', 'Appt Date', ''].map(h => (
+                <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#C9A96E' }}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {partners.map(p => (
+                <tr key={p.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                  <td style={{ padding: '10px 12px', fontSize: 12, color: '#ffffff' }}>{p.name}</td>
+                  <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{p.email ?? '—'}</td>
+                  <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{p.phone ?? '—'}</td>
+                  <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{p.occupation ?? '—'}</td>
+                  <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{p.appointmentDate ? new Date(p.appointmentDate).toLocaleDateString() : '—'}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                    <button onClick={() => startEdit(p)} style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 11, cursor: 'pointer' }}>Edit</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        }
+      </div>
     </div>
   )
 }

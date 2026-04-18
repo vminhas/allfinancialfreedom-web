@@ -70,7 +70,7 @@ export default function LicensingWorkspacePage() {
   const viewerRole = (session?.user as { role?: string } | undefined)?.role ?? null
   const isLC = viewerRole === 'licensing_coordinator'
 
-  const [tab, setTab] = useState<'inbox' | 'agents' | 'profile'>('inbox')
+  const [tab, setTab] = useState<'inbox' | 'agents' | 'referrals' | 'profile'>('inbox')
   const [showAddAgentModal, setShowAddAgentModal] = useState(false)
   const [agentsRefreshNonce, setAgentsRefreshNonce] = useState(0)
 
@@ -129,7 +129,7 @@ export default function LicensingWorkspacePage() {
         borderBottom: '1px solid rgba(255,255,255,0.06)',
         overflowX: 'auto', WebkitOverflowScrolling: 'touch',
       }}>
-        {(['inbox', 'agents', 'profile'] as const).map(t => (
+        {(['inbox', 'agents', 'referrals', 'profile'] as const).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -142,13 +142,14 @@ export default function LicensingWorkspacePage() {
               marginBottom: -1,
             }}
           >
-            {t === 'inbox' ? 'Inbox' : t === 'agents' ? 'Agents' : 'Profile'}
+            {t === 'inbox' ? 'Inbox' : t === 'agents' ? 'Agents' : t === 'referrals' ? 'Referrals' : 'Profile'}
           </button>
         ))}
       </div>
 
       {tab === 'inbox' && <InboxTab viewerId={viewerId} isLC={isLC} />}
       {tab === 'agents' && <AgentsTab refreshNonce={agentsRefreshNonce} />}
+      {tab === 'referrals' && <ReferralsTab />}
       {tab === 'profile' && <ProfileTab />}
     </div>
   )
@@ -1201,6 +1202,167 @@ function EditableField({
           </button>
         )}
       </div>
+    </div>
+  )
+}
+
+// ─── Referrals tab ───────────────────────────────────────────────────────────
+
+interface ReferralItem {
+  id: string
+  firstName: string
+  lastName: string
+  email: string
+  phone: string | null
+  state: string | null
+  notes: string | null
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  adminNotes: string | null
+  createdAt: string
+  approvedAt: string | null
+  createdAgentId: string | null
+  referringAgent: { firstName: string; lastName: string; agentCode: string }
+}
+
+const REF_STATUS_COLORS: Record<string, string> = {
+  PENDING: '#f59e0b', APPROVED: '#4ade80', REJECTED: '#f87171',
+}
+
+function ReferralsTab() {
+  const [referrals, setReferrals] = useState<ReferralItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState<'PENDING' | 'ALL'>('PENDING')
+  const [processingId, setProcessingId] = useState<string | null>(null)
+  const [cftInput, setCftInput] = useState('')
+  const [trainers, setTrainers] = useState<string[]>([])
+
+  useEffect(() => {
+    fetch(`/api/vault/referrals?status=${filter}`)
+      .then(r => r.json())
+      .then((d: { referrals: ReferralItem[] }) => {
+        setReferrals(d.referrals ?? [])
+        setLoading(false)
+      })
+  }, [filter])
+
+  useEffect(() => {
+    fetch('/api/admin/trainers')
+      .then(r => r.json())
+      .then((d: { trainers: string[] }) => setTrainers(d.trainers ?? []))
+      .catch(() => {})
+  }, [])
+
+  const handleAction = async (id: string, action: 'approve' | 'reject') => {
+    setProcessingId(id)
+    try {
+      const res = await fetch('/api/vault/referrals', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, action, cft: action === 'approve' ? cftInput || undefined : undefined }),
+      })
+      const d = await res.json() as { ok?: boolean; error?: string; agentCode?: string }
+      if (res.ok) {
+        setReferrals(prev => prev.map(r => r.id === id ? {
+          ...r,
+          status: action === 'approve' ? 'APPROVED' as const : 'REJECTED' as const,
+          approvedAt: new Date().toISOString(),
+        } : r))
+        if (d.agentCode) {
+          alert(`Agent created with code ${d.agentCode}. Invite email ${d.ok ? 'sent' : 'may not have sent'}.`)
+        }
+      } else {
+        alert(d.error ?? 'Action failed')
+      }
+    } finally {
+      setProcessingId(null)
+      setCftInput('')
+    }
+  }
+
+  const sLabel: React.CSSProperties = {
+    fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#C9A96E',
+  }
+
+  return (
+    <div style={{ padding: '20px 0' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div style={sLabel}>Agent Referrals</div>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {(['PENDING', 'ALL'] as const).map(f => (
+            <button key={f} onClick={() => { setFilter(f); setLoading(true) }} style={{
+              padding: '5px 12px', borderRadius: 4, fontSize: 10, fontWeight: 600,
+              background: filter === f ? 'rgba(201,169,110,0.12)' : 'transparent',
+              border: `1px solid ${filter === f ? 'rgba(201,169,110,0.3)' : 'rgba(255,255,255,0.06)'}`,
+              color: filter === f ? '#C9A96E' : '#6B8299', cursor: 'pointer',
+            }}>{f === 'PENDING' ? 'Pending' : 'All'}</button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? <div style={{ color: '#6B8299', fontSize: 13 }}>Loading...</div> :
+        referrals.length === 0 ? <div style={{ color: '#4B5563', fontSize: 13 }}>No referrals {filter === 'PENDING' ? 'pending approval' : 'found'}.</div> :
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {referrals.map(r => (
+            <div key={r.id} style={{
+              padding: '16px 20px', borderRadius: 6,
+              background: '#132238', border: '1px solid rgba(255,255,255,0.05)',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#ffffff' }}>{r.firstName} {r.lastName}</div>
+                  <div style={{ fontSize: 11, color: '#9BB0C4', marginTop: 2 }}>{r.email}{r.phone ? ` · ${r.phone}` : ''}{r.state ? ` · ${r.state}` : ''}</div>
+                </div>
+                <span style={{
+                  fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
+                  color: REF_STATUS_COLORS[r.status] ?? '#6B8299',
+                  padding: '2px 8px', borderRadius: 10,
+                  background: r.status === 'PENDING' ? 'rgba(245,158,11,0.1)' : r.status === 'APPROVED' ? 'rgba(74,222,128,0.1)' : 'rgba(248,113,113,0.1)',
+                }}>{r.status}</span>
+              </div>
+              <div style={{ fontSize: 11, color: '#6B8299', marginBottom: 8 }}>
+                Referred by <span style={{ color: '#C9A96E' }}>{r.referringAgent.firstName} {r.referringAgent.lastName}</span> ({r.referringAgent.agentCode}) · {new Date(r.createdAt).toLocaleDateString()}
+              </div>
+              {r.notes && <div style={{ fontSize: 11, color: '#9BB0C4', fontStyle: 'italic', marginBottom: 8 }}>&ldquo;{r.notes}&rdquo;</div>}
+
+              {r.status === 'PENDING' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+                  <select
+                    value={cftInput}
+                    onChange={e => setCftInput(e.target.value)}
+                    style={{
+                      padding: '6px 10px', fontSize: 11, borderRadius: 4,
+                      background: '#0A1628', border: '1px solid rgba(201,169,110,0.2)',
+                      color: '#9BB0C4', flex: '0 1 180px',
+                    }}
+                  >
+                    <option value="">Assign trainer (optional)</option>
+                    {trainers.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                  <button
+                    onClick={() => handleAction(r.id, 'approve')}
+                    disabled={processingId === r.id}
+                    style={{
+                      padding: '6px 16px', borderRadius: 4, fontSize: 11, fontWeight: 700,
+                      background: '#4ade80', border: 'none', color: '#0A1628',
+                      cursor: processingId === r.id ? 'wait' : 'pointer',
+                      opacity: processingId === r.id ? 0.6 : 1,
+                    }}
+                  >Approve & Send Invite</button>
+                  <button
+                    onClick={() => handleAction(r.id, 'reject')}
+                    disabled={processingId === r.id}
+                    style={{
+                      padding: '6px 14px', borderRadius: 4, fontSize: 11, fontWeight: 600,
+                      background: 'transparent', border: '1px solid rgba(248,113,113,0.3)',
+                      color: '#f87171', cursor: processingId === r.id ? 'wait' : 'pointer',
+                    }}
+                  >Reject</button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      }
     </div>
   )
 }

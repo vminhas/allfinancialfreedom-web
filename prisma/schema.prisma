@@ -180,6 +180,7 @@ model AgentProfile {
   callReviews           CallReview[]
   coordinatorRequests   CoordinatorRequest[]
   licensingNotes        LicensingNote[]
+  referrals             AgentReferral[]
 
   @@map("agent_profiles")
 }
@@ -187,6 +188,32 @@ model AgentProfile {
 enum AgentStatus {
   ACTIVE
   INACTIVE
+}
+
+enum ReferralStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model AgentReferral {
+  id              String         @id @default(cuid())
+  referringAgentId String
+  referringAgent  AgentProfile   @relation(fields: [referringAgentId], references: [id])
+  firstName       String
+  lastName        String
+  email           String
+  phone           String?
+  state           String?
+  notes           String?
+  status          ReferralStatus @default(PENDING)
+  adminNotes      String?
+  approvedById    String?
+  approvedAt      DateTime?
+  createdAgentId  String?
+  createdAt       DateTime       @default(now())
+
+  @@map("agent_referrals")
 }
 
 model PhaseItem {
