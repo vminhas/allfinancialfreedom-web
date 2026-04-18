@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1'))
-  const limit = 50
+  const limit = 100
   const skip = (page - 1) * limit
 
   const [partners, total] = await Promise.all([
@@ -38,6 +38,27 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ partners, total, page })
 }
 
+interface PartnerBody {
+  name: string
+  email?: string
+  phone?: string
+  timeZone?: string
+  age?: string
+  married?: boolean
+  children?: boolean
+  homeowner?: boolean
+  occupation?: string
+  characterTraits?: string
+  category?: string
+  appointmentDate?: string
+  icaDate?: string
+  firstCallDate?: string
+  secondCallDate?: string
+  bookedAppt?: boolean
+  notes?: string
+  phaseItemKey?: string
+}
+
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session || (session.user as { role?: string }).role !== 'agent') {
@@ -47,21 +68,7 @@ export async function POST(req: NextRequest) {
   const profileId = await getProfileId(session.user!.email!)
   if (!profileId) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
 
-  const body = await req.json() as {
-    name: string
-    email?: string
-    phone?: string
-    timeZone?: string
-    age?: string
-    married?: boolean
-    children?: boolean
-    occupation?: string
-    characterTraits?: string
-    appointmentDate?: string
-    notes?: string
-    phaseItemKey?: string
-  }
-
+  const body = await req.json() as PartnerBody
   if (!body.name) return NextResponse.json({ error: 'name required' }, { status: 400 })
 
   const partner = await db.businessPartner.create({
@@ -74,9 +81,15 @@ export async function POST(req: NextRequest) {
       age: body.age,
       married: body.married ?? false,
       children: body.children ?? false,
+      homeowner: body.homeowner ?? false,
       occupation: body.occupation,
       characterTraits: body.characterTraits,
+      category: body.category,
       appointmentDate: body.appointmentDate ? new Date(body.appointmentDate) : null,
+      icaDate: body.icaDate ? new Date(body.icaDate) : null,
+      firstCallDate: body.firstCallDate ? new Date(body.firstCallDate) : null,
+      secondCallDate: body.secondCallDate ? new Date(body.secondCallDate) : null,
+      bookedAppt: body.bookedAppt ?? false,
       notes: body.notes,
       phaseItemKey: body.phaseItemKey,
     },
@@ -84,6 +97,13 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json(partner)
 }
+
+const UPDATABLE = [
+  'name', 'email', 'phone', 'timeZone', 'age', 'married', 'children',
+  'homeowner', 'occupation', 'characterTraits', 'category', 'bookedAppt', 'notes',
+] as const
+
+const DATE_FIELDS = ['appointmentDate', 'icaDate', 'firstCallDate', 'secondCallDate'] as const
 
 export async function PUT(req: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -94,17 +114,7 @@ export async function PUT(req: NextRequest) {
   const profileId = await getProfileId(session.user!.email!)
   if (!profileId) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
 
-  const body = await req.json() as {
-    id: string
-    name?: string
-    email?: string
-    phone?: string
-    occupation?: string
-    appointmentDate?: string | null
-    notes?: string
-    characterTraits?: string
-  }
-
+  const body = await req.json() as Record<string, unknown> & { id: string }
   if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
   const existing = await db.businessPartner.findUnique({ where: { id: body.id } })
@@ -113,14 +123,13 @@ export async function PUT(req: NextRequest) {
   }
 
   const data: Record<string, unknown> = {}
-  if (body.name !== undefined) data.name = body.name
-  if (body.email !== undefined) data.email = body.email
-  if (body.phone !== undefined) data.phone = body.phone
-  if (body.occupation !== undefined) data.occupation = body.occupation
-  if (body.notes !== undefined) data.notes = body.notes
-  if (body.characterTraits !== undefined) data.characterTraits = body.characterTraits
-  if (body.appointmentDate !== undefined) {
-    data.appointmentDate = body.appointmentDate ? new Date(body.appointmentDate) : null
+  for (const key of UPDATABLE) {
+    if (body[key] !== undefined) data[key] = body[key]
+  }
+  for (const key of DATE_FIELDS) {
+    if (body[key] !== undefined) {
+      data[key] = body[key] ? new Date(body[key] as string) : null
+    }
   }
 
   const updated = await db.businessPartner.update({ where: { id: body.id }, data })

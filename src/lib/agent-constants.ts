@@ -106,7 +106,7 @@ export const PHASE_ITEMS: Record<number, PhaseItemDef[]> = {
     // Training Prep
     { key: 'pfr', label: 'Personal Financial Review', group: 'training_prep', duration: '1 Hour',
       description: "Sit down with your trainer for your own Personal Financial Review. This is both a real planning session for your finances and your first hands-on experience with the tool you'll use to help families.",
-      },
+      action: { type: 'navigate-tab', tab: 'pfr', label: 'Open PFR' } },
     { key: 'fast_start_school', label: 'Fast Start School', group: 'training_prep', duration: '1 Hour',
       description: "A company-wide walkthrough of what to focus on in your first 30 days. Held Saturdays at 11am Eastern. Your trainer will send you the link and details.",
       action: { type: 'resource-link', resourceKey: 'fast_start_link', label: 'Join Fast Start' } },

@@ -779,7 +779,11 @@ function AgentDashboardInner() {
                       <ChevronDown size={13} color="#4B5563" style={{ flexShrink: 0, transition: 'transform 0.2s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }} />
                       {item.action?.type === 'navigate-tab' && item.action.tab && (
                         <button
-                          onClick={e => { e.stopPropagation(); setActiveTab(item.action!.tab as typeof activeTab) }}
+                          onClick={e => {
+                            e.stopPropagation()
+                            if (item.action!.tab === 'pfr') { window.location.href = '/agents/pfr'; return }
+                            setActiveTab(item.action!.tab as typeof activeTab)
+                          }}
                           style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 10, cursor: 'pointer', padding: '0 4px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 3 }}
                           title={item.action.label ?? `Go to ${item.action.tab}`}
                         >
@@ -1673,7 +1677,11 @@ function ProfileTab({ data, onSaved, discordParam, discordUsername }: { data: Ag
 
 interface Partner {
   id: string; name: string; email: string | null; phone: string | null
-  occupation: string | null; appointmentDate: string | null; notes: string | null
+  timeZone: string | null; age: string | null; married: boolean; children: boolean
+  homeowner: boolean; occupation: string | null; characterTraits: string | null
+  category: string | null; appointmentDate: string | null; icaDate: string | null
+  firstCallDate: string | null; secondCallDate: string | null; bookedAppt: boolean
+  notes: string | null; phaseItemKey: string | null
 }
 
 interface Referral {
@@ -1686,13 +1694,25 @@ const REFERRAL_STATUS_COLORS: Record<string, string> = {
   PENDING: '#f59e0b', APPROVED: '#4ade80', REJECTED: '#f87171',
 }
 
+const PARTNER_CATEGORIES = [
+  { key: 'business_partner', label: 'Business Partner' },
+  { key: 'life_market', label: 'Life Market (28-50)' },
+  { key: 'rollover_market', label: 'Rollover Market (50+)' },
+  { key: 'fta_contact', label: 'FTA Contact' },
+  { key: 'recruit', label: 'Recruit' },
+] as const
+
+const TIMEZONES = ['EST', 'CST', 'MST', 'PST', 'HST', 'AKST'] as const
+
 function BusinessPartnersTab() {
   const [partners, setPartners] = useState<Partner[]>([])
   const [referrals, setReferrals] = useState<Referral[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [form, setForm] = useState({ name: '', email: '', phone: '', occupation: '', notes: '', appointmentDate: '' })
+  const [activeCategory, setActiveCategory] = useState<string | null>(null)
+  const emptyForm = { name: '', email: '', phone: '', timeZone: '', age: '', married: false, children: false, homeowner: false, occupation: '', characterTraits: '', category: '', appointmentDate: '', firstCallDate: '', secondCallDate: '', bookedAppt: false, notes: '' }
+  const [form, setForm] = useState(emptyForm)
   const [showReferForm, setShowReferForm] = useState(false)
   const [referForm, setReferForm] = useState({ firstName: '', lastName: '', email: '', phone: '', state: '', notes: '' })
   const [saving, setSaving] = useState(false)
@@ -1709,17 +1729,19 @@ function BusinessPartnersTab() {
     })
   }, [])
 
-  const resetForm = () => {
-    setForm({ name: '', email: '', phone: '', occupation: '', notes: '', appointmentDate: '' })
-    setEditingId(null)
-    setShowForm(false)
-  }
+  const resetForm = () => { setForm(emptyForm); setEditingId(null); setShowForm(false) }
 
   const startEdit = (p: Partner) => {
     setForm({
       name: p.name, email: p.email ?? '', phone: p.phone ?? '',
-      occupation: p.occupation ?? '', notes: p.notes ?? '',
+      timeZone: p.timeZone ?? '', age: p.age ?? '',
+      married: p.married, children: p.children, homeowner: p.homeowner,
+      occupation: p.occupation ?? '', characterTraits: p.characterTraits ?? '',
+      category: p.category ?? '', notes: p.notes ?? '',
       appointmentDate: p.appointmentDate ? p.appointmentDate.slice(0, 10) : '',
+      firstCallDate: p.firstCallDate ? p.firstCallDate.slice(0, 10) : '',
+      secondCallDate: p.secondCallDate ? p.secondCallDate.slice(0, 10) : '',
+      bookedAppt: p.bookedAppt,
     })
     setEditingId(p.id)
     setShowForm(true)
@@ -1729,18 +1751,13 @@ function BusinessPartnersTab() {
     e.preventDefault()
     setSaving(true)
     try {
+      const payload = { ...form, category: form.category || activeCategory || undefined }
       if (editingId) {
-        const res = await fetch('/api/agents/partners', {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: editingId, ...form }),
-        })
+        const res = await fetch('/api/agents/partners', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editingId, ...payload }) })
         const updated = await res.json() as Partner
         setPartners(prev => prev.map(p => p.id === editingId ? updated : p))
       } else {
-        const res = await fetch('/api/agents/partners', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(form),
-        })
+        const res = await fetch('/api/agents/partners', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
         const p = await res.json() as Partner
         setPartners(prev => [...prev, p])
       }
@@ -1753,15 +1770,8 @@ function BusinessPartnersTab() {
     setSaving(true)
     setReferError(null)
     try {
-      const res = await fetch('/api/agents/referrals', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(referForm),
-      })
-      if (!res.ok) {
-        const d = await res.json() as { error?: string }
-        setReferError(d.error ?? 'Failed to submit')
-        return
-      }
+      const res = await fetch('/api/agents/referrals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(referForm) })
+      if (!res.ok) { const d = await res.json() as { error?: string }; setReferError(d.error ?? 'Failed to submit'); return }
       const r = await res.json() as Referral
       setReferrals(prev => [r, ...prev])
       setReferForm({ firstName: '', lastName: '', email: '', phone: '', state: '', notes: '' })
@@ -1769,113 +1779,158 @@ function BusinessPartnersTab() {
     } finally { setSaving(false) }
   }
 
+  const filtered = activeCategory
+    ? partners.filter(p => p.category === activeCategory)
+    : partners
+
+  const thStyle: React.CSSProperties = { padding: '8px 10px', textAlign: 'left', fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#C9A96E', whiteSpace: 'nowrap' }
+  const tdStyle: React.CSSProperties = { padding: '8px 10px', fontSize: 11, color: '#9BB0C4' }
+  const checkStyle: React.CSSProperties = { ...tdStyle, textAlign: 'center', fontSize: 13 }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Refer a New Agent */}
-      <div style={{ ...card, padding: '24px 28px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      <div style={{ ...card, padding: '20px 24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showReferForm || referrals.length > 0 ? 14 : 0 }}>
           <div>
             <div style={sectionLabel}>Refer a New Agent</div>
             <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>Submit someone to join your team. The coordinator will review and send them an invite.</div>
           </div>
-          <button onClick={() => setShowReferForm(!showReferForm)} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
-            + Refer
-          </button>
+          <button onClick={() => setShowReferForm(!showReferForm)} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>+ Refer</button>
         </div>
-
         {showReferForm && (
-          <form onSubmit={handleRefer} style={{ marginBottom: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, padding: 16, background: 'rgba(201,169,110,0.03)', borderRadius: 6, border: '1px solid rgba(201,169,110,0.12)' }}>
+          <form onSubmit={handleRefer} style={{ marginBottom: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, padding: 16, background: 'rgba(201,169,110,0.03)', borderRadius: 6, border: '1px solid rgba(201,169,110,0.12)' }}>
             <div><label style={fieldLabel}>First Name *</label><input required style={inputStyle} value={referForm.firstName} onChange={e => setReferForm(f => ({ ...f, firstName: e.target.value }))} /></div>
             <div><label style={fieldLabel}>Last Name *</label><input required style={inputStyle} value={referForm.lastName} onChange={e => setReferForm(f => ({ ...f, lastName: e.target.value }))} /></div>
-            <div><label style={fieldLabel}>Email *</label><input required type="email" style={inputStyle} value={referForm.email} onChange={e => setReferForm(f => ({ ...f, email: e.target.value }))} placeholder="recruit@email.com" /></div>
+            <div><label style={fieldLabel}>Email *</label><input required type="email" style={inputStyle} value={referForm.email} onChange={e => setReferForm(f => ({ ...f, email: e.target.value }))} /></div>
             <div><label style={fieldLabel}>Phone</label><input style={inputStyle} value={referForm.phone} onChange={e => setReferForm(f => ({ ...f, phone: e.target.value }))} /></div>
             <div><label style={fieldLabel}>State</label><input style={inputStyle} value={referForm.state} onChange={e => setReferForm(f => ({ ...f, state: e.target.value }))} placeholder="e.g., CA" /></div>
-            <div><label style={fieldLabel}>Notes</label><input style={inputStyle} value={referForm.notes} onChange={e => setReferForm(f => ({ ...f, notes: e.target.value }))} placeholder="How do you know them?" /></div>
+            <div><label style={fieldLabel}>Notes</label><input style={inputStyle} value={referForm.notes} onChange={e => setReferForm(f => ({ ...f, notes: e.target.value }))} /></div>
             {referError && <div style={{ gridColumn: 'span 2', fontSize: 11, color: '#f87171' }}>{referError}</div>}
             <div style={{ gridColumn: 'span 2', display: 'flex', gap: 8 }}>
-              <button type="submit" disabled={saving} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>
-                {saving ? 'Submitting...' : 'Submit for Approval'}
-              </button>
+              <button type="submit" disabled={saving} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>{saving ? 'Submitting...' : 'Submit for Approval'}</button>
               <button type="button" onClick={() => setShowReferForm(false)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#6B8299', borderRadius: 4, padding: '6px 14px', fontSize: 11, cursor: 'pointer' }}>Cancel</button>
             </div>
           </form>
         )}
-
         {referrals.length > 0 && (
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-              {['Name', 'Email', 'State', 'Status', 'Submitted'].map(h => (
-                <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#C9A96E' }}>{h}</th>
-              ))}
+              {['Name', 'Email', 'State', 'Status', 'Submitted'].map(h => <th key={h} style={thStyle}>{h}</th>)}
             </tr></thead>
-            <tbody>
-              {referrals.map(r => (
-                <tr key={r.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                  <td style={{ padding: '10px 12px', fontSize: 12, color: '#ffffff' }}>{r.firstName} {r.lastName}</td>
-                  <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{r.email}</td>
-                  <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{r.state ?? '—'}</td>
-                  <td style={{ padding: '10px 12px' }}>
-                    <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: REFERRAL_STATUS_COLORS[r.status] ?? '#6B8299' }}>
-                      {r.status}
-                    </span>
-                  </td>
-                  <td style={{ padding: '10px 12px', fontSize: 11, color: '#4B5563' }}>{new Date(r.createdAt).toLocaleDateString()}</td>
-                </tr>
-              ))}
-            </tbody>
+            <tbody>{referrals.map(r => (
+              <tr key={r.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                <td style={{ ...tdStyle, color: '#ffffff' }}>{r.firstName} {r.lastName}</td>
+                <td style={tdStyle}>{r.email}</td>
+                <td style={tdStyle}>{r.state ?? '—'}</td>
+                <td style={tdStyle}><span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: REFERRAL_STATUS_COLORS[r.status] ?? '#6B8299' }}>{r.status}</span></td>
+                <td style={{ ...tdStyle, color: '#4B5563' }}>{new Date(r.createdAt).toLocaleDateString()}</td>
+              </tr>
+            ))}</tbody>
           </table>
         )}
       </div>
 
-      {/* Business Partners / Contacts */}
-      <div style={{ ...card, padding: '24px 28px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      {/* Contacts & Prospects — full spreadsheet parity */}
+      <div style={{ ...card, padding: '20px 24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <div style={sectionLabel}>Contacts & Prospects ({partners.length})</div>
-          <button onClick={() => { resetForm(); setShowForm(!showForm) }} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-            + Add
-          </button>
+          <button onClick={() => { resetForm(); setShowForm(!showForm) }} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>+ Add</button>
+        </div>
+
+        {/* Category filter tabs */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 12, flexWrap: 'wrap' }}>
+          <button onClick={() => setActiveCategory(null)} style={{
+            padding: '4px 12px', borderRadius: 4, fontSize: 10, fontWeight: 600,
+            background: !activeCategory ? 'rgba(201,169,110,0.12)' : 'transparent',
+            border: `1px solid ${!activeCategory ? 'rgba(201,169,110,0.3)' : 'rgba(255,255,255,0.06)'}`,
+            color: !activeCategory ? '#C9A96E' : '#6B8299', cursor: 'pointer',
+          }}>All ({partners.length})</button>
+          {PARTNER_CATEGORIES.map(c => {
+            const count = partners.filter(p => p.category === c.key).length
+            if (count === 0 && activeCategory !== c.key) return null
+            return (
+              <button key={c.key} onClick={() => setActiveCategory(activeCategory === c.key ? null : c.key)} style={{
+                padding: '4px 12px', borderRadius: 4, fontSize: 10, fontWeight: 600,
+                background: activeCategory === c.key ? 'rgba(201,169,110,0.12)' : 'transparent',
+                border: `1px solid ${activeCategory === c.key ? 'rgba(201,169,110,0.3)' : 'rgba(255,255,255,0.06)'}`,
+                color: activeCategory === c.key ? '#C9A96E' : '#6B8299', cursor: 'pointer',
+              }}>{c.label} ({count})</button>
+            )
+          })}
         </div>
 
         {showForm && (
-          <form onSubmit={handleSubmit} style={{ marginBottom: 20, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, padding: 16, background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)' }}>
+          <form onSubmit={handleSubmit} style={{ marginBottom: 16, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, padding: 16, background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)' }}>
             <div><label style={fieldLabel}>Name *</label><input required style={inputStyle} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
-            <div><label style={fieldLabel}>Email</label><input type="email" style={inputStyle} value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="contact@email.com" /></div>
             <div><label style={fieldLabel}>Phone</label><input style={inputStyle} value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} /></div>
+            <div><label style={fieldLabel}>Email</label><input type="email" style={inputStyle} value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} /></div>
+            <div><label style={fieldLabel}>Time Zone</label>
+              <select style={{ ...inputStyle, cursor: 'pointer' }} value={form.timeZone} onChange={e => setForm(f => ({ ...f, timeZone: e.target.value }))}>
+                <option value="">Select</option>
+                {TIMEZONES.map(tz => <option key={tz} value={tz}>{tz}</option>)}
+              </select>
+            </div>
+            <div><label style={fieldLabel}>Age</label><input style={inputStyle} value={form.age} onChange={e => setForm(f => ({ ...f, age: e.target.value }))} placeholder="e.g., 30s, 40s" /></div>
             <div><label style={fieldLabel}>Occupation</label><input style={inputStyle} value={form.occupation} onChange={e => setForm(f => ({ ...f, occupation: e.target.value }))} /></div>
+            <div><label style={fieldLabel}>Category</label>
+              <select style={{ ...inputStyle, cursor: 'pointer' }} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
+                <option value="">Select</option>
+                {PARTNER_CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+              </select>
+            </div>
+            <div><label style={fieldLabel}>Character Traits</label><input style={inputStyle} value={form.characterTraits} onChange={e => setForm(f => ({ ...f, characterTraits: e.target.value }))} placeholder="e.g., Hard worker, Disciplined" /></div>
             <div><label style={fieldLabel}>Appt Date</label><input type="date" style={inputStyle} value={form.appointmentDate} onChange={e => setForm(f => ({ ...f, appointmentDate: e.target.value }))} /></div>
-            <div><label style={fieldLabel}>Notes</label><input style={inputStyle} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
-            <div style={{ gridColumn: 'span 2', display: 'flex', gap: 8 }}>
-              <button type="submit" disabled={saving} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>
-                {saving ? 'Saving...' : editingId ? 'Update' : 'Save'}
-              </button>
+            <div style={{ display: 'flex', gap: 16, alignItems: 'center', paddingTop: 18 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#9BB0C4', cursor: 'pointer' }}>
+                <input type="checkbox" checked={form.married} onChange={e => setForm(f => ({ ...f, married: e.target.checked }))} /> Married
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#9BB0C4', cursor: 'pointer' }}>
+                <input type="checkbox" checked={form.children} onChange={e => setForm(f => ({ ...f, children: e.target.checked }))} /> Children
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#9BB0C4', cursor: 'pointer' }}>
+                <input type="checkbox" checked={form.homeowner} onChange={e => setForm(f => ({ ...f, homeowner: e.target.checked }))} /> Homeowner
+              </label>
+            </div>
+            <div><label style={fieldLabel}>1st Call</label><input type="date" style={inputStyle} value={form.firstCallDate} onChange={e => setForm(f => ({ ...f, firstCallDate: e.target.value }))} /></div>
+            <div><label style={fieldLabel}>2nd Call</label><input type="date" style={inputStyle} value={form.secondCallDate} onChange={e => setForm(f => ({ ...f, secondCallDate: e.target.value }))} /></div>
+            <div style={{ gridColumn: 'span 3' }}><label style={fieldLabel}>Notes</label><input style={inputStyle} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
+            <div style={{ gridColumn: 'span 3', display: 'flex', gap: 8 }}>
+              <button type="submit" disabled={saving} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>{saving ? 'Saving...' : editingId ? 'Update' : 'Save'}</button>
               <button type="button" onClick={resetForm} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#6B8299', borderRadius: 4, padding: '6px 14px', fontSize: 11, cursor: 'pointer' }}>Cancel</button>
             </div>
           </form>
         )}
 
         {loading ? <div style={{ color: '#6B8299', fontSize: 13 }}>Loading...</div> :
-          partners.length === 0 ? <div style={{ color: '#4B5563', fontSize: 13 }}>No contacts yet. Add your top prospects.</div> :
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-              {['Name', 'Email', 'Phone', 'Occupation', 'Appt Date', ''].map(h => (
-                <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#C9A96E' }}>{h}</th>
-              ))}
-            </tr></thead>
-            <tbody>
-              {partners.map(p => (
+          filtered.length === 0 ? <div style={{ color: '#4B5563', fontSize: 13 }}>{activeCategory ? 'No contacts in this category.' : 'No contacts yet. Add your first prospect.'}</div> :
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
+              <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                {['Name', 'Phone', 'TZ', 'Age', 'M', 'K', 'H', 'Occupation', 'Traits', 'Appt Date', '1st Call', '2nd Call', 'Booked', ''].map(h => <th key={h} style={thStyle}>{h}</th>)}
+              </tr></thead>
+              <tbody>{filtered.map(p => (
                 <tr key={p.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                  <td style={{ padding: '10px 12px', fontSize: 12, color: '#ffffff' }}>{p.name}</td>
-                  <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{p.email ?? '—'}</td>
-                  <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{p.phone ?? '—'}</td>
-                  <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{p.occupation ?? '—'}</td>
-                  <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{p.appointmentDate ? new Date(p.appointmentDate).toLocaleDateString() : '—'}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                    <button onClick={() => startEdit(p)} style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 11, cursor: 'pointer' }}>Edit</button>
+                  <td style={{ ...tdStyle, color: '#ffffff', fontWeight: 500 }}>{p.name}</td>
+                  <td style={tdStyle}>{p.phone ?? ''}</td>
+                  <td style={tdStyle}>{p.timeZone ?? ''}</td>
+                  <td style={tdStyle}>{p.age ?? ''}</td>
+                  <td style={checkStyle}>{p.married ? '✓' : ''}</td>
+                  <td style={checkStyle}>{p.children ? '✓' : ''}</td>
+                  <td style={checkStyle}>{p.homeowner ? '✓' : ''}</td>
+                  <td style={tdStyle}>{p.occupation ?? ''}</td>
+                  <td style={{ ...tdStyle, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.characterTraits ?? ''}</td>
+                  <td style={tdStyle}>{p.appointmentDate ? new Date(p.appointmentDate).toLocaleDateString() : ''}</td>
+                  <td style={tdStyle}>{p.firstCallDate ? new Date(p.firstCallDate).toLocaleDateString() : ''}</td>
+                  <td style={tdStyle}>{p.secondCallDate ? new Date(p.secondCallDate).toLocaleDateString() : ''}</td>
+                  <td style={checkStyle}>{p.bookedAppt ? '✓' : ''}</td>
+                  <td style={{ ...tdStyle, textAlign: 'right' }}>
+                    <button onClick={() => startEdit(p)} style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 10, cursor: 'pointer' }}>Edit</button>
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              ))}</tbody>
+            </table>
+          </div>
         }
       </div>
     </div>

@@ -181,6 +181,7 @@ model AgentProfile {
   coordinatorRequests   CoordinatorRequest[]
   licensingNotes        LicensingNote[]
   referrals             AgentReferral[]
+  pfr                   PersonalFinancialReview?
 
   @@map("agent_profiles")
 }
@@ -188,6 +189,28 @@ model AgentProfile {
 enum AgentStatus {
   ACTIVE
   INACTIVE
+}
+
+model PersonalFinancialReview {
+  id              String       @id @default(cuid())
+  agentProfileId  String       @unique
+  agentProfile    AgentProfile @relation(fields: [agentProfileId], references: [id])
+  monthlyIncome   Float        @default(0)
+  expenses        Json         @default("{}")
+  assets          Json         @default("{}")
+  debts           Json         @default("{}")
+  buckets         Json         @default("{}")
+  retirementAge   Int?
+  spouseRetAge    Int?
+  desiredMonthlyRetirement Float @default(0)
+  monthlySavingsCommitment Float @default(0)
+  whatWouldThisDo String?
+  whatIsStopping  String?
+  notes           String?
+  updatedAt       DateTime     @updatedAt
+  createdAt       DateTime     @default(now())
+
+  @@map("personal_financial_reviews")
 }
 
 enum ReferralStatus {
@@ -280,8 +303,11 @@ model BusinessPartner {
   icaDate         DateTime?
   firstCallDate   DateTime?
   secondCallDate  DateTime?
+  homeowner       Boolean      @default(false)
+  category        String?
   notes           String?
   phaseItemKey    String?
+  bookedAppt      Boolean      @default(false)
   createdAt       DateTime     @default(now())
 
   @@map("business_partners")
