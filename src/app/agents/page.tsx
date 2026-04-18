@@ -108,6 +108,7 @@ const fieldLabel = {
 
 function AgentDashboardInner() {
   const router = useRouter()
+  const isMobile = useIsMobile()
   const searchParams = useSearchParams()
   const discordParam = searchParams.get('discord')
   const discordUsername = searchParams.get('username')
@@ -970,14 +971,15 @@ function AgentDashboardInner() {
         {/* ── CARRIERS TAB ── */}
         {activeTab === 'carriers' && (
           <CarriersTab
+            isMobile={isMobile}
             agentPhase={data.phase}
             carrierAppointments={data.carrierAppointments}
           />
         )}
 
         {/* ── PARTNERS / POLICIES / CALLS / PROFILE TABS ── */}
-        {activeTab === 'partners' && <BusinessPartnersTab />}
-        {activeTab === 'policies' && <PoliciesTab />}
+        {activeTab === 'partners' && <BusinessPartnersTab isMobile={isMobile} />}
+        {activeTab === 'policies' && <PoliciesTab isMobile={isMobile} />}
         {activeTab === 'calls' && <CallLogsTab />}
         {activeTab === 'resources' && <TrainingResourcesTab resources={setupResources} />}
         {activeTab === 'profile' && (
@@ -986,6 +988,7 @@ function AgentDashboardInner() {
             onSaved={fetchData}
             discordParam={discordParam}
             discordUsername={discordUsername}
+            isMobile={isMobile}
           />
         )}
 
@@ -1169,7 +1172,9 @@ function LicensingTab({
 function CarriersTab({
   agentPhase,
   carrierAppointments,
+  isMobile,
 }: {
+  isMobile: boolean
   agentPhase: number
   carrierAppointments: CarrierAppointment[]
 }) {
@@ -1217,7 +1222,7 @@ function CarriersTab({
                 </span>
               )}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8 }}>
               {carriers.map(carrier => {
                 const appt = carrierAppointments.find(c => c.carrier === carrier)
                 const status = appt?.status ?? 'NOT_STARTED'
@@ -1233,7 +1238,7 @@ function CarriersTab({
                     }}>
                       <div style={{ fontSize: 12, color: '#4B5563' }}>{carrier}</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 13, color: '#4B5563' }}>🔒</span>
+                        <span style={{ fontSize: 11, color: '#4B5563' }}>Locked</span>
                         <span style={{ fontSize: 10, color: '#4B5563', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                           Phase {unlockPhase}
                         </span>
@@ -1274,7 +1279,7 @@ function CarriersTab({
 
 // ─── Profile Tab ───────────────────────────────────────────────────────────────
 
-function ProfileTab({ data, onSaved, discordParam, discordUsername }: { data: AgentData; onSaved: () => void; discordParam: string | null; discordUsername: string | null }) {
+function ProfileTab({ data, onSaved, discordParam, discordUsername, isMobile }: { data: AgentData; onSaved: () => void; discordParam: string | null; discordUsername: string | null; isMobile: boolean }) {
   const [form, setForm] = useState({
     phone: data.phone ?? '',
     state: data.state ?? '',
@@ -1435,7 +1440,7 @@ function ProfileTab({ data, onSaved, discordParam, discordUsername }: { data: Ag
       </div>
 
       {/* Read-only fields */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20, padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid rgba(255,255,255,0.05)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 20, padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid rgba(255,255,255,0.05)' }}>
         <div>
           <div style={{ fontSize: 10, color: '#4B5563', marginBottom: 3, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Email</div>
           <div style={{ fontSize: 13, color: '#6B8299' }}>{data.email}</div>
@@ -1458,7 +1463,7 @@ function ProfileTab({ data, onSaved, discordParam, discordUsername }: { data: Ag
 
       {/* Editable form */}
       <form onSubmit={save} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
           <div>
             <label style={fieldLabel}>Phone Number</label>
             <input
@@ -1754,7 +1759,7 @@ const PARTNER_CATEGORIES = [
 
 const TIMEZONES = ['EST', 'CST', 'MST', 'PST', 'HST', 'AKST'] as const
 
-function BusinessPartnersTab() {
+function BusinessPartnersTab({ isMobile }: { isMobile: boolean }) {
   const [partners, setPartners] = useState<Partner[]>([])
   const [referrals, setReferrals] = useState<Referral[]>([])
   const [loading, setLoading] = useState(true)
@@ -1849,15 +1854,15 @@ function BusinessPartnersTab() {
           <button onClick={() => setShowReferForm(!showReferForm)} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>+ Refer</button>
         </div>
         {showReferForm && (
-          <form onSubmit={handleRefer} style={{ marginBottom: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, padding: 16, background: 'rgba(201,169,110,0.03)', borderRadius: 6, border: '1px solid rgba(201,169,110,0.12)' }}>
+          <form onSubmit={handleRefer} style={{ marginBottom: 12, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10, padding: 16, background: 'rgba(201,169,110,0.03)', borderRadius: 6, border: '1px solid rgba(201,169,110,0.12)' }}>
             <div><label style={fieldLabel}>First Name *</label><input required style={inputStyle} value={referForm.firstName} onChange={e => setReferForm(f => ({ ...f, firstName: e.target.value }))} /></div>
             <div><label style={fieldLabel}>Last Name *</label><input required style={inputStyle} value={referForm.lastName} onChange={e => setReferForm(f => ({ ...f, lastName: e.target.value }))} /></div>
             <div><label style={fieldLabel}>Email *</label><input required type="email" style={inputStyle} value={referForm.email} onChange={e => setReferForm(f => ({ ...f, email: e.target.value }))} /></div>
             <div><label style={fieldLabel}>Phone</label><input style={inputStyle} value={referForm.phone} onChange={e => setReferForm(f => ({ ...f, phone: e.target.value }))} /></div>
             <div><label style={fieldLabel}>State</label><input style={inputStyle} value={referForm.state} onChange={e => setReferForm(f => ({ ...f, state: e.target.value }))} placeholder="e.g., CA" /></div>
             <div><label style={fieldLabel}>Notes</label><input style={inputStyle} value={referForm.notes} onChange={e => setReferForm(f => ({ ...f, notes: e.target.value }))} /></div>
-            {referError && <div style={{ gridColumn: 'span 2', fontSize: 11, color: '#f87171' }}>{referError}</div>}
-            <div style={{ gridColumn: 'span 2', display: 'flex', gap: 8 }}>
+            {referError && <div style={{ gridColumn: isMobile ? undefined : 'span 2', fontSize: 11, color: '#f87171' }}>{referError}</div>}
+            <div style={{ gridColumn: isMobile ? undefined : 'span 2', display: 'flex', gap: 8 }}>
               <button type="submit" disabled={saving} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>{saving ? 'Submitting...' : 'Submit for Approval'}</button>
               <button type="button" onClick={() => setShowReferForm(false)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#6B8299', borderRadius: 4, padding: '6px 14px', fontSize: 11, cursor: 'pointer' }}>Cancel</button>
             </div>
@@ -1911,7 +1916,7 @@ function BusinessPartnersTab() {
         </div>
 
         {showForm && (
-          <form onSubmit={handleSubmit} style={{ marginBottom: 16, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, padding: 16, background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)' }}>
+          <form onSubmit={handleSubmit} style={{ marginBottom: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 10, padding: 16, background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)' }}>
             <div><label style={fieldLabel}>Name *</label><input required style={inputStyle} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
             <div><label style={fieldLabel}>Phone</label><input style={inputStyle} value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} /></div>
             <div><label style={fieldLabel}>Email</label><input type="email" style={inputStyle} value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} /></div>
@@ -1944,8 +1949,8 @@ function BusinessPartnersTab() {
             </div>
             <div><label style={fieldLabel}>1st Call</label><input type="date" style={inputStyle} value={form.firstCallDate} onChange={e => setForm(f => ({ ...f, firstCallDate: e.target.value }))} /></div>
             <div><label style={fieldLabel}>2nd Call</label><input type="date" style={inputStyle} value={form.secondCallDate} onChange={e => setForm(f => ({ ...f, secondCallDate: e.target.value }))} /></div>
-            <div style={{ gridColumn: 'span 3' }}><label style={fieldLabel}>Notes</label><input style={inputStyle} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
-            <div style={{ gridColumn: 'span 3', display: 'flex', gap: 8 }}>
+            <div style={{ gridColumn: isMobile ? undefined : 'span 3' }}><label style={fieldLabel}>Notes</label><input style={inputStyle} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
+            <div style={{ gridColumn: isMobile ? undefined : 'span 3', display: 'flex', gap: 8 }}>
               <button type="submit" disabled={saving} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>{saving ? 'Saving...' : editingId ? 'Update' : 'Save'}</button>
               <button type="button" onClick={resetForm} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#6B8299', borderRadius: 4, padding: '6px 14px', fontSize: 11, cursor: 'pointer' }}>Cancel</button>
             </div>
@@ -1989,23 +1994,32 @@ function BusinessPartnersTab() {
 
 // ─── Policies Tab ──────────────────────────────────────────────────────────────
 
-function PoliciesTab() {
+function PoliciesTab({ isMobile }: { isMobile: boolean }) {
   const [policies, setPolicies] = useState<{ id: string; clientName: string; carrier: string; product: string; targetPremium: number | null; dateSubmitted: string | null }[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ clientName: '', carrier: '', product: '', targetPremium: '', dateSubmitted: '' })
 
+  const [saving, setSaving] = useState(false)
+
   useEffect(() => {
-    fetch('/api/agents/policies').then(r => r.json()).then((d: typeof policies) => { setPolicies(d ?? []); setLoading(false) })
+    fetch('/api/agents/policies')
+      .then(r => r.ok ? r.json() : [])
+      .then((d: typeof policies) => { setPolicies(d ?? []); setLoading(false) })
+      .catch(() => setLoading(false))
   }, [])
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault()
-    const res = await fetch('/api/agents/policies', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, targetPremium: form.targetPremium ? parseFloat(form.targetPremium) : undefined }) })
-    const p = await res.json() as typeof policies[0]
-    setPolicies(prev => [p, ...prev])
-    setForm({ clientName: '', carrier: '', product: '', targetPremium: '', dateSubmitted: '' })
-    setShowForm(false)
+    setSaving(true)
+    try {
+      const res = await fetch('/api/agents/policies', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, targetPremium: form.targetPremium ? parseFloat(form.targetPremium) : undefined }) })
+      if (!res.ok) { setSaving(false); return }
+      const p = await res.json() as typeof policies[0]
+      setPolicies(prev => [p, ...prev])
+      setForm({ clientName: '', carrier: '', product: '', targetPremium: '', dateSubmitted: '' })
+      setShowForm(false)
+    } finally { setSaving(false) }
   }
 
   return (
@@ -2015,14 +2029,14 @@ function PoliciesTab() {
         <button onClick={() => setShowForm(!showForm)} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>+ Add</button>
       </div>
       {showForm && (
-        <form onSubmit={add} style={{ marginBottom: 20, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, padding: 16, background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)' }}>
+        <form onSubmit={add} style={{ marginBottom: 20, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10, padding: 16, background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)' }}>
           <div><label style={fieldLabel}>Client Name *</label><input required style={inputStyle} value={form.clientName} onChange={e => setForm(f => ({ ...f, clientName: e.target.value }))} /></div>
           <div><label style={fieldLabel}>Carrier *</label><input required style={inputStyle} value={form.carrier} onChange={e => setForm(f => ({ ...f, carrier: e.target.value }))} /></div>
           <div><label style={fieldLabel}>Product *</label><input required style={inputStyle} value={form.product} onChange={e => setForm(f => ({ ...f, product: e.target.value }))} /></div>
           <div><label style={fieldLabel}>Target Premium</label><input type="number" style={inputStyle} value={form.targetPremium} onChange={e => setForm(f => ({ ...f, targetPremium: e.target.value }))} /></div>
           <div><label style={fieldLabel}>Date Submitted</label><input type="date" style={inputStyle} value={form.dateSubmitted} onChange={e => setForm(f => ({ ...f, dateSubmitted: e.target.value }))} /></div>
-          <div style={{ gridColumn: 'span 2', display: 'flex', gap: 8 }}>
-            <button type="submit" style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Save</button>
+          <div style={{ gridColumn: isMobile ? undefined : 'span 2', display: 'flex', gap: 8 }}>
+            <button type="submit" disabled={saving} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>{saving ? 'Saving...' : 'Save'}</button>
             <button type="button" onClick={() => setShowForm(false)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#6B8299', borderRadius: 4, padding: '6px 14px', fontSize: 11, cursor: 'pointer' }}>Cancel</button>
           </div>
         </form>
