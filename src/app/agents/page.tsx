@@ -337,12 +337,17 @@ function AgentDashboardInner() {
             </div>
             <span style={{ fontSize: 12, color: '#6B8299' }}>{data.firstName} {data.lastName} · {data.agentCode}</span>
           </div>
-          <button
-            onClick={() => signOut({ callbackUrl: '/agents/login' })}
-            style={{ background: 'none', border: 'none', color: '#6B8299', fontSize: 12, cursor: 'pointer' }}
-          >
-            Sign out
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <a href="/agents/guide" style={{ color: '#C9A96E', fontSize: 12, textDecoration: 'none', cursor: 'pointer' }}>
+              Guide
+            </a>
+            <button
+              onClick={() => signOut({ callbackUrl: '/agents/login' })}
+              style={{ background: 'none', border: 'none', color: '#6B8299', fontSize: 12, cursor: 'pointer' }}
+            >
+              Sign out
+            </button>
+          </div>
         </div>
       </div>
 

@@ -19,12 +19,14 @@ const NAV_ADMIN = [
   { href: '/vault/call-review', label: 'Call Review', icon: '◐' },
   { href: '/vault/birthdays', label: 'Birthdays', icon: '✦' },
   { href: '/vault/setup', label: 'Setup', icon: '⊞' },
+  { href: '/vault/guide', label: 'Guide', icon: '?' },
   { href: '/vault/settings', label: 'Settings', icon: '⚙' },
 ]
 
 const NAV_LC = [
   { href: '/vault/licensing', label: 'Licensing Inbox', icon: '◎' },
   { href: '/vault/setup', label: 'Setup', icon: '⊞' },
+  { href: '/vault/guide', label: 'Guide', icon: '?' },
 ]
 
 export default function VaultSidebar() {
