@@ -25,6 +25,7 @@ interface Agent {
   icaDate: string | null
   phaseCompleted: number
   phaseTotal: number
+  readyForPromotion: boolean
   carriersAppointed: number
   carriersTotal: number
   milestoneCount: number
@@ -784,15 +785,29 @@ export default function TrackerPage() {
                     </td>
                     <td style={{ padding: '13px 16px', fontSize: 12, color: '#9BB0C4' }}>{agent.cft ?? '—'}</td>
                     <td style={{ padding: '13px 16px' }}>
-                      <span style={{
-                        display: 'inline-block',
-                        padding: '3px 8px', borderRadius: 4,
-                        fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
-                        color: STATUS_COLORS[riskStatus].color,
-                        background: STATUS_COLORS[riskStatus].bg,
-                      }}>
-                        {STATUS_COLORS[riskStatus].label}
-                      </span>
+                      <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '3px 8px', borderRadius: 4,
+                          fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                          color: STATUS_COLORS[riskStatus].color,
+                          background: STATUS_COLORS[riskStatus].bg,
+                        }}>
+                          {STATUS_COLORS[riskStatus].label}
+                        </span>
+                        {agent.readyForPromotion && (
+                          <span style={{
+                            display: 'inline-block',
+                            padding: '3px 8px', borderRadius: 4,
+                            fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                            color: '#C9A96E', background: 'rgba(201,169,110,0.12)',
+                            border: '1px solid rgba(201,169,110,0.35)',
+                            animation: 'pulse 2s ease-in-out infinite',
+                          }}>
+                            Ready to promote
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td style={{ padding: '13px 16px', color: '#C9A96E', fontSize: 18, opacity: 0.6 }}>›</td>
                   </tr>

@@ -79,6 +79,8 @@ export async function GET(req: NextRequest) {
     const appointed = p.carrierAppointments.filter(c => c.status === 'APPOINTED').length
     const agg = reviewAggByAgent.get(p.id)
 
+    const readyForPromotion = p.phase < 5 && phaseTotal > 0 && phaseCompleted >= phaseTotal
+
     return {
       id: p.id,
       agentCode: p.agentCode,
@@ -95,6 +97,7 @@ export async function GET(req: NextRequest) {
       icaDate: p.icaDate,
       phaseCompleted,
       phaseTotal,
+      readyForPromotion,
       carriersAppointed: appointed,
       carriersTotal: CARRIERS.length,
       milestoneCount: p._count.milestones,
