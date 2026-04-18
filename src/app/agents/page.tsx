@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import {
-  PHASE_LABELS, PHASE_ITEMS, CARRIERS,
+  PHASE_LABELS, PHASE_ITEMS, PHASE_GROUPS, CARRIERS,
   CARRIER_UNLOCK_PHASE, LICENSING_CHECKLIST, SYSTEM_PROGRESSIONS,
 } from '@/lib/agent-constants'
 import CallReviewModal, { CallReviewData } from '@/components/CallReviewModal'
@@ -581,8 +581,93 @@ function AgentDashboardInner() {
               </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {(PHASE_ITEMS[activeChecklistPhase] ?? []).map(item => {
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Render items grouped by group key */}
+              {(() => {
+                const allItems = PHASE_ITEMS[activeChecklistPhase] ?? []
+                const groups = PHASE_GROUPS[activeChecklistPhase] ?? []
+
+                // Build ordered groups: items with matching group key, plus ungrouped items
+                const groupedItems: { group: typeof groups[0] | null; items: typeof allItems }[] = []
+                const usedKeys = new Set<string>()
+
+                for (const g of groups) {
+                  const gItems = allItems.filter(i => i.group === g.key)
+                  if (gItems.length > 0) {
+                    groupedItems.push({ group: g, items: gItems })
+                    gItems.forEach(i => usedKeys.add(i.key))
+                  }
+                }
+                // Any items without a group go at the end
+                const ungrouped = allItems.filter(i => !usedKeys.has(i.key))
+                if (ungrouped.length > 0) {
+                  groupedItems.push({ group: null, items: ungrouped })
+                }
+
+                return groupedItems.map(({ group, items: groupItems }) => {
+                  const groupCompleted = groupItems.filter(item => {
+                    if (item.key === 'connect_discord') return !!data.discordUserId
+                    return currentPhaseItems.some(i => i.itemKey === item.key && i.completed)
+                  }).length
+
+                  return (
+                    <div key={group?.key ?? 'ungrouped'}>
+                      {/* Group header */}
+                      {group && (
+                        <div
+                          onClick={() => {
+                            // Toggle all items in this group
+                            const groupKeys = groupItems.map(i => i.key)
+                            const allExpanded = groupKeys.every(k => expandedItems.has(k))
+                            setExpandedItems(prev => {
+                              const next = new Set(prev)
+                              groupKeys.forEach(k => allExpanded ? next.delete(k) : next.add(k))
+                              return next
+                            })
+                          }}
+                          style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            padding: '10px 14px', marginBottom: 6, cursor: 'pointer',
+                            background: 'rgba(201,169,110,0.04)',
+                            border: '1px solid rgba(201,169,110,0.1)',
+                            borderRadius: 6,
+                          }}
+                        >
+                          <div>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: '#ffffff' }}>
+                              {group.label}
+                            </div>
+                            {group.description && (
+                              <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2 }}>{group.description}</div>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                            <span style={{
+                              fontSize: 10, fontWeight: 700,
+                              color: groupCompleted === groupItems.length ? '#4ade80' : '#C9A96E',
+                            }}>
+                              {groupCompleted}/{groupItems.length}
+                            </span>
+                            <span style={{
+                              width: 40, height: 4, borderRadius: 2,
+                              background: 'rgba(255,255,255,0.06)', overflow: 'hidden',
+                              display: 'inline-block',
+                            }}>
+                              <span style={{
+                                display: 'block', height: '100%',
+                                width: `${groupItems.length > 0 ? Math.round((groupCompleted / groupItems.length) * 100) : 0}%`,
+                                background: groupCompleted === groupItems.length ? '#4ade80' : '#C9A96E',
+                                borderRadius: 2,
+                                transition: 'width 0.3s',
+                              }} />
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Items in this group */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {groupItems.map(item => {
                 const phaseItem = currentPhaseItems.find(i => i.itemKey === item.key)
                 // Auto-complete connect_discord when Discord is linked
                 const done = item.key === 'connect_discord'
@@ -631,6 +716,14 @@ function AgentDashboardInner() {
                       <span style={{ fontSize: 13, color: done ? '#9BB0C4' : '#ffffff', flex: 1 }}>
                         {item.label}
                       </span>
+                      {item.duration && (
+                        <span style={{ fontSize: 9, color: '#6B8299', flexShrink: 0, padding: '2px 6px', background: 'rgba(255,255,255,0.04)', borderRadius: 3 }}>
+                          {item.duration}
+                        </span>
+                      )}
+                      {item.coordinatorTopic && (
+                        <span style={{ fontSize: 10, color: '#C9A96E', flexShrink: 0 }} title="Licensing coordinator can help">📩</span>
+                      )}
                       {phaseItem?.completedAt && (
                         <span style={{ fontSize: 10, color: '#4B5563', flexShrink: 0 }}>
                           {new Date(phaseItem.completedAt).toLocaleDateString()}
@@ -772,6 +865,11 @@ function AgentDashboardInner() {
                   </div>
                 )
               })}
+                      </div>{/* close items in group */}
+                    </div>
+                  )
+                })
+              })()}
             </div>
           </div>
         )}
