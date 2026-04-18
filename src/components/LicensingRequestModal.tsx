@@ -37,6 +37,16 @@ interface CallItem {
   resolvedAt: string | null
 }
 
+const PREFILL_MESSAGES: Record<string, string> = {
+  licensing_class: "Hi, I'm working through my Phase 1 onboarding and need help scheduling my pre-licensing course and exam.",
+  pass_license_test: "Hi, I just passed my life license exam and need to schedule my post-licensing call.",
+  fingerprints_apply: "Hi, I'm ready to get my fingerprints done and apply for my state license. Please let me know the next steps.",
+  submit_to_aff: "Hi, I need to get submitted to GFI for my carrier appointments.",
+  ce_courses: "Hi, I need to complete my CE courses (AML, Annuity & Ethics). Can you point me to the provider?",
+  errors_and_omissions: "Hi, I need help getting my E&O insurance set up.",
+  direct_deposit: "Hi, I need to set up my direct deposit for commission payments.",
+}
+
 export interface LicensingRequestModalProps {
   phaseItemKey: string
   phaseItemLabel: string
@@ -55,8 +65,8 @@ export default function LicensingRequestModal({
   onSubmitted,
 }: LicensingRequestModalProps) {
   const isMobile = useIsMobile()
-  const [topic, setTopic] = useState<LicensingRequestTopic>(defaultTopic)
-  const [message, setMessage] = useState('')
+  const topic = defaultTopic
+  const [message, setMessage] = useState(PREFILL_MESSAGES[phaseItemKey] ?? `Hi, I need help with: ${phaseItemLabel}.`)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [justSent, setJustSent] = useState<CallItem | null>(null)
@@ -242,35 +252,22 @@ export default function LicensingRequestModal({
           ) : (
             <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
-                <label style={label}>Topic</label>
-                <select
-                  value={topic}
-                  onChange={e => setTopic(e.target.value as LicensingRequestTopic)}
-                  style={{ ...input, appearance: 'auto' as const }}
-                >
-                  {Object.entries(TOPIC_LABELS).map(([key, lbl]) => (
-                    <option key={key} value={key}>{lbl}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label style={label}>What do you need?</label>
+                <label style={label}>Message</label>
                 <textarea
                   required
                   value={message}
                   onChange={e => setMessage(e.target.value)}
-                  rows={isMobile ? 5 : 6}
-                  placeholder="Briefly describe what you need help with. Include any dates, document names, or questions."
+                  rows={isMobile ? 4 : 5}
+                  placeholder="Describe what you need help with."
                   style={{
                     ...input,
-                    minHeight: 120,
+                    minHeight: 100,
                     resize: 'vertical',
                     lineHeight: 1.5,
                   }}
                 />
                 <div style={{ fontSize: 10, color: '#6B8299', marginTop: 4 }}>
-                  {message.length < 10 ? `${10 - message.length} more characters` : `${message.length} characters`}
+                  Edit the message above or send as-is. The coordinator will see which item this is about.
                 </div>
               </div>
 
@@ -311,9 +308,9 @@ export default function LicensingRequestModal({
                 </button>
                 <button
                   type="submit"
-                  disabled={submitting || message.trim().length < 10}
+                  disabled={submitting || message.trim().length < 5}
                   style={{
-                    background: submitting || message.trim().length < 10 ? 'rgba(201,169,110,0.4)' : '#C9A96E',
+                    background: submitting || message.trim().length < 5 ? 'rgba(201,169,110,0.4)' : '#C9A96E',
                     color: '#142D48', border: 'none', borderRadius: 4,
                     padding: '12px 20px', fontSize: 11, fontWeight: 700,
                     letterSpacing: '0.1em', textTransform: 'uppercase',
