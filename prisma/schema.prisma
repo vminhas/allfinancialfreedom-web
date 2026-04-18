@@ -206,6 +206,7 @@ model PersonalFinancialReview {
   monthlySavingsCommitment Float @default(0)
   whatWouldThisDo String?
   whatIsStopping  String?
+  dreamsAndGoals  Json         @default("[]")
   notes           String?
   updatedAt       DateTime     @updatedAt
   createdAt       DateTime     @default(now())
@@ -258,9 +259,15 @@ model CarrierAppointment {
   agentProfileId String
   agentProfile   AgentProfile      @relation(fields: [agentProfileId], references: [id])
   carrier        String
+  carrierType    String?
   status         AppointmentStatus @default(NOT_STARTED)
   producerNumber String?
+  writingCode    String?
+  sureLcDate     DateTime?
+  googleFormDate DateTime?
+  readyToSubmit  Boolean           @default(false)
   appointedDate  DateTime?
+  notes          String?
   updatedAt      DateTime          @updatedAt
 
   @@unique([agentProfileId, carrier])

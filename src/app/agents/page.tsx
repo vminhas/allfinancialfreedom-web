@@ -207,8 +207,61 @@ function AgentDashboardInner() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ color: '#6B8299', fontSize: 13 }}>Loading your portal...</div>
+      <div style={{
+        minHeight: '100vh', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        background: '#0A1628',
+      }}>
+        <div style={{ position: 'relative', width: 80, height: 80, marginBottom: 24 }}>
+          <div style={{
+            position: 'absolute', inset: 0, borderRadius: '50%',
+            border: '2px solid rgba(201,169,110,0.1)',
+          }} />
+          <div style={{
+            position: 'absolute', inset: 0, borderRadius: '50%',
+            border: '2px solid transparent',
+            borderTopColor: '#C9A96E',
+            animation: 'aff-spin 1s linear infinite',
+          }} />
+          <div style={{
+            position: 'absolute', inset: 8, borderRadius: '50%',
+            border: '2px solid transparent',
+            borderTopColor: 'rgba(201,169,110,0.4)',
+            animation: 'aff-spin 1.5s linear infinite reverse',
+          }} />
+          <div style={{
+            position: 'absolute', inset: 20, borderRadius: '50%',
+            border: '1px solid transparent',
+            borderTopColor: 'rgba(201,169,110,0.2)',
+            animation: 'aff-spin 2s linear infinite',
+          }} />
+          <div style={{
+            position: 'absolute', top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: 8, height: 8, borderRadius: '50%',
+            background: '#C9A96E',
+            boxShadow: '0 0 12px rgba(201,169,110,0.5)',
+            animation: 'aff-pulse 1.5s ease-in-out infinite',
+          }} />
+        </div>
+        <div style={{
+          fontSize: 10, fontWeight: 700, letterSpacing: '0.25em',
+          textTransform: 'uppercase', color: '#C9A96E',
+          animation: 'aff-fade 1.5s ease-in-out infinite',
+        }}>
+          All Financial Freedom
+        </div>
+        <div style={{
+          fontSize: 11, color: '#6B8299', marginTop: 6,
+          animation: 'aff-fade 1.5s ease-in-out infinite 0.3s',
+        }}>
+          Loading your portal...
+        </div>
+        <style>{`
+          @keyframes aff-spin { to { transform: rotate(360deg); } }
+          @keyframes aff-pulse { 0%, 100% { opacity: 0.5; transform: translate(-50%, -50%) scale(1); } 50% { opacity: 1; transform: translate(-50%, -50%) scale(1.3); } }
+          @keyframes aff-fade { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+        `}</style>
       </div>
     )
   }

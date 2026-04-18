@@ -46,6 +46,7 @@ interface PFRData {
   spouseRetAge: number | null
   desiredMonthlyRetirement: number
   monthlySavingsCommitment: number
+  dreamsAndGoals: { timeFrame: string; dream: string; why: string }[]
   whatWouldThisDo: string
   whatIsStopping: string
   notes: string
@@ -61,6 +62,7 @@ const defaultPFR: PFRData = {
   spouseRetAge: null,
   desiredMonthlyRetirement: 0,
   monthlySavingsCommitment: 0,
+  dreamsAndGoals: [],
   whatWouldThisDo: '',
   whatIsStopping: '',
   notes: '',
@@ -86,6 +88,7 @@ export default function PFRPage() {
           assets: (d.pfr.assets && typeof d.pfr.assets === 'object') ? d.pfr.assets as Record<string, number> : {},
           debts: (d.pfr.debts && typeof d.pfr.debts === 'object') ? d.pfr.debts as Record<string, number> : {},
           buckets: (d.pfr.buckets && typeof d.pfr.buckets === 'object') ? d.pfr.buckets as Record<string, number> : defaultPFR.buckets,
+          dreamsAndGoals: Array.isArray(d.pfr.dreamsAndGoals) ? d.pfr.dreamsAndGoals as PFRData['dreamsAndGoals'] : [],
         })
       }
       setLoading(false)
@@ -351,6 +354,86 @@ export default function PFRPage() {
             <div style={{ fontSize: 10, color: '#6B8299', marginBottom: 4 }}>Comments / Notes</div>
             <textarea style={{ ...moneyInput, textAlign: 'left', minHeight: 80, resize: 'vertical', fontFamily: 'inherit' }} value={data.notes} onChange={e => updateField('notes', e.target.value)} />
           </div>
+        </div>
+
+        {/* Dreams & Goals */}
+        <div style={card}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div>
+              <div style={label}>Dreams & Goals</div>
+              <div style={{ fontSize: 10, color: '#6B8299' }}>What financial goals do you want to accomplish?</div>
+            </div>
+            <button
+              onClick={() => {
+                const updated = { ...data, dreamsAndGoals: [...data.dreamsAndGoals, { timeFrame: '', dream: '', why: '' }] }
+                setData(updated)
+                save(updated)
+              }}
+              style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}
+            >+ Add Goal</button>
+          </div>
+
+          {data.dreamsAndGoals.length === 0 ? (
+            <div style={{ color: '#4B5563', fontSize: 12, padding: '16px 0', textAlign: 'center' }}>
+              No goals yet. Click &quot;+ Add Goal&quot; to start building your vision.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {data.dreamsAndGoals.map((goal, i) => (
+                <div key={i} style={{
+                  display: 'grid', gridTemplateColumns: '100px 1fr 1fr 32px', gap: 8, alignItems: 'center',
+                  padding: '10px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 4,
+                  border: '1px solid rgba(255,255,255,0.04)',
+                }}>
+                  <select
+                    value={goal.timeFrame}
+                    onChange={e => {
+                      const goals = [...data.dreamsAndGoals]
+                      goals[i] = { ...goals[i], timeFrame: e.target.value }
+                      updateField('dreamsAndGoals', goals)
+                    }}
+                    style={{ ...moneyInput, textAlign: 'left', padding: '6px 8px', fontSize: 11, cursor: 'pointer' }}
+                  >
+                    <option value="">When?</option>
+                    <option value="6 months">6 months</option>
+                    <option value="1 year">1 year</option>
+                    <option value="2 years">2 years</option>
+                    <option value="5 years">5 years</option>
+                    <option value="10 years">10 years</option>
+                    <option value="20+ years">20+ years</option>
+                  </select>
+                  <input
+                    value={goal.dream}
+                    onChange={e => {
+                      const goals = [...data.dreamsAndGoals]
+                      goals[i] = { ...goals[i], dream: e.target.value }
+                      updateField('dreamsAndGoals', goals)
+                    }}
+                    placeholder="Your dream or goal..."
+                    style={{ ...moneyInput, textAlign: 'left', padding: '6px 8px', fontSize: 12 }}
+                  />
+                  <input
+                    value={goal.why}
+                    onChange={e => {
+                      const goals = [...data.dreamsAndGoals]
+                      goals[i] = { ...goals[i], why: e.target.value }
+                      updateField('dreamsAndGoals', goals)
+                    }}
+                    placeholder="Why does this matter to you?"
+                    style={{ ...moneyInput, textAlign: 'left', padding: '6px 8px', fontSize: 12 }}
+                  />
+                  <button
+                    onClick={() => {
+                      const goals = data.dreamsAndGoals.filter((_, j) => j !== i)
+                      updateField('dreamsAndGoals', goals)
+                    }}
+                    style={{ background: 'none', border: 'none', color: '#f87171', fontSize: 14, cursor: 'pointer', padding: 0 }}
+                    title="Remove"
+                  >x</button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
