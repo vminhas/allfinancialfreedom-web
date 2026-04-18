@@ -714,7 +714,7 @@ function AgentDashboardInner() {
 
                       {/* Items in this group — hidden when collapsed */}
                       {!isGroupCollapsed && <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        {groupItems.map(item => {
+                        {groupItems.filter(item => !(group?.key === 'licensing' && item.coordinatorTopic)).map(item => {
                 const phaseItem = currentPhaseItems.find(i => i.itemKey === item.key)
                 // Auto-complete connect_discord when Discord is linked
                 const done = item.key === 'connect_discord'
