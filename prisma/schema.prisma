@@ -241,6 +241,7 @@ model BusinessPartner {
   agentProfileId  String
   agentProfile    AgentProfile @relation(fields: [agentProfileId], references: [id])
   name            String
+  email           String?
   phone           String?
   timeZone        String?
   age             String?

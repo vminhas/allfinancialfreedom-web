@@ -1671,47 +1671,94 @@ function ProfileTab({ data, onSaved, discordParam, discordUsername }: { data: Ag
 
 // ─── Business Partners Tab ─────────────────────────────────────────────────────
 
+interface Partner {
+  id: string; name: string; email: string | null; phone: string | null
+  occupation: string | null; appointmentDate: string | null; notes: string | null
+}
+
 function BusinessPartnersTab() {
-  const [partners, setPartners] = useState<{ id: string; name: string; phone: string | null; occupation: string | null; appointmentDate: string | null; notes: string | null }[]>([])
+  const [partners, setPartners] = useState<Partner[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ name: '', phone: '', occupation: '', notes: '', appointmentDate: '' })
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [form, setForm] = useState({ name: '', email: '', phone: '', occupation: '', notes: '', appointmentDate: '' })
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    fetch('/api/agents/partners').then(r => r.json()).then((d: { partners: typeof partners }) => {
+    fetch('/api/agents/partners').then(r => r.json()).then((d: { partners: Partner[] }) => {
       setPartners(d.partners ?? [])
       setLoading(false)
     })
   }, [])
 
-  const add = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const res = await fetch('/api/agents/partners', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
-    const p = await res.json() as typeof partners[0]
-    setPartners(prev => [...prev, p])
-    setForm({ name: '', phone: '', occupation: '', notes: '', appointmentDate: '' })
+  const resetForm = () => {
+    setForm({ name: '', email: '', phone: '', occupation: '', notes: '', appointmentDate: '' })
+    setEditingId(null)
     setShowForm(false)
+  }
+
+  const startEdit = (p: Partner) => {
+    setForm({
+      name: p.name,
+      email: p.email ?? '',
+      phone: p.phone ?? '',
+      occupation: p.occupation ?? '',
+      notes: p.notes ?? '',
+      appointmentDate: p.appointmentDate ? p.appointmentDate.slice(0, 10) : '',
+    })
+    setEditingId(p.id)
+    setShowForm(true)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+    try {
+      if (editingId) {
+        const res = await fetch('/api/agents/partners', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: editingId, ...form }),
+        })
+        const updated = await res.json() as Partner
+        setPartners(prev => prev.map(p => p.id === editingId ? updated : p))
+      } else {
+        const res = await fetch('/api/agents/partners', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(form),
+        })
+        const p = await res.json() as Partner
+        setPartners(prev => [...prev, p])
+      }
+      resetForm()
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
     <div style={{ ...card, padding: '24px 28px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div style={sectionLabel}>Business Partners ({partners.length})</div>
-        <button onClick={() => setShowForm(!showForm)} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+        <button onClick={() => { resetForm(); setShowForm(!showForm) }} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
           + Add
         </button>
       </div>
 
       {showForm && (
-        <form onSubmit={add} style={{ marginBottom: 20, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, padding: 16, background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)' }}>
+        <form onSubmit={handleSubmit} style={{ marginBottom: 20, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, padding: 16, background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)' }}>
           <div><label style={fieldLabel}>Name *</label><input required style={inputStyle} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
+          <div><label style={fieldLabel}>Email</label><input type="email" style={inputStyle} value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="partner@email.com" /></div>
           <div><label style={fieldLabel}>Phone</label><input style={inputStyle} value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} /></div>
           <div><label style={fieldLabel}>Occupation</label><input style={inputStyle} value={form.occupation} onChange={e => setForm(f => ({ ...f, occupation: e.target.value }))} /></div>
           <div><label style={fieldLabel}>Appt Date</label><input type="date" style={inputStyle} value={form.appointmentDate} onChange={e => setForm(f => ({ ...f, appointmentDate: e.target.value }))} /></div>
-          <div style={{ gridColumn: 'span 2' }}><label style={fieldLabel}>Notes</label><input style={inputStyle} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
+          <div><label style={fieldLabel}>Notes</label><input style={inputStyle} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
           <div style={{ gridColumn: 'span 2', display: 'flex', gap: 8 }}>
-            <button type="submit" style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Save</button>
-            <button type="button" onClick={() => setShowForm(false)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#6B8299', borderRadius: 4, padding: '6px 14px', fontSize: 11, cursor: 'pointer' }}>Cancel</button>
+            <button type="submit" disabled={saving} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+              {saving ? 'Saving...' : editingId ? 'Update' : 'Save'}
+            </button>
+            <button type="button" onClick={resetForm} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#6B8299', borderRadius: 4, padding: '6px 14px', fontSize: 11, cursor: 'pointer' }}>Cancel</button>
           </div>
         </form>
       )}
@@ -1720,7 +1767,7 @@ function BusinessPartnersTab() {
         partners.length === 0 ? <div style={{ color: '#4B5563', fontSize: 13 }}>No business partners yet. Add your top prospects.</div> :
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-            {['Name', 'Phone', 'Occupation', 'Appt Date'].map(h => (
+            {['Name', 'Email', 'Phone', 'Occupation', 'Appt Date', ''].map(h => (
               <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#C9A96E' }}>{h}</th>
             ))}
           </tr></thead>
@@ -1728,9 +1775,13 @@ function BusinessPartnersTab() {
             {partners.map(p => (
               <tr key={p.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
                 <td style={{ padding: '10px 12px', fontSize: 12, color: '#ffffff' }}>{p.name}</td>
+                <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{p.email ?? '—'}</td>
                 <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{p.phone ?? '—'}</td>
                 <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{p.occupation ?? '—'}</td>
                 <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{p.appointmentDate ? new Date(p.appointmentDate).toLocaleDateString() : '—'}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                  <button onClick={() => startEdit(p)} style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 11, cursor: 'pointer' }}>Edit</button>
+                </td>
               </tr>
             ))}
           </tbody>

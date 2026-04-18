@@ -10,6 +10,7 @@ interface Props {
 
 export default function InlinePartnerLog({ phaseItemKey, onSaved }: Props) {
   const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -25,6 +26,7 @@ export default function InlinePartnerLog({ phaseItemKey, onSaved }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: name.trim(),
+          email: email.trim() || undefined,
           phone: phone.trim() || undefined,
           phaseItemKey,
           occupation: 'Recruit',
@@ -37,6 +39,7 @@ export default function InlinePartnerLog({ phaseItemKey, onSaved }: Props) {
       }
       setSaved(true)
       setName('')
+      setEmail('')
       setPhone('')
       onSaved()
     } catch {
@@ -84,6 +87,17 @@ export default function InlinePartnerLog({ phaseItemKey, onSaved }: Props) {
           onChange={e => setName(e.target.value)}
           placeholder="Name"
           style={{
+            flex: '1 1 100px', padding: '7px 10px', fontSize: 12,
+            background: '#0A1628', border: '1px solid rgba(201,169,110,0.2)',
+            borderRadius: 4, color: '#ffffff', outline: 'none',
+          }}
+        />
+        <input
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          placeholder="Email"
+          type="email"
+          style={{
             flex: '1 1 120px', padding: '7px 10px', fontSize: 12,
             background: '#0A1628', border: '1px solid rgba(201,169,110,0.2)',
             borderRadius: 4, color: '#ffffff', outline: 'none',
@@ -92,9 +106,9 @@ export default function InlinePartnerLog({ phaseItemKey, onSaved }: Props) {
         <input
           value={phone}
           onChange={e => setPhone(e.target.value)}
-          placeholder="Phone (optional)"
+          placeholder="Phone"
           style={{
-            flex: '0 1 130px', padding: '7px 10px', fontSize: 12,
+            flex: '0 1 110px', padding: '7px 10px', fontSize: 12,
             background: '#0A1628', border: '1px solid rgba(201,169,110,0.2)',
             borderRadius: 4, color: '#ffffff', outline: 'none',
           }}

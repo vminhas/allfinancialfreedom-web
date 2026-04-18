@@ -14,6 +14,7 @@ interface Props {
 
 export default function FTALogModal({ ftaKey, ftaLabel, trainerName, defaultName, onClose, onSaved }: Props) {
   const [name, setName] = useState(defaultName ?? '')
+  const [email, setEmail] = useState('')
   const [date, setDate] = useState('')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
@@ -29,6 +30,7 @@ export default function FTALogModal({ ftaKey, ftaLabel, trainerName, defaultName
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: name.trim(),
+          email: email.trim() || undefined,
           appointmentDate: date || undefined,
           notes: notes.trim() || undefined,
           phaseItemKey: ftaKey,
@@ -90,6 +92,24 @@ export default function FTALogModal({ ftaKey, ftaLabel, trainerName, defaultName
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="e.g., John Smith"
+              style={{
+                marginTop: 4, width: '100%', padding: '10px 12px',
+                background: '#0A1628', border: '1px solid rgba(201,169,110,0.2)',
+                borderRadius: 4, color: '#ffffff', fontSize: 13,
+                outline: 'none',
+              }}
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: 10, fontWeight: 600, color: '#9BB0C4', textTransform: 'uppercase' as const, letterSpacing: '0.1em' }}>
+              Email (optional)
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="partner@email.com"
               style={{
                 marginTop: 4, width: '100%', padding: '10px 12px',
                 background: '#0A1628', border: '1px solid rgba(201,169,110,0.2)',
