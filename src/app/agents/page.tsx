@@ -689,6 +689,19 @@ function AgentDashboardInner() {
                         </div>
                       )}
 
+                      {/* Trainer display at group level */}
+                      {group?.showTrainer && data.cft && !isGroupCollapsed && (
+                        <div style={{
+                          display: 'flex', alignItems: 'center', gap: 8,
+                          padding: '6px 14px', marginBottom: 4,
+                          background: 'rgba(201,169,110,0.04)',
+                          borderRadius: 4,
+                        }}>
+                          <UserCheck size={13} color="#C9A96E" />
+                          <span style={{ fontSize: 11, color: '#C9A96E' }}>Your trainer: {data.cft}</span>
+                        </div>
+                      )}
+
                       {/* Consolidated coordinator panel for licensing group */}
                       {group?.key === 'licensing' && !isGroupCollapsed && (
                         <LicensingCoordinatorPanel
@@ -816,19 +829,6 @@ function AgentDashboardInner() {
                             {item.description}
                           </div>
 
-                          {/* Trainer display */}
-                          {item.showTrainer && data.cft && (
-                            <div style={{
-                              marginTop: 8, padding: '8px 12px',
-                              background: 'rgba(201,169,110,0.06)',
-                              border: '1px solid rgba(201,169,110,0.15)',
-                              borderRadius: 4,
-                              display: 'flex', alignItems: 'center', gap: 8,
-                            }}>
-                              <UserCheck size={14} color="#C9A96E" />
-                              <span style={{ fontSize: 11, color: '#C9A96E' }}>Your trainer: {data.cft}</span>
-                            </div>
-                          )}
 
                           {/* Discord connect — inline action for connect_discord item */}
                           {item.key === 'connect_discord' && (

@@ -29,7 +29,6 @@ export interface PhaseItemDef {
   group?: string
   action?: PhaseItemAction
   coordinatorTopic?: LicensingCoordinatorTopic
-  showTrainer?: boolean
 }
 
 export interface PhaseGroupDef {
@@ -37,22 +36,23 @@ export interface PhaseGroupDef {
   label: string
   icon?: string
   description?: string
+  showTrainer?: boolean
 }
 
 export const PHASE_GROUPS: Record<number, PhaseGroupDef[]> = {
   1: [
-    { key: 'onboarding', label: 'Onboarding Academy', icon: 'BookOpen', description: 'Your first three training sessions with your trainer.' },
+    { key: 'onboarding', label: 'Onboarding Academy', icon: 'BookOpen', description: 'Your first three training sessions with your trainer.', showTrainer: true },
     { key: 'setup', label: 'Account Setup', icon: 'Link', description: 'Connect your tools and get your accounts ready.' },
     { key: 'licensing', label: 'Licensing & Compliance', icon: 'ClipboardCheck', description: 'Everything you need to get licensed and appointed with carriers.' },
-    { key: 'training_prep', label: 'Training Prep', icon: 'Rocket', description: 'Build your foundation before moving into field training.' },
+    { key: 'training_prep', label: 'Training Prep', icon: 'Rocket', description: 'Build your foundation before moving into field training.', showTrainer: true },
   ],
   2: [
     { key: 'partners', label: 'Business Partners', icon: 'Users', description: 'Build your referral network.' },
-    { key: 'fta', label: 'Field Training Appointments', icon: 'Target', description: 'Complete 10 live appointments with your CFT trainer.' },
+    { key: 'fta', label: 'Field Training Appointments', icon: 'Target', description: 'Complete 10 live appointments with your CFT trainer.', showTrainer: true },
     { key: 'milestones', label: 'Growth Milestones', icon: 'TrendingUp', description: 'Hit the key targets that qualify you for Phase 3.' },
   ],
   3: [
-    { key: 'signoffs', label: 'CFT Sign-Offs', icon: 'CheckCircle', description: 'Get approved by your trainer, coordinator, and EMD.' },
+    { key: 'signoffs', label: 'CFT Sign-Offs', icon: 'CheckCircle', description: 'Get approved by your trainer, coordinator, and EMD.', showTrainer: true },
     { key: 'skills', label: 'Independent Skills', icon: 'Phone', description: 'Prove you can run appointments and recruit on your own.' },
     { key: 'products', label: 'Product Mastery', icon: 'Package', description: 'Learn the core AFF product suite inside and out.' },
   ],
@@ -70,11 +70,11 @@ export const PHASE_ITEMS: Record<number, PhaseItemDef[]> = {
   1: [
     // Onboarding Academy
     { key: 'week1_onboarding', label: 'Onboarding Academy Class 1', group: 'onboarding', duration: '1 Hour',
-      description: "On this meeting your trainer walks you through AFF's flagship products and the reasons behind them. By the end of this meeting you'll understand exactly what you're offering to clients and why it matters.", showTrainer: true },
+      description: "On this meeting your trainer walks you through AFF's flagship products and the reasons behind them. By the end of this meeting you'll understand exactly what you're offering to clients and why it matters." },
     { key: 'week2_onboarding', label: 'Onboarding Academy Class 2', group: 'onboarding', duration: '1 Hour',
-      description: 'In this meeting you will learn how to build out your referral sources and expand your outreach and learn the benefits of being an Agency Owner.', showTrainer: true },
+      description: 'In this meeting you will learn how to build out your referral sources and expand your outreach and learn the benefits of being an Agency Owner.' },
     { key: 'week3_onboarding', label: 'Onboarding Academy Class 3', group: 'onboarding', duration: '1 Hour',
-      description: "This week you'll start scheduling Field Training Appointments (FTAs) with your Certified Field Trainer.", showTrainer: true },
+      description: "This week you'll start scheduling Field Training Appointments (FTAs) with your Certified Field Trainer." },
 
     // Account Setup
     { key: 'connect_discord', label: 'Connect Discord', group: 'setup', duration: '15 mins',
@@ -106,19 +106,19 @@ export const PHASE_ITEMS: Record<number, PhaseItemDef[]> = {
     // Training Prep
     { key: 'pfr', label: 'Personal Financial Review', group: 'training_prep', duration: '1 Hour',
       description: "Sit down with your trainer for your own Personal Financial Review. This is both a real planning session for your finances and your first hands-on experience with the tool you'll use to help families.",
-      showTrainer: true },
+      },
     { key: 'fast_start_school', label: 'Fast Start School', group: 'training_prep', duration: '1 Hour',
       description: "A company-wide walkthrough of what to focus on in your first 30 days. Held Saturdays at 11am Eastern. Your trainer will send you the link and details.",
       action: { type: 'resource-link', resourceKey: 'fast_start_link', label: 'Join Fast Start' } },
     { key: 'business_marketing_plan', label: 'Business Marketing Plan', group: 'training_prep', duration: '1 Hour',
       description: 'Meet with your CFT within 24 hours of attending onboarding to build out your Business Marketing list for expansion and your agency plan.',
-      showTrainer: true },
+      },
     { key: 'master_scripts', label: 'Master Scripts', group: 'training_prep', duration: '2 Hours',
       description: "Learn the scheduling and presentation scripts you'll use on your Field Training calls. Drill them until they feel natural.",
       action: { type: 'resource-link', resourceKey: 'scripts_presentation', label: 'View scripts' } },
     { key: 'schedule_10_trainings', label: 'Schedule 10 Training Appointments', group: 'training_prep', duration: '1 Hour',
       description: "Schedule your first 10 Field Training Appointments alongside your trainer. Once these are booked, you're ready to move into Phase 2.",
-      showTrainer: true, action: { type: 'inline-form', modal: 'fta-schedule', label: 'Schedule appointments' } },
+      action: { type: 'inline-form', modal: 'fta-schedule', label: 'Schedule appointments' } },
   ],
   2: [
     // Business Partners
@@ -129,34 +129,34 @@ export const PHASE_ITEMS: Record<number, PhaseItemDef[]> = {
     // Field Training Appointments
     { key: 'fta_1', label: 'Field Training 1 (Spouse / Parents)', group: 'fta', duration: '1 Hour',
       description: 'Your first appointment. Your trainer leads, you observe and take notes. Best to start with family (spouse, parents) in a comfortable setting.',
-      showTrainer: true, action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
+      action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
     { key: 'fta_2', label: 'Field Training 2', group: 'fta', duration: '1 Hour',
       description: 'Shadow your trainer again but start engaging. Ask one discovery question during the appointment.',
-      showTrainer: true, action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
+      action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
     { key: 'fta_3', label: 'Field Training 3', group: 'fta', duration: '1 Hour',
       description: 'Start presenting the introduction. Your trainer handles the rest while you build confidence opening conversations.',
-      showTrainer: true, action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
+      action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
     { key: 'fta_4', label: 'Field Training 4', group: 'fta', duration: '1 Hour',
       description: 'Focus on objection handling. Your trainer will let some common objections come to you naturally during the appointment.',
-      showTrainer: true, action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
+      action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
     { key: 'fta_5', label: 'Field Training 5', group: 'fta', duration: '1 Hour',
       description: 'Halfway mark. You should be presenting about 50% of the appointment. Your trainer fills in the gaps and coaches in real time.',
-      showTrainer: true, action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
+      action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
     { key: 'fta_6', label: 'Field Training 6', group: 'fta', duration: '1 Hour',
       description: 'Take the lead on most of the presentation. Your trainer coaches from the side and only steps in when needed.',
-      showTrainer: true, action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
+      action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
     { key: 'fta_7', label: 'Field Training 7', group: 'fta', duration: '1 Hour',
       description: 'Run the full needs analysis and product recommendation. Your trainer observes and gives feedback after the appointment.',
-      showTrainer: true, action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
+      action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
     { key: 'fta_8', label: 'Field Training 8', group: 'fta', duration: '1 Hour',
       description: 'Lead the entire appointment from start to finish. Your trainer is there as backup but lets you run the show.',
-      showTrainer: true, action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
+      action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
     { key: 'fta_9', label: 'Field Training 9', group: 'fta', duration: '1 Hour',
       description: 'Almost there. Run the full appointment solo with your trainer observing. Focus on closing the case naturally.',
-      showTrainer: true, action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
+      action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
     { key: 'fta_10', label: 'Field Training 10', group: 'fta', duration: '1 Hour',
       description: 'Your final FTA. Demonstrate full independence. Your trainer is there for backup only. Completing all 10 FTAs means you are ready to run appointments on your own.',
-      showTrainer: true, action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
+      action: { type: 'inline-form', modal: 'fta-log', label: 'Log this FTA' } },
 
     // Growth Milestones
     { key: 'associate_promotion', label: 'Senior Associate Promotion', group: 'milestones',
@@ -189,10 +189,10 @@ export const PHASE_ITEMS: Record<number, PhaseItemDef[]> = {
     // CFT Sign-Offs
     { key: 'cft_classes', label: 'Attend CFT in Progress Classes', group: 'signoffs', duration: '1 Hour',
       description: 'Attend CFT (Certified Field Trainer) In Progress sessions hosted by AFF leadership. These are the advanced classes that teach you how to train and develop new agents.',
-      showTrainer: true },
+      },
     { key: 'trainer_signoff', label: 'Signed Off by Trainer', group: 'signoffs',
       description: 'Your CFT trainer officially signs off that you can run appointments independently and are ready to begin training others. This is a formal milestone in your development.',
-      showTrainer: true },
+      },
     { key: 'cft_coordinator_signoff', label: 'CFT Coordinator Sign Off', group: 'signoffs',
       description: 'The CFT Coordinator, a senior AFF trainer, reviews your performance and approves your readiness for CFT designation.' },
     { key: 'emd_signoff', label: 'EMD Sign Off', group: 'signoffs',
