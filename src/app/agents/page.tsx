@@ -12,7 +12,6 @@ import CallReviewModal, { CallReviewData } from '@/components/CallReviewModal'
 import LicensingRequestModal, { type LicensingRequestTopic } from '@/components/LicensingRequestModal'
 import LicensingCoordinatorPanel from '@/components/LicensingCoordinatorPanel'
 import FTALogModal from '@/components/FTALogModal'
-import InlinePartnerLog from '@/components/InlinePartnerLog'
 import { useIsMobile } from '@/lib/useIsMobile'
 
 interface PhaseProgress { phase: number; total: number; completed: number; pct: number }
@@ -942,10 +941,6 @@ function AgentDashboardInner() {
                             </div>
                           )}
 
-                          {/* Inline partner log for recruit items */}
-                          {item.action?.type === 'inline-form' && item.action.modal === 'partner-log' && (
-                            <InlinePartnerLog phaseItemKey={item.key} onSaved={fetchData} />
-                          )}
 
                         </div>
                       )
