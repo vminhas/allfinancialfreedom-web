@@ -249,18 +249,43 @@ export async function syncTrainingsFromDrive(opts: SyncOptions = {}): Promise<Sy
   }
 
   // After the loop — if we created any new Discord scheduled events,
-  // post a single @everyone roundup message in the training-and-events
-  // channel so members get notified about the new week of trainings
-  // and can mark themselves Interested with one tap.
+  // refresh the weekly roundup card so it reflects every upcoming event
+  // (not just the ones that happened to be created in this sync run).
+  // Editing in place with the full week prevents the card from shrinking
+  // to the last batch of new events each hour.
   if (newDiscordRowIds.length > 0 && process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_GUILD_ID) {
     try {
-      const newRows = await db.trainingEvent.findMany({
-        where: { id: { in: newDiscordRowIds } },
+      const roundupNow = new Date()
+      const sevenDaysOut = new Date(roundupNow.getTime() + 7 * 24 * 60 * 60 * 1000)
+      const lookbackStart = new Date(roundupNow.getTime() - 3 * 60 * 60 * 1000)
+
+      const weekRows = await db.trainingEvent.findMany({
+        where: {
+          startsAt: { gte: lookbackStart, lte: sevenDaysOut },
+          published: true,
+          discordEventId: { not: null },
+        },
         orderBy: { startsAt: 'asc' },
-        select: { id: true, title: true, startsAt: true, discordEventId: true, audienceRestriction: true },
+        select: {
+          id: true,
+          title: true,
+          startsAt: true,
+          durationMinutes: true,
+          discordEventId: true,
+          audienceRestriction: true,
+        },
       })
-      const result = await postWeeklyRoundupForRows(newRows)
-      stats.roundupPosted = result.posted
+
+      // Drop sessions that have already ended so the card never lists stale rows.
+      const rows = weekRows.filter(r => {
+        const ends = r.startsAt.getTime() + (r.durationMinutes ?? 60) * 60_000
+        return ends > roundupNow.getTime()
+      })
+
+      if (rows.length > 0) {
+        const result = await postWeeklyRoundupForRows(rows)
+        stats.roundupPosted = result.posted
+      }
     } catch (err) {
       stats.errors.push({
         fileName: '(roundup post)',
