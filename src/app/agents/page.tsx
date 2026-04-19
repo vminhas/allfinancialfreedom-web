@@ -128,6 +128,7 @@ function AgentDashboardInner() {
   const [ftaModalKey, setFtaModalKey] = useState<string | null>(null)
   const [dbPhaseItems, setDbPhaseItems] = useState<Record<number, typeof PHASE_ITEMS[1]> | null>(null)
   const [showPromotion, setShowPromotion] = useState<number | null>(null)
+  const [highlightKey, setHighlightKey] = useState<string | null>(null)
   const [promotionRequestKey, setPromotionRequestKey] = useState<string | null>(null)
   const [promotionRequesting, setPromotionRequesting] = useState(false)
 
@@ -314,6 +315,7 @@ function AgentDashboardInner() {
           @keyframes aff-spin { to { transform: rotate(360deg); } }
           @keyframes aff-pulse { 0%, 100% { opacity: 0.5; transform: translate(-50%, -50%) scale(1); } 50% { opacity: 1; transform: translate(-50%, -50%) scale(1.3); } }
           @keyframes aff-fade { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+          @keyframes aff-highlight-pulse { 0%, 100% { box-shadow: 0 0 0 2px #C9A96E, 0 0 20px rgba(201,169,110,0.3); } 50% { box-shadow: 0 0 0 3px #C9A96E, 0 0 30px rgba(201,169,110,0.5); } }
         `}</style>
       </div>
     )
@@ -500,12 +502,17 @@ function AgentDashboardInner() {
 
           return (
             <div style={{
-              marginBottom: 16, padding: isMobile ? '18px 16px' : '18px 24px', borderRadius: 8,
-              background: 'linear-gradient(135deg, rgba(201,169,110,0.06) 0%, rgba(96,165,250,0.04) 100%)',
-              border: '1px solid rgba(201,169,110,0.15)',
+              marginBottom: 16, padding: isMobile ? '20px 16px' : '22px 28px', borderRadius: 10,
+              background: 'linear-gradient(135deg, rgba(201,169,110,0.1) 0%, rgba(96,165,250,0.05) 50%, rgba(201,169,110,0.04) 100%)',
+              border: '1px solid rgba(201,169,110,0.25)',
+              boxShadow: '0 4px 24px rgba(201,169,110,0.08)',
+              position: 'relative',
+              overflow: 'hidden',
             }}>
-              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 10 }}>
-                Your Next Step
+              <div style={{ position: 'absolute', top: -40, right: -40, width: 120, height: 120, borderRadius: '50%', background: 'rgba(201,169,110,0.06)', pointerEvents: 'none' }} />
+              <div style={{ position: 'absolute', bottom: -30, left: -30, width: 80, height: 80, borderRadius: '50%', background: 'rgba(96,165,250,0.04)', pointerEvents: 'none' }} />
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.25em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 12, position: 'relative' }}>
+                Up Next
               </div>
               <div style={{ display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', gap: 14, flexDirection: isMobile ? 'column' : 'row' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -525,17 +532,28 @@ function AgentDashboardInner() {
                 <button
                   onClick={() => {
                     setActiveTab('checklist')
+                    const groupKey = nextItem.group
+                    if (groupKey) {
+                      setCollapsedGroups(prev => { const n = new Set(prev); n.delete(groupKey); return n })
+                    }
                     setTimeout(() => {
                       setExpandedItems(prev => new Set(prev).add(nextItem.key))
-                    }, 100)
+                      setHighlightKey(nextItem.key)
+                      const el = document.querySelector(`[data-item-key="${nextItem.key}"]`)
+                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                      setTimeout(() => setHighlightKey(null), 2500)
+                    }, 200)
                   }}
                   style={{
-                    padding: '10px 20px', borderRadius: 6, fontSize: 12, fontWeight: 700,
-                    background: '#C9A96E', border: 'none', color: '#142D48',
+                    padding: '12px 24px', borderRadius: 6, fontSize: 12, fontWeight: 700,
+                    background: 'linear-gradient(135deg, #C9A96E 0%, #a8854a 100%)',
+                    border: 'none', color: '#142D48',
                     cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
+                    boxShadow: '0 4px 16px rgba(201,169,110,0.3)',
+                    letterSpacing: '0.06em',
                   }}
                 >
-                  Go to Step
+                  Start This Step
                 </button>
               </div>
               <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1024,7 +1042,12 @@ function AgentDashboardInner() {
                 const isExpanded = expandedItems.has(item.key)
 
                 return (
-                  <div key={item.key} style={{ borderRadius: 6, overflow: 'hidden' }}>
+                  <div key={item.key} data-item-key={item.key} style={{
+                    borderRadius: 6, overflow: 'hidden',
+                    transition: 'box-shadow 0.3s',
+                    boxShadow: highlightKey === item.key ? '0 0 0 2px #C9A96E, 0 0 20px rgba(201,169,110,0.3)' : 'none',
+                    animation: highlightKey === item.key ? 'aff-highlight-pulse 1s ease-in-out 2' : 'none',
+                  }}>
                     {/* Card row — clicking ANYWHERE on the card expands/collapses.
                         The checkbox is a separate click target that stops propagation. */}
                     <div
