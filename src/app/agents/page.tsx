@@ -988,6 +988,9 @@ function AgentDashboardInner() {
                       })()}
                       {item.action?.type === 'inline-form' && (() => {
                         if (item.action!.modal === 'promotion-request') {
+                          if (done) return <span style={{ fontSize: 10, color: '#4ade80', flexShrink: 0, padding: '2px 10px', background: 'rgba(74,222,128,0.1)', borderRadius: 10 }}>Approved</span>
+                          const pendingReq = coordinatorRequests.find(r => r.phaseItemKey === item.key && (r.status === 'OPEN' || r.status === 'IN_PROGRESS'))
+                          if (pendingReq) return <span style={{ fontSize: 9, fontWeight: 700, color: '#f59e0b', flexShrink: 0, padding: '2px 10px', background: 'rgba(245,158,11,0.1)', borderRadius: 10, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Pending Approval</span>
                           const allPhaseItems = PHASE_ITEMS[activeChecklistPhase] ?? []
                           const itemIndex = allPhaseItems.findIndex(i => i.key === item.key)
                           const prerequisiteItems = allPhaseItems.slice(0, itemIndex).filter(i => !i.adminOnly)
@@ -995,7 +998,6 @@ function AgentDashboardInner() {
                             if (i.key === 'connect_discord') return !!data.discordUserId
                             return currentPhaseItems.some(pi => pi.itemKey === i.key && pi.completed)
                           })
-                          if (done) return <span style={{ fontSize: 10, color: '#4ade80', flexShrink: 0 }}>Approved</span>
                           if (!allDone) return <span style={{ fontSize: 9, color: '#4B5563', flexShrink: 0 }}>Complete all items above first</span>
                         }
                         return (
@@ -1271,7 +1273,7 @@ function AgentDashboardInner() {
                 disabled={promotionRequesting}
                 onClick={async () => {
                   setPromotionRequesting(true)
-                  await fetch('/api/agents/coordinator-requests', {
+                  const res = await fetch('/api/agents/coordinator-requests', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -1280,11 +1282,23 @@ function AgentDashboardInner() {
                       message: `I have completed all required items for Phase ${data.phase} and would like to request my Senior Associate Promotion.`,
                     }),
                   })
+                  if (res.ok) {
+                    const d = await res.json() as { request?: { id: string; phaseItemKey: string | null; topic: string; message: string; status: string; resolutionNote: string | null; createdAt: string; resolvedAt: string | null } }
+                    if (d.request) {
+                      setCoordinatorRequests(prev => [{
+                        id: d.request!.id,
+                        phaseItemKey: d.request!.phaseItemKey ?? null,
+                        topic: d.request!.topic,
+                        message: d.request!.message,
+                        status: d.request!.status as 'OPEN',
+                        resolutionNote: null,
+                        createdAt: d.request!.createdAt,
+                        resolvedAt: null,
+                      }, ...prev])
+                    }
+                  }
                   setPromotionRequesting(false)
                   setPromotionRequestKey(null)
-                  import('canvas-confetti').then(({ default: confetti }) => {
-                    confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 }, colors: ['#C9A96E', '#4ade80', '#ffffff'] })
-                  })
                 }}
                 style={{
                   padding: '10px 24px', borderRadius: 4, fontSize: 12, fontWeight: 700,
