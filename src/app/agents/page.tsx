@@ -966,13 +966,15 @@ function AgentDashboardInner() {
                       })()}
                       {item.action?.type === 'inline-form' && (() => {
                         if (item.action!.modal === 'promotion-request') {
-                          const allOtherItems = (PHASE_ITEMS[activeChecklistPhase] ?? []).filter(i => i.key !== item.key && !i.adminOnly)
-                          const allDone = allOtherItems.every(i => {
+                          const allPhaseItems = PHASE_ITEMS[activeChecklistPhase] ?? []
+                          const itemIndex = allPhaseItems.findIndex(i => i.key === item.key)
+                          const prerequisiteItems = allPhaseItems.slice(0, itemIndex).filter(i => !i.adminOnly)
+                          const allDone = prerequisiteItems.every(i => {
                             if (i.key === 'connect_discord') return !!data.discordUserId
                             return currentPhaseItems.some(pi => pi.itemKey === i.key && pi.completed)
                           })
                           if (done) return <span style={{ fontSize: 10, color: '#4ade80', flexShrink: 0 }}>Approved</span>
-                          if (!allDone) return <span style={{ fontSize: 9, color: '#4B5563', flexShrink: 0 }}>Complete all items first</span>
+                          if (!allDone) return <span style={{ fontSize: 9, color: '#4B5563', flexShrink: 0 }}>Complete all items above first</span>
                         }
                         return (
                           <button
