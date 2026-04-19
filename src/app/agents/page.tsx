@@ -13,6 +13,7 @@ import LicensingRequestModal, { type LicensingRequestTopic } from '@/components/
 import LicensingCoordinatorPanel from '@/components/LicensingCoordinatorPanel'
 import FTALogModal from '@/components/FTALogModal'
 import FeedbackButton from '@/components/FeedbackButton'
+import MarkdownDescription from '@/components/MarkdownDescription'
 import { useIsMobile } from '@/lib/useIsMobile'
 
 interface PhaseProgress { phase: number; total: number; completed: number; pct: number }
@@ -1026,7 +1027,7 @@ function AgentDashboardInner() {
                           borderRadius: '0 0 6px 6px',
                         }}>
                           <div style={{ fontSize: 12, color: '#9BB0C4', lineHeight: 1.6 }}>
-                            {item.description}
+                            <MarkdownDescription text={item.description} />
                           </div>
 
 
@@ -1423,7 +1424,7 @@ function LicensingTab({
                   )}
                 </div>
                 <div style={{ fontSize: 11, color: '#6B8299', lineHeight: 1.5 }}>
-                  {item.description}
+                  <MarkdownDescription text={item.description} />
                 </div>
               </div>
             </div>

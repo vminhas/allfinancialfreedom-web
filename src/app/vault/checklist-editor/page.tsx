@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { PHASE_LABELS, PHASE_GROUPS, SYSTEM_PROGRESSIONS } from '@/lib/agent-constants'
 import { useIsMobile } from '@/lib/useIsMobile'
+import MarkdownDescription from '@/components/MarkdownDescription'
 
 interface PhaseItemDef {
   id: string
@@ -209,8 +210,33 @@ export default function ChecklistEditorPage() {
               <input value={form.itemKey} onChange={e => setForm(f => ({ ...f, itemKey: e.target.value }))} disabled={!!editingId} style={{ ...inp, opacity: editingId ? 0.5 : 1 }} />
             </div>
             <div style={{ gridColumn: isMobile ? undefined : 'span 2' }}>
-              <div style={lbl}>Description *</div>
-              <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={3} style={{ ...inp, resize: 'vertical', fontFamily: 'inherit' }} placeholder="What the agent needs to do..." />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={lbl}>Description *</div>
+                <div style={{ fontSize: 9, color: '#4B5563' }}>Supports formatting (see tips below)</div>
+              </div>
+              <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={4} style={{ ...inp, resize: 'vertical', fontFamily: 'inherit' }} placeholder="What the agent needs to do..." />
+              <div style={{
+                marginTop: 6, padding: '8px 12px', borderRadius: 4,
+                background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)',
+                fontSize: 10, color: '#4B5563', lineHeight: 1.8,
+              }}>
+                <span style={{ color: '#6B8299', fontWeight: 600 }}>Formatting tips:</span>{' '}
+                <code style={{ color: '#C9A96E', background: 'rgba(201,169,110,0.08)', padding: '1px 4px', borderRadius: 2 }}>[link text](https://url.com)</code> for clickable links{' · '}
+                <code style={{ color: '#C9A96E', background: 'rgba(201,169,110,0.08)', padding: '1px 4px', borderRadius: 2 }}>**bold text**</code> for bold{' · '}
+                <code style={{ color: '#C9A96E', background: 'rgba(201,169,110,0.08)', padding: '1px 4px', borderRadius: 2 }}>*italic text*</code> for italic{' · '}
+                Start a line with <code style={{ color: '#C9A96E', background: 'rgba(201,169,110,0.08)', padding: '1px 4px', borderRadius: 2 }}>- </code> for bullet points
+              </div>
+              {form.description && (
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: '#6B8299', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Preview</div>
+                  <div style={{
+                    padding: '10px 14px', borderRadius: 4,
+                    background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(201,169,110,0.1)',
+                  }}>
+                    <MarkdownDescription text={form.description} style={{ fontSize: 12, color: '#9BB0C4' }} />
+                  </div>
+                </div>
+              )}
             </div>
             <div>
               <div style={lbl}>Duration</div>
