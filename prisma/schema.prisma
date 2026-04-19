@@ -184,6 +184,7 @@ model AgentProfile {
   referrals             AgentReferral[]
   pfr                   PersonalFinancialReview?
   feedback              AgentFeedback[]
+  announcementReads     AnnouncementRead[]
 
   @@map("agent_profiles")
 }
@@ -233,6 +234,74 @@ model PhaseItemDefinition {
   updatedAt   DateTime @updatedAt
 
   @@map("phase_item_definitions")
+}
+
+model PhaseGroupDefinition {
+  id          String  @id @default(cuid())
+  phase       Int
+  groupKey    String  @unique
+  label       String
+  icon        String?
+  description String?
+  showTrainer Boolean @default(false)
+  sortOrder   Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("phase_group_definitions")
+}
+
+model ProgressionDefinition {
+  id          String  @id @default(cuid())
+  key         String  @unique
+  label       String
+  description String
+  icon        String?
+  achievedWhen String
+  sortOrder   Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("progression_definitions")
+}
+
+model EmailTemplate {
+  id          String  @id @default(cuid())
+  key         String  @unique
+  label       String
+  subject     String
+  bodyHtml    String
+  description String?
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@map("email_templates")
+}
+
+model Announcement {
+  id          String   @id @default(cuid())
+  title       String
+  message     String
+  targetPhase Int?
+  active      Boolean  @default(true)
+  createdBy   String?
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  reads       AnnouncementRead[]
+
+  @@map("announcements")
+}
+
+model AnnouncementRead {
+  id              String       @id @default(cuid())
+  announcementId  String
+  announcement    Announcement @relation(fields: [announcementId], references: [id])
+  agentProfileId  String
+  agentProfile    AgentProfile @relation(fields: [agentProfileId], references: [id])
+  readAt          DateTime     @default(now())
+
+  @@unique([announcementId, agentProfileId])
+  @@map("announcement_reads")
 }
 
 model AgentFeedback {

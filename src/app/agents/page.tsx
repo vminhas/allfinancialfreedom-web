@@ -14,6 +14,7 @@ import LicensingCoordinatorPanel from '@/components/LicensingCoordinatorPanel'
 import FTALogModal from '@/components/FTALogModal'
 import FeedbackButton from '@/components/FeedbackButton'
 import MarkdownDescription from '@/components/MarkdownDescription'
+import AnnouncementBanner from '@/components/AnnouncementBanner'
 import { useIsMobile } from '@/lib/useIsMobile'
 
 interface PhaseProgress { phase: number; total: number; completed: number; pct: number }
@@ -125,6 +126,7 @@ function AgentDashboardInner() {
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [setupResources, setSetupResources] = useState<Record<string, string>>({})
   const [ftaModalKey, setFtaModalKey] = useState<string | null>(null)
+  const [dbPhaseItems, setDbPhaseItems] = useState<Record<number, typeof PHASE_ITEMS[1]> | null>(null)
   const [showPromotion, setShowPromotion] = useState<number | null>(null)
   const [promotionRequestKey, setPromotionRequestKey] = useState<string | null>(null)
   const [promotionRequesting, setPromotionRequesting] = useState(false)
@@ -213,6 +215,29 @@ function AgentDashboardInner() {
       .then((d: { resources: Record<string, string> }) => setSetupResources(d.resources ?? {}))
       .catch(() => {})
   }, [])
+
+  useEffect(() => {
+    fetch('/api/agents/phase-items')
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { items: Record<string, { itemKey: string; label: string; description: string; duration?: string; groupKey?: string; adminOnly?: boolean; coordinatorTopic?: string; actionJson?: string }[]>; source: string } | null) => {
+        if (d?.source === 'database' && d.items) {
+          const mapped: Record<number, typeof PHASE_ITEMS[1]> = {}
+          for (const [phase, phaseItems] of Object.entries(d.items)) {
+            mapped[parseInt(phase)] = (phaseItems as typeof d.items[string]).map(i => ({
+              key: i.itemKey, label: i.label, description: i.description,
+              duration: i.duration, group: i.groupKey ?? undefined,
+              adminOnly: i.adminOnly,
+              coordinatorTopic: i.coordinatorTopic as typeof PHASE_ITEMS[1][0]['coordinatorTopic'],
+              action: i.actionJson ? JSON.parse(i.actionJson) : undefined,
+            }))
+          }
+          setDbPhaseItems(mapped)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  const effectivePhaseItems = dbPhaseItems ?? PHASE_ITEMS
 
   const CONFETTI_MILESTONES = new Set(['fta_10', 'first_1000', 'cft_coordinator_signoff', '45k_points', '150k_net_6mo', '100k_income'])
 
@@ -425,6 +450,8 @@ function AgentDashboardInner() {
             </div>
           ))}
         </div>
+
+        <AnnouncementBanner />
 
         {/* ── SYSTEM PROGRESSIONS — always visible achievement strip ── */}
         <div style={{ ...card, padding: '20px 24px', marginBottom: 24 }}>
@@ -781,7 +808,7 @@ function AgentDashboardInner() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {/* Render items grouped by group key */}
               {(() => {
-                const allItems = PHASE_ITEMS[activeChecklistPhase] ?? []
+                const allItems = effectivePhaseItems[activeChecklistPhase] ?? []
                 const groups = PHASE_GROUPS[activeChecklistPhase] ?? []
 
                 // Build ordered groups: items with matching group key, plus ungrouped items
@@ -990,7 +1017,7 @@ function AgentDashboardInner() {
                           if (done) return <span style={{ fontSize: 10, color: '#4ade80', flexShrink: 0, padding: '2px 10px', background: 'rgba(74,222,128,0.1)', borderRadius: 10 }}>Approved</span>
                           const pendingReq = coordinatorRequests.find(r => r.phaseItemKey === item.key && (r.status === 'OPEN' || r.status === 'IN_PROGRESS'))
                           if (pendingReq) return <span style={{ fontSize: 9, fontWeight: 700, color: '#f59e0b', flexShrink: 0, padding: '2px 10px', background: 'rgba(245,158,11,0.1)', borderRadius: 10, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Pending Approval</span>
-                          const allPhaseItems = PHASE_ITEMS[activeChecklistPhase] ?? []
+                          const allPhaseItems = effectivePhaseItems[activeChecklistPhase] ?? []
                           const itemIndex = allPhaseItems.findIndex(i => i.key === item.key)
                           const prerequisiteItems = allPhaseItems.slice(0, itemIndex).filter(i => !i.adminOnly)
                           const allDone = prerequisiteItems.every(i => {
@@ -1139,7 +1166,7 @@ function AgentDashboardInner() {
 
       {/* Licensing coordinator request modal */}
       {requestModalItemKey && (() => {
-        const item = PHASE_ITEMS[activeChecklistPhase]?.find(i => i.key === requestModalItemKey)
+        const item = effectivePhaseItems[activeChecklistPhase]?.find(i => i.key === requestModalItemKey)
           ?? Object.values(PHASE_ITEMS).flat().find(i => i.key === requestModalItemKey)
         if (!item || !item.coordinatorTopic) return null
         const itemRequests = coordinatorRequests.filter(r => r.phaseItemKey === item.key)

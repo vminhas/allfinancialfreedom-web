@@ -33,6 +33,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/vault/call-review', label: 'Call Review', icon: '◐' },
       { href: '/vault/birthdays', label: 'Birthdays', icon: '✦' },
       { href: '/vault/feedback', label: 'Feedback', icon: '✉' },
+      { href: '/vault/announcements', label: 'Announcements', icon: '◈' },
     ],
   },
   {
@@ -40,6 +41,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/vault/setup', label: 'Setup', icon: '⊞' },
       { href: '/vault/checklist-editor', label: 'Checklist Editor', icon: '◇' },
+      { href: '/vault/email-templates', label: 'Email Templates', icon: '✉' },
       { href: '/vault/guide', label: 'Guide', icon: '?' },
       { href: '/vault/settings', label: 'Settings', icon: '⚙' },
     ],

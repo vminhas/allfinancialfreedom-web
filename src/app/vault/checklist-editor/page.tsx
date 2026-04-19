@@ -22,9 +22,22 @@ interface PhaseItemDef {
 
 const PROGRESSION_OPTIONS = SYSTEM_PROGRESSIONS.map(p => ({ key: p.key, label: p.label }))
 
+interface PhaseGroupDef {
+  id: string; phase: number; groupKey: string; label: string
+  icon: string | null; description: string | null; showTrainer: boolean; sortOrder: number
+}
+
+interface ProgressionDef {
+  id: string; key: string; label: string; description: string
+  icon: string | null; achievedWhen: string; sortOrder: number
+}
+
 export default function ChecklistEditorPage() {
   const isMobile = useIsMobile()
+  const [editorTab, setEditorTab] = useState<'items' | 'groups' | 'progressions'>('items')
   const [items, setItems] = useState<PhaseItemDef[]>([])
+  const [groupDefs, setGroupDefs] = useState<PhaseGroupDef[]>([])
+  const [progressionDefs, setProgressionDefs] = useState<ProgressionDef[]>([])
   const [loading, setLoading] = useState(true)
   const [activePhase, setActivePhase] = useState(1)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -37,11 +50,14 @@ export default function ChecklistEditorPage() {
   })
 
   const fetchItems = useCallback(async () => {
-    const res = await fetch('/api/admin/phase-items')
-    if (res.ok) {
-      const d = await res.json() as { items: PhaseItemDef[] }
-      setItems(d.items ?? [])
-    }
+    const [itemsRes, groupsRes, progsRes] = await Promise.all([
+      fetch('/api/admin/phase-items'),
+      fetch('/api/admin/phase-groups'),
+      fetch('/api/admin/progressions'),
+    ])
+    if (itemsRes.ok) { const d = await itemsRes.json() as { items: PhaseItemDef[] }; setItems(d.items ?? []) }
+    if (groupsRes.ok) { const d = await groupsRes.json() as { groups: PhaseGroupDef[] }; setGroupDefs(d.groups ?? []) }
+    if (progsRes.ok) { const d = await progsRes.json() as { progressions: ProgressionDef[] }; setProgressionDefs(d.progressions ?? []) }
     setLoading(false)
   }, [])
 
@@ -151,13 +167,27 @@ export default function ChecklistEditorPage() {
 
   return (
     <div style={{ padding: isMobile ? '16px' : '24px 32px', maxWidth: 960, margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div>
-          <h1 style={{ fontSize: 18, fontWeight: 700, color: '#ffffff', margin: 0 }}>Checklist Editor</h1>
-          <p style={{ fontSize: 12, color: '#6B8299', marginTop: 4 }}>
-            Add, edit, reorder, or remove checklist items. Changes apply to all agents.
-          </p>
-        </div>
+      <div style={{ marginBottom: 20 }}>
+        <h1 style={{ fontSize: 18, fontWeight: 700, color: '#ffffff', margin: 0 }}>Checklist Editor</h1>
+        <p style={{ fontSize: 12, color: '#6B8299', marginTop: 4 }}>
+          Manage checklist items, groups, and progression badges. Changes apply to all agents.
+        </p>
+      </div>
+
+      {/* Editor tabs */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: 12 }}>
+        {(['items', 'groups', 'progressions'] as const).map(t => (
+          <button key={t} onClick={() => { setEditorTab(t); resetForm() }} style={{
+            padding: '8px 18px', borderRadius: 4, fontSize: 12, fontWeight: 600,
+            background: editorTab === t ? 'rgba(201,169,110,0.12)' : 'transparent',
+            border: `1px solid ${editorTab === t ? 'rgba(201,169,110,0.3)' : 'rgba(255,255,255,0.06)'}`,
+            color: editorTab === t ? '#C9A96E' : '#6B8299', cursor: 'pointer',
+          }}>{t === 'items' ? 'Items' : t === 'groups' ? 'Groups' : 'Progressions'}</button>
+        ))}
+      </div>
+
+      {editorTab === 'items' && <>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
         <button
           onClick={() => { resetForm(); setShowAdd(true) }}
           style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '8px 20px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
@@ -352,6 +382,158 @@ export default function ChecklistEditorPage() {
             </div>
           )
         })}
+      </div>
+      </>}
+
+      {/* Groups editor */}
+      {editorTab === 'groups' && (
+        <GroupsEditor groups={groupDefs} onRefresh={fetchItems} isMobile={isMobile} />
+      )}
+
+      {/* Progressions editor */}
+      {editorTab === 'progressions' && (
+        <ProgressionsEditor progressions={progressionDefs} onRefresh={fetchItems} isMobile={isMobile} />
+      )}
+    </div>
+  )
+}
+
+function GroupsEditor({ groups, onRefresh, isMobile }: { groups: PhaseGroupDef[]; onRefresh: () => void; isMobile: boolean }) {
+  const [activePhase, setActivePhase] = useState(1)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [showAdd, setShowAdd] = useState(false)
+  const [form, setForm] = useState({ groupKey: '', label: '', icon: '', description: '', showTrainer: false })
+  const [saving, setSaving] = useState(false)
+
+  const phaseGroups = groups.filter(g => g.phase === activePhase).sort((a, b) => a.sortOrder - b.sortOrder)
+  const inp: React.CSSProperties = { width: '100%', padding: '8px 10px', fontSize: 13, background: '#0A1628', border: '1px solid rgba(201,169,110,0.2)', borderRadius: 4, color: '#ffffff', outline: 'none' }
+  const lbl: React.CSSProperties = { fontSize: 9, fontWeight: 700, color: '#9BB0C4', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }
+
+  const resetForm = () => { setForm({ groupKey: '', label: '', icon: '', description: '', showTrainer: false }); setEditingId(null); setShowAdd(false) }
+
+  const handleSave = async () => {
+    setSaving(true)
+    if (editingId) {
+      await fetch('/api/admin/phase-groups', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editingId, label: form.label, icon: form.icon || null, description: form.description || null, showTrainer: form.showTrainer }) })
+    } else {
+      const key = form.groupKey || form.label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+      await fetch('/api/admin/phase-groups', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phase: activePhase, groupKey: key, label: form.label, icon: form.icon || undefined, description: form.description || undefined, showTrainer: form.showTrainer }) })
+    }
+    resetForm(); setSaving(false); onRefresh()
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          {[1,2,3,4,5].map(ph => (
+            <button key={ph} onClick={() => setActivePhase(ph)} style={{ padding: '5px 14px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: activePhase === ph ? 'rgba(201,169,110,0.12)' : 'transparent', border: `1px solid ${activePhase === ph ? 'rgba(201,169,110,0.3)' : 'rgba(255,255,255,0.06)'}`, color: activePhase === ph ? '#C9A96E' : '#6B8299', cursor: 'pointer' }}>Phase {ph}</button>
+          ))}
+        </div>
+        <button onClick={() => { resetForm(); setShowAdd(true) }} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 16px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>+ Add Group</button>
+      </div>
+
+      {showAdd && (
+        <div style={{ padding: 16, marginBottom: 12, background: '#132238', border: '1px solid rgba(201,169,110,0.15)', borderRadius: 6 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
+            <div><div style={lbl}>Label *</div><input value={form.label} onChange={e => { setForm(f => ({ ...f, label: e.target.value, groupKey: editingId ? f.groupKey : e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '_') })) }} style={inp} /></div>
+            <div><div style={lbl}>Icon Name</div><input value={form.icon} onChange={e => setForm(f => ({ ...f, icon: e.target.value }))} style={inp} placeholder="e.g., BookOpen, Target" /></div>
+            <div style={{ gridColumn: isMobile ? undefined : 'span 2' }}><div style={lbl}>Description</div><input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} style={inp} /></div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#9BB0C4', cursor: 'pointer' }}><input type="checkbox" checked={form.showTrainer} onChange={e => setForm(f => ({ ...f, showTrainer: e.target.checked }))} /> Show trainer</label>
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+            <button onClick={resetForm} style={{ padding: '6px 14px', borderRadius: 4, fontSize: 11, background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#9BB0C4', cursor: 'pointer' }}>Cancel</button>
+            <button onClick={handleSave} disabled={saving || !form.label} style={{ padding: '6px 16px', borderRadius: 4, fontSize: 11, fontWeight: 700, background: '#C9A96E', border: 'none', color: '#142D48', cursor: 'pointer' }}>{saving ? 'Saving...' : editingId ? 'Update' : 'Create'}</button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {phaseGroups.map(g => (
+          <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderRadius: 6, background: '#132238', border: '1px solid rgba(255,255,255,0.05)' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#ffffff' }}>{g.label}</span>
+                {g.icon && <span style={{ fontSize: 9, color: '#C9A96E', padding: '1px 6px', background: 'rgba(201,169,110,0.08)', borderRadius: 3 }}>{g.icon}</span>}
+                {g.showTrainer && <span style={{ fontSize: 8, color: '#4ade80', padding: '1px 6px', background: 'rgba(74,222,128,0.08)', borderRadius: 3 }}>Trainer</span>}
+              </div>
+              {g.description && <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>{g.description}</div>}
+              <div style={{ fontSize: 9, color: '#4B5563', marginTop: 2 }}>Key: {g.groupKey}</div>
+            </div>
+            <button onClick={() => { setForm({ groupKey: g.groupKey, label: g.label, icon: g.icon ?? '', description: g.description ?? '', showTrainer: g.showTrainer }); setEditingId(g.id); setShowAdd(true) }} style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 11, cursor: 'pointer' }}>Edit</button>
+            <button onClick={async () => { if (!confirm('Delete this group?')) return; await fetch(`/api/admin/phase-groups?id=${g.id}`, { method: 'DELETE' }); onRefresh() }} style={{ background: 'none', border: 'none', color: '#f87171', fontSize: 11, cursor: 'pointer' }}>Delete</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ProgressionsEditor({ progressions, onRefresh, isMobile }: { progressions: ProgressionDef[]; onRefresh: () => void; isMobile: boolean }) {
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [showAdd, setShowAdd] = useState(false)
+  const [form, setForm] = useState({ key: '', label: '', description: '', icon: '', achievedWhen: '' })
+  const [saving, setSaving] = useState(false)
+
+  const inp: React.CSSProperties = { width: '100%', padding: '8px 10px', fontSize: 13, background: '#0A1628', border: '1px solid rgba(201,169,110,0.2)', borderRadius: 4, color: '#ffffff', outline: 'none' }
+  const lbl: React.CSSProperties = { fontSize: 9, fontWeight: 700, color: '#9BB0C4', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }
+
+  const resetForm = () => { setForm({ key: '', label: '', description: '', icon: '', achievedWhen: '' }); setEditingId(null); setShowAdd(false) }
+
+  const handleSave = async () => {
+    setSaving(true)
+    if (editingId) {
+      await fetch('/api/admin/progressions', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editingId, label: form.label, description: form.description, icon: form.icon || null, achievedWhen: form.achievedWhen }) })
+    } else {
+      const key = form.key || form.label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+      await fetch('/api/admin/progressions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key, label: form.label, description: form.description, icon: form.icon || undefined, achievedWhen: form.achievedWhen }) })
+    }
+    resetForm(); setSaving(false); onRefresh()
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ fontSize: 12, color: '#6B8299' }}>
+          {progressions.length} progression badges. These appear as achievement badges in the agent portal.
+        </div>
+        <button onClick={() => { resetForm(); setShowAdd(true) }} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 16px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>+ Add Badge</button>
+      </div>
+
+      {showAdd && (
+        <div style={{ padding: 16, marginBottom: 12, background: '#132238', border: '1px solid rgba(201,169,110,0.15)', borderRadius: 6 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
+            <div><div style={lbl}>Label *</div><input value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value, key: editingId ? f.key : e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '_') }))} style={inp} /></div>
+            <div><div style={lbl}>Icon Name</div><input value={form.icon} onChange={e => setForm(f => ({ ...f, icon: e.target.value }))} style={inp} placeholder="e.g., Award, Star, Crown" /></div>
+            <div style={{ gridColumn: isMobile ? undefined : 'span 2' }}><div style={lbl}>Description *</div><input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} style={inp} placeholder="What this badge represents" /></div>
+            <div style={{ gridColumn: isMobile ? undefined : 'span 2' }}>
+              <div style={lbl}>Achieved When *</div>
+              <input value={form.achievedWhen} onChange={e => setForm(f => ({ ...f, achievedWhen: e.target.value }))} style={inp} placeholder="e.g., phase2_fta_10, always, milestone_50k_watch" />
+              <div style={{ fontSize: 9, color: '#4B5563', marginTop: 4 }}>Format: phase[N]_[itemKey] for checklist items, &quot;always&quot; for automatic, milestone_[key] for milestones</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+            <button onClick={resetForm} style={{ padding: '6px 14px', borderRadius: 4, fontSize: 11, background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#9BB0C4', cursor: 'pointer' }}>Cancel</button>
+            <button onClick={handleSave} disabled={saving || !form.label || !form.description || !form.achievedWhen} style={{ padding: '6px 16px', borderRadius: 4, fontSize: 11, fontWeight: 700, background: '#C9A96E', border: 'none', color: '#142D48', cursor: 'pointer' }}>{saving ? 'Saving...' : editingId ? 'Update' : 'Create'}</button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {progressions.map(p => (
+          <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderRadius: 6, background: '#132238', border: '1px solid rgba(255,255,255,0.05)' }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(201,169,110,0.1)', border: '1px solid rgba(201,169,110,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#C9A96E', fontWeight: 700, flexShrink: 0 }}>
+              {p.icon ? p.icon.slice(0, 2) : p.label.slice(0, 2)}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#ffffff' }}>{p.label}</div>
+              <div style={{ fontSize: 11, color: '#6B8299', marginTop: 1 }}>{p.description}</div>
+              <div style={{ fontSize: 9, color: '#4B5563', marginTop: 2 }}>Achieved when: {p.achievedWhen}</div>
+            </div>
+            <button onClick={() => { setForm({ key: p.key, label: p.label, description: p.description, icon: p.icon ?? '', achievedWhen: p.achievedWhen }); setEditingId(p.id); setShowAdd(true) }} style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 11, cursor: 'pointer' }}>Edit</button>
+            <button onClick={async () => { if (!confirm('Delete this badge?')) return; await fetch(`/api/admin/progressions?id=${p.id}`, { method: 'DELETE' }); onRefresh() }} style={{ background: 'none', border: 'none', color: '#f87171', fontSize: 11, cursor: 'pointer' }}>Delete</button>
+          </div>
+        ))}
       </div>
     </div>
   )
