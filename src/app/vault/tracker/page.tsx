@@ -131,6 +131,7 @@ export default function TrackerPage() {
 
   // Trainer list for dropdowns
   const [trainers, setTrainers] = useState<string[]>([])
+  const [promotionRequests, setPromotionRequests] = useState<{ id: string; agentName: string; agentId: string; createdAt: string; status: string }[]>([])
 
   // Team-wide call review stats
   const [reviewStats, setReviewStats] = useState<{ teamAvg30d: number | null; teamAvgPrior30d: number | null; delta: number | null; flaggedOpenCount: number; totalReviews: number; reviewedAgents30d: number } | null>(null)
@@ -210,6 +211,12 @@ export default function TrackerPage() {
   useEffect(() => { fetchTrends() }, [fetchTrends])
   useEffect(() => { fetchTrainers() }, [fetchTrainers])
   useEffect(() => { fetchReviewStats() }, [fetchReviewStats])
+  useEffect(() => {
+    fetch('/api/vault/promotion-requests')
+      .then(r => r.ok ? r.json() : { requests: [] })
+      .then((d: { requests: typeof promotionRequests }) => setPromotionRequests(d.requests ?? []))
+      .catch(() => {})
+  }, [])
 
   const openDrawer = useCallback(async (id: string) => {
     setDrawerLoading(true)
@@ -657,6 +664,54 @@ export default function TrackerPage() {
           {total} agents
         </div>
       </div>
+
+      {/* ── Promotion requests banner ── */}
+      {promotionRequests.length > 0 && (
+        <div style={{
+          marginBottom: 16, padding: '14px 20px', borderRadius: 6,
+          background: 'rgba(245,158,11,0.06)',
+          border: '1px solid rgba(245,158,11,0.2)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          flexWrap: 'wrap', gap: 10,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{
+              fontSize: 9, fontWeight: 700, color: '#f59e0b',
+              background: 'rgba(245,158,11,0.15)', padding: '3px 10px',
+              borderRadius: 10, letterSpacing: '0.08em', textTransform: 'uppercase',
+            }}>{promotionRequests.length}</span>
+            <span style={{ fontSize: 13, color: '#ffffff', fontWeight: 500 }}>
+              Promotion Request{promotionRequests.length > 1 ? 's' : ''} Pending
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {promotionRequests.map(r => (
+              <button
+                key={r.id}
+                onClick={() => {
+                  const agent = agents.find(a => a.id === r.agentId)
+                  if (agent) {
+                    setSelectedAgent(null)
+                    setTimeout(() => {
+                      fetch(`/api/admin/agents/${r.agentId}`)
+                        .then(res => res.json())
+                        .then((d: DetailedAgent) => setSelectedAgent(d))
+                    }, 50)
+                  }
+                }}
+                style={{
+                  padding: '5px 14px', borderRadius: 4, fontSize: 11, fontWeight: 600,
+                  background: 'rgba(245,158,11,0.1)',
+                  border: '1px solid rgba(245,158,11,0.25)',
+                  color: '#f59e0b', cursor: 'pointer',
+                }}
+              >
+                {r.agentName}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Agent table ── */}
       <div style={{
