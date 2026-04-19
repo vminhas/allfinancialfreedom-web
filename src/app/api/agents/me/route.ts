@@ -52,6 +52,15 @@ export async function GET() {
     ssnMasked = plain.length === 9 ? `***-**-${plain.slice(-4)}` : '***-**-****'
   }
 
+  const justPromoted = p.lastSeenPhase !== null && p.lastSeenPhase < p.phase
+
+  if (p.lastSeenPhase !== p.phase) {
+    db.agentProfile.update({
+      where: { id: p.id },
+      data: { lastSeenPhase: p.phase },
+    }).catch(() => {})
+  }
+
   return NextResponse.json({
     id: p.id,
     agentCode: p.agentCode,
@@ -86,5 +95,6 @@ export async function GET() {
     carrierAppointments: p.carrierAppointments,
     milestones: p.milestones,
     counts: p._count,
+    justPromoted,
   })
 }

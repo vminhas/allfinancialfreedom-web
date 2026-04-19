@@ -190,23 +190,20 @@ function AgentDashboardInner() {
   useEffect(() => { fetchData() }, [fetchData])
 
   useEffect(() => {
-    if (!data) return
-    const lastPhaseKey = `aff_last_phase_${data.agentCode}`
-    const lastPhase = parseInt(localStorage.getItem(lastPhaseKey) ?? '0')
-    if (lastPhase > 0 && data.phase > lastPhase) {
-      setShowPromotion(data.phase)
-      import('canvas-confetti').then(({ default: confetti }) => {
-        const end = Date.now() + 3000
-        const frame = () => {
-          confetti({ particleCount: 3, angle: 60, spread: 55, origin: { x: 0, y: 0.7 }, colors: ['#C9A96E', '#4ade80', '#60a5fa', '#ffffff'] })
-          confetti({ particleCount: 3, angle: 120, spread: 55, origin: { x: 1, y: 0.7 }, colors: ['#C9A96E', '#4ade80', '#60a5fa', '#ffffff'] })
-          if (Date.now() < end) requestAnimationFrame(frame)
-        }
-        frame()
-      })
-    }
-    localStorage.setItem(lastPhaseKey, String(data.phase))
-  }, [data])
+    if (!data || !(data as AgentData & { justPromoted?: boolean }).justPromoted) return
+    setShowPromotion(data.phase)
+    import('canvas-confetti').then(({ default: confetti }) => {
+      const end = Date.now() + 3000
+      const frame = () => {
+        confetti({ particleCount: 3, angle: 60, spread: 55, origin: { x: 0, y: 0.7 }, colors: ['#C9A96E', '#4ade80', '#60a5fa', '#ffffff'] })
+        confetti({ particleCount: 3, angle: 120, spread: 55, origin: { x: 1, y: 0.7 }, colors: ['#C9A96E', '#4ade80', '#60a5fa', '#ffffff'] })
+        if (Date.now() < end) requestAnimationFrame(frame)
+      }
+      frame()
+    })
+  // Only run on initial load, not on refetches
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading])
 
   useEffect(() => {
     fetch('/api/agents/setup-resources')

@@ -668,13 +668,12 @@ export default function TrackerPage() {
       {/* ── Promotion requests banner ── */}
       {promotionRequests.length > 0 && (
         <div style={{
-          marginBottom: 16, padding: '14px 20px', borderRadius: 6,
+          marginBottom: 16, borderRadius: 6,
           background: 'rgba(245,158,11,0.06)',
           border: '1px solid rgba(245,158,11,0.2)',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          flexWrap: 'wrap', gap: 10,
+          overflow: 'hidden',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{
               fontSize: 9, fontWeight: 700, color: '#f59e0b',
               background: 'rgba(245,158,11,0.15)', padding: '3px 10px',
@@ -684,32 +683,56 @@ export default function TrackerPage() {
               Promotion Request{promotionRequests.length > 1 ? 's' : ''} Pending
             </span>
           </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {promotionRequests.map(r => (
-              <button
-                key={r.id}
-                onClick={() => {
-                  const agent = agents.find(a => a.id === r.agentId)
-                  if (agent) {
-                    setSelectedAgent(null)
-                    setTimeout(() => {
-                      fetch(`/api/admin/agents/${r.agentId}`)
-                        .then(res => res.json())
-                        .then((d: DetailedAgent) => setSelectedAgent(d))
-                    }, 50)
-                  }
-                }}
-                style={{
-                  padding: '5px 14px', borderRadius: 4, fontSize: 11, fontWeight: 600,
-                  background: 'rgba(245,158,11,0.1)',
-                  border: '1px solid rgba(245,158,11,0.25)',
-                  color: '#f59e0b', cursor: 'pointer',
-                }}
-              >
-                {r.agentName}
-              </button>
-            ))}
-          </div>
+          {promotionRequests.map(r => (
+            <div key={r.id} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '10px 20px', borderTop: '1px solid rgba(245,158,11,0.1)',
+              gap: 12, flexWrap: 'wrap',
+            }}>
+              <div>
+                <span style={{ fontSize: 13, color: '#ffffff', fontWeight: 500 }}>{r.agentName}</span>
+                <span style={{ fontSize: 11, color: '#6B8299', marginLeft: 8 }}>
+                  Senior Associate Promotion · requested {new Date(r.createdAt).toLocaleDateString()}
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={async () => {
+                    const res = await fetch('/api/vault/promotion-requests', {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ requestId: r.id, action: 'approve' }),
+                    })
+                    if (res.ok) {
+                      setPromotionRequests(prev => prev.filter(p => p.id !== r.id))
+                      fetchAgents()
+                    }
+                  }}
+                  style={{
+                    padding: '6px 18px', borderRadius: 4, fontSize: 11, fontWeight: 700,
+                    background: '#4ade80', border: 'none', color: '#0A1628', cursor: 'pointer',
+                  }}
+                >Approve</button>
+                <button
+                  onClick={async () => {
+                    const res = await fetch('/api/vault/promotion-requests', {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ requestId: r.id, action: 'reject' }),
+                    })
+                    if (res.ok) {
+                      setPromotionRequests(prev => prev.filter(p => p.id !== r.id))
+                    }
+                  }}
+                  style={{
+                    padding: '6px 14px', borderRadius: 4, fontSize: 11, fontWeight: 600,
+                    background: 'transparent', border: '1px solid rgba(248,113,113,0.3)',
+                    color: '#f87171', cursor: 'pointer',
+                  }}
+                >Decline</button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
