@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import {
   PHASE_LABELS, PHASE_ITEMS, PHASE_GROUPS, CARRIERS,
-  CARRIER_UNLOCK_PHASE, LICENSING_CHECKLIST, SYSTEM_PROGRESSIONS,
+  CARRIER_UNLOCK_PHASE, LICENSING_CHECKLIST, SYSTEM_PROGRESSIONS, PHASE_EXPECTED_DAYS,
 } from '@/lib/agent-constants'
 import { GROUP_ICONS, Mail, ChevronDown, ArrowRight, ExternalLink, UserCheck } from '@/lib/checklist-icons'
 import CallReviewModal, { CallReviewData } from '@/components/CallReviewModal'
@@ -625,6 +625,55 @@ function AgentDashboardInner() {
                   <span>{PHASE_LABELS[activeChecklistPhase].nextStep}</span>
                 </div>
               </div>
+
+              {/* Time in Phase indicator — only for phases with defined timelines */}
+              {activeChecklistPhase === data.phase && data.phaseStartedAt && PHASE_EXPECTED_DAYS[data.phase] && (() => {
+                const expectedDays = PHASE_EXPECTED_DAYS[data.phase]
+                const daysIn = Math.max(0, Math.floor((Date.now() - new Date(data.phaseStartedAt).getTime()) / (1000 * 60 * 60 * 24)))
+                const timePct = Math.min(100, Math.round((daysIn / expectedDays) * 100))
+                const isOverdue = daysIn > expectedDays
+                const isNearing = daysIn > expectedDays * 0.75 && !isOverdue
+                const barColor = isOverdue ? '#f87171' : isNearing ? '#f59e0b' : '#4ade80'
+                const daysLeft = Math.max(0, expectedDays - daysIn)
+
+                return (
+                  <div style={{ marginTop: 12, padding: '12px 14px', background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid rgba(255,255,255,0.04)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <span style={{ fontSize: 10, fontWeight: 600, color: '#9BB0C4', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                        Time in Phase
+                      </span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: barColor }}>
+                        {isOverdue
+                          ? `${daysIn - expectedDays} days over target`
+                          : daysLeft === 0
+                            ? 'Target day'
+                            : `${daysLeft} days remaining`
+                        }
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ flex: 1, height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden', position: 'relative' }}>
+                        <div style={{
+                          height: '100%', borderRadius: 3,
+                          width: `${timePct}%`,
+                          background: barColor,
+                          transition: 'width 0.5s, background 0.3s',
+                        }} />
+                        {!isOverdue && (
+                          <div style={{
+                            position: 'absolute', top: -2, bottom: -2,
+                            left: '75%', width: 1,
+                            background: 'rgba(245,158,11,0.4)',
+                          }} />
+                        )}
+                      </div>
+                      <span style={{ fontSize: 10, color: '#6B8299', flexShrink: 0, minWidth: 60, textAlign: 'right' }}>
+                        Day {daysIn} / {expectedDays}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })()}
             </div>
 
             <div style={{ height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3, marginBottom: 24 }}>

@@ -553,6 +553,10 @@ export const CARRIER_UNLOCK_PHASE: Record<string, number> = {
 }
 
 // At-risk thresholds: days in phase + max % complete before flagged
+export const PHASE_EXPECTED_DAYS: Record<number, number> = {
+  1: 14, 2: 30, 3: 52,
+}
+
 export const AT_RISK_THRESHOLDS: Record<number, { days: number; minPct: number }> = {
   1: { days: 21, minPct: 0.8 },
   2: { days: 30, minPct: 0.6 },
