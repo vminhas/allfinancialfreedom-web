@@ -12,6 +12,7 @@ import CallReviewModal, { CallReviewData } from '@/components/CallReviewModal'
 import LicensingRequestModal, { type LicensingRequestTopic } from '@/components/LicensingRequestModal'
 import LicensingCoordinatorPanel from '@/components/LicensingCoordinatorPanel'
 import FTALogModal from '@/components/FTALogModal'
+import FeedbackButton from '@/components/FeedbackButton'
 import { useIsMobile } from '@/lib/useIsMobile'
 
 interface PhaseProgress { phase: number; total: number; completed: number; pct: number }
@@ -1233,6 +1234,8 @@ function AgentDashboardInner() {
           />
         )
       })()}
+
+      <FeedbackButton />
 
       {/* Promotion Request Modal */}
       {promotionRequestKey && (

@@ -32,6 +32,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/vault/trainings', label: 'Trainings', icon: '▶' },
       { href: '/vault/call-review', label: 'Call Review', icon: '◐' },
       { href: '/vault/birthdays', label: 'Birthdays', icon: '✦' },
+      { href: '/vault/feedback', label: 'Feedback', icon: '✉' },
     ],
   },
   {

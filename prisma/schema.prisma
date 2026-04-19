@@ -183,6 +183,7 @@ model AgentProfile {
   licensingNotes        LicensingNote[]
   referrals             AgentReferral[]
   pfr                   PersonalFinancialReview?
+  feedback              AgentFeedback[]
 
   @@map("agent_profiles")
 }
@@ -213,6 +214,19 @@ model PersonalFinancialReview {
   createdAt       DateTime     @default(now())
 
   @@map("personal_financial_reviews")
+}
+
+model AgentFeedback {
+  id              String       @id @default(cuid())
+  agentProfileId  String
+  agentProfile    AgentProfile @relation(fields: [agentProfileId], references: [id])
+  category        String       @default("general")
+  message         String
+  read            Boolean      @default(false)
+  adminNotes      String?
+  createdAt       DateTime     @default(now())
+
+  @@map("agent_feedback")
 }
 
 enum ReferralStatus {
