@@ -228,6 +228,7 @@ model PhaseItemDefinition {
   adminOnly   Boolean @default(false)
   actionJson  String?
   coordinatorTopic String?
+  linkedProgression String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

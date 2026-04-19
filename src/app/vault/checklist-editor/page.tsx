@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { PHASE_LABELS, PHASE_GROUPS } from '@/lib/agent-constants'
+import { PHASE_LABELS, PHASE_GROUPS, SYSTEM_PROGRESSIONS } from '@/lib/agent-constants'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 interface PhaseItemDef {
   id: string
@@ -15,9 +16,13 @@ interface PhaseItemDef {
   adminOnly: boolean
   actionJson: string | null
   coordinatorTopic: string | null
+  linkedProgression: string | null
 }
 
+const PROGRESSION_OPTIONS = SYSTEM_PROGRESSIONS.map(p => ({ key: p.key, label: p.label }))
+
 export default function ChecklistEditorPage() {
+  const isMobile = useIsMobile()
   const [items, setItems] = useState<PhaseItemDef[]>([])
   const [loading, setLoading] = useState(true)
   const [activePhase, setActivePhase] = useState(1)
@@ -27,7 +32,7 @@ export default function ChecklistEditorPage() {
 
   const [form, setForm] = useState({
     itemKey: '', label: '', description: '', duration: '',
-    groupKey: '', adminOnly: false, coordinatorTopic: '',
+    groupKey: '', adminOnly: false, coordinatorTopic: '', linkedProgression: '',
   })
 
   const fetchItems = useCallback(async () => {
@@ -45,7 +50,7 @@ export default function ChecklistEditorPage() {
   const groups = PHASE_GROUPS[activePhase] ?? []
 
   const resetForm = () => {
-    setForm({ itemKey: '', label: '', description: '', duration: '', groupKey: '', adminOnly: false, coordinatorTopic: '' })
+    setForm({ itemKey: '', label: '', description: '', duration: '', groupKey: '', adminOnly: false, coordinatorTopic: '', linkedProgression: '' })
     setEditingId(null)
     setShowAdd(false)
   }
@@ -59,6 +64,7 @@ export default function ChecklistEditorPage() {
       groupKey: item.groupKey ?? '',
       adminOnly: item.adminOnly,
       coordinatorTopic: item.coordinatorTopic ?? '',
+      linkedProgression: item.linkedProgression ?? '',
     })
     setEditingId(item.id)
     setShowAdd(true)
@@ -79,6 +85,7 @@ export default function ChecklistEditorPage() {
             groupKey: form.groupKey || null,
             adminOnly: form.adminOnly,
             coordinatorTopic: form.coordinatorTopic || null,
+            linkedProgression: form.linkedProgression || null,
           }),
         })
       } else {
@@ -95,6 +102,7 @@ export default function ChecklistEditorPage() {
             groupKey: form.groupKey || undefined,
             adminOnly: form.adminOnly,
             coordinatorTopic: form.coordinatorTopic || undefined,
+            linkedProgression: form.linkedProgression || undefined,
           }),
         })
       }
@@ -141,7 +149,7 @@ export default function ChecklistEditorPage() {
   if (loading) return <div style={{ padding: 32, color: '#6B8299' }}>Loading...</div>
 
   return (
-    <div style={{ padding: '24px 32px', maxWidth: 960, margin: '0 auto' }}>
+    <div style={{ padding: isMobile ? '16px' : '24px 32px', maxWidth: 960, margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
           <h1 style={{ fontSize: 18, fontWeight: 700, color: '#ffffff', margin: 0 }}>Checklist Editor</h1>
@@ -186,7 +194,7 @@ export default function ChecklistEditorPage() {
           <div style={{ fontSize: 14, fontWeight: 600, color: '#ffffff', marginBottom: 16 }}>
             {editingId ? 'Edit Item' : `Add Item to Phase ${activePhase}`}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
             <div>
               <div style={lbl}>Label *</div>
               <input value={form.label} onChange={e => {
@@ -200,7 +208,7 @@ export default function ChecklistEditorPage() {
               <div style={lbl}>Key {editingId && '(read-only)'}</div>
               <input value={form.itemKey} onChange={e => setForm(f => ({ ...f, itemKey: e.target.value }))} disabled={!!editingId} style={{ ...inp, opacity: editingId ? 0.5 : 1 }} />
             </div>
-            <div style={{ gridColumn: 'span 2' }}>
+            <div style={{ gridColumn: isMobile ? undefined : 'span 2' }}>
               <div style={lbl}>Description *</div>
               <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={3} style={{ ...inp, resize: 'vertical', fontFamily: 'inherit' }} placeholder="What the agent needs to do..." />
             </div>
@@ -229,7 +237,14 @@ export default function ChecklistEditorPage() {
                 <option value="GENERAL">General</option>
               </select>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', paddingTop: 18 }}>
+            <div>
+              <div style={lbl}>Linked Progression Badge</div>
+              <select value={form.linkedProgression} onChange={e => setForm(f => ({ ...f, linkedProgression: e.target.value }))} style={{ ...inp, cursor: 'pointer' }}>
+                <option value="">None</option>
+                {PROGRESSION_OPTIONS.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', paddingTop: isMobile ? 0 : 18 }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#9BB0C4', cursor: 'pointer' }}>
                 <input type="checkbox" checked={form.adminOnly} onChange={e => setForm(f => ({ ...f, adminOnly: e.target.checked }))} />
                 Admin-only (requires approval)
@@ -288,6 +303,11 @@ export default function ChecklistEditorPage() {
                   )}
                   {item.coordinatorTopic && (
                     <span style={{ fontSize: 8, color: '#9B6DFF', padding: '1px 6px', background: 'rgba(155,109,255,0.08)', borderRadius: 3, textTransform: 'uppercase', fontWeight: 600 }}>LC</span>
+                  )}
+                  {item.linkedProgression && (
+                    <span style={{ fontSize: 8, color: '#4ade80', padding: '1px 6px', background: 'rgba(74,222,128,0.08)', borderRadius: 3, fontWeight: 600 }}>
+                      {PROGRESSION_OPTIONS.find(p => p.key === item.linkedProgression)?.label ?? item.linkedProgression}
+                    </span>
                   )}
                 </div>
                 <div style={{ fontSize: 11, color: '#6B8299', lineHeight: 1.5, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const }}>

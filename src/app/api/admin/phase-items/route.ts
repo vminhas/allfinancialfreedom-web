@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
     groupKey?: string
     adminOnly?: boolean
     coordinatorTopic?: string
+    linkedProgression?: string
   }
 
   if (!body.phase || !body.itemKey || !body.label || !body.description) {
@@ -78,6 +79,7 @@ export async function POST(req: NextRequest) {
         sortOrder: (maxOrder?.sortOrder ?? -1) + 1,
         adminOnly: body.adminOnly ?? false,
         coordinatorTopic: body.coordinatorTopic,
+        linkedProgression: body.linkedProgression,
       },
     })
     return NextResponse.json(item)
@@ -118,6 +120,7 @@ export async function PUT(req: NextRequest) {
   if (body.adminOnly !== undefined) data.adminOnly = body.adminOnly
   if (body.coordinatorTopic !== undefined) data.coordinatorTopic = body.coordinatorTopic
   if (body.actionJson !== undefined) data.actionJson = body.actionJson
+  if ((body as Record<string, unknown>).linkedProgression !== undefined) data.linkedProgression = (body as Record<string, unknown>).linkedProgression
 
   const item = await db.phaseItemDefinition.update({ where: { id: body.id }, data })
   return NextResponse.json(item)
