@@ -7,7 +7,7 @@ import {
   PHASE_LABELS, PHASE_ITEMS, PHASE_GROUPS, CARRIERS,
   CARRIER_UNLOCK_PHASE, LICENSING_CHECKLIST, SYSTEM_PROGRESSIONS, PHASE_EXPECTED_DAYS,
 } from '@/lib/agent-constants'
-import { GROUP_ICONS, Mail, ChevronDown, ArrowRight, ExternalLink, UserCheck } from '@/lib/checklist-icons'
+import { GROUP_ICONS, PROGRESSION_ICONS, Mail, ChevronDown, ArrowRight, ExternalLink, UserCheck } from '@/lib/checklist-icons'
 import CallReviewModal, { CallReviewData } from '@/components/CallReviewModal'
 import LicensingRequestModal, { type LicensingRequestTopic } from '@/components/LicensingRequestModal'
 import LicensingCoordinatorPanel from '@/components/LicensingCoordinatorPanel'
@@ -441,39 +441,54 @@ function AgentDashboardInner() {
               {SYSTEM_PROGRESSIONS.map(prog => {
                 const achieved = progressions[prog.key] ?? false
                 const isSelected = selectedProgression === prog.key
+                const BadgeIcon = PROGRESSION_ICONS[prog.key]
                 return (
                   <button
                     key={prog.key}
                     onClick={() => setSelectedProgression(isSelected ? null : prog.key)}
                     style={{
                       display: 'flex', flexDirection: 'column', alignItems: 'center',
-                      padding: '10px 12px', borderRadius: 6, cursor: 'pointer',
-                      minWidth: 76, maxWidth: 84, textAlign: 'center',
+                      padding: '10px 10px 8px', borderRadius: 8, cursor: 'pointer',
+                      minWidth: 72, maxWidth: 80, textAlign: 'center',
                       background: isSelected
                         ? (achieved ? 'rgba(201,169,110,0.2)' : 'rgba(255,255,255,0.06)')
-                        : achieved ? 'rgba(201,169,110,0.1)' : 'rgba(255,255,255,0.02)',
-                      border: `1px solid ${isSelected ? (achieved ? '#C9A96E' : 'rgba(255,255,255,0.2)') : achieved ? 'rgba(201,169,110,0.35)' : 'rgba(255,255,255,0.05)'}`,
-                      boxShadow: achieved ? '0 0 12px rgba(201,169,110,0.15)' : 'none',
-                      transition: 'all 0.15s',
+                        : achieved ? 'rgba(201,169,110,0.08)' : 'rgba(255,255,255,0.02)',
+                      border: `1.5px solid ${isSelected ? (achieved ? '#C9A96E' : 'rgba(255,255,255,0.2)') : achieved ? 'rgba(201,169,110,0.3)' : 'rgba(255,255,255,0.05)'}`,
+                      boxShadow: achieved ? '0 0 16px rgba(201,169,110,0.2), inset 0 1px 0 rgba(201,169,110,0.1)' : 'none',
+                      transition: 'all 0.2s',
+                      position: 'relative',
                     }}
                   >
                     <div style={{
-                      width: 28, height: 28, borderRadius: '50%', marginBottom: 6,
-                      background: achieved ? '#C9A96E' : 'rgba(255,255,255,0.06)',
+                      width: 34, height: 34, borderRadius: 8, marginBottom: 6,
+                      background: achieved
+                        ? 'linear-gradient(135deg, #C9A96E 0%, #a8854a 100%)'
+                        : 'rgba(255,255,255,0.04)',
+                      border: `1px solid ${achieved ? 'rgba(201,169,110,0.5)' : 'rgba(255,255,255,0.06)'}`,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 13, fontWeight: 700,
-                      color: achieved ? '#142D48' : '#4B5563',
-                      boxShadow: achieved ? '0 0 8px rgba(201,169,110,0.4)' : 'none',
+                      boxShadow: achieved ? '0 2px 8px rgba(201,169,110,0.3)' : 'none',
                     }}>
-                      {achieved ? '✓' : '·'}
+                      {BadgeIcon
+                        ? <BadgeIcon size={16} color={achieved ? '#142D48' : '#4B5563'} strokeWidth={2.2} />
+                        : <span style={{ fontSize: 12, color: achieved ? '#142D48' : '#4B5563' }}>{achieved ? '\u2713' : '\u00b7'}</span>
+                      }
                     </div>
                     <div style={{
-                      fontSize: 9, fontWeight: 600, lineHeight: 1.3,
+                      fontSize: 8, fontWeight: 700, lineHeight: 1.25,
                       color: achieved ? '#C9A96E' : '#4B5563',
                       letterSpacing: '0.02em',
                     }}>
                       {prog.label}
                     </div>
+                    {achieved && (
+                      <div style={{
+                        position: 'absolute', top: -3, right: -3,
+                        width: 12, height: 12, borderRadius: '50%',
+                        background: '#4ade80', border: '2px solid #132238',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 7, color: '#0A1628', fontWeight: 700,
+                      }}>{'\u2713'}</div>
+                    )}
                   </button>
                 )
               })}
@@ -484,26 +499,33 @@ function AgentDashboardInner() {
           {selectedProgression && (() => {
             const prog = SYSTEM_PROGRESSIONS.find(p => p.key === selectedProgression)!
             const achieved = progressions[selectedProgression] ?? false
+            const DetailIcon = PROGRESSION_ICONS[prog.key]
             return (
               <div style={{
-                marginTop: 12, padding: '14px 16px', borderRadius: 6,
+                marginTop: 12, padding: '16px 18px', borderRadius: 8,
                 background: achieved ? 'rgba(201,169,110,0.07)' : 'rgba(255,255,255,0.03)',
                 border: `1px solid ${achieved ? 'rgba(201,169,110,0.2)' : 'rgba(255,255,255,0.07)'}`,
-                display: 'flex', gap: 12, alignItems: 'flex-start',
+                display: 'flex', gap: 14, alignItems: 'flex-start',
               }}>
                 <div style={{
-                  width: 24, height: 24, borderRadius: '50%', flexShrink: 0, marginTop: 1,
-                  background: achieved ? '#C9A96E' : 'rgba(255,255,255,0.08)',
+                  width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                  background: achieved
+                    ? 'linear-gradient(135deg, #C9A96E 0%, #a8854a 100%)'
+                    : 'rgba(255,255,255,0.05)',
+                  border: `1.5px solid ${achieved ? 'rgba(201,169,110,0.5)' : 'rgba(255,255,255,0.08)'}`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 11, fontWeight: 700, color: achieved ? '#142D48' : '#4B5563',
+                  boxShadow: achieved ? '0 2px 10px rgba(201,169,110,0.3)' : 'none',
                 }}>
-                  {achieved ? '✓' : '·'}
+                  {DetailIcon
+                    ? <DetailIcon size={20} color={achieved ? '#142D48' : '#4B5563'} strokeWidth={2} />
+                    : <span style={{ fontSize: 14, color: achieved ? '#142D48' : '#4B5563' }}>{achieved ? '\u2713' : '\u00b7'}</span>
+                  }
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: achieved ? '#C9A96E' : '#9BB0C4', marginBottom: 4 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: achieved ? '#C9A96E' : '#9BB0C4', marginBottom: 4 }}>
                     {prog.label}
                   </div>
-                  <div style={{ fontSize: 11, color: '#6B8299', lineHeight: 1.6 }}>
+                  <div style={{ fontSize: 12, color: '#9BB0C4', lineHeight: 1.6 }}>
                     {prog.description}
                   </div>
                   <div style={{ marginTop: 6, fontSize: 10, color: achieved ? '#4ade80' : '#4B5563', fontStyle: 'italic' }}>
