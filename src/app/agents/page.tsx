@@ -123,6 +123,7 @@ function AgentDashboardInner() {
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [setupResources, setSetupResources] = useState<Record<string, string>>({})
   const [ftaModalKey, setFtaModalKey] = useState<string | null>(null)
+  const [showPromotion, setShowPromotion] = useState<number | null>(null)
 
   const toggleExpanded = (key: string) => {
     setExpandedItems(prev => {
@@ -185,6 +186,25 @@ function AgentDashboardInner() {
   }, [router])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  useEffect(() => {
+    if (!data) return
+    const lastPhaseKey = `aff_last_phase_${data.agentCode}`
+    const lastPhase = parseInt(localStorage.getItem(lastPhaseKey) ?? '0')
+    if (lastPhase > 0 && data.phase > lastPhase) {
+      setShowPromotion(data.phase)
+      import('canvas-confetti').then(({ default: confetti }) => {
+        const end = Date.now() + 3000
+        const frame = () => {
+          confetti({ particleCount: 3, angle: 60, spread: 55, origin: { x: 0, y: 0.7 }, colors: ['#C9A96E', '#4ade80', '#60a5fa', '#ffffff'] })
+          confetti({ particleCount: 3, angle: 120, spread: 55, origin: { x: 1, y: 0.7 }, colors: ['#C9A96E', '#4ade80', '#60a5fa', '#ffffff'] })
+          if (Date.now() < end) requestAnimationFrame(frame)
+        }
+        frame()
+      })
+    }
+    localStorage.setItem(lastPhaseKey, String(data.phase))
+  }, [data])
 
   useEffect(() => {
     fetch('/api/agents/setup-resources')
@@ -1082,6 +1102,54 @@ function AgentDashboardInner() {
           />
         )
       })()}
+
+      {/* Promotion Celebration Overlay */}
+      {showPromotion && (
+        <div
+          onClick={() => setShowPromotion(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 2000,
+            background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer',
+          }}
+        >
+          <div style={{ textAlign: 'center', maxWidth: 420, padding: 32 }}>
+            <div style={{
+              width: 80, height: 80, borderRadius: '50%', margin: '0 auto 20px',
+              background: 'rgba(201,169,110,0.15)',
+              border: '2px solid #C9A96E',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 36, animation: 'aff-pulse 1.5s ease-in-out infinite',
+            }}>
+              <span style={{ color: '#C9A96E' }}>&#9733;</span>
+            </div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: '#ffffff', marginBottom: 8 }}>
+              Congratulations!
+            </div>
+            <div style={{ fontSize: 16, color: '#C9A96E', fontWeight: 600, marginBottom: 12 }}>
+              You&apos;ve been promoted to Phase {showPromotion}: {PHASE_LABELS[showPromotion]?.title}
+            </div>
+            <div style={{ fontSize: 13, color: '#9BB0C4', lineHeight: 1.6, marginBottom: 24 }}>
+              {PHASE_LABELS[showPromotion]?.description}
+            </div>
+            <button
+              onClick={() => setShowPromotion(null)}
+              style={{
+                background: '#C9A96E', color: '#142D48', border: 'none',
+                borderRadius: 6, padding: '14px 32px', fontSize: 13,
+                fontWeight: 700, cursor: 'pointer',
+                letterSpacing: '0.08em', textTransform: 'uppercase',
+              }}
+            >
+              Let&apos;s Go
+            </button>
+          </div>
+          <style>{`
+            @keyframes aff-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+          `}</style>
+        </div>
+      )}
 
       {/* FTA Log Modal */}
       {ftaModalKey && (() => {

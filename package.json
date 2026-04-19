@@ -17,6 +17,7 @@
     "@vercel/blob": "^2.3.3",
     "@vercel/speed-insights": "^1",
     "bcryptjs": "^3.0.3",
+    "canvas-confetti": "^1.9.4",
     "discord.js": "^14.26.2",
     "dotenv": "^17.4.2",
     "gray-matter": "^4",
@@ -31,6 +32,7 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
+    "@types/canvas-confetti": "^1.9.0",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
