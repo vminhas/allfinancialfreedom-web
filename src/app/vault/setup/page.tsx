@@ -163,20 +163,19 @@ export default function SetupDashboard() {
             {editingId ? 'Edit Resource' : 'Add Resource'}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div>
-              <div style={labelStyle}>Key</div>
-              <input
-                value={formKey}
-                onChange={e => setFormKey(e.target.value)}
-                disabled={!!editingId}
-                placeholder="scripts_phone"
-                style={{ ...inputStyle, opacity: editingId ? 0.5 : 1 }}
-              />
-            </div>
-            <div>
+            <div style={{ gridColumn: editingId ? '1' : 'span 2' }}>
               <div style={labelStyle}>Label</div>
-              <input value={formLabel} onChange={e => setFormLabel(e.target.value)} placeholder="Phone Call Scripts" style={inputStyle} />
+              <input value={formLabel} onChange={e => {
+                setFormLabel(e.target.value)
+                if (!editingId) setFormKey(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''))
+              }} placeholder="Phone Call Scripts" style={inputStyle} />
             </div>
+            {editingId && (
+              <div>
+                <div style={labelStyle}>Key</div>
+                <input value={formKey} disabled style={{ ...inputStyle, opacity: 0.5 }} />
+              </div>
+            )}
             <div style={{ gridColumn: '1 / -1' }}>
               <div style={labelStyle}>URL</div>
               <input value={formUrl} onChange={e => setFormUrl(e.target.value)} placeholder="https://..." style={inputStyle} />

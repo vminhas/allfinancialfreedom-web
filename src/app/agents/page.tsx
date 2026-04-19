@@ -124,6 +124,8 @@ function AgentDashboardInner() {
   const [setupResources, setSetupResources] = useState<Record<string, string>>({})
   const [ftaModalKey, setFtaModalKey] = useState<string | null>(null)
   const [showPromotion, setShowPromotion] = useState<number | null>(null)
+  const [promotionRequestKey, setPromotionRequestKey] = useState<string | null>(null)
+  const [promotionRequesting, setPromotionRequesting] = useState(false)
 
   const toggleExpanded = (key: string) => {
     setExpandedItems(prev => {
@@ -213,6 +215,8 @@ function AgentDashboardInner() {
       .catch(() => {})
   }, [])
 
+  const CONFETTI_MILESTONES = new Set(['fta_10', 'first_1000', 'cft_coordinator_signoff', '45k_points', '150k_net_6mo', '100k_income'])
+
   const toggleItem = async (itemKey: string, phase: number, current: boolean) => {
     if (!data) return
     setTogglingKey(itemKey)
@@ -223,6 +227,11 @@ function AgentDashboardInner() {
     })
     await fetchData()
     setTogglingKey(null)
+    if (!current && CONFETTI_MILESTONES.has(itemKey)) {
+      import('canvas-confetti').then(({ default: confetti }) => {
+        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 }, colors: ['#C9A96E', '#4ade80', '#60a5fa', '#ffffff'] })
+      })
+    }
   }
 
   if (loading) {
@@ -421,7 +430,10 @@ function AgentDashboardInner() {
         {/* ── SYSTEM PROGRESSIONS — always visible achievement strip ── */}
         <div style={{ ...card, padding: '20px 24px', marginBottom: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <div style={sectionLabel}>System Progressions</div>
+            <div>
+              <div style={sectionLabel}>System Progressions</div>
+              <div style={{ fontSize: 10, color: '#4B5563', marginTop: -10, marginBottom: 4 }}>These unlock automatically as you complete milestones. Tap any badge to see how.</div>
+            </div>
             <span style={{ fontSize: 11, color: '#6B8299' }}>{achievedCount} of {SYSTEM_PROGRESSIONS.length} achieved</span>
           </div>
           <div style={{ overflowX: 'auto', paddingBottom: 4 }}>
@@ -494,11 +506,28 @@ function AgentDashboardInner() {
                   <div style={{ fontSize: 11, color: '#6B8299', lineHeight: 1.6 }}>
                     {prog.description}
                   </div>
-                  {!achieved && (
-                    <div style={{ marginTop: 6, fontSize: 10, color: '#4B5563', fontStyle: 'italic' }}>
-                      Not yet achieved
-                    </div>
-                  )}
+                  <div style={{ marginTop: 6, fontSize: 10, color: achieved ? '#4ade80' : '#4B5563', fontStyle: 'italic' }}>
+                    {achieved ? 'Achieved' : (() => {
+                      const hints: Record<string, string> = {
+                        code_number: 'Automatically earned when you join AFF.',
+                        client: 'Complete "Help Your 1st Client" in Phase 2 or log a policy.',
+                        pass_license: 'Complete "Pass Life License Test" in Phase 1.',
+                        business_partner_plan: 'Complete "Business Marketing Plan" in Phase 1.',
+                        licensed_appointed: 'Earn your Net License and get appointed with at least one carrier.',
+                        '10_field_trainings': 'Complete all 10 Field Training Appointments in Phase 2.',
+                        associate_promotion: 'Complete all Phase 2 items and request your promotion.',
+                        net_license: 'Earn your first $1,000 in commission (Net License milestone).',
+                        cft_in_progress: 'Attend CFT In Progress classes in Phase 3.',
+                        certified_field_trainer: 'Get CFT Coordinator Sign Off in Phase 3.',
+                        elite_trainer: 'Reach Phase 4.',
+                        marketing_director: 'Accumulate 45,000 production points in Phase 4.',
+                        '50k_watch': 'Earn $50,000 in total production.',
+                        '100k_ring': 'Earn $100,000 in total production.',
+                        emd: 'Maintain 150,000 net points over 6 months in Phase 5.',
+                      }
+                      return hints[prog.key] ?? 'Complete the required milestones to unlock.'
+                    })()}
+                  </div>
                 </div>
                 <button
                   onClick={() => setSelectedProgression(null)}
@@ -870,11 +899,13 @@ function AgentDashboardInner() {
                     >
                       {/* Checkbox — click stops propagation so it only toggles completion */}
                       <button
-                        onClick={e => { e.stopPropagation(); toggleItem(item.key, activeChecklistPhase, done) }}
-                        disabled={isToggling}
+                        onClick={e => { e.stopPropagation(); if (!item.adminOnly) toggleItem(item.key, activeChecklistPhase, done) }}
+                        disabled={isToggling || item.adminOnly}
+                        title={item.adminOnly ? 'This item is approved by leadership' : undefined}
                         style={{
-                          background: 'none', border: 'none', padding: 0, cursor: isToggling ? 'not-allowed' : 'pointer',
-                          opacity: isToggling ? 0.6 : 1, flexShrink: 0,
+                          background: 'none', border: 'none', padding: 0,
+                          cursor: item.adminOnly ? 'default' : isToggling ? 'not-allowed' : 'pointer',
+                          opacity: item.adminOnly ? 0.5 : isToggling ? 0.6 : 1, flexShrink: 0,
                         }}
                       >
                         <div style={{
@@ -933,19 +964,32 @@ function AgentDashboardInner() {
                           </a>
                         )
                       })()}
-                      {item.action?.type === 'inline-form' && (
-                        <button
-                          onClick={e => {
-                            e.stopPropagation()
-                            if (item.action!.modal === 'fta-log' || item.action!.modal === 'fta-schedule') {
-                              setFtaModalKey(item.key)
-                            }
-                          }}
-                          style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 10, cursor: 'pointer', padding: '0 4px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 3 }}
-                        >
-                          {item.action.label ?? 'Open'} <ArrowRight size={11} />
-                        </button>
-                      )}
+                      {item.action?.type === 'inline-form' && (() => {
+                        if (item.action!.modal === 'promotion-request') {
+                          const allOtherItems = (PHASE_ITEMS[activeChecklistPhase] ?? []).filter(i => i.key !== item.key && !i.adminOnly)
+                          const allDone = allOtherItems.every(i => {
+                            if (i.key === 'connect_discord') return !!data.discordUserId
+                            return currentPhaseItems.some(pi => pi.itemKey === i.key && pi.completed)
+                          })
+                          if (done) return <span style={{ fontSize: 10, color: '#4ade80', flexShrink: 0 }}>Approved</span>
+                          if (!allDone) return <span style={{ fontSize: 9, color: '#4B5563', flexShrink: 0 }}>Complete all items first</span>
+                        }
+                        return (
+                          <button
+                            onClick={e => {
+                              e.stopPropagation()
+                              if (item.action!.modal === 'fta-log' || item.action!.modal === 'fta-schedule') {
+                                setFtaModalKey(item.key)
+                              } else if (item.action!.modal === 'promotion-request') {
+                                setPromotionRequestKey(item.key)
+                              }
+                            }}
+                            style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 10, cursor: 'pointer', padding: '0 4px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 3 }}
+                          >
+                            {item.action!.label ?? 'Open'} <ArrowRight size={11} />
+                          </button>
+                        )
+                      })()}
                     </div>
                     {/* Expanded description */}
                     {isExpanded && (() => {
@@ -1166,6 +1210,69 @@ function AgentDashboardInner() {
           />
         )
       })()}
+
+      {/* Promotion Request Modal */}
+      {promotionRequestKey && (
+        <div
+          onClick={() => setPromotionRequestKey(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 16,
+          }}
+        >
+          <div onClick={e => e.stopPropagation()} style={{
+            background: '#132238', border: '1px solid rgba(201,169,110,0.15)',
+            borderRadius: 8, width: '100%', maxWidth: 420, padding: 24,
+            textAlign: 'center',
+          }}>
+            <div style={{ fontSize: 32, marginBottom: 12, color: '#C9A96E' }}>&#9733;</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#ffffff', marginBottom: 8 }}>
+              Request Senior Associate Promotion
+            </div>
+            <div style={{ fontSize: 12, color: '#9BB0C4', lineHeight: 1.6, marginBottom: 20 }}>
+              You&apos;ve completed all the required items. Submit your promotion request for leadership review. Once approved, you&apos;ll receive your Senior Associate designation.
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+              <button
+                onClick={() => setPromotionRequestKey(null)}
+                style={{
+                  padding: '10px 20px', borderRadius: 4, fontSize: 12,
+                  background: 'transparent', border: '1px solid rgba(255,255,255,0.1)',
+                  color: '#9BB0C4', cursor: 'pointer',
+                }}
+              >Cancel</button>
+              <button
+                disabled={promotionRequesting}
+                onClick={async () => {
+                  setPromotionRequesting(true)
+                  await fetch('/api/agents/coordinator-requests', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      phaseItemKey: promotionRequestKey,
+                      topic: 'GENERAL',
+                      message: `I have completed all required items for Phase ${data.phase} and would like to request my Senior Associate Promotion.`,
+                    }),
+                  })
+                  setPromotionRequesting(false)
+                  setPromotionRequestKey(null)
+                  import('canvas-confetti').then(({ default: confetti }) => {
+                    confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 }, colors: ['#C9A96E', '#4ade80', '#ffffff'] })
+                  })
+                }}
+                style={{
+                  padding: '10px 24px', borderRadius: 4, fontSize: 12, fontWeight: 700,
+                  background: '#C9A96E', border: 'none', color: '#142D48',
+                  cursor: promotionRequesting ? 'wait' : 'pointer',
+                  opacity: promotionRequesting ? 0.7 : 1,
+                }}
+              >{promotionRequesting ? 'Submitting...' : 'Submit Request'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -29,6 +29,7 @@ export interface PhaseItemDef {
   group?: string
   action?: PhaseItemAction
   coordinatorTopic?: LicensingCoordinatorTopic
+  adminOnly?: boolean
 }
 
 export interface PhaseGroupDef {
@@ -174,7 +175,8 @@ export const PHASE_ITEMS: Record<number, PhaseItemDef[]> = {
 
     // Promotions & Recognition
     { key: 'associate_promotion', label: 'Senior Associate Promotion', group: 'milestones',
-      description: "Officially promoted to Senior Associate level within AFF. This recognizes your completion of Phase 1 requirements and confirms you're ready for independent field work." },
+      description: "Officially promoted to Senior Associate level within AFF. This recognizes your completion of Phase 1 requirements and confirms you're ready for independent field work.",
+      adminOnly: true, action: { type: 'inline-form', modal: 'promotion-request', label: 'Request Promotion' } },
     { key: 'first_1000', label: "Net License — Make Your 1st $1,000", group: 'milestones',
       description: 'Earn your first $1,000 in commission from issued and paid policies. This is your net license milestone and proves the system works. It is just the start of what is possible.',
       action: { type: 'navigate-tab', tab: 'policies', label: 'View policies' } },
