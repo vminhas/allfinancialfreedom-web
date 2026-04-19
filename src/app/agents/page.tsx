@@ -455,41 +455,41 @@ function AgentDashboardInner() {
 
         <AnnouncementBanner />
 
-        {/* ── NEXT STEP CARD ── */}
+        {/* ── NEXT STEP CARD — finds first incomplete item across ALL phases ── */}
         {(() => {
-          const phaseItems = effectivePhaseItems[data.phase] ?? []
-          const nextItem = phaseItems.find(item => {
-            if (item.key === 'connect_discord') return !data.discordUserId
-            if (item.adminOnly) {
-              const hasPendingReq = coordinatorRequests.some(r => r.phaseItemKey === item.key && (r.status === 'OPEN' || r.status === 'IN_PROGRESS'))
-              const isDone = currentPhaseItems.some(pi => pi.itemKey === item.key && pi.completed)
-              return !isDone && !hasPendingReq
-            }
-            if (item.coordinatorTopic) {
-              return !currentPhaseItems.some(pi => pi.itemKey === item.key && pi.completed)
-            }
-            return !currentPhaseItems.some(pi => pi.itemKey === item.key && pi.completed)
-          })
-          const completedCount = currentPhaseProgress?.completed ?? 0
-          const totalCount = currentPhaseProgress?.total ?? 0
-          const allDone = totalCount > 0 && completedCount >= totalCount
+          let nextItem: typeof PHASE_ITEMS[1][0] | null = null
+          let nextPhase = 0
+          for (let ph = 1; ph <= 5; ph++) {
+            const items = effectivePhaseItems[ph] ?? []
+            const phItems = data.phaseItems
+            const found = items.find(item => {
+              if (item.key === 'connect_discord') return !data.discordUserId
+              if (item.adminOnly) {
+                const hasPendingReq = coordinatorRequests.some(r => r.phaseItemKey === item.key && (r.status === 'OPEN' || r.status === 'IN_PROGRESS'))
+                const isDone = phItems.some(pi => pi.phase === ph && pi.itemKey === item.key && pi.completed)
+                return !isDone && !hasPendingReq
+              }
+              return !phItems.some(pi => pi.phase === ph && pi.itemKey === item.key && pi.completed)
+            })
+            if (found) { nextItem = found; nextPhase = ph; break }
+          }
+
+          const totalAll = data.allPhaseProgress.reduce((s, p) => s + p.total, 0)
+          const doneAll = data.allPhaseProgress.reduce((s, p) => s + p.completed, 0)
+          const allDone = totalAll > 0 && doneAll >= totalAll
 
           if (allDone) {
             return (
               <div style={{
-                marginBottom: 16, padding: isMobile ? '20px 16px' : '20px 24px', borderRadius: 8,
-                background: 'linear-gradient(135deg, rgba(74,222,128,0.08) 0%, rgba(201,169,110,0.06) 100%)',
-                border: '1px solid rgba(74,222,128,0.2)',
+                marginBottom: 16, padding: isMobile ? '20px 16px' : '22px 28px', borderRadius: 10,
+                background: 'linear-gradient(135deg, rgba(74,222,128,0.1) 0%, rgba(201,169,110,0.06) 100%)',
+                border: '1px solid rgba(74,222,128,0.25)',
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(74,222,128,0.15)', border: '1px solid rgba(74,222,128,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: '#4ade80', flexShrink: 0 }}>
-                    &#10003;
-                  </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(74,222,128,0.15)', border: '1.5px solid rgba(74,222,128,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, color: '#4ade80', flexShrink: 0 }}>&#10003;</div>
                   <div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: '#4ade80' }}>Phase {data.phase} Complete</div>
-                    <div style={{ fontSize: 12, color: '#9BB0C4', marginTop: 2 }}>
-                      All items finished. {data.phase < 5 ? 'Talk to your trainer about advancing to the next phase.' : 'You\'ve reached the top. Keep building your legacy.'}
-                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: '#4ade80' }}>All Phases Complete</div>
+                    <div style={{ fontSize: 12, color: '#9BB0C4', marginTop: 2 }}>You&apos;ve reached the top. Keep building your legacy.</div>
                   </div>
                 </div>
               </div>
@@ -498,69 +498,99 @@ function AgentDashboardInner() {
 
           if (!nextItem) return null
 
-          const group = (PHASE_GROUPS[data.phase] ?? []).find(g => g.key === nextItem.group)
+          const group = (PHASE_GROUPS[nextPhase] ?? []).find(g => g.key === nextItem!.group)
+          const phaseProgress = data.allPhaseProgress.find(p => p.phase === nextPhase)
+          const isOtherPhase = nextPhase !== data.phase
 
           return (
             <div style={{
-              marginBottom: 16, padding: isMobile ? '20px 16px' : '22px 28px', borderRadius: 10,
-              background: 'linear-gradient(135deg, rgba(201,169,110,0.1) 0%, rgba(96,165,250,0.05) 50%, rgba(201,169,110,0.04) 100%)',
-              border: '1px solid rgba(201,169,110,0.25)',
-              boxShadow: '0 4px 24px rgba(201,169,110,0.08)',
-              position: 'relative',
-              overflow: 'hidden',
+              marginBottom: 16, borderRadius: 10, overflow: 'hidden',
+              border: '1.5px solid rgba(96,165,250,0.3)',
+              boxShadow: '0 4px 32px rgba(96,165,250,0.1), 0 1px 0 rgba(96,165,250,0.15) inset',
             }}>
-              <div style={{ position: 'absolute', top: -40, right: -40, width: 120, height: 120, borderRadius: '50%', background: 'rgba(201,169,110,0.06)', pointerEvents: 'none' }} />
-              <div style={{ position: 'absolute', bottom: -30, left: -30, width: 80, height: 80, borderRadius: '50%', background: 'rgba(96,165,250,0.04)', pointerEvents: 'none' }} />
-              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.25em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 12, position: 'relative' }}>
-                Up Next
-              </div>
-              <div style={{ display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', gap: 14, flexDirection: isMobile ? 'column' : 'row' }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 15, fontWeight: 600, color: '#ffffff' }}>{nextItem.label}</span>
-                    {nextItem.duration && (
-                      <span style={{ fontSize: 9, color: '#6B8299', padding: '2px 8px', background: 'rgba(255,255,255,0.04)', borderRadius: 3 }}>{nextItem.duration}</span>
+              {/* Header bar */}
+              <div style={{
+                padding: isMobile ? '12px 16px' : '12px 28px',
+                background: 'linear-gradient(135deg, rgba(96,165,250,0.12) 0%, rgba(96,165,250,0.06) 100%)',
+                borderBottom: '1px solid rgba(96,165,250,0.15)',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: 8,
+                    background: 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 13, fontWeight: 700, color: '#ffffff',
+                    boxShadow: '0 2px 8px rgba(96,165,250,0.4)',
+                  }}>&#10140;</div>
+                  <div>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#60a5fa', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                      Your Next Step
+                    </span>
+                    {isOtherPhase && (
+                      <span style={{ fontSize: 9, color: '#f59e0b', marginLeft: 8, padding: '1px 6px', background: 'rgba(245,158,11,0.1)', borderRadius: 3, fontWeight: 600 }}>
+                        Phase {nextPhase}
+                      </span>
                     )}
+                  </div>
+                </div>
+                {phaseProgress && (
+                  <span style={{ fontSize: 10, color: '#6B8299' }}>
+                    {phaseProgress.completed}/{phaseProgress.total} in Phase {nextPhase}
+                  </span>
+                )}
+              </div>
+
+              {/* Content */}
+              <div style={{
+                padding: isMobile ? '16px 16px 18px' : '18px 28px 20px',
+                background: 'rgba(96,165,250,0.03)',
+              }}>
+                <div style={{ display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', gap: 16, flexDirection: isMobile ? 'column' : 'row' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 16, fontWeight: 700, color: '#ffffff' }}>{nextItem.label}</span>
+                      {nextItem.duration && (
+                        <span style={{ fontSize: 9, color: '#60a5fa', padding: '2px 8px', background: 'rgba(96,165,250,0.1)', borderRadius: 10, fontWeight: 600 }}>{nextItem.duration}</span>
+                      )}
+                    </div>
                     {group && (
-                      <span style={{ fontSize: 8, color: '#C9A96E', padding: '2px 8px', background: 'rgba(201,169,110,0.08)', borderRadius: 3, fontWeight: 600 }}>{group.label}</span>
+                      <div style={{ fontSize: 10, color: '#6B8299', marginBottom: 6 }}>{group.label}</div>
                     )}
+                    <div style={{ fontSize: 12, color: '#9BB0C4', lineHeight: 1.6 }}>
+                      <MarkdownDescription text={nextItem.description.length > 180 ? nextItem.description.slice(0, 180) + '...' : nextItem.description} />
+                    </div>
                   </div>
-                  <div style={{ fontSize: 12, color: '#9BB0C4', lineHeight: 1.5 }}>
-                    <MarkdownDescription text={nextItem.description.length > 150 ? nextItem.description.slice(0, 150) + '...' : nextItem.description} />
-                  </div>
+                  <button
+                    onClick={() => {
+                      if (nextPhase !== activeChecklistPhase) setChecklistPhase(nextPhase)
+                      setActiveTab('checklist')
+                      const groupKey = nextItem!.group
+                      if (groupKey) {
+                        setCollapsedGroups(prev => { const n = new Set(prev); n.delete(groupKey); return n })
+                      }
+                      setTimeout(() => {
+                        setExpandedItems(prev => new Set(prev).add(nextItem!.key))
+                        setHighlightKey(nextItem!.key)
+                        const el = document.querySelector(`[data-item-key="${nextItem!.key}"]`)
+                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                        setTimeout(() => setHighlightKey(null), 2500)
+                      }, 300)
+                    }}
+                    style={{
+                      padding: '14px 28px', borderRadius: 8, fontSize: 13, fontWeight: 700,
+                      background: 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)',
+                      border: 'none', color: '#ffffff',
+                      cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
+                      boxShadow: '0 4px 20px rgba(96,165,250,0.35)',
+                      letterSpacing: '0.04em',
+                      minWidth: isMobile ? '100%' : undefined,
+                      textAlign: 'center',
+                    }}
+                  >
+                    Start This Step &#8594;
+                  </button>
                 </div>
-                <button
-                  onClick={() => {
-                    setActiveTab('checklist')
-                    const groupKey = nextItem.group
-                    if (groupKey) {
-                      setCollapsedGroups(prev => { const n = new Set(prev); n.delete(groupKey); return n })
-                    }
-                    setTimeout(() => {
-                      setExpandedItems(prev => new Set(prev).add(nextItem.key))
-                      setHighlightKey(nextItem.key)
-                      const el = document.querySelector(`[data-item-key="${nextItem.key}"]`)
-                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                      setTimeout(() => setHighlightKey(null), 2500)
-                    }, 200)
-                  }}
-                  style={{
-                    padding: '12px 24px', borderRadius: 6, fontSize: 12, fontWeight: 700,
-                    background: 'linear-gradient(135deg, #C9A96E 0%, #a8854a 100%)',
-                    border: 'none', color: '#142D48',
-                    cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
-                    boxShadow: '0 4px 16px rgba(201,169,110,0.3)',
-                    letterSpacing: '0.06em',
-                  }}
-                >
-                  Start This Step
-                </button>
-              </div>
-              <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ flex: 1, height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${currentPhaseProgress?.pct ?? 0}%`, background: '#C9A96E', borderRadius: 2, transition: 'width 0.5s' }} />
-                </div>
-                <span style={{ fontSize: 10, color: '#6B8299', flexShrink: 0 }}>{completedCount}/{totalCount} complete</span>
               </div>
             </div>
           )
@@ -1705,6 +1735,7 @@ function ProfileTab({ data, onSaved, discordParam, discordUsername, isMobile }: 
     city: data.city ?? '',
     zip: data.zip ?? '',
     country: data.country ?? 'US',
+    calendlyUrl: (data as AgentData & { calendlyUrl?: string }).calendlyUrl ?? '',
   })
   const [ssnFocused, setSsnFocused] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -1924,6 +1955,23 @@ function ProfileTab({ data, onSaved, discordParam, discordUsername, isMobile }: 
               placeholder="State license #"
               style={inputStyle}
             />
+          </div>
+        </div>
+
+        {/* Calendly */}
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 20, marginTop: 4 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 12 }}>
+            Scheduling
+          </div>
+          <div>
+            <label style={fieldLabel}>Calendly Link</label>
+            <input
+              value={form.calendlyUrl}
+              onChange={e => setForm(f => ({ ...f, calendlyUrl: e.target.value }))}
+              placeholder="https://calendly.com/your-link"
+              style={inputStyle}
+            />
+            <div style={{ fontSize: 9, color: '#4B5563', marginTop: 4 }}>Your personal scheduling link for clients and prospects</div>
           </div>
         </div>
 

@@ -166,6 +166,7 @@ model AgentProfile {
   welcomeLetterSentAt   DateTime?
   clientProduct         String?
   licenseProcess        String?
+  calendlyUrl           String?
   notes                 String?
   lastReminderSentAt    DateTime?
   lastSeenPhase         Int?

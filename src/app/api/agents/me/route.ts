@@ -90,6 +90,7 @@ export async function GET() {
     licenseNumber: p.licenseNumber,
     examDate: p.examDate,
     npn: p.npn,
+    calendlyUrl: p.calendlyUrl,
     allPhaseProgress,
     phaseItems: p.phaseItems,
     carrierAppointments: p.carrierAppointments,
