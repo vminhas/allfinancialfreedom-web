@@ -453,6 +453,101 @@ function AgentDashboardInner() {
 
         <AnnouncementBanner />
 
+        {/* ── NEXT STEP CARD ── */}
+        {(() => {
+          const phaseItems = effectivePhaseItems[data.phase] ?? []
+          const nextItem = phaseItems.find(item => {
+            if (item.key === 'connect_discord') return !data.discordUserId
+            if (item.adminOnly) {
+              const hasPendingReq = coordinatorRequests.some(r => r.phaseItemKey === item.key && (r.status === 'OPEN' || r.status === 'IN_PROGRESS'))
+              const isDone = currentPhaseItems.some(pi => pi.itemKey === item.key && pi.completed)
+              return !isDone && !hasPendingReq
+            }
+            if (item.coordinatorTopic) {
+              return !currentPhaseItems.some(pi => pi.itemKey === item.key && pi.completed)
+            }
+            return !currentPhaseItems.some(pi => pi.itemKey === item.key && pi.completed)
+          })
+          const completedCount = currentPhaseProgress?.completed ?? 0
+          const totalCount = currentPhaseProgress?.total ?? 0
+          const allDone = totalCount > 0 && completedCount >= totalCount
+
+          if (allDone) {
+            return (
+              <div style={{
+                marginBottom: 16, padding: isMobile ? '20px 16px' : '20px 24px', borderRadius: 8,
+                background: 'linear-gradient(135deg, rgba(74,222,128,0.08) 0%, rgba(201,169,110,0.06) 100%)',
+                border: '1px solid rgba(74,222,128,0.2)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(74,222,128,0.15)', border: '1px solid rgba(74,222,128,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: '#4ade80', flexShrink: 0 }}>
+                    &#10003;
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: '#4ade80' }}>Phase {data.phase} Complete</div>
+                    <div style={{ fontSize: 12, color: '#9BB0C4', marginTop: 2 }}>
+                      All items finished. {data.phase < 5 ? 'Talk to your trainer about advancing to the next phase.' : 'You\'ve reached the top. Keep building your legacy.'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          }
+
+          if (!nextItem) return null
+
+          const group = (PHASE_GROUPS[data.phase] ?? []).find(g => g.key === nextItem.group)
+
+          return (
+            <div style={{
+              marginBottom: 16, padding: isMobile ? '18px 16px' : '18px 24px', borderRadius: 8,
+              background: 'linear-gradient(135deg, rgba(201,169,110,0.06) 0%, rgba(96,165,250,0.04) 100%)',
+              border: '1px solid rgba(201,169,110,0.15)',
+            }}>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 10 }}>
+                Your Next Step
+              </div>
+              <div style={{ display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', gap: 14, flexDirection: isMobile ? 'column' : 'row' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 15, fontWeight: 600, color: '#ffffff' }}>{nextItem.label}</span>
+                    {nextItem.duration && (
+                      <span style={{ fontSize: 9, color: '#6B8299', padding: '2px 8px', background: 'rgba(255,255,255,0.04)', borderRadius: 3 }}>{nextItem.duration}</span>
+                    )}
+                    {group && (
+                      <span style={{ fontSize: 8, color: '#C9A96E', padding: '2px 8px', background: 'rgba(201,169,110,0.08)', borderRadius: 3, fontWeight: 600 }}>{group.label}</span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#9BB0C4', lineHeight: 1.5 }}>
+                    <MarkdownDescription text={nextItem.description.length > 150 ? nextItem.description.slice(0, 150) + '...' : nextItem.description} />
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setActiveTab('checklist')
+                    setTimeout(() => {
+                      setExpandedItems(prev => new Set(prev).add(nextItem.key))
+                    }, 100)
+                  }}
+                  style={{
+                    padding: '10px 20px', borderRadius: 6, fontSize: 12, fontWeight: 700,
+                    background: '#C9A96E', border: 'none', color: '#142D48',
+                    cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
+                  }}
+                >
+                  Go to Step
+                </button>
+              </div>
+              <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ flex: 1, height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${currentPhaseProgress?.pct ?? 0}%`, background: '#C9A96E', borderRadius: 2, transition: 'width 0.5s' }} />
+                </div>
+                <span style={{ fontSize: 10, color: '#6B8299', flexShrink: 0 }}>{completedCount}/{totalCount} complete</span>
+              </div>
+            </div>
+          )
+        })()}
+
         {/* ── SYSTEM PROGRESSIONS — always visible achievement strip ── */}
         <div style={{ ...card, padding: '20px 24px', marginBottom: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>

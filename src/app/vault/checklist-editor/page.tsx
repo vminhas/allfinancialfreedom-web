@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { PHASE_LABELS, PHASE_GROUPS, SYSTEM_PROGRESSIONS } from '@/lib/agent-constants'
 import { useIsMobile } from '@/lib/useIsMobile'
 import MarkdownDescription from '@/components/MarkdownDescription'
+import { AVAILABLE_ICONS } from '@/lib/checklist-icons'
 
 interface PhaseItemDef {
   id: string
@@ -226,7 +227,7 @@ export default function ChecklistEditorPage() {
             {editingId ? 'Edit Item' : `Add Item to Phase ${activePhase}`}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
-            <div>
+            <div style={{ gridColumn: editingId ? undefined : isMobile ? undefined : 'span 2' }}>
               <div style={lbl}>Label *</div>
               <input value={form.label} onChange={e => {
                 setForm(f => ({
@@ -235,10 +236,12 @@ export default function ChecklistEditorPage() {
                 }))
               }} style={inp} placeholder="e.g., Complete Training Module" />
             </div>
-            <div>
-              <div style={lbl}>Key {editingId && '(read-only)'}</div>
-              <input value={form.itemKey} onChange={e => setForm(f => ({ ...f, itemKey: e.target.value }))} disabled={!!editingId} style={{ ...inp, opacity: editingId ? 0.5 : 1 }} />
-            </div>
+            {editingId && (
+              <div>
+                <div style={lbl}>Key (auto-generated)</div>
+                <input value={form.itemKey} disabled style={{ ...inp, opacity: 0.4 }} />
+              </div>
+            )}
             <div style={{ gridColumn: isMobile ? undefined : 'span 2' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={lbl}>Description *</div>
@@ -437,7 +440,7 @@ function GroupsEditor({ groups, onRefresh, isMobile }: { groups: PhaseGroupDef[]
         <div style={{ padding: 16, marginBottom: 12, background: '#132238', border: '1px solid rgba(201,169,110,0.15)', borderRadius: 6 }}>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
             <div><div style={lbl}>Label *</div><input value={form.label} onChange={e => { setForm(f => ({ ...f, label: e.target.value, groupKey: editingId ? f.groupKey : e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '_') })) }} style={inp} /></div>
-            <div><div style={lbl}>Icon Name</div><input value={form.icon} onChange={e => setForm(f => ({ ...f, icon: e.target.value }))} style={inp} placeholder="e.g., BookOpen, Target" /></div>
+            <div><div style={lbl}>Icon</div><select value={form.icon} onChange={e => setForm(f => ({ ...f, icon: e.target.value }))} style={{ ...inp, cursor: 'pointer' }}><option value="">None</option>{AVAILABLE_ICONS.map(i => <option key={i} value={i}>{i}</option>)}</select></div>
             <div style={{ gridColumn: isMobile ? undefined : 'span 2' }}><div style={lbl}>Description</div><input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} style={inp} /></div>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#9BB0C4', cursor: 'pointer' }}><input type="checkbox" checked={form.showTrainer} onChange={e => setForm(f => ({ ...f, showTrainer: e.target.checked }))} /> Show trainer</label>
           </div>
@@ -504,12 +507,38 @@ function ProgressionsEditor({ progressions, onRefresh, isMobile }: { progression
         <div style={{ padding: 16, marginBottom: 12, background: '#132238', border: '1px solid rgba(201,169,110,0.15)', borderRadius: 6 }}>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
             <div><div style={lbl}>Label *</div><input value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value, key: editingId ? f.key : e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '_') }))} style={inp} /></div>
-            <div><div style={lbl}>Icon Name</div><input value={form.icon} onChange={e => setForm(f => ({ ...f, icon: e.target.value }))} style={inp} placeholder="e.g., Award, Star, Crown" /></div>
+            <div><div style={lbl}>Icon</div><select value={form.icon} onChange={e => setForm(f => ({ ...f, icon: e.target.value }))} style={{ ...inp, cursor: 'pointer' }}><option value="">None</option>{AVAILABLE_ICONS.map(i => <option key={i} value={i}>{i}</option>)}</select></div>
             <div style={{ gridColumn: isMobile ? undefined : 'span 2' }}><div style={lbl}>Description *</div><input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} style={inp} placeholder="What this badge represents" /></div>
             <div style={{ gridColumn: isMobile ? undefined : 'span 2' }}>
-              <div style={lbl}>Achieved When *</div>
-              <input value={form.achievedWhen} onChange={e => setForm(f => ({ ...f, achievedWhen: e.target.value }))} style={inp} placeholder="e.g., phase2_fta_10, always, milestone_50k_watch" />
-              <div style={{ fontSize: 9, color: '#4B5563', marginTop: 4 }}>Format: phase[N]_[itemKey] for checklist items, &quot;always&quot; for automatic, milestone_[key] for milestones</div>
+              <div style={lbl}>Unlock Condition *</div>
+              <select value={form.achievedWhen} onChange={e => setForm(f => ({ ...f, achievedWhen: e.target.value }))} style={{ ...inp, cursor: 'pointer' }}>
+                <option value="">Select a condition</option>
+                <option value="always">Always (automatic)</option>
+                <optgroup label="Phase 1 Items">
+                  <option value="phase1_pass_license_test">Pass License Test</option>
+                  <option value="phase1_business_marketing_plan">Business Marketing Plan</option>
+                </optgroup>
+                <optgroup label="Phase 2 Items">
+                  <option value="phase2_fta_10">Complete 10 FTAs</option>
+                  <option value="phase2_associate_promotion">Associate Promotion</option>
+                  <option value="phase2_first_1000">Net License / First $1K</option>
+                  <option value="phase2_net_license_and_appointed">Licensed &amp; Appointed</option>
+                  <option value="phase2_client1_or_policies">First Client or Policy</option>
+                </optgroup>
+                <optgroup label="Phase 3 Items">
+                  <option value="phase3_cft_classes">CFT Classes</option>
+                  <option value="phase3_cft_coordinator_signoff">CFT Certification</option>
+                </optgroup>
+                <optgroup label="Phase 4+">
+                  <option value="phase4_any_item">Reach Phase 4</option>
+                  <option value="phase4_45k_points">45K Points</option>
+                  <option value="phase5_150k_net_6mo">150K Net (6 months)</option>
+                </optgroup>
+                <optgroup label="Milestones">
+                  <option value="milestone_50k_watch">$50K Watch</option>
+                  <option value="milestone_100k_ring">$100K Ring</option>
+                </optgroup>
+              </select>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>

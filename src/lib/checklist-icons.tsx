@@ -32,6 +32,22 @@ export const PROGRESSION_ICONS: Record<string, LucideIcon> = {
   emd: Crown,
 }
 
+export const AVAILABLE_ICONS = [
+  'BookOpen', 'Link', 'ClipboardCheck', 'Rocket', 'Users', 'Target',
+  'TrendingUp', 'CheckCircle', 'Phone', 'Package', 'BarChart3',
+  'UserPlus', 'Crown', 'Network', 'Hash', 'Heart', 'Award',
+  'ShieldCheck', 'Crosshair', 'Star', 'Medal', 'BadgeCheck',
+  'Watch', 'Gem', 'Zap', 'Mail', 'Headset',
+] as const
+
+export const ALL_ICONS: Record<string, LucideIcon> = {
+  BookOpen, Link, ClipboardCheck, Rocket, Users, Target,
+  TrendingUp, CheckCircle, Phone, Package, BarChart3,
+  UserPlus, Crown, Network, Hash, Heart, Award,
+  ShieldCheck, Crosshair, Star, Medal, BadgeCheck,
+  Watch, Gem, Zap, Mail, Headset,
+}
+
 export {
   Mail, ChevronDown, ArrowRight, ExternalLink, UserCheck, Headset,
 }
