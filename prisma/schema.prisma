@@ -216,6 +216,24 @@ model PersonalFinancialReview {
   @@map("personal_financial_reviews")
 }
 
+model PhaseItemDefinition {
+  id          String  @id @default(cuid())
+  phase       Int
+  itemKey     String  @unique
+  label       String
+  description String
+  duration    String?
+  groupKey    String?
+  sortOrder   Int     @default(0)
+  adminOnly   Boolean @default(false)
+  actionJson  String?
+  coordinatorTopic String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("phase_item_definitions")
+}
+
 model AgentFeedback {
   id              String       @id @default(cuid())
   agentProfileId  String

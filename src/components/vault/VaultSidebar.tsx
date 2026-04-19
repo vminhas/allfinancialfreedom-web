@@ -39,6 +39,7 @@ const NAV_GROUPS: NavGroup[] = [
     key: 'system', label: 'System', defaultOpen: true,
     items: [
       { href: '/vault/setup', label: 'Setup', icon: '⊞' },
+      { href: '/vault/checklist-editor', label: 'Checklist Editor', icon: '◇' },
       { href: '/vault/guide', label: 'Guide', icon: '?' },
       { href: '/vault/settings', label: 'Settings', icon: '⚙' },
     ],
