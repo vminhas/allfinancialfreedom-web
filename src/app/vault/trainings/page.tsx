@@ -651,6 +651,7 @@ function TrainingCard({ event, highlight, muted, onUpdate, onDelete }: {
   const [toggling, setToggling] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [showEdit, setShowEdit] = useState(false)
 
   const togglePublished = async () => {
     setToggling(true)
@@ -1024,6 +1025,20 @@ function TrainingCard({ event, highlight, muted, onUpdate, onDelete }: {
               </button>
             )}
           </div>
+          {/* Edit button */}
+          <button
+            onClick={() => setShowEdit(true)}
+            title="Edit this event"
+            style={{
+              background: 'transparent', border: 'none', cursor: 'pointer',
+              color: '#6B8299', fontSize: 12, padding: '2px 4px', flexShrink: 0,
+              opacity: 0.5, transition: 'opacity 0.15s',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+            onMouseLeave={e => (e.currentTarget.style.opacity = '0.5')}
+          >
+            ✏️
+          </button>
           {/* Delete button */}
           {!confirmDelete ? (
             <button
@@ -1085,6 +1100,13 @@ function TrainingCard({ event, highlight, muted, onUpdate, onDelete }: {
         <div style={{ fontSize: 9, color: '#f87171', marginTop: -4 }}>{postError}</div>
       )}
       </div>{/* close card content */}
+      {showEdit && (
+        <EditEventModal
+          event={event}
+          onClose={() => setShowEdit(false)}
+          onSaved={(updated) => { setShowEdit(false); onUpdate?.(updated) }}
+        />
+      )}
     </div>
   )
 }
@@ -1116,6 +1138,306 @@ function Tag({ color, children }: { color: string; children: React.ReactNode }) 
     }}>
       {children}
     </span>
+  )
+}
+
+// ─── Audience restriction preset options ──────────────────────────────────────
+
+const AUDIENCE_OPTIONS = [
+  { label: 'Everyone (no restriction)', value: '' },
+  { label: 'CFTs & Above Only', value: 'CFTs & Above Only' },
+  { label: 'Leadership Only', value: 'Leadership Only' },
+  { label: 'Licensed Agents Only', value: 'Licensed Agents Only' },
+  { label: 'Custom...', value: '__custom__' },
+]
+
+function AudienceSelect({
+  value,
+  onChange,
+  inputStyle,
+  labelStyle,
+}: {
+  value: string
+  onChange: (val: string) => void
+  inputStyle: React.CSSProperties
+  labelStyle: React.CSSProperties
+}) {
+  const isCustom = value !== '' && !AUDIENCE_OPTIONS.some(o => o.value === value)
+  const [customMode, setCustomMode] = useState(isCustom)
+
+  const selectValue = customMode ? '__custom__' : value
+
+  return (
+    <div>
+      <label style={labelStyle}>Audience</label>
+      <select
+        value={selectValue}
+        onChange={e => {
+          if (e.target.value === '__custom__') {
+            setCustomMode(true)
+            onChange('')
+          } else {
+            setCustomMode(false)
+            onChange(e.target.value)
+          }
+        }}
+        style={{ ...inputStyle, appearance: 'auto' }}
+      >
+        {AUDIENCE_OPTIONS.map(o => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+      {customMode && (
+        <input
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder="Type custom restriction..."
+          style={{ ...inputStyle, marginTop: 6 }}
+          autoFocus
+        />
+      )}
+      {selectValue === '' && (
+        <div style={{ fontSize: 9, color: '#6B8299', marginTop: 3 }}>No lock icon — visible to all members</div>
+      )}
+    </div>
+  )
+}
+
+// ─── Edit Event Modal ─────────────────────────────────────────────────────────
+
+function EditEventModal({ event, onClose, onSaved }: {
+  event: TrainingEvent
+  onClose: () => void
+  onSaved: (updated: TrainingEvent) => void
+}) {
+  const isMobile = useIsMobile()
+  const presenters = Array.isArray(event.presenters) ? event.presenters as Presenter[] : []
+  const startsAtDate = new Date(event.startsAt)
+  const dateStr = startsAtDate.toLocaleDateString('en-CA')
+  const timeStr = startsAtDate.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', timeZone: 'America/New_York' })
+
+  const [form, setForm] = useState({
+    title: event.title,
+    startsAt: dateStr,
+    startsAtTime: timeStr,
+    durationMinutes: String(event.durationMinutes ?? 60),
+    subtitle: event.subtitle ?? '',
+    category: event.category ?? '',
+    streamType: event.streamType as 'GFI_LIVE' | 'ZOOM',
+    streamRoomName: event.streamRoomName ?? '',
+    streamId: event.streamId ?? '',
+    passcode: event.passcode ?? '',
+    audienceRestriction: event.audienceRestriction ?? '',
+    partnerBrand: event.partnerBrand ?? '',
+    presenterName: presenters[0]?.name ?? '',
+    presenterRole: presenters[0]?.role ?? '',
+  })
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setForm(f => ({ ...f, [k]: e.target.value }))
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!form.title || !form.startsAt) { setError('Title and date are required'); return }
+    setSubmitting(true)
+    setError('')
+
+    const startsAtIso = new Date(`${form.startsAt}T${form.startsAtTime}:00`).toISOString()
+    const pres = form.presenterName
+      ? [{ name: form.presenterName, role: form.presenterRole || 'Presenter' }]
+      : []
+
+    const body: Record<string, unknown> = {
+      title: form.title,
+      startsAt: startsAtIso,
+      durationMinutes: parseInt(form.durationMinutes) || 60,
+      subtitle: form.subtitle || null,
+      category: form.category || null,
+      streamType: form.streamType,
+      streamRoomName: form.streamRoomName || null,
+      streamId: form.streamId || null,
+      passcode: form.passcode || null,
+      audienceRestriction: form.audienceRestriction || null,
+      partnerBrand: form.partnerBrand || null,
+      presenters: pres,
+    }
+
+    try {
+      const res = await fetch(`/api/admin/trainings/${event.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        const d = await res.json() as { error?: string }
+        setError(d.error ?? 'Failed to save')
+        setSubmitting(false)
+        return
+      }
+      const d = await res.json() as { event: TrainingEvent }
+      onSaved(d.event)
+    } catch {
+      setError('Network error')
+      setSubmitting(false)
+    }
+  }
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%', boxSizing: 'border-box',
+    background: '#0A1628',
+    border: '1px solid rgba(201,169,110,0.15)',
+    borderRadius: 4, color: '#d1d9e2',
+    padding: '10px 12px', fontSize: 13,
+    fontFamily: 'inherit',
+  }
+  const labelStyle: React.CSSProperties = {
+    display: 'block',
+    fontSize: 9, fontWeight: 700, letterSpacing: '0.18em',
+    textTransform: 'uppercase' as const, color: '#C9A96E',
+    marginBottom: 5,
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 80,
+        background: 'rgba(0,0,0,0.75)',
+        display: 'flex',
+        alignItems: isMobile ? 'flex-end' : 'center',
+        justifyContent: 'center',
+        padding: isMobile ? 0 : 16,
+        backdropFilter: 'blur(3px)',
+      }}
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div style={{
+        background: '#142D48',
+        border: '1px solid rgba(201,169,110,0.2)',
+        borderRadius: isMobile ? '16px 16px 0 0' : 8,
+        width: isMobile ? '100%' : 'min(560px, 100vw)',
+        maxHeight: isMobile ? '92vh' : '90vh',
+        overflowY: 'auto',
+        boxShadow: '0 -24px 80px rgba(0,0,0,0.55)',
+      }}>
+        <div style={{
+          padding: isMobile ? '18px 20px 14px' : '22px 28px 16px',
+          borderBottom: '1px solid rgba(201,169,110,0.1)',
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12,
+          position: 'sticky', top: 0, background: '#142D48', zIndex: 2,
+        }}>
+          <div>
+            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 4 }}>
+              Edit Training
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 500, color: '#ffffff' }}>{event.title}</div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(201,169,110,0.25)',
+              borderRadius: 6, width: 40, height: 40,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', color: '#C9A96E', fontSize: 16, lineHeight: 1,
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        <form onSubmit={submit} style={{ padding: isMobile ? '18px 20px 20px' : '22px 28px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
+            <div style={{ gridColumn: isMobile ? undefined : '1 / -1' }}>
+              <label style={labelStyle}>Title *</label>
+              <input required value={form.title} onChange={set('title')} style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Date *</label>
+              <input required type="date" value={form.startsAt} onChange={set('startsAt')} style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Time (ET) *</label>
+              <input required type="time" value={form.startsAtTime} onChange={set('startsAtTime')} style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Duration (min)</label>
+              <input type="number" value={form.durationMinutes} onChange={set('durationMinutes')} style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Subtitle</label>
+              <input value={form.subtitle} onChange={set('subtitle')} style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Category</label>
+              <input value={form.category} onChange={set('category')} style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Stream type</label>
+              <select value={form.streamType} onChange={set('streamType')} style={{ ...inputStyle, appearance: 'auto' }}>
+                <option value="GFI_LIVE">GFI Live - Impact TV</option>
+                <option value="ZOOM">Zoom</option>
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Stream / Meeting ID</label>
+              <input value={form.streamId} onChange={set('streamId')} style={{ ...inputStyle, fontFamily: 'monospace' }} />
+            </div>
+            <div>
+              <label style={labelStyle}>Passcode</label>
+              <input value={form.passcode} onChange={set('passcode')} style={{ ...inputStyle, fontFamily: 'monospace' }} />
+            </div>
+            <div>
+              <label style={labelStyle}>Presenter name</label>
+              <input value={form.presenterName} onChange={set('presenterName')} style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Presenter role</label>
+              <input value={form.presenterRole} onChange={set('presenterRole')} style={inputStyle} />
+            </div>
+            <AudienceSelect
+              value={form.audienceRestriction}
+              onChange={val => setForm(f => ({ ...f, audienceRestriction: val }))}
+              inputStyle={inputStyle}
+              labelStyle={labelStyle}
+            />
+          </div>
+
+          {error && (
+            <div style={{ fontSize: 12, color: '#f87171', padding: '8px 12px', background: 'rgba(248,113,113,0.08)', borderRadius: 4, border: '1px solid rgba(248,113,113,0.2)' }}>
+              {error}
+            </div>
+          )}
+
+          <div style={{
+            display: 'flex', gap: 10,
+            flexDirection: isMobile ? 'column-reverse' : 'row',
+            justifyContent: 'flex-end',
+            paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)',
+          }}>
+            <button type="button" onClick={onClose} disabled={submitting} style={{
+              background: 'transparent', border: '1px solid rgba(255,255,255,0.12)',
+              color: '#9BB0C4', borderRadius: 4,
+              padding: '12px 18px', fontSize: 11, fontWeight: 700,
+              letterSpacing: '0.1em', textTransform: 'uppercase',
+              cursor: submitting ? 'wait' : 'pointer', minHeight: 44,
+            }}>
+              Cancel
+            </button>
+            <button type="submit" disabled={submitting} style={{
+              background: submitting ? 'rgba(201,169,110,0.4)' : '#C9A96E',
+              color: '#142D48', border: 'none', borderRadius: 4,
+              padding: '12px 22px', fontSize: 11, fontWeight: 700,
+              letterSpacing: '0.1em', textTransform: 'uppercase',
+              cursor: submitting ? 'wait' : 'pointer', minHeight: 44, flex: 1,
+            }}>
+              {submitting ? 'Saving...' : 'Save & Sync to Discord'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   )
 }
 
@@ -1299,10 +1621,12 @@ function AddEventModal({ onClose, onCreated }: { onClose: () => void; onCreated:
               <label style={labelStyle}>Presenter role</label>
               <input value={form.presenterRole} onChange={set('presenterRole')} placeholder="e.g. CEO" style={inputStyle} />
             </div>
-            <div>
-              <label style={labelStyle}>Audience restriction</label>
-              <input value={form.audienceRestriction} onChange={set('audienceRestriction')} placeholder="e.g. CFTs & Above Only" style={inputStyle} />
-            </div>
+            <AudienceSelect
+              value={form.audienceRestriction}
+              onChange={val => setForm(f => ({ ...f, audienceRestriction: val }))}
+              inputStyle={inputStyle}
+              labelStyle={labelStyle}
+            />
           </div>
 
           {/* Image upload */}

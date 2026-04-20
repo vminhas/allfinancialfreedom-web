@@ -131,6 +131,29 @@ export async function createGuildScheduledEvent(
   return res.json() as Promise<DiscordScheduledEventResponse>
 }
 
+export async function editGuildScheduledEvent(
+  eventId: string,
+  input: Partial<DiscordScheduledEventInput>
+): Promise<DiscordScheduledEventResponse> {
+  const body: Record<string, unknown> = {}
+  if (input.name !== undefined) body.name = input.name.slice(0, 100)
+  if (input.description !== undefined) body.description = input.description?.slice(0, 1000)
+  if (input.scheduledStartTime !== undefined) body.scheduled_start_time = input.scheduledStartTime
+  if (input.scheduledEndTime !== undefined) body.scheduled_end_time = input.scheduledEndTime
+  if (input.location !== undefined) body.entity_metadata = { location: input.location.slice(0, 100) }
+
+  const res = await discordFetch(`${API}/guilds/${guildId()}/scheduled-events/${eventId}`, {
+    method: 'PATCH',
+    headers: authHeaders(),
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Discord editScheduledEvent failed (${res.status}): ${text.slice(0, 400)}`)
+  }
+  return res.json() as Promise<DiscordScheduledEventResponse>
+}
+
 export async function deleteGuildScheduledEvent(eventId: string): Promise<void> {
   const res = await discordFetch(`${API}/guilds/${guildId()}/scheduled-events/${eventId}`, {
     method: 'DELETE',

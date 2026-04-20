@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/permissions'
-import { deleteGuildScheduledEvent, createGuildScheduledEvent } from '@/lib/discord'
+import { deleteGuildScheduledEvent, createGuildScheduledEvent, editGuildScheduledEvent } from '@/lib/discord'
 import { deleteFlyerFromBlob } from '@/lib/blob-upload'
 import { postWeeklyRoundupForRows } from '@/lib/training-sync'
 
@@ -57,6 +57,7 @@ export async function PATCH(
     audienceRestriction?: string | null
     partnerBrand?: string | null
     targetRegion?: string | null
+    presenters?: { name: string; role: string }[]
   }
 
   const data: Record<string, unknown> = { manuallyEdited: true }
@@ -71,6 +72,7 @@ export async function PATCH(
     if (body[f] !== undefined) data[f] = body[f]
   }
   if (body.startsAt !== undefined) data.startsAt = new Date(body.startsAt)
+  if (body.presenters !== undefined) data.presenters = body.presenters
 
   // Handle publish toggle — the key behavioral change
   if (body.published !== undefined && body.published !== existing.published) {
@@ -114,11 +116,47 @@ export async function PATCH(
     }
   }
 
+  // Sync field edits to the existing Discord scheduled event (preserves
+  // "Interested" marks and the event ID, unlike delete+recreate).
+  const editableDiscordFields = ['title', 'subtitle', 'startsAt', 'durationMinutes', 'streamId', 'passcode', 'streamRoomName']
+  const hasDiscordRelevantEdits = editableDiscordFields.some(f => body[f as keyof typeof body] !== undefined)
+
+  if (
+    hasDiscordRelevantEdits &&
+    existing.discordEventId &&
+    existing.published &&
+    body.published !== false &&
+    process.env.DISCORD_BOT_TOKEN &&
+    process.env.DISCORD_GUILD_ID
+  ) {
+    try {
+      const startsAt = body.startsAt ? new Date(body.startsAt) : existing.startsAt
+      const duration = body.durationMinutes ?? existing.durationMinutes ?? 60
+      const endsAt = new Date(startsAt.getTime() + duration * 60_000)
+      const sid = body.streamId !== undefined ? body.streamId : existing.streamId
+      const pc = body.passcode !== undefined ? body.passcode : existing.passcode
+      const joinUrl = buildJoinUrl(sid, pc)
+      const roomName = body.streamRoomName !== undefined ? body.streamRoomName : existing.streamRoomName
+      const location = joinUrl ?? (roomName ? `${roomName} · ID ${sid}` : 'TBD')
+
+      await editGuildScheduledEvent(existing.discordEventId, {
+        name: (body.title ?? existing.title).slice(0, 100),
+        description: (body.subtitle !== undefined ? body.subtitle : existing.subtitle) ?? '',
+        scheduledStartTime: startsAt.toISOString(),
+        scheduledEndTime: endsAt.toISOString(),
+        location,
+      })
+    } catch (err) {
+      console.error('[trainings] Failed to edit Discord event:', err)
+    }
+  }
+
   const updated = await db.trainingEvent.update({ where: { id }, data })
 
-  // If published status changed, auto-refresh the weekly roundup message
-  // so the Discord card always reflects the current published set.
-  if (body.published !== undefined && body.published !== existing.published) {
+  // Refresh the weekly roundup when anything changes (publish toggle,
+  // title, time, etc.) so the Discord card always reflects the latest state.
+  const publishChanged = body.published !== undefined && body.published !== existing.published
+  if (publishChanged || hasDiscordRelevantEdits) {
     try {
       const now = new Date()
       const sevenDaysOut = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
