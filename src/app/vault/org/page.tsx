@@ -481,6 +481,8 @@ export default function OrgPage() {
   const [selectedNode, setSelectedNode] = useState<OrgNode | null>(null)
   const [showAddAgent, setShowAddAgent] = useState(false)
   const [showTrainers, setShowTrainers] = useState(false)
+  const [seeding, setSeeding] = useState(false)
+  const [seedResult, setSeedResult] = useState<string | null>(null)
   const isMobile = useIsMobile()
 
   const load = useCallback(async () => {
@@ -510,6 +512,34 @@ export default function OrgPage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          {data && data.stats.totalAgents === 0 && (
+            <button
+              onClick={async () => {
+                setSeeding(true); setSeedResult(null)
+                try {
+                  const res = await fetch('/api/admin/agents/seed-org', { method: 'POST' })
+                  const d = await res.json() as { created: number; updated: number; skipped: number; errors: string[] }
+                  setSeedResult(`Created ${d.created}, updated ${d.updated}, skipped ${d.skipped}${d.errors.length ? ` (${d.errors.length} errors)` : ''}`)
+                  load()
+                } catch { setSeedResult('Failed') }
+                setSeeding(false)
+              }}
+              disabled={seeding}
+              style={{
+                background: seeding ? 'rgba(74,222,128,0.3)' : 'rgba(74,222,128,0.12)',
+                color: '#4ade80',
+                border: '1px solid rgba(74,222,128,0.35)',
+                borderRadius: 4, padding: '12px 16px', fontSize: 11, fontWeight: 700,
+                letterSpacing: '0.1em', textTransform: 'uppercase', cursor: seeding ? 'wait' : 'pointer',
+                minHeight: 44, whiteSpace: 'nowrap',
+              }}
+            >
+              {seeding ? 'Seeding...' : 'Seed 57 Agents'}
+            </button>
+          )}
+          {seedResult && (
+            <span style={{ fontSize: 10, color: '#4ade80' }}>{seedResult}</span>
+          )}
           <button
             onClick={() => setShowTrainers(!showTrainers)}
             style={{
