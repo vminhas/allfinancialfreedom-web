@@ -28,6 +28,7 @@ const NAV_GROUPS: NavGroup[] = [
     key: 'agents', label: 'Agents', defaultOpen: true,
     items: [
       { href: '/vault/tracker', label: 'AFF Tracker', icon: '◑' },
+      { href: '/vault/org', label: 'Team Structure', icon: '⊞' },
       { href: '/vault/licensing', label: 'Licensing Inbox', icon: '◎' },
       { href: '/vault/trainings', label: 'Trainings', icon: '▶' },
       { href: '/vault/call-review', label: 'Call Review', icon: '◐' },
