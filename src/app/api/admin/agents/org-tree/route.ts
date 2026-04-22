@@ -80,7 +80,36 @@ export async function GET() {
     }
   }
 
-  const tree = roots.map(buildNode)
+  const agentTree = roots.map(buildNode)
+
+  const leadership: OrgNode[] = [
+    {
+      id: '_vick',
+      agentCode: '_CEO',
+      firstName: 'Vick',
+      lastName: 'Minhas',
+      phase: 6,
+      title: 'CEO',
+      state: null,
+      avatarUrl: null,
+      status: 'ACTIVE',
+      recruiterId: null,
+      children: agentTree,
+    },
+    {
+      id: '_melinee',
+      agentCode: '_COO',
+      firstName: 'Melinee',
+      lastName: 'Minhas',
+      phase: 6,
+      title: 'COO',
+      state: null,
+      avatarUrl: null,
+      status: 'ACTIVE',
+      recruiterId: null,
+      children: [],
+    },
+  ]
 
   const stats = {
     totalAgents: agents.length,
@@ -91,5 +120,5 @@ export async function GET() {
     })),
   }
 
-  return NextResponse.json({ tree, stats })
+  return NextResponse.json({ tree: leadership, stats })
 }

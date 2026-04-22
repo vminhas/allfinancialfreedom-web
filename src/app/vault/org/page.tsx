@@ -31,6 +31,7 @@ const PHASE_COLORS: Record<number, string> = {
   3: '#f59e0b',
   4: '#9B6DFF',
   5: '#4ade80',
+  6: '#C9A96E',
 }
 
 function initials(first: string, last: string) {
@@ -57,6 +58,7 @@ function TreeNode({ node, depth, allAgents, onReassign }: {
   const color = PHASE_COLORS[node.phase] ?? '#C9A96E'
   const descendantCount = countDescendants(node)
   const isMobile = useIsMobile()
+  const isLeadership = node.id.startsWith('_')
 
   const handleReassign = () => {
     onReassign(node.id, newRecruiter || null)
@@ -80,25 +82,26 @@ function TreeNode({ node, depth, allAgents, onReassign }: {
         <div
           style={{
             display: 'flex', alignItems: 'center', gap: 12,
-            padding: '10px 14px',
-            background: '#132238',
-            border: `1px solid ${color}30`,
+            padding: isLeadership ? '14px 18px' : '10px 14px',
+            background: isLeadership ? '#1B3A5C' : '#132238',
+            border: `1px solid ${isLeadership ? '#C9A96E50' : `${color}30`}`,
             borderRadius: 8,
             cursor: node.children.length > 0 ? 'pointer' : 'default',
-            minWidth: isMobile ? '100%' : 220,
+            minWidth: isMobile ? '100%' : isLeadership ? 260 : 220,
             marginLeft: isMobile ? depth * 20 : 0,
             transition: 'border-color 0.15s',
+            boxShadow: isLeadership ? '0 0 20px rgba(201,169,110,0.1)' : 'none',
           }}
           onClick={() => node.children.length > 0 && setExpanded(!expanded)}
-          onContextMenu={e => { e.preventDefault(); setShowReassign(!showReassign) }}
+          onContextMenu={e => { if (!isLeadership) { e.preventDefault(); setShowReassign(!showReassign) } }}
         >
           {/* Avatar */}
           <div style={{
-            width: 36, height: 36, borderRadius: '50%',
+            width: isLeadership ? 44 : 36, height: isLeadership ? 44 : 36, borderRadius: '50%',
             background: node.avatarUrl ? `url(${node.avatarUrl}) center/cover` : `${color}25`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 12, fontWeight: 700, color, flexShrink: 0,
-            border: `2px solid ${color}40`,
+            fontSize: isLeadership ? 14 : 12, fontWeight: 700, color, flexShrink: 0,
+            border: `2px solid ${isLeadership ? '#C9A96E' : `${color}40`}`,
           }}>
             {!node.avatarUrl && initials(node.firstName, node.lastName)}
           </div>
