@@ -97,6 +97,7 @@ export async function GET() {
       avatarUrl: null,
       status: 'ACTIVE',
       recruiterId: null,
+      cft: null,
       children: agentTree,
     },
     {
@@ -110,6 +111,7 @@ export async function GET() {
       avatarUrl: null,
       status: 'ACTIVE',
       recruiterId: null,
+      cft: null,
       children: [],
     },
   ]
