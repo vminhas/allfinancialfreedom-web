@@ -118,7 +118,7 @@ function AgentDashboardInner() {
 
   const [data, setData] = useState<AgentData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'checklist' | 'licensing' | 'carriers' | 'partners' | 'policies' | 'calls' | 'resources' | 'profile'>(
+  const [activeTab, setActiveTab] = useState<'checklist' | 'licensing' | 'carriers' | 'partners' | 'policies' | 'calls' | 'team' | 'resources' | 'profile'>(
     discordParam ? 'profile' : 'checklist'
   )
   const [togglingKey, setTogglingKey] = useState<string | null>(null)
@@ -352,6 +352,7 @@ function AgentDashboardInner() {
     { key: 'partners', label: 'Partners' },
     { key: 'policies', label: 'Policies' },
     { key: 'calls', label: 'Calls' },
+    { key: 'team', label: 'My Team' },
     { key: 'resources', label: 'Resources' },
     { key: 'profile', label: 'Profile' },
   ] as const
@@ -1299,6 +1300,7 @@ function AgentDashboardInner() {
         {activeTab === 'partners' && <BusinessPartnersTab isMobile={isMobile} />}
         {activeTab === 'policies' && <PoliciesTab isMobile={isMobile} />}
         {activeTab === 'calls' && <CallLogsTab />}
+        {activeTab === 'team' && <MyTeamTab isMobile={isMobile} />}
         {activeTab === 'resources' && <TrainingResourcesTab resources={setupResources} />}
         {activeTab === 'profile' && (
           <ProfileTab
@@ -3025,6 +3027,149 @@ const RESOURCE_GROUPS: { key: string; label: string; icon: string }[] = [
   { key: 'forms', label: 'Forms & Providers', icon: '◫' },
   { key: 'general', label: 'General', icon: '◉' },
 ]
+
+// ─── My Team Tab ──────────────────────────────────────────────────────────────
+
+interface TeamNode {
+  id: string
+  agentCode: string
+  firstName: string
+  lastName: string
+  phase: number
+  title: string
+  state: string | null
+  avatarUrl: string | null
+  children: TeamNode[]
+}
+
+const TEAM_PHASE_COLORS: Record<number, string> = {
+  1: '#C9A96E', 2: '#60a5fa', 3: '#f59e0b', 4: '#9B6DFF', 5: '#4ade80',
+}
+
+function TeamMemberNode({ node, depth, isMobile }: { node: TeamNode; depth: number; isMobile: boolean }) {
+  const [expanded, setExpanded] = useState(depth < 2)
+  const color = TEAM_PHASE_COLORS[node.phase] ?? '#C9A96E'
+  let descendants = 0
+  function count(n: TeamNode) { for (const c of n.children) { descendants++; count(c) } }
+  count(node)
+
+  return (
+    <div>
+      <div
+        style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '10px 14px',
+          background: '#132238',
+          border: `1px solid ${color}25`,
+          borderRadius: 8,
+          marginLeft: isMobile ? depth * 16 : depth * 32,
+          cursor: node.children.length > 0 ? 'pointer' : 'default',
+        }}
+        onClick={() => node.children.length > 0 && setExpanded(!expanded)}
+      >
+        <div style={{
+          width: 36, height: 36, borderRadius: '50%',
+          background: node.avatarUrl ? `url(${node.avatarUrl}) center/cover` : `${color}20`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 12, fontWeight: 700, color, flexShrink: 0,
+          border: `2px solid ${color}35`,
+        }}>
+          {!node.avatarUrl && `${node.firstName?.[0] ?? ''}${node.lastName?.[0] ?? ''}`.toUpperCase()}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>
+            {node.firstName} {node.lastName}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+            <span style={{
+              fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+              padding: '2px 6px', borderRadius: 3,
+              background: `${color}15`, border: `1px solid ${color}30`, color,
+            }}>
+              {node.title}
+            </span>
+            {node.state && <span style={{ fontSize: 9, color: '#6B8299' }}>{node.state}</span>}
+          </div>
+        </div>
+        {node.children.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+            <span style={{ fontSize: 9, color: '#6B8299', fontWeight: 600 }}>{descendants}</span>
+            <span style={{ fontSize: 10, color: '#6B8299', transition: 'transform 0.2s', transform: expanded ? 'rotate(90deg)' : 'rotate(0)' }}>▶</span>
+          </div>
+        )}
+      </div>
+      {expanded && node.children.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+          {node.children.map(c => (
+            <TeamMemberNode key={c.id} node={c} depth={depth + 1} isMobile={isMobile} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MyTeamTab({ isMobile }: { isMobile: boolean }) {
+  const [team, setTeam] = useState<TeamNode[]>([])
+  const [totalSize, setTotalSize] = useState(0)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/agents/team')
+      .then(r => r.json())
+      .then((d: { team: TeamNode[]; totalTeamSize: number }) => {
+        setTeam(d.team)
+        setTotalSize(d.totalTeamSize)
+      })
+      .finally(() => setLoading(false))
+  }, [])
+
+  if (loading) return <div style={{ color: '#6B8299', fontSize: 13, padding: 40, textAlign: 'center' }}>Loading your team...</div>
+
+  if (team.length === 0) return (
+    <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+      <div style={{ fontSize: 36, marginBottom: 16 }}>👥</div>
+      <div style={{ fontSize: 16, fontWeight: 500, color: '#fff', marginBottom: 8 }}>Build Your Team</div>
+      <div style={{ fontSize: 13, color: '#6B8299', maxWidth: 360, margin: '0 auto', lineHeight: 1.6 }}>
+        When you refer new agents from the Partners tab, they&apos;ll show up here as part of your coaching tree. Start building your team by submitting a referral.
+      </div>
+    </div>
+  )
+
+  return (
+    <div style={{ padding: isMobile ? '0' : '0 8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
+        <div style={{
+          padding: '10px 16px', background: '#132238', borderRadius: 6,
+          border: '1px solid rgba(201,169,110,0.12)',
+        }}>
+          <span style={{ fontSize: 20, fontWeight: 300, color: '#C9A96E', fontFamily: "'Cormorant Garamond', Georgia, serif" }}>
+            {totalSize}
+          </span>
+          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6B8299', marginLeft: 8 }}>
+            Team Member{totalSize !== 1 ? 's' : ''}
+          </span>
+        </div>
+        <div style={{
+          padding: '10px 16px', background: '#132238', borderRadius: 6,
+          border: '1px solid rgba(96,165,250,0.12)',
+        }}>
+          <span style={{ fontSize: 20, fontWeight: 300, color: '#60a5fa', fontFamily: "'Cormorant Garamond', Georgia, serif" }}>
+            {team.length}
+          </span>
+          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6B8299', marginLeft: 8 }}>
+            Direct
+          </span>
+        </div>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {team.map(node => (
+          <TeamMemberNode key={node.id} node={node} depth={0} isMobile={isMobile} />
+        ))}
+      </div>
+    </div>
+  )
+}
 
 function TrainingResourcesTab({ resources }: { resources: Record<string, string> }) {
   const [allResources, setAllResources] = useState<{ key: string; label: string; url: string; category: string }[]>([])
