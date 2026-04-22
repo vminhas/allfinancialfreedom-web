@@ -23,6 +23,7 @@ export interface OrgNode {
   avatarUrl: string | null
   status: string
   recruiterId: string | null
+  cft: string | null
   children: OrgNode[]
 }
 
@@ -43,6 +44,7 @@ export async function GET() {
       avatarUrl: true,
       status: true,
       recruiterId: true,
+      cft: true,
     },
     orderBy: [{ phase: 'desc' }, { firstName: 'asc' }],
   })
@@ -76,6 +78,7 @@ export async function GET() {
       avatarUrl: a.avatarUrl,
       status: a.status,
       recruiterId: a.recruiterId,
+      cft: a.cft,
       children: kids.map(buildNode),
     }
   }

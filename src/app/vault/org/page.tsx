@@ -14,6 +14,7 @@ interface OrgNode {
   avatarUrl: string | null
   status: string
   recruiterId: string | null
+  cft: string | null
   children: OrgNode[]
 }
 
@@ -64,10 +65,11 @@ const labelStyle: React.CSSProperties = {
 
 // ─── Tree Node ────────────────────────────────────────────────────────────────
 
-function TreeNode({ node, depth, onSelect }: {
+function TreeNode({ node, depth, onSelect, showTrainers }: {
   node: OrgNode
   depth: number
   onSelect: (node: OrgNode) => void
+  showTrainers: boolean
 }) {
   const [expanded, setExpanded] = useState(depth < 2)
   const color = PHASE_COLORS[node.phase] ?? '#C9A96E'
@@ -124,6 +126,11 @@ function TreeNode({ node, depth, onSelect }: {
               </span>
               {node.state && <span style={{ fontSize: 9, color: '#6B8299' }}>{node.state}</span>}
             </div>
+            {showTrainers && node.cft && (
+              <div style={{ fontSize: 9, color: '#9B6DFF', marginTop: 2 }}>
+                Trainer: {node.cft}
+              </div>
+            )}
           </div>
 
           {node.children.length > 0 && (
@@ -144,7 +151,7 @@ function TreeNode({ node, depth, onSelect }: {
             borderLeft: isMobile ? 'none' : `2px solid ${color}20`,
           }}>
             {node.children.map(child => (
-              <TreeNode key={child.id} node={child} depth={depth + 1} onSelect={onSelect} />
+              <TreeNode key={child.id} node={child} depth={depth + 1} onSelect={onSelect} showTrainers={showTrainers} />
             ))}
           </div>
         )}
@@ -168,6 +175,7 @@ function EditPanel({ node, allAgents, onSave, onClose }: {
     phase: node.phase,
     state: node.state ?? '',
     recruiterId: node.recruiterId ?? '',
+    cft: node.cft ?? '',
   })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -188,6 +196,7 @@ function EditPanel({ node, allAgents, onSave, onClose }: {
           phase: parseInt(String(form.phase)),
           state: form.state || null,
           recruiterId: form.recruiterId || null,
+          cft: form.cft || null,
         }),
       })
       if (!res.ok) { setError('Failed to save'); setSaving(false); return }
@@ -277,6 +286,11 @@ function EditPanel({ node, allAgents, onSave, onClose }: {
               <option key={a.agentCode} value={a.agentCode}>{a.firstName} {a.lastName} ({a.agentCode})</option>
             ))}
           </select>
+        </div>
+
+        <div>
+          <label style={labelStyle}>Trainer (CFT)</label>
+          <input value={form.cft} onChange={set('cft')} placeholder="Trainer name" style={inputStyle} />
         </div>
 
         {error && (
@@ -466,6 +480,7 @@ export default function OrgPage() {
   const [loading, setLoading] = useState(true)
   const [selectedNode, setSelectedNode] = useState<OrgNode | null>(null)
   const [showAddAgent, setShowAddAgent] = useState(false)
+  const [showTrainers, setShowTrainers] = useState(false)
   const isMobile = useIsMobile()
 
   const load = useCallback(async () => {
@@ -494,17 +509,32 @@ export default function OrgPage() {
             Click any agent to edit. Changes sync to their portal automatically.
           </p>
         </div>
-        <button
-          onClick={() => { setSelectedNode(null); setShowAddAgent(true) }}
-          style={{
-            background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4,
-            padding: '12px 20px', fontSize: 11, fontWeight: 700,
-            letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer',
-            minHeight: 44, whiteSpace: 'nowrap',
-          }}
-        >
-          + Add Agent
-        </button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => setShowTrainers(!showTrainers)}
+            style={{
+              background: showTrainers ? 'rgba(155,109,255,0.15)' : 'transparent',
+              color: showTrainers ? '#9B6DFF' : '#6B8299',
+              border: `1px solid ${showTrainers ? 'rgba(155,109,255,0.4)' : 'rgba(255,255,255,0.12)'}`,
+              borderRadius: 4, padding: '12px 16px', fontSize: 11, fontWeight: 700,
+              letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer',
+              minHeight: 44, whiteSpace: 'nowrap',
+            }}
+          >
+            {showTrainers ? '✓ Trainers' : 'Show Trainers'}
+          </button>
+          <button
+            onClick={() => { setSelectedNode(null); setShowAddAgent(true) }}
+            style={{
+              background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4,
+              padding: '12px 20px', fontSize: 11, fontWeight: 700,
+              letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer',
+              minHeight: 44, whiteSpace: 'nowrap',
+            }}
+          >
+            + Add Agent
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -530,7 +560,7 @@ export default function OrgPage() {
         <div style={{ overflowX: 'auto', padding: '20px 0' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {data.tree.map(root => (
-              <TreeNode key={root.id} node={root} depth={0} onSelect={n => { setShowAddAgent(false); setSelectedNode(n) }} />
+              <TreeNode key={root.id} node={root} depth={0} onSelect={n => { setShowAddAgent(false); setSelectedNode(n) }} showTrainers={showTrainers} />
             ))}
           </div>
         </div>
