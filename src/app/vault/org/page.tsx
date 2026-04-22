@@ -512,7 +512,7 @@ export default function OrgPage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          {data && data.stats.totalAgents === 0 && (
+          {data && (
             <button
               onClick={async () => {
                 setSeeding(true); setSeedResult(null)
