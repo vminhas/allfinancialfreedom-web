@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/permissions'
+import { getSetting } from '@/lib/settings'
 
 const PHASE_TITLES: Record<number, string> = {
   1: 'Agent',
@@ -85,35 +86,31 @@ export async function GET() {
 
   const agentTree = roots.map(buildNode)
 
-  const leadership: OrgNode[] = [
+  const [vickAvatar, melineeAvatar] = await Promise.all([
+    getSetting('LEADERSHIP_VICK_AVATAR'),
+    getSetting('LEADERSHIP_MELINEE_AVATAR'),
+  ])
+
+  const tree: OrgNode[] = [
     {
-      id: '_vick',
-      agentCode: '_CEO',
-      firstName: 'Vick',
+      id: '_leadership',
+      agentCode: '_AFF',
+      firstName: 'Vick & Melinee',
       lastName: 'Minhas',
       phase: 6,
-      title: 'CEO',
+      title: 'CEO & COO',
       state: null,
-      avatarUrl: null,
+      avatarUrl: vickAvatar || null,
       status: 'ACTIVE',
       recruiterId: null,
       cft: null,
       children: agentTree,
     },
-    {
-      id: '_melinee',
-      agentCode: '_COO',
-      firstName: 'Melinee',
-      lastName: 'Minhas',
-      phase: 6,
-      title: 'COO',
-      state: null,
-      avatarUrl: null,
-      status: 'ACTIVE',
-      recruiterId: null,
-      cft: null,
-      children: [],
-    },
+  ]
+
+  const leadership = [
+    { id: '_vick', firstName: 'Vick', lastName: 'Minhas', title: 'CEO', avatarUrl: vickAvatar || null },
+    { id: '_melinee', firstName: 'Melinee', lastName: 'Minhas', title: 'COO', avatarUrl: melineeAvatar || null },
   ]
 
   const stats = {
@@ -125,5 +122,5 @@ export async function GET() {
     })),
   }
 
-  return NextResponse.json({ tree: leadership, stats })
+  return NextResponse.json({ tree, leadership, stats })
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, type RefObject } from 'react'
 import { useIsMobile } from '@/lib/useIsMobile'
 
 interface OrgNode {
@@ -18,8 +18,17 @@ interface OrgNode {
   children: OrgNode[]
 }
 
+interface LeadershipPerson {
+  id: string
+  firstName: string
+  lastName: string
+  title: string
+  avatarUrl: string | null
+}
+
 interface OrgData {
   tree: OrgNode[]
+  leadership: LeadershipPerson[]
   stats: {
     totalAgents: number
     byPhase: { phase: number; title: string; count: number }[]
@@ -66,6 +75,93 @@ const labelStyle: React.CSSProperties = {
 }
 
 interface FlatAgent { agentCode: string; firstName: string; lastName: string; phase: number }
+
+// ─── Leadership Card ──────────────────────────────────────────────────────────
+
+function LeadershipCard({ leaders, onUpdated }: { leaders: LeadershipPerson[]; onUpdated: () => void }) {
+  const isMobile = useIsMobile()
+  const fileRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  const [uploading, setUploading] = useState<string | null>(null)
+
+  const uploadAvatar = async (who: string, file: File) => {
+    setUploading(who)
+    const fd = new FormData()
+    fd.append('who', who)
+    fd.append('avatar', file)
+    try {
+      const res = await fetch('/api/admin/leadership-avatar', { method: 'POST', body: fd })
+      if (res.ok) onUpdated()
+    } catch { /* silent */ }
+    setUploading(null)
+  }
+
+  return (
+    <div style={{
+      display: 'flex', gap: 16, flexWrap: 'wrap',
+      padding: '20px 24px',
+      background: '#1B3A5C',
+      border: '1px solid rgba(201,169,110,0.3)',
+      borderRadius: 12,
+      boxShadow: '0 0 30px rgba(201,169,110,0.08)',
+    }}>
+      {leaders.map(leader => {
+        const who = leader.id === '_vick' ? 'vick' : 'melinee'
+        return (
+          <div key={leader.id} style={{ display: 'flex', alignItems: 'center', gap: 14, flex: isMobile ? '1 1 100%' : '1 1 auto' }}>
+            <div
+              style={{ position: 'relative', cursor: 'pointer' }}
+              onClick={() => fileRefs.current[who]?.click()}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {leader.avatarUrl ? (
+                <img src={leader.avatarUrl} alt="" style={{
+                  width: 52, height: 52, borderRadius: '50%', objectFit: 'cover',
+                  border: '2px solid #C9A96E',
+                }} />
+              ) : (
+                <div style={{
+                  width: 52, height: 52, borderRadius: '50%',
+                  background: 'rgba(201,169,110,0.2)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 16, fontWeight: 700, color: '#C9A96E',
+                  border: '2px solid #C9A96E',
+                }}>
+                  {initials(leader.firstName, leader.lastName)}
+                </div>
+              )}
+              <div style={{
+                position: 'absolute', bottom: -2, right: -2,
+                width: 20, height: 20, borderRadius: '50%',
+                background: '#C9A96E', color: '#142D48',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 10, fontWeight: 700, border: '2px solid #1B3A5C',
+              }}>
+                {uploading === who ? '...' : '📷'}
+              </div>
+              <input
+                ref={el => { fileRefs.current[who] = el }}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                style={{ display: 'none' }}
+                onChange={e => { const f = e.target.files?.[0]; if (f) uploadAvatar(who, f) }}
+              />
+            </div>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>{leader.firstName} {leader.lastName}</div>
+              <span style={{
+                fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                padding: '2px 7px', borderRadius: 3,
+                background: 'rgba(201,169,110,0.15)', border: '1px solid rgba(201,169,110,0.35)', color: '#C9A96E',
+              }}>
+                {leader.title}
+              </span>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 // ─── Tree Node ────────────────────────────────────────────────────────────────
 
@@ -367,9 +463,11 @@ function EditPanel({ node, allAgents, onSave, onClose }: {
           </div>
 
           <div>
-            <label style={labelStyle}>Trainer (CFT & above only)</label>
+            <label style={labelStyle}>Trainer</label>
             <select value={form.cft} onChange={set('cft')} style={{ ...inputStyle, appearance: 'auto' }}>
               <option value="">No trainer assigned</option>
+              <option value="Vick Minhas">Vick Minhas — CEO</option>
+              <option value="Melinee Minhas">Melinee Minhas — COO</option>
               {trainers.map(a => (
                 <option key={a.agentCode} value={`${a.firstName} ${a.lastName}`}>
                   {a.firstName} {a.lastName} — {PHASE_TITLES[a.phase]}
@@ -591,10 +689,20 @@ export default function OrgPage() {
 
       {data && (
         <div style={{ overflowX: 'auto', padding: '20px 0' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {data.tree.map(root => (
-              <TreeNode key={root.id} node={root} depth={0} onSelect={n => { setShowAddAgent(false); setSelectedNode(n) }} showTrainers={showTrainers} expandedSet={expandedSet} />
-            ))}
+          {/* Leadership duo card */}
+          {data.leadership && data.leadership.length > 0 && (
+            <LeadershipCard leaders={data.leadership} onUpdated={load} />
+          )}
+
+          {/* Agent tree (skip the synthetic _leadership root, render its children directly) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
+            {data.tree.flatMap(root =>
+              root.id.startsWith('_')
+                ? root.children.map(child => (
+                    <TreeNode key={child.id} node={child} depth={0} onSelect={n => { setShowAddAgent(false); setSelectedNode(n) }} showTrainers={showTrainers} expandedSet={expandedSet} />
+                  ))
+                : [<TreeNode key={root.id} node={root} depth={0} onSelect={n => { setShowAddAgent(false); setSelectedNode(n) }} showTrainers={showTrainers} expandedSet={expandedSet} />]
+            )}
           </div>
         </div>
       )}
