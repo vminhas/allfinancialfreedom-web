@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useIsMobile } from '@/lib/useIsMobile'
 
 interface OrgNode {
@@ -43,7 +43,9 @@ const US_STATES = [
 ]
 
 function initials(first: string, last: string) {
-  return `${first?.[0] ?? ''}${last?.[0] ?? ''}`.toUpperCase()
+  const f = (first ?? '').replace(/[^a-zA-Z]/g, '')
+  const l = (last ?? '').replace(/[^a-zA-Z]/g, '')
+  return `${f[0] ?? ''}${l[0] ?? ''}`.toUpperCase()
 }
 
 function countDescendants(node: OrgNode): number {
@@ -63,71 +65,84 @@ const labelStyle: React.CSSProperties = {
   textTransform: 'uppercase', color: '#C9A96E', marginBottom: 5,
 }
 
+interface FlatAgent { agentCode: string; firstName: string; lastName: string; phase: number }
+
 // ─── Tree Node ────────────────────────────────────────────────────────────────
 
-function TreeNode({ node, depth, onSelect, showTrainers }: {
+function TreeNode({ node, depth, onSelect, showTrainers, expandedSet }: {
   node: OrgNode
   depth: number
   onSelect: (node: OrgNode) => void
   showTrainers: boolean
+  expandedSet: Set<string> | 'all'
 }) {
-  const [expanded, setExpanded] = useState(depth < 2)
+  const isExpanded = expandedSet === 'all' || expandedSet.has(node.id)
+  const [localExpanded, setLocalExpanded] = useState(isExpanded)
   const color = PHASE_COLORS[node.phase] ?? '#C9A96E'
   const descendantCount = countDescendants(node)
   const isMobile = useIsMobile()
   const isLeadership = node.id.startsWith('_')
 
+  useEffect(() => {
+    setLocalExpanded(expandedSet === 'all' || expandedSet.has(node.id))
+  }, [expandedSet, node.id])
+
   return (
     <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: 'flex-start', gap: 0 }}>
       {depth > 0 && !isMobile && (
-        <div style={{ width: 32, minWidth: 32, borderBottom: `2px solid ${color}40`, alignSelf: 'flex-start', marginTop: 28 }} />
+        <div style={{ width: 32, minWidth: 32, borderBottom: `2px solid ${color}40`, alignSelf: 'flex-start', marginTop: 32 }} />
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', width: isMobile ? '100%' : 'auto' }}>
         <div
           style={{
-            display: 'flex', alignItems: 'center', gap: 12,
-            padding: isLeadership ? '14px 18px' : '10px 14px',
+            display: 'flex', alignItems: 'center', gap: 14,
+            padding: isLeadership ? '16px 20px' : '12px 16px',
             background: isLeadership ? '#1B3A5C' : '#132238',
             border: `1px solid ${isLeadership ? '#C9A96E50' : `${color}30`}`,
-            borderRadius: 8,
+            borderRadius: 10,
             cursor: 'pointer',
-            minWidth: isMobile ? '100%' : isLeadership ? 260 : 220,
+            minWidth: isMobile ? '100%' : isLeadership ? 280 : 240,
             marginLeft: isMobile ? depth * 16 : 0,
             transition: 'border-color 0.15s, background 0.15s',
-            boxShadow: isLeadership ? '0 0 20px rgba(201,169,110,0.1)' : 'none',
+            boxShadow: isLeadership ? '0 0 20px rgba(201,169,110,0.1)' : '0 2px 8px rgba(0,0,0,0.15)',
           }}
-          onClick={e => {
-            if (!isLeadership) { e.stopPropagation(); onSelect(node) }
-            else if (node.children.length > 0) setExpanded(!expanded)
-          }}
+          onClick={e => { e.stopPropagation(); onSelect(node) }}
         >
-          <div style={{
-            width: isLeadership ? 44 : 36, height: isLeadership ? 44 : 36, borderRadius: '50%',
-            background: node.avatarUrl ? `url(${node.avatarUrl}) center/cover` : `${color}25`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: isLeadership ? 14 : 12, fontWeight: 700, color, flexShrink: 0,
-            border: `2px solid ${isLeadership ? '#C9A96E' : `${color}40`}`,
-          }}>
-            {!node.avatarUrl && initials(node.firstName, node.lastName)}
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {node.avatarUrl ? (
+            <img src={node.avatarUrl} alt="" style={{
+              width: isLeadership ? 48 : 40, height: isLeadership ? 48 : 40, borderRadius: '50%',
+              objectFit: 'cover', flexShrink: 0, border: `2px solid ${isLeadership ? '#C9A96E' : `${color}40`}`,
+            }} />
+          ) : (
+            <div style={{
+              width: isLeadership ? 48 : 40, height: isLeadership ? 48 : 40, borderRadius: '50%',
+              background: `${color}20`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: isLeadership ? 15 : 13, fontWeight: 700, color, flexShrink: 0,
+              border: `2px solid ${isLeadership ? '#C9A96E' : `${color}40`}`,
+            }}>
+              {initials(node.firstName, node.lastName)}
+            </div>
+          )}
 
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {node.firstName} {node.lastName}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
               <span style={{
                 fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
-                padding: '2px 6px', borderRadius: 3,
+                padding: '2px 7px', borderRadius: 3,
                 background: `${color}18`, border: `1px solid ${color}35`, color,
               }}>
                 {node.title}
               </span>
-              {node.state && <span style={{ fontSize: 9, color: '#6B8299' }}>{node.state}</span>}
+              {node.state && <span style={{ fontSize: 10, color: '#6B8299' }}>{node.state}</span>}
             </div>
             {showTrainers && node.cft && (
-              <div style={{ fontSize: 9, color: '#9B6DFF', marginTop: 2 }}>
+              <div style={{ fontSize: 9, color: '#9B6DFF', marginTop: 3 }}>
                 Trainer: {node.cft}
               </div>
             )}
@@ -135,23 +150,23 @@ function TreeNode({ node, depth, onSelect, showTrainers }: {
 
           {node.children.length > 0 && (
             <div
-              style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, padding: '4px' }}
-              onClick={e => { e.stopPropagation(); setExpanded(!expanded) }}
+              style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, padding: '6px' }}
+              onClick={e => { e.stopPropagation(); setLocalExpanded(!localExpanded) }}
             >
-              <span style={{ fontSize: 9, color: '#6B8299', fontWeight: 600 }}>{descendantCount}</span>
-              <span style={{ fontSize: 10, color: '#6B8299', transition: 'transform 0.2s', transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
+              <span style={{ fontSize: 10, color: '#6B8299', fontWeight: 600 }}>{descendantCount}</span>
+              <span style={{ fontSize: 11, color: '#6B8299', transition: 'transform 0.2s', transform: localExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
             </div>
           )}
         </div>
 
-        {expanded && node.children.length > 0 && (
+        {localExpanded && node.children.length > 0 && (
           <div style={{
-            display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6,
-            paddingLeft: isMobile ? 0 : 16,
-            borderLeft: isMobile ? 'none' : `2px solid ${color}20`,
+            display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10,
+            paddingLeft: isMobile ? 0 : 18,
+            borderLeft: isMobile ? 'none' : `2px solid ${color}15`,
           }}>
             {node.children.map(child => (
-              <TreeNode key={child.id} node={child} depth={depth + 1} onSelect={onSelect} showTrainers={showTrainers} />
+              <TreeNode key={child.id} node={child} depth={depth + 1} onSelect={onSelect} showTrainers={showTrainers} expandedSet={expandedSet} />
             ))}
           </div>
         )}
@@ -164,11 +179,13 @@ function TreeNode({ node, depth, onSelect, showTrainers }: {
 
 function EditPanel({ node, allAgents, onSave, onClose }: {
   node: OrgNode
-  allAgents: { agentCode: string; firstName: string; lastName: string }[]
+  allAgents: FlatAgent[]
   onSave: () => void
   onClose: () => void
 }) {
   const isMobile = useIsMobile()
+  const isLeadership = node.id.startsWith('_')
+  const fileRef = useRef<HTMLInputElement>(null)
   const [form, setForm] = useState({
     firstName: node.firstName,
     lastName: node.lastName,
@@ -180,11 +197,16 @@ function EditPanel({ node, allAgents, onSave, onClose }: {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const [avatarPreview, setAvatarPreview] = useState(node.avatarUrl)
+
+  const trainers = allAgents.filter(a => a.phase >= 3)
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }))
 
   const save = async () => {
+    if (isLeadership) { onClose(); return }
     setSaving(true); setError(''); setSaved(false)
     try {
       const res = await fetch(`/api/admin/agents/${node.id}`, {
@@ -207,13 +229,28 @@ function EditPanel({ node, allAgents, onSave, onClose }: {
     setSaving(false)
   }
 
+  const uploadAvatar = async (file: File) => {
+    if (isLeadership) return
+    setUploading(true)
+    const fd = new FormData()
+    fd.append('avatar', file)
+    try {
+      const res = await fetch(`/api/admin/agents/${node.id}/avatar`, { method: 'POST', body: fd })
+      if (res.ok) {
+        const d = await res.json() as { avatarUrl: string }
+        setAvatarPreview(d.avatarUrl)
+        onSave()
+      }
+    } catch { /* silent */ }
+    setUploading(false)
+  }
+
   const color = PHASE_COLORS[node.phase] ?? '#C9A96E'
 
   return (
     <div style={{
-      position: 'fixed',
-      top: 0, right: 0, bottom: 0,
-      width: isMobile ? '100%' : 380,
+      position: 'fixed', top: 0, right: 0, bottom: 0,
+      width: isMobile ? '100%' : 400,
       background: '#142D48',
       borderLeft: '1px solid rgba(201,169,110,0.15)',
       zIndex: 50,
@@ -227,18 +264,51 @@ function EditPanel({ node, allAgents, onSave, onClose }: {
         display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{
-            width: 48, height: 48, borderRadius: '50%',
-            background: node.avatarUrl ? `url(${node.avatarUrl}) center/cover` : `${color}20`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 16, fontWeight: 700, color, border: `2px solid ${color}40`,
-          }}>
-            {!node.avatarUrl && initials(node.firstName, node.lastName)}
+          <div
+            style={{ position: 'relative', cursor: isLeadership ? 'default' : 'pointer' }}
+            onClick={() => !isLeadership && fileRef.current?.click()}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {avatarPreview ? (
+              <img src={avatarPreview} alt="" style={{
+                width: 56, height: 56, borderRadius: '50%', objectFit: 'cover',
+                border: `2px solid ${color}40`,
+              }} />
+            ) : (
+              <div style={{
+                width: 56, height: 56, borderRadius: '50%',
+                background: `${color}20`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 18, fontWeight: 700, color, border: `2px solid ${color}40`,
+              }}>
+                {initials(node.firstName, node.lastName)}
+              </div>
+            )}
+            {!isLeadership && (
+              <div style={{
+                position: 'absolute', bottom: -2, right: -2,
+                width: 22, height: 22, borderRadius: '50%',
+                background: '#C9A96E', color: '#142D48',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 11, fontWeight: 700, border: '2px solid #142D48',
+              }}>
+                {uploading ? '...' : '📷'}
+              </div>
+            )}
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              style={{ display: 'none' }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) uploadAvatar(f) }}
+            />
           </div>
           <div>
-            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 2 }}>Edit Agent</div>
+            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 2 }}>
+              {isLeadership ? 'Leadership' : 'Edit Agent'}
+            </div>
             <div style={{ fontSize: 15, fontWeight: 500, color: '#fff' }}>{node.firstName} {node.lastName}</div>
-            <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2 }}>{node.agentCode}</div>
+            <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2 }}>{isLeadership ? node.title : node.agentCode}</div>
           </div>
         </div>
         <button onClick={onClose} style={{
@@ -249,56 +319,72 @@ function EditPanel({ node, allAgents, onSave, onClose }: {
       </div>
 
       {/* Form */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      {isLeadership ? (
+        <div style={{ flex: 1, padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, color: '#6B8299', fontSize: 13, textAlign: 'center' }}>
+          <div style={{ fontSize: 40 }}>👑</div>
+          <div>{node.firstName} {node.lastName}</div>
+          <div style={{ fontSize: 11 }}>{node.title} · All Financial Freedom</div>
+          {!isLeadership && <div style={{ fontSize: 10, color: '#4B5563' }}>Click the avatar to upload a photo</div>}
+        </div>
+      ) : (
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={labelStyle}>First Name</label>
+              <input value={form.firstName} onChange={set('firstName')} style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Last Name</label>
+              <input value={form.lastName} onChange={set('lastName')} style={inputStyle} />
+            </div>
+          </div>
+
           <div>
-            <label style={labelStyle}>First Name</label>
-            <input value={form.firstName} onChange={set('firstName')} style={inputStyle} />
+            <label style={labelStyle}>Phase / Title</label>
+            <select value={form.phase} onChange={set('phase')} style={{ ...inputStyle, appearance: 'auto' }}>
+              {[1,2,3,4,5].map(p => (
+                <option key={p} value={p}>Phase {p} — {PHASE_TITLES[p]}</option>
+              ))}
+            </select>
           </div>
+
           <div>
-            <label style={labelStyle}>Last Name</label>
-            <input value={form.lastName} onChange={set('lastName')} style={inputStyle} />
+            <label style={labelStyle}>State</label>
+            <select value={form.state} onChange={set('state')} style={{ ...inputStyle, appearance: 'auto' }}>
+              <option value="">—</option>
+              {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
           </div>
-        </div>
 
-        <div>
-          <label style={labelStyle}>Phase / Title</label>
-          <select value={form.phase} onChange={set('phase')} style={{ ...inputStyle, appearance: 'auto' }}>
-            {[1,2,3,4,5].map(p => (
-              <option key={p} value={p}>Phase {p} — {PHASE_TITLES[p]}</option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label style={labelStyle}>State</label>
-          <select value={form.state} onChange={set('state')} style={{ ...inputStyle, appearance: 'auto' }}>
-            <option value="">—</option>
-            {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-
-        <div>
-          <label style={labelStyle}>Reports To (Mentor)</label>
-          <select value={form.recruiterId} onChange={set('recruiterId')} style={{ ...inputStyle, appearance: 'auto' }}>
-            <option value="">None (top level)</option>
-            {allAgents.filter(a => a.agentCode !== node.agentCode).map(a => (
-              <option key={a.agentCode} value={a.agentCode}>{a.firstName} {a.lastName} ({a.agentCode})</option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label style={labelStyle}>Trainer (CFT)</label>
-          <input value={form.cft} onChange={set('cft')} placeholder="Trainer name" style={inputStyle} />
-        </div>
-
-        {error && (
-          <div style={{ fontSize: 12, color: '#f87171', padding: '8px 12px', background: 'rgba(248,113,113,0.08)', borderRadius: 4, border: '1px solid rgba(248,113,113,0.2)' }}>
-            {error}
+          <div>
+            <label style={labelStyle}>Reports To (Mentor)</label>
+            <select value={form.recruiterId} onChange={set('recruiterId')} style={{ ...inputStyle, appearance: 'auto' }}>
+              <option value="">None (top level)</option>
+              {allAgents.filter(a => a.agentCode !== node.agentCode).map(a => (
+                <option key={a.agentCode} value={a.agentCode}>{a.firstName} {a.lastName} ({a.agentCode})</option>
+              ))}
+            </select>
           </div>
-        )}
-      </div>
+
+          <div>
+            <label style={labelStyle}>Trainer (CFT & above only)</label>
+            <select value={form.cft} onChange={set('cft')} style={{ ...inputStyle, appearance: 'auto' }}>
+              <option value="">No trainer assigned</option>
+              {trainers.map(a => (
+                <option key={a.agentCode} value={`${a.firstName} ${a.lastName}`}>
+                  {a.firstName} {a.lastName} — {PHASE_TITLES[a.phase]}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {error && (
+            <div style={{ fontSize: 12, color: '#f87171', padding: '8px 12px', background: 'rgba(248,113,113,0.08)', borderRadius: 4, border: '1px solid rgba(248,113,113,0.2)' }}>
+              {error}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Footer */}
       <div style={{
@@ -310,16 +396,18 @@ function EditPanel({ node, allAgents, onSave, onClose }: {
           background: 'transparent', border: '1px solid rgba(255,255,255,0.12)',
           color: '#9BB0C4', borderRadius: 4, padding: '12px 18px', fontSize: 11,
           fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', flex: 1,
-        }}>Cancel</button>
-        <button onClick={save} disabled={saving} style={{
-          background: saved ? 'rgba(74,222,128,0.2)' : saving ? 'rgba(201,169,110,0.4)' : '#C9A96E',
-          color: saved ? '#4ade80' : '#142D48', border: saved ? '1px solid rgba(74,222,128,0.4)' : 'none',
-          borderRadius: 4, padding: '12px 22px', fontSize: 11, fontWeight: 700,
-          letterSpacing: '0.1em', textTransform: 'uppercase',
-          cursor: saving ? 'wait' : 'pointer', flex: 2,
-        }}>
-          {saving ? 'Saving...' : saved ? '✓ Saved' : 'Save Changes'}
-        </button>
+        }}>{isLeadership ? 'Close' : 'Cancel'}</button>
+        {!isLeadership && (
+          <button onClick={save} disabled={saving} style={{
+            background: saved ? 'rgba(74,222,128,0.2)' : saving ? 'rgba(201,169,110,0.4)' : '#C9A96E',
+            color: saved ? '#4ade80' : '#142D48', border: saved ? '1px solid rgba(74,222,128,0.4)' : 'none',
+            borderRadius: 4, padding: '12px 22px', fontSize: 11, fontWeight: 700,
+            letterSpacing: '0.1em', textTransform: 'uppercase',
+            cursor: saving ? 'wait' : 'pointer', flex: 2,
+          }}>
+            {saving ? 'Saving...' : saved ? '✓ Saved' : 'Save Changes'}
+          </button>
+        )}
       </div>
     </div>
   )
@@ -327,16 +415,15 @@ function EditPanel({ node, allAgents, onSave, onClose }: {
 
 // ─── Add Agent Panel ──────────────────────────────────────────────────────────
 
-function AddAgentPanel({ allAgents, defaultRecruiterId, onCreated, onClose }: {
-  allAgents: { agentCode: string; firstName: string; lastName: string }[]
-  defaultRecruiterId?: string
+function AddAgentPanel({ allAgents, onCreated, onClose }: {
+  allAgents: FlatAgent[]
   onCreated: () => void
   onClose: () => void
 }) {
   const isMobile = useIsMobile()
   const [form, setForm] = useState({
     firstName: '', lastName: '', email: '', agentCode: '',
-    state: '', phone: '', recruiterId: defaultRecruiterId ?? '',
+    state: '', phone: '', recruiterId: '',
   })
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -350,18 +437,14 @@ function AddAgentPanel({ allAgents, defaultRecruiterId, onCreated, onClose }: {
       setError('First name, last name, email, and agent code are required'); return
     }
     setSubmitting(true); setError('')
-
     try {
       const res = await fetch('/api/admin/agents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          firstName: form.firstName,
-          lastName: form.lastName,
-          email: form.email,
-          agentCode: form.agentCode,
-          state: form.state || undefined,
-          phone: form.phone || undefined,
+          firstName: form.firstName, lastName: form.lastName,
+          email: form.email, agentCode: form.agentCode,
+          state: form.state || undefined, phone: form.phone || undefined,
           recruiterId: form.recruiterId || undefined,
         }),
       })
@@ -370,24 +453,18 @@ function AddAgentPanel({ allAgents, defaultRecruiterId, onCreated, onClose }: {
         setError(d.error ?? 'Failed to create'); setSubmitting(false); return
       }
       onCreated()
-    } catch {
-      setError('Network error'); setSubmitting(false)
-    }
+    } catch { setError('Network error'); setSubmitting(false) }
   }
 
   return (
     <div style={{
       position: 'fixed', top: 0, right: 0, bottom: 0,
-      width: isMobile ? '100%' : 380,
-      background: '#142D48',
-      borderLeft: '1px solid rgba(201,169,110,0.15)',
-      zIndex: 50,
-      display: 'flex', flexDirection: 'column',
-      boxShadow: '-8px 0 40px rgba(0,0,0,0.4)',
+      width: isMobile ? '100%' : 400, background: '#142D48',
+      borderLeft: '1px solid rgba(201,169,110,0.15)', zIndex: 50,
+      display: 'flex', flexDirection: 'column', boxShadow: '-8px 0 40px rgba(0,0,0,0.4)',
     }}>
       <div style={{
-        padding: '20px 24px 16px',
-        borderBottom: '1px solid rgba(201,169,110,0.1)',
+        padding: '20px 24px 16px', borderBottom: '1px solid rgba(201,169,110,0.1)',
         display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12,
       }}>
         <div>
@@ -400,71 +477,31 @@ function AddAgentPanel({ allAgents, defaultRecruiterId, onCreated, onClose }: {
           cursor: 'pointer', color: '#C9A96E', fontSize: 14,
         }}>✕</button>
       </div>
-
       <form onSubmit={submit} style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <div>
-            <label style={labelStyle}>First Name *</label>
-            <input required value={form.firstName} onChange={set('firstName')} style={inputStyle} />
-          </div>
-          <div>
-            <label style={labelStyle}>Last Name *</label>
-            <input required value={form.lastName} onChange={set('lastName')} style={inputStyle} />
-          </div>
+          <div><label style={labelStyle}>First Name *</label><input required value={form.firstName} onChange={set('firstName')} style={inputStyle} /></div>
+          <div><label style={labelStyle}>Last Name *</label><input required value={form.lastName} onChange={set('lastName')} style={inputStyle} /></div>
         </div>
-
-        <div>
-          <label style={labelStyle}>Email *</label>
-          <input required type="email" value={form.email} onChange={set('email')} style={inputStyle} />
-        </div>
-
+        <div><label style={labelStyle}>Email *</label><input required type="email" value={form.email} onChange={set('email')} style={inputStyle} /></div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <div>
-            <label style={labelStyle}>Agent Code *</label>
-            <input required value={form.agentCode} onChange={set('agentCode')} placeholder="e.g. AFF1234" style={{ ...inputStyle, fontFamily: 'monospace' }} />
-          </div>
-          <div>
-            <label style={labelStyle}>Phone</label>
-            <input value={form.phone} onChange={set('phone')} style={inputStyle} />
-          </div>
+          <div><label style={labelStyle}>Agent Code *</label><input required value={form.agentCode} onChange={set('agentCode')} placeholder="e.g. AFF1234" style={{ ...inputStyle, fontFamily: 'monospace' }} /></div>
+          <div><label style={labelStyle}>Phone</label><input value={form.phone} onChange={set('phone')} style={inputStyle} /></div>
         </div>
-
-        <div>
-          <label style={labelStyle}>State</label>
+        <div><label style={labelStyle}>State</label>
           <select value={form.state} onChange={set('state')} style={{ ...inputStyle, appearance: 'auto' }}>
-            <option value="">—</option>
-            {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+            <option value="">—</option>{US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
-
-        <div>
-          <label style={labelStyle}>Reports To (Mentor)</label>
+        <div><label style={labelStyle}>Reports To (Mentor)</label>
           <select value={form.recruiterId} onChange={set('recruiterId')} style={{ ...inputStyle, appearance: 'auto' }}>
             <option value="">None (top level)</option>
-            {allAgents.map(a => (
-              <option key={a.agentCode} value={a.agentCode}>{a.firstName} {a.lastName} ({a.agentCode})</option>
-            ))}
+            {allAgents.map(a => (<option key={a.agentCode} value={a.agentCode}>{a.firstName} {a.lastName} ({a.agentCode})</option>))}
           </select>
         </div>
-
-        {error && (
-          <div style={{ fontSize: 12, color: '#f87171', padding: '8px 12px', background: 'rgba(248,113,113,0.08)', borderRadius: 4, border: '1px solid rgba(248,113,113,0.2)' }}>
-            {error}
-          </div>
-        )}
-
+        {error && <div style={{ fontSize: 12, color: '#f87171', padding: '8px 12px', background: 'rgba(248,113,113,0.08)', borderRadius: 4, border: '1px solid rgba(248,113,113,0.2)' }}>{error}</div>}
         <div style={{ marginTop: 'auto', paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: 10 }}>
-          <button type="button" onClick={onClose} style={{
-            background: 'transparent', border: '1px solid rgba(255,255,255,0.12)',
-            color: '#9BB0C4', borderRadius: 4, padding: '12px 18px', fontSize: 11,
-            fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', flex: 1,
-          }}>Cancel</button>
-          <button type="submit" disabled={submitting} style={{
-            background: submitting ? 'rgba(201,169,110,0.4)' : '#C9A96E',
-            color: '#142D48', border: 'none', borderRadius: 4, padding: '12px 22px', fontSize: 11,
-            fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
-            cursor: submitting ? 'wait' : 'pointer', flex: 2,
-          }}>
+          <button type="button" onClick={onClose} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.12)', color: '#9BB0C4', borderRadius: 4, padding: '12px 18px', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', flex: 1 }}>Cancel</button>
+          <button type="submit" disabled={submitting} style={{ background: submitting ? 'rgba(201,169,110,0.4)' : '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '12px 22px', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: submitting ? 'wait' : 'pointer', flex: 2 }}>
             {submitting ? 'Creating...' : 'Create Agent'}
           </button>
         </div>
@@ -481,8 +518,7 @@ export default function OrgPage() {
   const [selectedNode, setSelectedNode] = useState<OrgNode | null>(null)
   const [showAddAgent, setShowAddAgent] = useState(false)
   const [showTrainers, setShowTrainers] = useState(false)
-  const [seeding, setSeeding] = useState(false)
-  const [seedResult, setSeedResult] = useState<string | null>(null)
+  const [expandedSet, setExpandedSet] = useState<Set<string> | 'all'>('all')
   const isMobile = useIsMobile()
 
   const load = useCallback(async () => {
@@ -496,74 +532,41 @@ export default function OrgPage() {
 
   const allAgents = data ? flattenTree(data.tree) : []
 
+  const collapseAll = () => setExpandedSet(new Set())
+  const expandAll = () => setExpandedSet('all')
+
   return (
     <div style={{ padding: isMobile ? '20px 16px' : '32px 40px', maxWidth: 1400, margin: '0 auto' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 28, flexWrap: 'wrap' }}>
         <div>
-          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 6 }}>
-            Organization
-          </div>
-          <h1 style={{ fontSize: 22, fontWeight: 300, color: '#fff', margin: 0, fontFamily: "'Cormorant Garamond', Georgia, serif" }}>
-            Team Structure
-          </h1>
-          <p style={{ color: '#6B8299', fontSize: 12, margin: '8px 0 0' }}>
-            Click any agent to edit. Changes sync to their portal automatically.
-          </p>
+          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 6 }}>Organization</div>
+          <h1 style={{ fontSize: 22, fontWeight: 300, color: '#fff', margin: 0, fontFamily: "'Cormorant Garamond', Georgia, serif" }}>Team Structure</h1>
+          <p style={{ color: '#6B8299', fontSize: 12, margin: '8px 0 0' }}>Click any person to edit their profile, assign a trainer, or upload a photo.</p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          {data && (
-            <button
-              onClick={async () => {
-                setSeeding(true); setSeedResult(null)
-                try {
-                  const res = await fetch('/api/admin/agents/seed-org', { method: 'POST' })
-                  const d = await res.json() as { created: number; updated: number; skipped: number; errors: string[] }
-                  setSeedResult(`Created ${d.created}, updated ${d.updated}, skipped ${d.skipped}${d.errors.length ? ` (${d.errors.length} errors)` : ''}`)
-                  load()
-                } catch { setSeedResult('Failed') }
-                setSeeding(false)
-              }}
-              disabled={seeding}
-              style={{
-                background: seeding ? 'rgba(74,222,128,0.3)' : 'rgba(74,222,128,0.12)',
-                color: '#4ade80',
-                border: '1px solid rgba(74,222,128,0.35)',
-                borderRadius: 4, padding: '12px 16px', fontSize: 11, fontWeight: 700,
-                letterSpacing: '0.1em', textTransform: 'uppercase', cursor: seeding ? 'wait' : 'pointer',
-                minHeight: 44, whiteSpace: 'nowrap',
-              }}
-            >
-              {seeding ? 'Seeding...' : 'Seed 57 Agents'}
-            </button>
-          )}
-          {seedResult && (
-            <span style={{ fontSize: 10, color: '#4ade80' }}>{seedResult}</span>
-          )}
-          <button
-            onClick={() => setShowTrainers(!showTrainers)}
-            style={{
-              background: showTrainers ? 'rgba(155,109,255,0.15)' : 'transparent',
-              color: showTrainers ? '#9B6DFF' : '#6B8299',
-              border: `1px solid ${showTrainers ? 'rgba(155,109,255,0.4)' : 'rgba(255,255,255,0.12)'}`,
-              borderRadius: 4, padding: '12px 16px', fontSize: 11, fontWeight: 700,
-              letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer',
-              minHeight: 44, whiteSpace: 'nowrap',
-            }}
-          >
-            {showTrainers ? '✓ Trainers' : 'Show Trainers'}
-          </button>
-          <button
-            onClick={() => { setSelectedNode(null); setShowAddAgent(true) }}
-            style={{
-              background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4,
-              padding: '12px 20px', fontSize: 11, fontWeight: 700,
-              letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer',
-              minHeight: 44, whiteSpace: 'nowrap',
-            }}
-          >
-            + Add Agent
-          </button>
+          <button onClick={expandAll} style={{
+            background: 'transparent', color: '#6B8299', border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 4, padding: '10px 14px', fontSize: 10, fontWeight: 700,
+            letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', minHeight: 40,
+          }}>Expand All</button>
+          <button onClick={collapseAll} style={{
+            background: 'transparent', color: '#6B8299', border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 4, padding: '10px 14px', fontSize: 10, fontWeight: 700,
+            letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', minHeight: 40,
+          }}>Collapse All</button>
+          <button onClick={() => setShowTrainers(!showTrainers)} style={{
+            background: showTrainers ? 'rgba(155,109,255,0.15)' : 'transparent',
+            color: showTrainers ? '#9B6DFF' : '#6B8299',
+            border: `1px solid ${showTrainers ? 'rgba(155,109,255,0.4)' : 'rgba(255,255,255,0.12)'}`,
+            borderRadius: 4, padding: '10px 14px', fontSize: 10, fontWeight: 700,
+            letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', minHeight: 40,
+          }}>{showTrainers ? '✓ Trainers' : 'Trainers'}</button>
+          <button onClick={() => { setSelectedNode(null); setShowAddAgent(true) }} style={{
+            background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4,
+            padding: '10px 18px', fontSize: 10, fontWeight: 700,
+            letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', minHeight: 40,
+          }}>+ Add Agent</button>
         </div>
       </div>
 
@@ -588,9 +591,9 @@ export default function OrgPage() {
 
       {data && (
         <div style={{ overflowX: 'auto', padding: '20px 0' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {data.tree.map(root => (
-              <TreeNode key={root.id} node={root} depth={0} onSelect={n => { setShowAddAgent(false); setSelectedNode(n) }} showTrainers={showTrainers} />
+              <TreeNode key={root.id} node={root} depth={0} onSelect={n => { setShowAddAgent(false); setSelectedNode(n) }} showTrainers={showTrainers} expandedSet={expandedSet} />
             ))}
           </div>
         </div>
@@ -602,41 +605,28 @@ export default function OrgPage() {
         </div>
       )}
 
-      {/* Backdrop */}
       {(selectedNode || showAddAgent) && (
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 49 }}
-          onClick={() => { setSelectedNode(null); setShowAddAgent(false) }}
-        />
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 49 }}
+          onClick={() => { setSelectedNode(null); setShowAddAgent(false) }} />
       )}
 
-      {/* Edit Panel */}
       {selectedNode && (
-        <EditPanel
-          key={selectedNode.id}
-          node={selectedNode}
-          allAgents={allAgents}
-          onSave={() => { load(); setSelectedNode(null) }}
-          onClose={() => setSelectedNode(null)}
-        />
+        <EditPanel key={selectedNode.id} node={selectedNode} allAgents={allAgents}
+          onSave={() => { load(); setSelectedNode(null) }} onClose={() => setSelectedNode(null)} />
       )}
 
-      {/* Add Agent Panel */}
       {showAddAgent && (
-        <AddAgentPanel
-          allAgents={allAgents}
-          onCreated={() => { load(); setShowAddAgent(false) }}
-          onClose={() => setShowAddAgent(false)}
-        />
+        <AddAgentPanel allAgents={allAgents}
+          onCreated={() => { load(); setShowAddAgent(false) }} onClose={() => setShowAddAgent(false)} />
       )}
     </div>
   )
 }
 
-function flattenTree(nodes: OrgNode[]): { agentCode: string; firstName: string; lastName: string }[] {
-  const result: { agentCode: string; firstName: string; lastName: string }[] = []
+function flattenTree(nodes: OrgNode[]): FlatAgent[] {
+  const result: FlatAgent[] = []
   function walk(n: OrgNode) {
-    if (!n.id.startsWith('_')) result.push({ agentCode: n.agentCode, firstName: n.firstName, lastName: n.lastName })
+    if (!n.id.startsWith('_')) result.push({ agentCode: n.agentCode, firstName: n.firstName, lastName: n.lastName, phase: n.phase })
     for (const c of n.children) walk(c)
   }
   for (const n of nodes) walk(n)
