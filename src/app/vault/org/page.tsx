@@ -455,9 +455,9 @@ function EditPanel({ node, allAgents, onSave, onClose }: {
           <div>
             <label style={labelStyle}>Reports To (Mentor)</label>
             <select value={form.recruiterId} onChange={set('recruiterId')} style={{ ...inputStyle, appearance: 'auto' }}>
-              <option value="">None (top level)</option>
-              {allAgents.filter(a => a.agentCode !== node.agentCode).map(a => (
-                <option key={a.agentCode} value={a.agentCode}>{a.firstName} {a.lastName} ({a.agentCode})</option>
+              <option value="">Vick & Melinee Minhas (Leadership)</option>
+              {allAgents.filter(a => a.agentCode !== node.agentCode && a.phase >= node.phase).map(a => (
+                <option key={a.agentCode} value={a.agentCode}>{a.firstName} {a.lastName} — {PHASE_TITLES[a.phase]}</option>
               ))}
             </select>
           </div>
@@ -592,7 +592,7 @@ function AddAgentPanel({ allAgents, onCreated, onClose }: {
         </div>
         <div><label style={labelStyle}>Reports To (Mentor)</label>
           <select value={form.recruiterId} onChange={set('recruiterId')} style={{ ...inputStyle, appearance: 'auto' }}>
-            <option value="">None (top level)</option>
+            <option value="">Vick & Melinee Minhas (Leadership)</option>
             {allAgents.map(a => (<option key={a.agentCode} value={a.agentCode}>{a.firstName} {a.lastName} ({a.agentCode})</option>))}
           </select>
         </div>
