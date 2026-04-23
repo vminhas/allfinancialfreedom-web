@@ -4,20 +4,12 @@ import { getToken } from 'next-auth/jwt'
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
-  const host = request.headers.get('host') ?? ''
-
-  // www → non-www redirect (301)
-  if (host.startsWith('www.')) {
-    const url = request.nextUrl.clone()
-    url.host = host.replace('www.', '')
-    return NextResponse.redirect(url, 301)
-  }
 
   // Pass the pathname to server components via a request header
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-pathname', pathname)
 
-  // Non-vault routes: just forward with the pathname header
+  // Only enforce auth on /vault routes
   if (!pathname.startsWith('/vault')) {
     return NextResponse.next({ request: { headers: requestHeaders } })
   }
@@ -43,5 +35,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|blog/.*\\.jpg|brand/.*).*)'],
+  matcher: ['/vault', '/vault/(.*)'],
 }
