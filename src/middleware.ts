@@ -4,18 +4,30 @@ import { getToken } from 'next-auth/jwt'
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+  const host = request.headers.get('host') ?? ''
+
+  // www → non-www redirect (301)
+  if (host.startsWith('www.')) {
+    const url = request.nextUrl.clone()
+    url.host = host.replace('www.', '')
+    return NextResponse.redirect(url, 301)
+  }
 
   // Pass the pathname to server components via a request header
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-pathname', pathname)
 
-  // Login page is always accessible — just forward with the pathname header
+  // Non-vault routes: just forward with the pathname header
+  if (!pathname.startsWith('/vault')) {
+    return NextResponse.next({ request: { headers: requestHeaders } })
+  }
+
+  // Login page is always accessible
   if (pathname === '/vault/login') {
     return NextResponse.next({ request: { headers: requestHeaders } })
   }
 
-  // All other vault routes require a staff session (admin or licensing_coordinator).
-  // Must use the same cookie name we set in auth.ts (no __Secure- prefix).
+  // All other vault routes require a staff session
   const token = await getToken({
     req: request,
     cookieName: 'next-auth.session-token',
@@ -31,6 +43,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Include /vault/login so middleware runs and sets the x-pathname header
-  matcher: ['/vault', '/vault/(.*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|blog/.*\\.jpg|brand/.*).*)'],
 }

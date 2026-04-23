@@ -1,4 +1,21 @@
 {
+  "redirects": [
+    {
+      "source": "/main",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/cart",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/contact",
+      "destination": "/about",
+      "permanent": true
+    }
+  ],
   "crons": [
     {
       "path": "/api/cron/daily-outreach",
