@@ -198,24 +198,25 @@ function TreeNode({ node, depth, onSelect, showTrainers, expandedSet, onAvatarUp
   }, [expandedSet, node.id])
 
   return (
-    <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: 'flex-start', gap: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: 0 }}>
       {depth > 0 && !isMobile && (
-        <div style={{ width: 32, minWidth: 32, borderBottom: `2px solid ${color}40`, alignSelf: 'flex-start', marginTop: 32 }} />
+        <div style={{ width: 28, minWidth: 28, borderBottom: `2px solid ${color}30`, alignSelf: 'flex-start', marginTop: 28 }} />
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', width: isMobile ? '100%' : 'auto' }}>
+      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
         <div
           style={{
             display: 'flex', alignItems: 'center', gap: 14,
-            padding: isLeadership ? '16px 20px' : '12px 16px',
-            background: isLeadership ? '#1B3A5C' : '#132238',
-            border: `1px solid ${isLeadership ? '#C9A96E50' : `${color}30`}`,
+            padding: '10px 14px',
+            background: '#132238',
+            border: `1px solid ${color}25`,
             borderRadius: 10,
             cursor: 'pointer',
-            minWidth: isMobile ? '100%' : isLeadership ? 280 : 240,
-            marginLeft: isMobile ? depth * 16 : 0,
+            minWidth: isMobile ? 180 : 220,
+            maxWidth: 280,
             transition: 'border-color 0.15s, background 0.15s',
-            boxShadow: isLeadership ? '0 0 20px rgba(201,169,110,0.1)' : '0 2px 8px rgba(0,0,0,0.15)',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
           }}
           onClick={e => { e.stopPropagation(); onSelect(node) }}
         >
@@ -290,11 +291,28 @@ function TreeNode({ node, depth, onSelect, showTrainers, expandedSet, onAvatarUp
           )}
         </div>
 
-        {localExpanded && node.children.length > 0 && (
+        </div>
+
+        {/* Horizontal connector + children to the right */}
+        {localExpanded && node.children.length > 0 && !isMobile && (
+          <>
+            <div style={{ width: 24, minWidth: 24, borderBottom: `2px solid ${color}25`, alignSelf: 'flex-start', marginTop: 28 }} />
+            <div style={{
+              display: 'flex', flexDirection: 'column', gap: 8,
+              borderLeft: `2px solid ${color}15`,
+              paddingLeft: 0,
+            }}>
+              {node.children.map(child => (
+                <TreeNode key={child.id} node={child} depth={depth + 1} onSelect={onSelect} showTrainers={showTrainers} expandedSet={expandedSet} onAvatarUploaded={onAvatarUploaded} />
+              ))}
+            </div>
+          </>
+        )}
+        {localExpanded && node.children.length > 0 && isMobile && (
           <div style={{
-            display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10,
-            paddingLeft: isMobile ? 0 : 18,
-            borderLeft: isMobile ? 'none' : `2px solid ${color}15`,
+            display: 'flex', flexDirection: 'column', gap: 8,
+            marginLeft: 16, marginTop: 8,
+            borderLeft: `2px solid ${color}15`,
           }}>
             {node.children.map(child => (
               <TreeNode key={child.id} node={child} depth={depth + 1} onSelect={onSelect} showTrainers={showTrainers} expandedSet={expandedSet} onAvatarUploaded={onAvatarUploaded} />
@@ -308,11 +326,12 @@ function TreeNode({ node, depth, onSelect, showTrainers, expandedSet, onAvatarUp
 
 // ─── Edit Panel ───────────────────────────────────────────────────────────────
 
-function EditPanel({ node, allAgents, onSave, onClose }: {
+function EditPanel({ node, allAgents, onSave, onClose, onDeactivate }: {
   node: OrgNode
   allAgents: FlatAgent[]
   onSave: () => void
   onClose: () => void
+  onDeactivate: (id: string) => void
 }) {
   const isMobile = useIsMobile()
   const isLeadership = node.id.startsWith('_')
@@ -516,6 +535,25 @@ function EditPanel({ node, allAgents, onSave, onClose }: {
               {error}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Deactivate */}
+      {!isLeadership && (
+        <div style={{ padding: '0 24px 8px' }}>
+          <button
+            onClick={() => { if (window.confirm(`Deactivate ${node.firstName} ${node.lastName}? They will be removed from the org chart.`)) onDeactivate(node.id) }}
+            style={{
+              background: 'transparent', border: '1px solid rgba(248,113,113,0.25)',
+              color: '#f87171', borderRadius: 4, padding: '8px 14px', fontSize: 10,
+              fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+              cursor: 'pointer', width: '100%', opacity: 0.7,
+            }}
+            onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+            onMouseLeave={e => (e.currentTarget.style.opacity = '0.7')}
+          >
+            Deactivate Agent
+          </button>
         </div>
       )}
 
@@ -755,7 +793,18 @@ export default function OrgPage() {
 
       {selectedNode && (
         <EditPanel key={selectedNode.id} node={selectedNode} allAgents={allAgents}
-          onSave={() => { load(); setSelectedNode(null) }} onClose={() => setSelectedNode(null)} />
+          onSave={() => { load(); setSelectedNode(null) }}
+          onClose={() => setSelectedNode(null)}
+          onDeactivate={async (id) => {
+            await fetch(`/api/admin/agents/${id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status: 'INACTIVE' }),
+            })
+            setSelectedNode(null)
+            load()
+          }}
+        />
       )}
 
       {showAddAgent && (
