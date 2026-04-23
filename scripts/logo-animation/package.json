@@ -1,0 +1,14 @@
+{
+  "name": "logo-animation",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Render pipeline for the animated eagle logo end-card (and intro).",
+  "type": "module",
+  "scripts": {
+    "render": "node render.mjs",
+    "preview": "node render.mjs preview"
+  },
+  "dependencies": {
+    "@resvg/resvg-js": "^2.6.2"
+  }
+}
