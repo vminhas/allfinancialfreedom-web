@@ -165,12 +165,13 @@ function LeadershipCard({ leaders, onUpdated }: { leaders: LeadershipPerson[]; o
 
 // ─── Tree Node ────────────────────────────────────────────────────────────────
 
-function TreeNode({ node, depth, onSelect, showTrainers, expandedSet }: {
+function TreeNode({ node, depth, onSelect, showTrainers, expandedSet, onAvatarUploaded }: {
   node: OrgNode
   depth: number
   onSelect: (node: OrgNode) => void
   showTrainers: boolean
   expandedSet: Set<string> | 'all'
+  onAvatarUploaded: () => void
 }) {
   const isExpanded = expandedSet === 'all' || expandedSet.has(node.id)
   const [localExpanded, setLocalExpanded] = useState(isExpanded)
@@ -178,6 +179,19 @@ function TreeNode({ node, depth, onSelect, showTrainers, expandedSet }: {
   const descendantCount = countDescendants(node)
   const isMobile = useIsMobile()
   const isLeadership = node.id.startsWith('_')
+  const avatarFileRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+
+  const handleAvatarUpload = async (file: File) => {
+    setUploading(true)
+    const fd = new FormData()
+    fd.append('avatar', file)
+    try {
+      const res = await fetch(`/api/admin/agents/${node.id}/avatar`, { method: 'POST', body: fd })
+      if (res.ok) onAvatarUploaded()
+    } catch { /* silent */ }
+    setUploading(false)
+  }
 
   useEffect(() => {
     setLocalExpanded(expandedSet === 'all' || expandedSet.has(node.id))
@@ -205,23 +219,44 @@ function TreeNode({ node, depth, onSelect, showTrainers, expandedSet }: {
           }}
           onClick={e => { e.stopPropagation(); onSelect(node) }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          {node.avatarUrl ? (
-            <img src={node.avatarUrl} alt="" style={{
-              width: isLeadership ? 48 : 40, height: isLeadership ? 48 : 40, borderRadius: '50%',
-              objectFit: 'cover', flexShrink: 0, border: `2px solid ${isLeadership ? '#C9A96E' : `${color}40`}`,
-            }} />
-          ) : (
+          <div
+            style={{ position: 'relative', flexShrink: 0, cursor: 'pointer' }}
+            onClick={e => { e.stopPropagation(); avatarFileRef.current?.click() }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {node.avatarUrl ? (
+              <img src={node.avatarUrl} alt="" style={{
+                width: isLeadership ? 48 : 40, height: isLeadership ? 48 : 40, borderRadius: '50%',
+                objectFit: 'cover', border: `2px solid ${isLeadership ? '#C9A96E' : `${color}40`}`,
+              }} />
+            ) : (
+              <div style={{
+                width: isLeadership ? 48 : 40, height: isLeadership ? 48 : 40, borderRadius: '50%',
+                background: `${color}20`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: isLeadership ? 15 : 13, fontWeight: 700, color,
+                border: `2px solid ${isLeadership ? '#C9A96E' : `${color}40`}`,
+              }}>
+                {initials(node.firstName, node.lastName)}
+              </div>
+            )}
             <div style={{
-              width: isLeadership ? 48 : 40, height: isLeadership ? 48 : 40, borderRadius: '50%',
-              background: `${color}20`,
+              position: 'absolute', bottom: -2, right: -2,
+              width: 18, height: 18, borderRadius: '50%',
+              background: '#C9A96E', color: '#142D48',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: isLeadership ? 15 : 13, fontWeight: 700, color, flexShrink: 0,
-              border: `2px solid ${isLeadership ? '#C9A96E' : `${color}40`}`,
+              fontSize: 9, border: '2px solid #132238',
             }}>
-              {initials(node.firstName, node.lastName)}
+              {uploading ? '·' : '📷'}
             </div>
-          )}
+            <input
+              ref={avatarFileRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              style={{ display: 'none' }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleAvatarUpload(f) }}
+            />
+          </div>
 
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -262,7 +297,7 @@ function TreeNode({ node, depth, onSelect, showTrainers, expandedSet }: {
             borderLeft: isMobile ? 'none' : `2px solid ${color}15`,
           }}>
             {node.children.map(child => (
-              <TreeNode key={child.id} node={child} depth={depth + 1} onSelect={onSelect} showTrainers={showTrainers} expandedSet={expandedSet} />
+              <TreeNode key={child.id} node={child} depth={depth + 1} onSelect={onSelect} showTrainers={showTrainers} expandedSet={expandedSet} onAvatarUploaded={onAvatarUploaded} />
             ))}
           </div>
         )}
@@ -699,9 +734,9 @@ export default function OrgPage() {
             {data.tree.flatMap(root =>
               root.id.startsWith('_')
                 ? root.children.map(child => (
-                    <TreeNode key={child.id} node={child} depth={0} onSelect={n => { setShowAddAgent(false); setSelectedNode(n) }} showTrainers={showTrainers} expandedSet={expandedSet} />
+                    <TreeNode key={child.id} node={child} depth={0} onSelect={n => { setShowAddAgent(false); setSelectedNode(n) }} showTrainers={showTrainers} expandedSet={expandedSet} onAvatarUploaded={load} />
                   ))
-                : [<TreeNode key={root.id} node={root} depth={0} onSelect={n => { setShowAddAgent(false); setSelectedNode(n) }} showTrainers={showTrainers} expandedSet={expandedSet} />]
+                : [<TreeNode key={root.id} node={root} depth={0} onSelect={n => { setShowAddAgent(false); setSelectedNode(n) }} showTrainers={showTrainers} expandedSet={expandedSet} onAvatarUploaded={load} />]
             )}
           </div>
         </div>
