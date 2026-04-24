@@ -1,7 +1,7 @@
 import { db } from './db'
 import { listPublicFolder, downloadPublicFile, filterTrainingFlyers, type DriveFile } from './google-drive'
 import { parseTrainingFlyer, type ParsedTrainingEvent } from './training-parser'
-import { createGuildScheduledEvent, deleteGuildScheduledEvent, sendChannelMessage, editChannelMessage } from './discord'
+import { createGuildScheduledEvent, deleteGuildScheduledEvent, listGuildScheduledEvents, sendChannelMessage, editChannelMessage } from './discord'
 import { getSetting, setSetting } from './settings'
 import { uploadFlyerToBlob } from './blob-upload'
 
@@ -319,9 +319,26 @@ export async function postWeeklyRoundupForRows(
     return { posted: false, eventCount: 0, action: 'skipped' }
   }
 
-  // Only include rows that actually have a Discord event ID — we can't
-  // link to non-existent events.
-  const linkable = rows.filter(r => r.discordEventId)
+  // Reconcile: fetch actual Discord events and clear stale IDs from the
+  // DB so the card never links to events Discord has already removed
+  // (completed, cancelled, or expired).
+  let validDiscordIds: Set<string>
+  try {
+    const liveEvents = await listGuildScheduledEvents()
+    validDiscordIds = new Set(liveEvents.map(e => e.id))
+
+    const staleRows = rows.filter(r => r.discordEventId && !validDiscordIds.has(r.discordEventId))
+    if (staleRows.length > 0) {
+      await db.trainingEvent.updateMany({
+        where: { id: { in: staleRows.map(r => r.id) } },
+        data: { discordEventId: null, discordEventCreatedAt: null },
+      })
+    }
+  } catch {
+    validDiscordIds = new Set(rows.filter(r => r.discordEventId).map(r => r.discordEventId!))
+  }
+
+  const linkable = rows.filter(r => r.discordEventId && validDiscordIds.has(r.discordEventId))
   if (linkable.length === 0) return { posted: false, eventCount: 0, action: 'skipped' }
 
   // Group by date so the post reads as a week-at-a-glance

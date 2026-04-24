@@ -86,6 +86,17 @@ export async function listBotGuilds(): Promise<DiscordGuildSummary[]> {
 
 // ─── Guild scheduled events ──────────────────────────────────────────────────
 
+export async function listGuildScheduledEvents(): Promise<{ id: string; name: string; status: number }[]> {
+  const res = await discordFetch(`${API}/guilds/${guildId()}/scheduled-events`, {
+    headers: authHeaders(),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Discord listScheduledEvents failed (${res.status}): ${text.slice(0, 300)}`)
+  }
+  return res.json() as Promise<{ id: string; name: string; status: number }[]>
+}
+
 export interface DiscordScheduledEventInput {
   name: string
   description?: string
