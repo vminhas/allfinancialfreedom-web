@@ -3116,11 +3116,12 @@ function MyTeamTab({ isMobile }: { isMobile: boolean }) {
 
   useEffect(() => {
     fetch('/api/agents/team')
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(); return r.json() })
       .then((d: { team: TeamNode[]; totalTeamSize: number }) => {
-        setTeam(d.team)
-        setTotalSize(d.totalTeamSize)
+        setTeam(d.team ?? [])
+        setTotalSize(d.totalTeamSize ?? 0)
       })
+      .catch(() => { /* no team data available */ })
       .finally(() => setLoading(false))
   }, [])
 
