@@ -111,6 +111,7 @@ export default function TrackerPage() {
   const [phaseFilter, setPhaseFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('active')
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [atRiskOnly, setAtRiskOnly] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
   const [selectedAgent, setSelectedAgent] = useState<DetailedAgent | null>(null)
@@ -300,7 +301,6 @@ export default function TrackerPage() {
   }
 
   // Debounce search — wait 400ms after typing stops before fetching
-  const [debouncedSearch, setDebouncedSearch] = useState(searchQuery)
   useEffect(() => {
     const t = setTimeout(() => { setDebouncedSearch(searchQuery); setPage(1) }, 400)
     return () => clearTimeout(t)
