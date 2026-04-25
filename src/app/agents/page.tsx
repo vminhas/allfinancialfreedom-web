@@ -1125,7 +1125,13 @@ function AgentDashboardInner() {
                         </span>
                       )}
                       {item.coordinatorTopic && (
-                        <span style={{ flexShrink: 0, display: 'flex' }} title="Licensing coordinator can help"><Mail size={13} color="#C9A96E" /></span>
+                        <button
+                          onClick={e => { e.stopPropagation(); setRequestModalItemKey(item.key) }}
+                          style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: '1px solid rgba(201,169,110,0.3)', borderRadius: 4, padding: '3px 8px', cursor: 'pointer', color: '#C9A96E', fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}
+                          title="Request help from the licensing coordinator"
+                        >
+                          <Mail size={11} color="#C9A96E" /> Get Help
+                        </button>
                       )}
                       {phaseItem?.completedAt && (
                         <span style={{ fontSize: 10, color: '#4B5563', flexShrink: 0 }}>
@@ -1206,6 +1212,27 @@ function AgentDashboardInner() {
                             <MarkdownDescription text={item.description} />
                           </div>
 
+
+                          {/* Coordinator request — inline CTA for items with coordinatorTopic */}
+                          {item.coordinatorTopic && (
+                            <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px dashed rgba(201,169,110,0.2)' }}>
+                              <button
+                                onClick={e => { e.stopPropagation(); setRequestModalItemKey(item.key) }}
+                                style={{
+                                  background: 'rgba(201,169,110,0.08)',
+                                  border: '1px solid rgba(201,169,110,0.3)',
+                                  borderRadius: 6, padding: '12px 16px',
+                                  cursor: 'pointer', color: '#C9A96E',
+                                  fontSize: 12, fontWeight: 600,
+                                  display: 'flex', alignItems: 'center', gap: 8,
+                                  width: '100%',
+                                }}
+                              >
+                                <Mail size={15} color="#C9A96E" />
+                                Need help? Message your licensing coordinator
+                              </button>
+                            </div>
+                          )}
 
                           {/* Discord connect — inline action for connect_discord item */}
                           {item.key === 'connect_discord' && (
