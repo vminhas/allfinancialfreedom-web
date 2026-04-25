@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   await setSetting(`PREVIEW_TOKEN_${token}`, JSON.stringify({
     agentProfileId,
     expires,
-    createdBy: session.user?.email,
+    createdBy: session?.user?.email ?? 'admin',
   }))
 
   return NextResponse.json({ token })
