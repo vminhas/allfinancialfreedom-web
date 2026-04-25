@@ -1187,9 +1187,33 @@ function AgentDrawer({
             </div>
           </div>
         </div>
-        <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#9BB0C4', fontSize: 14, cursor: 'pointer', width: 28, height: 28, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          ✕
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button
+            onClick={async () => {
+              const res = await fetch('/api/admin/agents/preview-token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ agentProfileId: agent.id }),
+              })
+              if (res.ok) {
+                const { token } = await res.json() as { token: string }
+                window.open(`/agents?preview=${token}`, '_blank')
+              }
+            }}
+            title="View this agent's portal (read-only, 5-min link)"
+            style={{
+              background: 'rgba(155,109,255,0.08)', border: '1px solid rgba(155,109,255,0.3)',
+              color: '#9B6DFF', fontSize: 9, fontWeight: 700, letterSpacing: '0.08em',
+              textTransform: 'uppercase', cursor: 'pointer', borderRadius: 4,
+              padding: '6px 10px', whiteSpace: 'nowrap',
+            }}
+          >
+            View Portal
+          </button>
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#9BB0C4', fontSize: 14, cursor: 'pointer', width: 28, height: 28, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            ✕
+          </button>
+        </div>
       </div>
 
       {/* Phase + status + advance */}

@@ -1,30 +1,52 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { decrypt } from '@/lib/settings'
+import { decrypt, getSetting, setSetting } from '@/lib/settings'
 import { getAgentDiscordRoleName } from '@/lib/discord-roles'
 import { PHASE_LABELS, PHASE_ITEMS } from '@/lib/agent-constants'
 
-export async function GET() {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export async function GET(req: NextRequest) {
+  // Check for admin preview token first
+  const previewToken = new URL(req.url).searchParams.get('preview')
+  let agentUser: Awaited<ReturnType<typeof findAgentUser>> | null = null
+
+  if (previewToken) {
+    const raw = await getSetting(`PREVIEW_TOKEN_${previewToken}`)
+    if (raw) {
+      const data = JSON.parse(raw) as { agentProfileId: string; expires: string }
+      if (new Date(data.expires) >= new Date()) {
+        await setSetting(`PREVIEW_TOKEN_${previewToken}`, '')
+        const profile = await db.agentProfile.findUnique({
+          where: { id: data.agentProfileId },
+          select: { agentUserId: true },
+        })
+        if (profile) {
+          agentUser = await findAgentUser(profile.agentUserId)
+        }
+      }
+    }
   }
 
-  const agentUser = await db.agentUser.findUnique({
-    where: { email: session.user!.email! },
-    include: {
-      profile: {
-        include: {
-          phaseItems: true,
-          carrierAppointments: { orderBy: { carrier: 'asc' } },
-          milestones: { orderBy: { completedAt: 'desc' } },
-          _count: { select: { businessPartners: true, policies: true, callLogs: true } },
+  if (!agentUser) {
+    const session = await getServerSession(authOptions)
+    if (!session || (session.user as { role?: string }).role !== 'agent') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    agentUser = await db.agentUser.findUnique({
+      where: { email: session.user!.email! },
+      include: {
+        profile: {
+          include: {
+            phaseItems: true,
+            carrierAppointments: { orderBy: { carrier: 'asc' } },
+            milestones: { orderBy: { completedAt: 'desc' } },
+            _count: { select: { businessPartners: true, policies: true, callLogs: true } },
+          },
         },
       },
-    },
-  })
+    })
+  }
 
   if (!agentUser?.profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
 
@@ -97,5 +119,21 @@ export async function GET() {
     milestones: p.milestones,
     counts: p._count,
     justPromoted,
+  })
+}
+
+function findAgentUser(agentUserId: string) {
+  return db.agentUser.findUnique({
+    where: { id: agentUserId },
+    include: {
+      profile: {
+        include: {
+          phaseItems: true,
+          carrierAppointments: { orderBy: { carrier: 'asc' } },
+          milestones: { orderBy: { completedAt: 'desc' } },
+          _count: { select: { businessPartners: true, policies: true, callLogs: true } },
+        },
+      },
+    },
   })
 }

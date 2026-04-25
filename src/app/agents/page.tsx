@@ -115,6 +115,7 @@ function AgentDashboardInner() {
   const searchParams = useSearchParams()
   const discordParam = searchParams.get('discord')
   const discordUsername = searchParams.get('username')
+  const previewToken = searchParams.get('preview')
 
   const [data, setData] = useState<AgentData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -178,8 +179,9 @@ function AgentDashboardInner() {
   useEffect(() => { fetchCoordinatorRequests() }, [fetchCoordinatorRequests])
 
   const fetchData = useCallback(async () => {
-    const res = await fetch('/api/agents/me')
-    if (res.status === 401) { router.push('/agents/login'); return }
+    const url = previewToken ? `/api/agents/me?preview=${previewToken}` : '/api/agents/me'
+    const res = await fetch(url)
+    if (res.status === 401 && !previewToken) { router.push('/agents/login'); return }
     if (res.status === 403) {
       const body = await res.json() as { error?: string }
       if (body.error === 'AccountInactive') {
@@ -359,6 +361,17 @@ function AgentDashboardInner() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#0A1628' }}>
+      {/* Preview mode banner */}
+      {previewToken && data && (
+        <div style={{
+          background: 'rgba(155,109,255,0.12)', borderBottom: '1px solid rgba(155,109,255,0.3)',
+          padding: '8px 20px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          fontSize: 12, color: '#9B6DFF', fontWeight: 600,
+        }}>
+          Viewing as {data.firstName} {data.lastName} ({data.agentCode}) — read-only preview
+          <button onClick={() => window.close()} style={{ background: 'rgba(155,109,255,0.15)', border: '1px solid rgba(155,109,255,0.3)', color: '#9B6DFF', borderRadius: 4, padding: '4px 10px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>Close</button>
+        </div>
+      )}
       {/* Top nav */}
       <div style={{
         borderBottom: '1px solid rgba(201,169,110,0.1)',
