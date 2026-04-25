@@ -100,6 +100,33 @@ export async function assignPhase1StepRole(
 }
 
 /**
+ * Assign an arbitrary Discord role to a guild member.
+ */
+export async function assignDiscordRole(
+  discordUserId: string,
+  roleId: string
+): Promise<boolean> {
+  const creds = getCredentials()
+  if (!creds) return false
+
+  try {
+    const res = await fetch(
+      `https://discord.com/api/v10/guilds/${creds.guildId}/members/${discordUserId}/roles/${roleId}`,
+      {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bot ${creds.botToken}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    )
+    return res.ok || res.status === 204
+  } catch {
+    return false
+  }
+}
+
+/**
  * Get the display name of the Discord role for a given phase.
  */
 export async function getAgentDiscordRoleName(phase: number): Promise<string | null> {
