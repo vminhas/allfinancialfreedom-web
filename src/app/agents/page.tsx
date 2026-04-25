@@ -1340,7 +1340,7 @@ function AgentDashboardInner() {
         {activeTab === 'partners' && <BusinessPartnersTab isMobile={isMobile} />}
         {activeTab === 'policies' && <PoliciesTab isMobile={isMobile} />}
         {activeTab === 'calls' && <CallLogsTab />}
-        {activeTab === 'team' && <MyTeamTab isMobile={isMobile} />}
+        {activeTab === 'team' && <MyTeamTab isMobile={isMobile} previewToken={previewToken} />}
         {activeTab === 'resources' && <TrainingResourcesTab resources={setupResources} />}
         {activeTab === 'profile' && (
           <ProfileTab
@@ -3149,13 +3149,14 @@ function TeamMemberNode({ node, depth, isMobile }: { node: TeamNode; depth: numb
   )
 }
 
-function MyTeamTab({ isMobile }: { isMobile: boolean }) {
+function MyTeamTab({ isMobile, previewToken }: { isMobile: boolean; previewToken?: string | null }) {
   const [team, setTeam] = useState<TeamNode[]>([])
   const [totalSize, setTotalSize] = useState(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/agents/team')
+    const url = previewToken ? `/api/agents/team?preview=${previewToken}` : '/api/agents/team'
+    fetch(url)
       .then(r => { if (!r.ok) throw new Error(); return r.json() })
       .then((d: { team: TeamNode[]; totalTeamSize: number }) => {
         setTeam(d.team ?? [])

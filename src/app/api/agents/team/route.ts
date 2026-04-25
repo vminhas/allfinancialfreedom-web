@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { agentAuthOptions } from '@/lib/agent-auth'
 import { db } from '@/lib/db'
+import { getSetting, setSetting } from '@/lib/settings'
 
 const PHASE_TITLES: Record<number, string> = {
   1: 'Agent',
@@ -23,17 +24,38 @@ interface TeamNode {
   children: TeamNode[]
 }
 
-export async function GET() {
-  const session = await getServerSession(agentAuthOptions)
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export async function GET(req: NextRequest) {
+  let myAgentCode: string | null = null
+
+  // Check for admin preview token
+  const previewToken = new URL(req.url).searchParams.get('preview')
+  if (previewToken) {
+    const raw = await getSetting(`PREVIEW_TOKEN_${previewToken}`)
+    if (raw) {
+      const data = JSON.parse(raw) as { agentProfileId: string; expires: string }
+      if (new Date(data.expires) >= new Date()) {
+        const profile = await db.agentProfile.findUnique({
+          where: { id: data.agentProfileId },
+          select: { agentCode: true },
+        })
+        if (profile) myAgentCode = profile.agentCode
+      }
+    }
   }
 
-  const me = await db.agentProfile.findFirst({
-    where: { agentUser: { email: session.user.email! } },
-    select: { agentCode: true },
-  })
-  if (!me) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  // Fall back to agent session
+  if (!myAgentCode) {
+    const session = await getServerSession(agentAuthOptions)
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const me = await db.agentProfile.findFirst({
+      where: { agentUser: { email: session.user.email! } },
+      select: { agentCode: true },
+    })
+    if (!me) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    myAgentCode = me.agentCode
+  }
 
   const allAgents = await db.agentProfile.findMany({
     where: { status: 'ACTIVE' },
@@ -73,7 +95,7 @@ export async function GET() {
     }
   }
 
-  const myRecruits = childrenOf.get(me.agentCode) ?? []
+  const myRecruits = childrenOf.get(myAgentCode) ?? []
   const team = myRecruits.map(buildNode)
 
   let totalTeamSize = 0
