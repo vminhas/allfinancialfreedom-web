@@ -110,6 +110,7 @@ export default function TrackerPage() {
   const [loading, setLoading] = useState(true)
   const [phaseFilter, setPhaseFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('active')
+  const [searchQuery, setSearchQuery] = useState('')
   const [atRiskOnly, setAtRiskOnly] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
   const [selectedAgent, setSelectedAgent] = useState<DetailedAgent | null>(null)
@@ -299,6 +300,14 @@ export default function TrackerPage() {
 
   const displayedAgents = (() => {
     let list = agents
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim()
+      list = list.filter(a =>
+        `${a.firstName} ${a.lastName}`.toLowerCase().includes(q) ||
+        a.agentCode.toLowerCase().includes(q) ||
+        (a.email && a.email.toLowerCase().includes(q))
+      )
+    }
     if (atRiskOnly) {
       list = list.filter(a => {
         const s = getAtRiskStatus(a.phase, a.phaseStartedAt ? new Date(a.phaseStartedAt) : null, a.phaseCompleted, a.phaseTotal)
@@ -742,6 +751,26 @@ export default function TrackerPage() {
         border: '1px solid rgba(201,169,110,0.08)',
         borderRadius: 6, overflow: 'hidden',
       }}>
+        {/* Search bar */}
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(201,169,110,0.06)', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <input
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search by name, agent code, or email..."
+            style={{
+              flex: 1, background: '#0A1628', border: '1px solid rgba(201,169,110,0.15)',
+              borderRadius: 4, color: '#d1d9e2', padding: '10px 14px', fontSize: 13,
+              fontFamily: 'inherit', outline: 'none',
+            }}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              style={{ background: 'transparent', border: 'none', color: '#6B8299', fontSize: 14, cursor: 'pointer', padding: '4px 8px' }}
+            >✕</button>
+          )}
+          <span style={{ fontSize: 10, color: '#4B5563', flexShrink: 0 }}>{displayedAgents.length} agent{displayedAgents.length !== 1 ? 's' : ''}</span>
+        </div>
         <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         <table style={{ width: '100%', minWidth: 1000, borderCollapse: 'collapse' }}>
           <thead>
