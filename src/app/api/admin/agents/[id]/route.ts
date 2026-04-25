@@ -149,6 +149,15 @@ export async function PUT(
   }
 
   const updated = await db.agentProfile.update({ where: { id }, data })
+
+  // Update email on the AgentUser record if provided
+  if (typeof body.email === 'string' && body.email.trim()) {
+    await db.agentUser.update({
+      where: { id: existing.agentUserId },
+      data: { email: body.email.toLowerCase().trim() },
+    })
+  }
+
   return NextResponse.json(updated)
 }
 

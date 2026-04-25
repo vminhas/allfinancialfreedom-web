@@ -1076,6 +1076,7 @@ function AgentDrawer({
   const [editForm, setEditForm] = useState({
     firstName: agent.firstName,
     lastName: agent.lastName,
+    email: agent.email,
     phone: agent.phone ?? '',
     state: agent.state ?? '',
     dateOfBirth: agent.dateOfBirth ? agent.dateOfBirth.split('T')[0] : '',
@@ -1712,6 +1713,12 @@ function AgentDrawer({
                 <label style={lStyle}>Last Name</label>
                 <input value={editForm.lastName} onChange={set('lastName')} style={iStyle} />
               </div>
+            </div>
+
+            {/* Email */}
+            <div>
+              <label style={lStyle}>Email</label>
+              <input type="email" value={editForm.email} onChange={set('email')} style={iStyle} />
             </div>
 
             {/* Contact */}
