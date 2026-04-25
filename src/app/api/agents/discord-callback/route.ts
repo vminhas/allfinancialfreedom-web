@@ -86,6 +86,29 @@ export async function GET(req: NextRequest) {
     assignDiscordRole(discordUser.id, process.env.DISCORD_PORTAL_CONNECTED_ROLE_ID).catch(() => {})
   }
 
+  // DM the agent confirming the connection
+  if (process.env.DISCORD_BOT_TOKEN) {
+    try {
+      const { sendChannelMessage } = await import('@/lib/discord')
+      const dmChannelRes = await fetch('https://discord.com/api/v10/users/@me/channels', {
+        method: 'POST',
+        headers: { Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recipient_id: discordUser.id }),
+      })
+      if (dmChannelRes.ok) {
+        const dmChannel = await dmChannelRes.json() as { id: string }
+        await sendChannelMessage(dmChannel.id, {
+          embeds: [{
+            title: 'Discord Connected',
+            description: "You're all set. Your portal account is now linked to Discord. You'll get training reminders and team updates here automatically.",
+            color: 0x4ade80,
+            footer: { text: 'All Financial Freedom' },
+          }],
+        })
+      }
+    } catch { /* non-fatal */ }
+  }
+
   const displayName = discordUser.global_name ?? discordUser.username
   return NextResponse.redirect(
     `${portalUrl}?discord=connected&username=${encodeURIComponent(displayName)}`
