@@ -834,7 +834,7 @@ export default function TrackerPage() {
                       <div style={{ fontSize: 13, color: '#ffffff', fontWeight: 500 }}>
                         {agent.firstName} {agent.lastName}
                       </div>
-                      <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2, letterSpacing: '0.05em' }}>{agent.agentCode}</div>
+                      <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2, letterSpacing: '0.05em' }}>{agent.agentCode}{agent.email ? ` · ${agent.email}` : ''}</div>
                     </td>
                     <td style={{ padding: '13px 16px', fontSize: 12, color: '#9BB0C4' }}>{agent.state ?? '—'}</td>
                     <td style={{ padding: '13px 16px' }}>
