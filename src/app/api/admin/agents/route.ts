@@ -24,10 +24,20 @@ export async function GET(req: NextRequest) {
   const limit = Math.min(100, parseInt(searchParams.get('limit') ?? '50'))
   const skip  = (page - 1) * limit
 
+  const search = searchParams.get('search')
+
   const where: Record<string, unknown> = {}
   if (phase)  where.phase  = parseInt(phase)
   if (status) where.status = status.toUpperCase()
   if (cft)    where.cft    = cft
+  if (search) {
+    where.OR = [
+      { firstName: { contains: search, mode: 'insensitive' } },
+      { lastName: { contains: search, mode: 'insensitive' } },
+      { agentCode: { contains: search, mode: 'insensitive' } },
+      { agentUser: { email: { contains: search, mode: 'insensitive' } } },
+    ]
+  }
   if (icaStart || icaEnd) {
     const icaFilter: Record<string, Date> = {}
     if (icaStart && !isNaN(Date.parse(icaStart))) icaFilter.gte = new Date(icaStart)

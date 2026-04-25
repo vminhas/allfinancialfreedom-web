@@ -172,6 +172,7 @@ export default function TrackerPage() {
     const params = new URLSearchParams({ page: String(page), limit: '50' })
     if (phaseFilter) params.set('phase', phaseFilter)
     if (statusFilter) params.set('status', statusFilter)
+    if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim())
     if (newThisMonthOnly) {
       const today = new Date()
       const start = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`
@@ -184,7 +185,7 @@ export default function TrackerPage() {
     setAgents(data.agents ?? [])
     setTotal(data.total ?? 0)
     setLoading(false)
-  }, [page, phaseFilter, statusFilter, newThisMonthOnly])
+  }, [page, phaseFilter, statusFilter, debouncedSearch, newThisMonthOnly])
 
   const fetchStats = useCallback(async () => {
     const res = await fetch('/api/admin/stats')
@@ -298,16 +299,15 @@ export default function TrackerPage() {
     setInviteLoading(false)
   }
 
+  // Debounce search — wait 400ms after typing stops before fetching
+  const [debouncedSearch, setDebouncedSearch] = useState(searchQuery)
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSearch(searchQuery); setPage(1) }, 400)
+    return () => clearTimeout(t)
+  }, [searchQuery])
+
   const displayedAgents = (() => {
     let list = agents
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim()
-      list = list.filter(a =>
-        `${a.firstName} ${a.lastName}`.toLowerCase().includes(q) ||
-        a.agentCode.toLowerCase().includes(q) ||
-        (a.email && a.email.toLowerCase().includes(q))
-      )
-    }
     if (atRiskOnly) {
       list = list.filter(a => {
         const s = getAtRiskStatus(a.phase, a.phaseStartedAt ? new Date(a.phaseStartedAt) : null, a.phaseCompleted, a.phaseTotal)
