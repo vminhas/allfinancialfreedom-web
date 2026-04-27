@@ -19,9 +19,15 @@ function buildJoinUrl(streamId: string | null, passcode?: string | null): string
 // Accepts a single image file, parses it with Claude vision, creates
 // the training event(s) in the DB, and optionally creates Discord events.
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  const denied = requireRole(session, 'admin')
-  if (denied) return denied
+  // Allow auth via admin session OR cron secret (for Discord bot server-to-server calls)
+  const cronSecret = req.headers.get('x-cron-secret')
+  const isCronAuth = cronSecret && process.env.CRON_SECRET && cronSecret === process.env.CRON_SECRET
+
+  if (!isCronAuth) {
+    const session = await getServerSession(authOptions)
+    const denied = requireRole(session, 'admin')
+    if (denied) return denied
+  }
 
   const form = await req.formData()
   const file = form.get('image') as File | null

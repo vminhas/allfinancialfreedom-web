@@ -349,6 +349,84 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
+// ─── Training flyer parser — send an image to auto-create events ────────────
+client.on(Events.MessageCreate, async (message) => {
+  // Ignore bot messages
+  if (message.author.bot) return;
+
+  // Only process from admins/editors
+  const isAdmin = message.member?.roles?.cache?.has(ROLES.ADMIN);
+  const isEditor = EDITORS.includes(message.author.id);
+  if (!isAdmin && !isEditor) return;
+
+  // Only process messages with image attachments
+  const image = message.attachments.find(a => a.contentType?.startsWith('image/'));
+  if (!image) return;
+
+  // Only respond if the message is in the admin channel or a DM
+  const adminChannelId = process.env.DISCORD_ADMIN_CHANNEL_ID;
+  const isDM = !message.guild;
+  const isAdminChannel = adminChannelId && message.channelId === adminChannelId;
+
+  // Also respond if the message content mentions "parse" or "training" or "flyer"
+  const mentionsTraining = /parse|training|flyer|schedule|event/i.test(message.content);
+
+  if (!isDM && !isAdminChannel && !mentionsTraining) return;
+
+  // React to acknowledge
+  await message.react('⏳').catch(() => {});
+
+  try {
+    // Download the image
+    const res = await fetch(image.url);
+    if (!res.ok) throw new Error('Failed to download image');
+    const buffer = Buffer.from(await res.arrayBuffer());
+
+    // Send to the parse-image API
+    const baseUrl = process.env.NEXTAUTH_URL || 'https://allfinancialfreedom.com';
+    const form = new FormData();
+    form.append('image', new Blob([buffer], { type: image.contentType || 'image/jpeg' }), image.name || 'flyer.jpg');
+
+    const apiRes = await fetch(`${baseUrl}/api/admin/trainings/parse-image`, {
+      method: 'POST',
+      body: form,
+      headers: {
+        // Use cron secret as auth since this is server-to-server
+        'x-cron-secret': process.env.CRON_SECRET || '',
+      },
+    });
+
+    const data = await apiRes.json();
+
+    // Remove the hourglass
+    await message.reactions.cache.get('⏳')?.remove().catch(() => {});
+
+    if (apiRes.ok && data.parsed > 0) {
+      const titles = data.events.map(e => `• **${e.title}** — ${new Date(e.startsAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`).join('\n');
+      await message.reply({
+        embeds: [new EmbedBuilder()
+          .setColor(COLORS.GOLD)
+          .setTitle(`✅ Created ${data.parsed} training event${data.parsed > 1 ? 's' : ''}`)
+          .setDescription(titles)
+          .setFooter({ text: 'AFF Concierge · Training Parser' })
+        ],
+      });
+    } else {
+      await message.reply({
+        embeds: [new EmbedBuilder()
+          .setColor(0xf87171)
+          .setTitle('Could not parse this flyer')
+          .setDescription(data.error || 'No events were found in the image. Make sure it\'s a training flyer with a date, time, and title.')
+          .setFooter({ text: 'AFF Concierge' })
+        ],
+      });
+    }
+  } catch (err) {
+    await message.reactions.cache.get('⏳')?.remove().catch(() => {});
+    await message.reply(`Failed to parse: ${err.message}`).catch(() => {});
+  }
+});
+
 // ─── Ready ───────────────────────────────────────────────────────────────────
 client.once(Events.ClientReady, (c) => {
   console.log(`✅ AFF Concierge online as ${c.user.tag}`);
