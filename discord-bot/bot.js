@@ -402,11 +402,18 @@ client.on(Events.MessageCreate, async (message) => {
     await message.reactions.cache.get('⏳')?.remove().catch(() => {});
 
     if (apiRes.ok && data.parsed > 0) {
-      const titles = data.events.map(e => `• **${e.title}** — ${new Date(e.startsAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`).join('\n');
+      const lines = data.events.map(e => {
+        const date = new Date(e.startsAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
+        let status = '';
+        if (e.discordEvent === 'created') status = ' ✅ Discord event created';
+        else if (e.discordEvent === false) status = ` ⚠️ Discord failed: ${e.discordError || 'unknown'}`;
+        else if (e.discordEvent === 'skipped (past date)') status = ' ⏭️ Past date, no Discord event';
+        return `• **${e.title}** — ${date}${status}`;
+      });
       const successEmbed = new EmbedBuilder()
         .setColor(COLORS.GOLD)
         .setTitle(`✅ Created ${data.parsed} training event${data.parsed > 1 ? 's' : ''}`)
-        .setDescription(titles)
+        .setDescription(lines.join('\n'))
         .setFooter({ text: `AFF Concierge · Parsed by ${message.author.displayName || message.author.username}` });
 
       // Reply in the original channel
@@ -419,7 +426,7 @@ client.on(Events.MessageCreate, async (message) => {
           const activityEmbed = new EmbedBuilder()
             .setColor(COLORS.GOLD)
             .setTitle(`📅 ${data.parsed} Training Event${data.parsed > 1 ? 's' : ''} Added`)
-            .setDescription(titles)
+            .setDescription(lines.join('\n'))
             .setFooter({ text: `Parsed from flyer uploaded by ${message.author.displayName || message.author.username}` })
             .setTimestamp();
           if (image.url) activityEmbed.setThumbnail(image.url);

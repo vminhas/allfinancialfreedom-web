@@ -136,7 +136,17 @@ export async function POST(req: NextRequest) {
           where: { id: event.id },
           data: { discordEventId: discordEvent.id, discordEventCreatedAt: new Date() },
         })
-      } catch { /* non-fatal */ }
+      } catch (discordErr) {
+        created.push({
+          id: event.id,
+          title: ev.title,
+          startsAt: startsAt.toISOString(),
+          presenters: presenters.map(p => p.name),
+          discordEvent: false,
+          discordError: discordErr instanceof Error ? discordErr.message : String(discordErr),
+        })
+        continue
+      }
     }
 
     created.push({
@@ -144,6 +154,7 @@ export async function POST(req: NextRequest) {
       title: ev.title,
       startsAt: startsAt.toISOString(),
       presenters: presenters.map(p => p.name),
+      discordEvent: startsAt > new Date() ? 'created' : 'skipped (past date)',
     })
 
     // Rate limit spacing for Discord
