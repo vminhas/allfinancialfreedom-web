@@ -63,10 +63,16 @@ Each image is a single training event flyer from GFI (Global Financial Impact). 
 - 1, 2, or 3 presenter portraits with name + role beneath each
 - Date in the format "DAY | MONTH DAY, YEAR" (e.g. "MONDAY | APRIL 13, 2026")
 - Time across multiple time zones (HST | PST | MST | CST | EST/ET) — always extract the EST/EDT time as the canonical
+- Time may use periods instead of colons (e.g. "08.00 PM EST" means 8:00 PM EST)
 - Stream platform: usually "GFI Live - Impact TV" with a numeric stream ID and passcode, OR a regular Zoom meeting with Meeting ID + passcode
 - Sometimes a partner brand logo (Tevah, Allianz, Corebridge, F&G, Quantum, American Equity, Ethos, etc.)
 - Sometimes an audience restriction (e.g. "CFTs & Above Only", "For MD's & Above & Operations Staff Only")
 - Sometimes country/region targeting (e.g. "for Canada", "Puerto Rico Launch")
+
+CRITICAL RULES:
+1. The time MUST come from the text printed on the flyer (e.g. "08.00 PM EST"), NOT from any metadata or the time the image was sent. If the flyer says "08.00 PM EST", the event is at 8:00 PM Eastern, period.
+2. If the flyer does not show an explicit date (no "MONDAY | APRIL 13, 2026" line), infer the NEXT occurrence of the day of week from the title. For example, "Systems & Mindset Mondays" with no date means the next upcoming Monday from today's date.
+3. Today's date for reference: ${new Date().toISOString().slice(0, 10)}
 
 Extract via the submit_event tool. If a field isn't visible, set it to null. For times, return ISO 8601 with the ET offset (use -04:00 for EDT or -05:00 for EST based on the date).
 
