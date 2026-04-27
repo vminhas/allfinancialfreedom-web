@@ -130,6 +130,7 @@ export default function TrackerPage() {
   // Table-only filters
   const [newThisMonthOnly, setNewThisMonthOnly] = useState(false)
   const [flaggedCoachingOnly, setFlaggedCoachingOnly] = useState(false)
+  const [readyToPromoteOnly, setReadyToPromoteOnly] = useState(false)
 
   // Trainer list for dropdowns
   const [trainers, setTrainers] = useState<string[]>([])
@@ -308,6 +309,9 @@ export default function TrackerPage() {
 
   const displayedAgents = (() => {
     let list = agents
+    if (readyToPromoteOnly) {
+      list = list.filter(a => a.readyForPromotion)
+    }
     if (atRiskOnly) {
       list = list.filter(a => {
         const s = getAtRiskStatus(a.phase, a.phaseStartedAt ? new Date(a.phaseStartedAt) : null, a.phaseCompleted, a.phaseTotal)
@@ -317,6 +321,8 @@ export default function TrackerPage() {
     if (flaggedCoachingOnly) {
       list = list.filter(a => a.openCoachingFlags > 0)
     }
+    // Sort promotion-ready to the top
+    list = [...list].sort((a, b) => (b.readyForPromotion ? 1 : 0) - (a.readyForPromotion ? 1 : 0))
     return list
   })()
 
@@ -408,6 +414,21 @@ export default function TrackerPage() {
               <div style={{ fontSize: 28, fontWeight: 600, color: '#f87171', lineHeight: 1, marginBottom: 4 }}>{stats.atRiskCount}</div>
               <div style={{ fontSize: 11, color: atRiskOnly ? '#f87171' : '#4B5563' }}>
                 {atRiskOnly ? '✕ clear filter' : `${stats.behindCount} behind — click to filter`}
+              </div>
+            </div>
+            {/* Ready to Promote */}
+            <div
+              onClick={() => { setReadyToPromoteOnly(v => !v); setPage(1) }}
+              style={{
+                background: readyToPromoteOnly ? 'rgba(201,169,110,0.1)' : '#142D48',
+                border: `1px solid ${readyToPromoteOnly ? 'rgba(201,169,110,0.3)' : 'rgba(201,169,110,0.08)'}`,
+                borderRadius: 6, padding: '16px 20px', cursor: 'pointer', transition: 'all 0.15s',
+              }}
+            >
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#6B8299', marginBottom: 8 }}>Ready to Promote</div>
+              <div style={{ fontSize: 28, fontWeight: 600, color: '#C9A96E', lineHeight: 1, marginBottom: 4 }}>{agents.filter(a => a.readyForPromotion).length}</div>
+              <div style={{ fontSize: 11, color: readyToPromoteOnly ? '#C9A96E' : '#4B5563' }}>
+                {readyToPromoteOnly ? '✕ clear filter' : 'click to filter'}
               </div>
             </div>
             {/* New This Month */}
