@@ -83,6 +83,35 @@ export default function TrainingsPage() {
   const [purging, setPurging] = useState(false)
   const [clearing, setClearing] = useState(false)
   const [postingRoundup, setPostingRoundup] = useState(false)
+  const [dropping, setDropping] = useState(false)
+  const [dropParsing, setDropParsing] = useState(false)
+  const [dropResult, setDropResult] = useState<{ ok: boolean; text: string } | null>(null)
+
+  const handleFlyerUpload = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setDropResult({ ok: false, text: 'Only image files (JPG, PNG, WebP) are supported' })
+      return
+    }
+    setDropParsing(true)
+    setDropResult(null)
+    try {
+      const fd = new FormData()
+      fd.append('image', file)
+      const res = await fetch('/api/admin/trainings/parse-image', { method: 'POST', body: fd })
+      const d = await res.json() as { parsed?: number; events?: { title: string }[]; error?: string }
+      if (res.ok && d.parsed) {
+        const titles = d.events?.map(e => e.title).join(', ') ?? ''
+        setDropResult({ ok: true, text: `Created ${d.parsed} event${d.parsed > 1 ? 's' : ''}: ${titles}` })
+        load()
+      } else {
+        setDropResult({ ok: false, text: d.error ?? 'Failed to parse' })
+      }
+    } catch {
+      setDropResult({ ok: false, text: 'Network error' })
+    }
+    setDropParsing(false)
+    setTimeout(() => setDropResult(null), 8000)
+  }
   const [discordTestResult, setDiscordTestResult] = useState<{
     ok: boolean
     summary: string
@@ -471,6 +500,68 @@ export default function TrainingsPage() {
 
       {/* Integration / config status */}
       {data && <ConfigStatusPanel config={data.configStatus} futureMissingDiscord={data.stats.futureMissingDiscord} />}
+
+      {/* Drop zone for flyer images */}
+      <div
+        onDragOver={e => { e.preventDefault(); setDropping(true) }}
+        onDragLeave={() => setDropping(false)}
+        onDrop={async e => {
+          e.preventDefault(); setDropping(false)
+          const file = e.dataTransfer.files[0]
+          if (file) await handleFlyerUpload(file)
+        }}
+        onClick={() => {
+          if (dropParsing) return
+          const input = document.createElement('input')
+          input.type = 'file'
+          input.accept = 'image/jpeg,image/png,image/webp'
+          input.onchange = async () => {
+            const file = input.files?.[0]
+            if (file) await handleFlyerUpload(file)
+          }
+          input.click()
+        }}
+        onPaste={async e => {
+          const items = e.clipboardData.items
+          for (const item of Array.from(items)) {
+            if (item.type.startsWith('image/')) {
+              const file = item.getAsFile()
+              if (file) { await handleFlyerUpload(file); break }
+            }
+          }
+        }}
+        tabIndex={0}
+        style={{
+          border: `2px dashed ${dropping ? '#C9A96E' : dropParsing ? 'rgba(155,109,255,0.4)' : 'rgba(201,169,110,0.2)'}`,
+          borderRadius: 10,
+          padding: dropParsing ? '20px' : '28px',
+          textAlign: 'center',
+          cursor: dropParsing ? 'wait' : 'pointer',
+          background: dropping ? 'rgba(201,169,110,0.06)' : dropParsing ? 'rgba(155,109,255,0.04)' : 'transparent',
+          transition: 'all 0.2s',
+          marginBottom: 20,
+        }}
+      >
+        {dropParsing ? (
+          <div style={{ color: '#9B6DFF', fontSize: 13, fontWeight: 500 }}>
+            Parsing flyer with AI... this takes a few seconds
+          </div>
+        ) : (
+          <>
+            <div style={{ fontSize: 13, color: '#C9A96E', fontWeight: 500, marginBottom: 4 }}>
+              Drop a training flyer here, tap to upload, or paste from clipboard
+            </div>
+            <div style={{ fontSize: 11, color: '#6B8299' }}>
+              AI will extract the title, date, time, presenters, Zoom info, and create the event automatically
+            </div>
+          </>
+        )}
+        {dropResult && (
+          <div style={{ marginTop: 8, fontSize: 11, color: dropResult.ok ? '#4ade80' : '#f87171' }}>
+            {dropResult.text}
+          </div>
+        )}
+      </div>
 
       {loading ? (
         <div style={{ color: '#6B8299', fontSize: 13, padding: '40px 0' }}>Loading training events...</div>
