@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
   const icaStart   = searchParams.get('icaStart')
   const icaEnd     = searchParams.get('icaEnd')
   const atRisk     = searchParams.get('atRisk') === '1'
+  const readyToPromote = searchParams.get('readyToPromote') === '1'
   const page  = Math.max(1, parseInt(searchParams.get('page') ?? '1'))
   const limit = Math.min(100, parseInt(searchParams.get('limit') ?? '50'))
   const skip  = (page - 1) * limit
@@ -50,8 +51,7 @@ export async function GET(req: NextRequest) {
   const [profiles, total] = await Promise.all([
     db.agentProfile.findMany({
       where,
-      skip,
-      take: limit,
+      ...(readyToPromote ? {} : { skip, take: limit }),
       orderBy: { createdAt: 'desc' },
       include: {
         agentUser: { select: { email: true, lastLoginAt: true } },
@@ -117,6 +117,11 @@ export async function GET(req: NextRequest) {
       openCoachingFlags: agg?.flagged ?? 0,
     }
   })
+
+  if (readyToPromote) {
+    const filtered = agents.filter(a => a.readyForPromotion)
+    return NextResponse.json({ agents: filtered, total: filtered.length, page: 1, limit: filtered.length })
+  }
 
   return NextResponse.json({ agents, total, page, limit })
 }

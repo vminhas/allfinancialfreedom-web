@@ -172,22 +172,25 @@ export default function TrackerPage() {
   const fetchAgents = useCallback(async () => {
     setLoading(true)
     const params = new URLSearchParams({ page: String(page), limit: '50' })
-    if (phaseFilter) params.set('phase', phaseFilter)
-    if (statusFilter) params.set('status', statusFilter)
-    if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim())
-    if (newThisMonthOnly) {
-      const today = new Date()
-      const start = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`
-      const end = today.toISOString().split('T')[0]
-      params.set('icaStart', start)
-      params.set('icaEnd', end)
+    if (!readyToPromoteOnly) {
+      if (phaseFilter) params.set('phase', phaseFilter)
+      if (statusFilter) params.set('status', statusFilter)
+      if (newThisMonthOnly) {
+        const today = new Date()
+        const start = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`
+        const end = today.toISOString().split('T')[0]
+        params.set('icaStart', start)
+        params.set('icaEnd', end)
+      }
     }
+    if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim())
+    if (readyToPromoteOnly) params.set('readyToPromote', '1')
     const res = await fetch(`/api/admin/agents?${params}`)
     const data = await res.json() as { agents: Agent[]; total: number }
     setAgents(data.agents ?? [])
     setTotal(data.total ?? 0)
     setLoading(false)
-  }, [page, phaseFilter, statusFilter, debouncedSearch, newThisMonthOnly])
+  }, [page, phaseFilter, statusFilter, debouncedSearch, newThisMonthOnly, readyToPromoteOnly])
 
   const fetchStats = useCallback(async () => {
     const res = await fetch('/api/admin/stats')
@@ -418,7 +421,12 @@ export default function TrackerPage() {
             </div>
             {/* Ready to Promote */}
             <div
-              onClick={() => { setReadyToPromoteOnly(v => !v); setPage(1) }}
+              onClick={() => {
+                const next = !readyToPromoteOnly
+                setReadyToPromoteOnly(next)
+                if (next) { setNewThisMonthOnly(false); setAtRiskOnly(false); setFlaggedCoachingOnly(false) }
+                setPage(1)
+              }}
               style={{
                 background: readyToPromoteOnly ? 'rgba(201,169,110,0.1)' : '#142D48',
                 border: `1px solid ${readyToPromoteOnly ? 'rgba(201,169,110,0.3)' : 'rgba(201,169,110,0.08)'}`,
