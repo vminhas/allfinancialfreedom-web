@@ -1,7 +1,11 @@
 name: Publish Article
 
 on:
-  workflow_dispatch: # Manual trigger from GitHub Actions tab — publish on demand
+  workflow_dispatch: # Manual trigger from GitHub Actions tab
+  push:
+    branches: [main]
+    paths:
+      - 'content/blog/**.mdx' # Auto-trigger when a new article is pushed
 
 jobs:
   publish:
@@ -13,12 +17,35 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
+          fetch-depth: 2
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Check for scheduled drafts
+      # ── On push: detect newly added articles ──────────────────────────────
+      - name: Detect new articles (push trigger)
+        if: github.event_name == 'push'
+        id: detect
+        run: |
+          NEW=$(git diff --name-only --diff-filter=A HEAD~1 HEAD -- 'content/blog/*.mdx' | head -1)
+          if [ -z "$NEW" ]; then
+            echo "No new articles detected in this push."
+            echo "has_article=false" >> $GITHUB_OUTPUT
+          else
+            echo "New article: $NEW"
+            NAME=$(basename "$NEW")
+            SLUG="${NAME%.mdx}"
+            TITLE=$(grep '^title:' "$NEW" | head -1 | sed 's/title: *//;s/^"//;s/"$//')
+            EXCERPT=$(grep '^excerpt:' "$NEW" | head -1 | sed 's/excerpt: *//;s/^"//;s/"$//')
+            echo "has_article=true" >> $GITHUB_OUTPUT
+            echo "slug=$SLUG" >> $GITHUB_OUTPUT
+            echo "title=$TITLE" >> $GITHUB_OUTPUT
+            echo "excerpt=$EXCERPT" >> $GITHUB_OUTPUT
+          fi
+
+      # ── On workflow_dispatch: move next draft to published ─────────────────
+      - name: Check for scheduled drafts (manual trigger)
+        if: github.event_name == 'workflow_dispatch'
         id: check
         run: |
-          # Look for the next unpublished draft (alphabetically first = oldest queued)
           DRAFT=$(ls content/drafts/*.mdx 2>/dev/null | head -1)
           if [ -z "$DRAFT" ]; then
             echo "No drafts found. Nothing to publish."
@@ -31,31 +58,26 @@ jobs:
           fi
 
       - name: Move draft to published
-        if: steps.check.outputs.has_draft == 'true'
+        if: github.event_name == 'workflow_dispatch' && steps.check.outputs.has_draft == 'true'
         run: |
           DRAFT="${{ steps.check.outputs.draft_file }}"
           NAME="${{ steps.check.outputs.draft_name }}"
-
-          # Update the date frontmatter to today
           TODAY=$(date +%Y-%m-%d)
           sed -i "s/^date:.*$/date: \"$TODAY\"/" "$DRAFT"
-
-          # Move to published blog directory
           mv "$DRAFT" "content/blog/$NAME"
           echo "Published: content/blog/$NAME"
 
       - name: Commit and push
-        if: steps.check.outputs.has_draft == 'true'
+        if: github.event_name == 'workflow_dispatch' && steps.check.outputs.has_draft == 'true'
         run: |
           git config user.name "AFF Auto Publisher"
           git config user.email "vick@allfinancialfreedom.com"
           git add content/blog/ content/drafts/
           git commit -m "publish: auto-publish ${{ steps.check.outputs.draft_name }}"
           git push
-        # Vercel will automatically redeploy on push to main
 
-      - name: Extract article metadata
-        if: steps.check.outputs.has_draft == 'true'
+      - name: Extract metadata (manual trigger)
+        if: github.event_name == 'workflow_dispatch' && steps.check.outputs.has_draft == 'true'
         id: meta
         run: |
           FILE="content/blog/${{ steps.check.outputs.draft_name }}"
@@ -67,15 +89,33 @@ jobs:
           echo "title=$TITLE" >> $GITHUB_OUTPUT
           echo "excerpt=$EXCERPT" >> $GITHUB_OUTPUT
 
-      - name: Notify Discord
-        if: steps.check.outputs.has_draft == 'true' && env.DISCORD_WEBHOOK_URL != ''
+      # ── Notify Discord (both triggers) ────────────────────────────────────
+      - name: Notify Discord (push trigger)
+        if: github.event_name == 'push' && steps.detect.outputs.has_article == 'true'
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
           curl -s -H "Content-Type: application/json" \
           -d "{
             \"embeds\": [{
-              \"title\": \"📖 New Article: ${{ steps.meta.outputs.title }}\",
+              \"title\": \"New Article: ${{ steps.detect.outputs.title }}\",
+              \"description\": \"${{ steps.detect.outputs.excerpt }}\",
+              \"url\": \"https://allfinancialfreedom.com/blog/${{ steps.detect.outputs.slug }}\",
+              \"color\": 1714756,
+              \"footer\": { \"text\": \"All Financial Freedom · Wealth · Protection · Legacy\" }
+            }]
+          }" \
+          "$DISCORD_WEBHOOK_URL"
+
+      - name: Notify Discord (manual trigger)
+        if: github.event_name == 'workflow_dispatch' && steps.check.outputs.has_draft == 'true'
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          curl -s -H "Content-Type: application/json" \
+          -d "{
+            \"embeds\": [{
+              \"title\": \"New Article: ${{ steps.meta.outputs.title }}\",
               \"description\": \"${{ steps.meta.outputs.excerpt }}\",
               \"url\": \"https://allfinancialfreedom.com/blog/${{ steps.meta.outputs.slug }}\",
               \"color\": 1714756,

@@ -60,10 +60,10 @@ function HeroStats() {
   ]
 
   return (
-    <div ref={ref} className="grid grid-cols-2 md:grid-cols-4 gap-px mt-8 md:mt-14"
+    <div ref={ref} className="grid grid-cols-2 md:grid-cols-4 gap-px mt-8 md:mt-14 pb-8 md:pb-0"
       style={{ borderTop: '1px solid rgba(201,169,110,0.2)' }}>
       {stats.map((s, i) => (
-        <div key={i} className="pt-6 pr-6">
+        <div key={i} className="pt-6 pr-6 pb-2">
           <div className="stat-value">{s.value}</div>
           <div className="stat-label">{s.label}</div>
         </div>
@@ -94,7 +94,7 @@ export default function Home() {
     <main>
 
       {/* ── HERO ── */}
-      <section className="relative flex items-start" style={{ height: '100svh', minHeight: 680 }}>
+      <section className="relative flex items-start" style={{ minHeight: '100svh' }}>
         {/* Background with Ken Burns slow motion effect */}
         <div className="absolute inset-0 overflow-hidden">
           <div className="hero-bg-animate">

@@ -14,8 +14,7 @@ module.exports = {
     PHASE_2:       '1295044213930459187',
     PHASE_3:       '1295044213930459188',
     PHASE_4:       '1295044213930459189',
-    // Blog articles channel ID — update after creating it in Discord
-    BLOG_ARTICLES: null,
+    BLOG_ARTICLES: '1492988923339870270',
   },
 
   ROLES: {

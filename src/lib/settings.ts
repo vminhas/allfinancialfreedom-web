@@ -6,7 +6,10 @@ const KEY_HEX = process.env.ENCRYPTION_KEY ?? ''
 
 function getKey(): Buffer {
   if (!KEY_HEX || KEY_HEX.length < 64) {
-    // Fall back to a zeroed key in dev — not secure, but prevents crashes before setup
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('ENCRYPTION_KEY env var is missing or invalid. Set a 64-char hex string.')
+    }
+    // Dev fallback — zeroed key, not secure
     return Buffer.alloc(32, 0)
   }
   return Buffer.from(KEY_HEX, 'hex')
@@ -32,7 +35,10 @@ export function decrypt(ciphertext: string): string {
     const decipher = createDecipheriv(ALGORITHM, key, iv)
     decipher.setAuthTag(tag)
     return decipher.update(data) + decipher.final('utf8')
-  } catch {
+  } catch (err) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('[decrypt] failed:', err)
+    }
     return ''
   }
 }

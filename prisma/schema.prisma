@@ -21,10 +21,19 @@ model AdminUser {
   email        String    @unique
   passwordHash String
   name         String
+  role         AdminRole @default(ADMIN)
   createdAt    DateTime  @default(now())
   lastLoginAt  DateTime?
 
+  assignedRequests CoordinatorRequest[] @relation("AssignedCoordinator")
+  authoredLicensingNotes LicensingNote[]
+
   @@map("admin_users")
+}
+
+enum AdminRole {
+  ADMIN
+  LICENSING_COORDINATOR
 }
 
 model ImportJob {
@@ -104,4 +113,527 @@ enum MessageStatus {
   DRAFT
   SENT
   FAILED
+}
+
+// ─── Agent System ─────────────────────────────────────────────────────────────
+
+model AgentUser {
+  id            String       @id @default(cuid())
+  email         String       @unique
+  passwordHash  String?      // null until agent accepts invite
+  inviteToken   String?      @unique
+  inviteExpires DateTime?
+  createdAt     DateTime     @default(now())
+  lastLoginAt   DateTime?
+  profile       AgentProfile?
+
+  @@map("agent_users")
+}
+
+model AgentProfile {
+  id                    String    @id @default(cuid())
+  agentUserId           String    @unique
+  agentUser             AgentUser @relation(fields: [agentUserId], references: [id])
+  agentCode             String    @unique
+  firstName             String
+  lastName              String
+  state                 String?
+  phone                 String?
+  dateOfBirth           DateTime?
+  npn                   String?
+  icaDate               DateTime?
+  recruiterId           String?   // agentCode of recruiter
+  cft                   String?   // trainer name
+  eliteCft              String?
+  status                AgentStatus @default(ACTIVE)
+  phase                 Int         @default(1)
+  phaseStartedAt        DateTime?   // when they entered current phase
+  goal                  String?     // "MD", "EMD", etc.
+  initialPointOfContact String?
+  examDate              DateTime?
+  ssn                   String?   // AES-256-GCM encrypted; decrypt server-side for admin only
+  avatarUrl             String?   // Vercel Blob URL for profile headshot
+  addressLine1          String?   // Mailing address for gifts/correspondence
+  addressLine2          String?
+  city                  String?
+  zip                   String?
+  country               String?   @default("US")
+  licenseNumber         String?
+  licenseLines          String?
+  dateSubmittedToGfi    DateTime?
+  discordJoinDate       DateTime?
+  discordUserId         String?     // Discord snowflake ID for role assignment
+  welcomeLetterSentAt   DateTime?
+  clientProduct         String?
+  licenseProcess        String?
+  calendlyUrl           String?
+  notes                 String?
+  lastReminderSentAt    DateTime?
+  lastSeenPhase         Int?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  phaseItems            PhaseItem[]
+  carrierAppointments   CarrierAppointment[]
+  milestones            RecognitionMilestone[]
+  businessPartners      BusinessPartner[]
+  policies              PolicyEntry[]
+  callLogs              CallLog[]
+  callReviews           CallReview[]
+  coordinatorRequests   CoordinatorRequest[]
+  licensingNotes        LicensingNote[]
+  referrals             AgentReferral[]
+  pfr                   PersonalFinancialReview?
+  feedback              AgentFeedback[]
+  announcementReads     AnnouncementRead[]
+
+  @@map("agent_profiles")
+}
+
+enum AgentStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model PersonalFinancialReview {
+  id              String       @id @default(cuid())
+  agentProfileId  String       @unique
+  agentProfile    AgentProfile @relation(fields: [agentProfileId], references: [id])
+  monthlyIncome   Float        @default(0)
+  expenses        Json         @default("{}")
+  assets          Json         @default("{}")
+  debts           Json         @default("{}")
+  buckets         Json         @default("{}")
+  retirementAge   Int?
+  spouseRetAge    Int?
+  desiredMonthlyRetirement Float @default(0)
+  monthlySavingsCommitment Float @default(0)
+  whatWouldThisDo String?
+  whatIsStopping  String?
+  dreamsAndGoals  Json         @default("[]")
+  notes           String?
+  updatedAt       DateTime     @updatedAt
+  createdAt       DateTime     @default(now())
+
+  @@map("personal_financial_reviews")
+}
+
+model PhaseItemDefinition {
+  id          String  @id @default(cuid())
+  phase       Int
+  itemKey     String  @unique
+  label       String
+  description String
+  duration    String?
+  groupKey    String?
+  sortOrder   Int     @default(0)
+  adminOnly   Boolean @default(false)
+  actionJson  String?
+  coordinatorTopic String?
+  linkedProgression String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("phase_item_definitions")
+}
+
+model PhaseGroupDefinition {
+  id          String  @id @default(cuid())
+  phase       Int
+  groupKey    String  @unique
+  label       String
+  icon        String?
+  description String?
+  showTrainer Boolean @default(false)
+  sortOrder   Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("phase_group_definitions")
+}
+
+model ProgressionDefinition {
+  id          String  @id @default(cuid())
+  key         String  @unique
+  label       String
+  description String
+  icon        String?
+  achievedWhen String
+  sortOrder   Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("progression_definitions")
+}
+
+model EmailTemplate {
+  id          String  @id @default(cuid())
+  key         String  @unique
+  label       String
+  subject     String
+  bodyHtml    String
+  description String?
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@map("email_templates")
+}
+
+model Announcement {
+  id          String   @id @default(cuid())
+  title       String
+  message     String
+  targetPhase Int?
+  active      Boolean  @default(true)
+  createdBy   String?
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  reads       AnnouncementRead[]
+
+  @@map("announcements")
+}
+
+model AnnouncementRead {
+  id              String       @id @default(cuid())
+  announcementId  String
+  announcement    Announcement @relation(fields: [announcementId], references: [id])
+  agentProfileId  String
+  agentProfile    AgentProfile @relation(fields: [agentProfileId], references: [id])
+  readAt          DateTime     @default(now())
+
+  @@unique([announcementId, agentProfileId])
+  @@map("announcement_reads")
+}
+
+model AgentFeedback {
+  id              String       @id @default(cuid())
+  agentProfileId  String
+  agentProfile    AgentProfile @relation(fields: [agentProfileId], references: [id])
+  category        String       @default("general")
+  message         String
+  read            Boolean      @default(false)
+  adminNotes      String?
+  createdAt       DateTime     @default(now())
+
+  @@map("agent_feedback")
+}
+
+enum ReferralStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model AgentReferral {
+  id              String         @id @default(cuid())
+  referringAgentId String
+  referringAgent  AgentProfile   @relation(fields: [referringAgentId], references: [id])
+  firstName       String
+  lastName        String
+  email           String
+  phone           String?
+  state           String?
+  notes           String?
+  status          ReferralStatus @default(PENDING)
+  adminNotes      String?
+  approvedById    String?
+  approvedAt      DateTime?
+  createdAgentId  String?
+  createdAt       DateTime       @default(now())
+
+  @@map("agent_referrals")
+}
+
+model PhaseItem {
+  id             String       @id @default(cuid())
+  agentProfileId String
+  agentProfile   AgentProfile @relation(fields: [agentProfileId], references: [id])
+  phase          Int
+  itemKey        String
+  completed      Boolean      @default(false)
+  completedAt    DateTime?
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([agentProfileId, phase, itemKey])
+  @@map("phase_items")
+}
+
+model CarrierAppointment {
+  id             String            @id @default(cuid())
+  agentProfileId String
+  agentProfile   AgentProfile      @relation(fields: [agentProfileId], references: [id])
+  carrier        String
+  carrierType    String?
+  status         AppointmentStatus @default(NOT_STARTED)
+  producerNumber String?
+  writingCode    String?
+  sureLcDate     DateTime?
+  googleFormDate DateTime?
+  readyToSubmit  Boolean           @default(false)
+  appointedDate  DateTime?
+  notes          String?
+  updatedAt      DateTime          @updatedAt
+
+  @@unique([agentProfileId, carrier])
+  @@map("carrier_appointments")
+}
+
+enum AppointmentStatus {
+  NOT_STARTED
+  PENDING
+  APPOINTED
+  JIT
+}
+
+model RecognitionMilestone {
+  id             String       @id @default(cuid())
+  agentProfileId String
+  agentProfile   AgentProfile @relation(fields: [agentProfileId], references: [id])
+  milestone      String
+  completedAt    DateTime     @default(now())
+  notes          String?
+
+  @@unique([agentProfileId, milestone])
+  @@map("recognition_milestones")
+}
+
+model BusinessPartner {
+  id              String       @id @default(cuid())
+  agentProfileId  String
+  agentProfile    AgentProfile @relation(fields: [agentProfileId], references: [id])
+  name            String
+  email           String?
+  phone           String?
+  timeZone        String?
+  age             String?
+  married         Boolean      @default(false)
+  children        Boolean      @default(false)
+  occupation      String?
+  characterTraits String?
+  appointmentDate DateTime?
+  icaDate         DateTime?
+  firstCallDate   DateTime?
+  secondCallDate  DateTime?
+  homeowner       Boolean      @default(false)
+  category        String?
+  notes           String?
+  phaseItemKey    String?
+  bookedAppt      Boolean      @default(false)
+  createdAt       DateTime     @default(now())
+
+  @@map("business_partners")
+}
+
+model SetupResource {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  label       String
+  url         String
+  category    String   @default("general")
+  description String?
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@map("setup_resources")
+}
+
+model PolicyEntry {
+  id               String       @id @default(cuid())
+  agentProfileId   String
+  agentProfile     AgentProfile @relation(fields: [agentProfileId], references: [id])
+  policyNumber     String?
+  clientName       String
+  carrier          String
+  product          String
+  splitAgentName   String?
+  dateSubmitted    DateTime?
+  targetPremium    Float?
+  targetPoints     Float?
+  commissionPayout Float?
+  notes            String?
+  createdAt        DateTime     @default(now())
+
+  @@map("policy_entries")
+}
+
+model CallLog {
+  id               String                @id @default(cuid())
+  agentProfileId   String
+  agentProfile     AgentProfile          @relation(fields: [agentProfileId], references: [id])
+  callDate         DateTime
+  contactName      String
+  phoneNumber      String?
+  subject          String?
+  notes            String?
+  result           String?
+  followUpNeeded   Boolean               @default(false)
+  createdAt        DateTime              @default(now())
+
+  transcriptText   String?
+  transcriptSource CallTranscriptSource?
+  durationSeconds  Int?
+  review           CallReview?
+
+  @@map("call_logs")
+}
+
+enum CallTranscriptSource {
+  MANUAL_PASTE
+  FATHOM_OAUTH
+  FATHOM_MANUAL
+}
+
+model CallReview {
+  id                 String       @id @default(cuid())
+  callLogId          String       @unique
+  callLog            CallLog      @relation(fields: [callLogId], references: [id], onDelete: Cascade)
+  agentProfileId     String
+  agentProfile       AgentProfile @relation(fields: [agentProfileId], references: [id])
+
+  overallScore       Int
+  rubricScores       Json
+  strengths          Json
+  weaknesses         Json
+  coachingTips       Json
+  nextSteps          Json
+  summary            String
+
+  flaggedForCoaching Boolean      @default(false)
+  adminNotes         String?
+  discussedAt        DateTime?
+
+  modelId            String
+  inputTokens        Int
+  outputTokens       Int
+  cacheReadTokens    Int          @default(0)
+  cacheCreateTokens  Int          @default(0)
+  reviewedAt         DateTime     @default(now())
+
+  @@index([agentProfileId, reviewedAt])
+  @@map("call_reviews")
+}
+
+enum LicensingRequestTopic {
+  SCHEDULE_EXAM
+  PASS_POST_LICENSING
+  FINGERPRINTS_APPLY
+  GFI_APPOINTMENTS
+  CE_COURSES
+  EO_INSURANCE
+  DIRECT_DEPOSIT
+  UNDERWRITING
+  GENERAL
+}
+
+enum LicensingRequestStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+model CoordinatorRequest {
+  id             String                 @id @default(cuid())
+  agentProfileId String
+  agentProfile   AgentProfile           @relation(fields: [agentProfileId], references: [id])
+  phaseItemKey   String?
+  topic          LicensingRequestTopic
+  message        String
+  status         LicensingRequestStatus @default(OPEN)
+  assignedToId   String?
+  assignedTo     AdminUser?             @relation("AssignedCoordinator", fields: [assignedToId], references: [id])
+  resolutionNote String?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  resolvedAt     DateTime?
+
+  @@index([agentProfileId, status])
+  @@index([status, assignedToId])
+  @@map("coordinator_requests")
+}
+
+enum NoteScope {
+  LICENSING   // visible to licensing coordinators AND admins
+  ADMIN_ONLY  // visible to admins only — LC cannot see these
+}
+
+enum TrainingStreamType {
+  GFI_LIVE
+  ZOOM
+}
+
+model TrainingEvent {
+  id                    String             @id @default(cuid())
+  driveFileId           String?            // null for manually created events
+  eventIndex            Int                @default(0)
+  driveFileName         String?            // nullable (manual events have no Drive file)
+  driveModifiedTime     DateTime?          // nullable
+  driveThumbnailUrl     String?
+
+  // Vercel Blob URL — reliable public CDN for Discord embeds.
+  // Populated during sync (mirror from Drive) or on manual upload.
+  flyerImageUrl         String?
+
+  // Publish toggle — controls Discord scheduled event + T-15 reminders.
+  // Default true so auto-synced events publish immediately.
+  // Set false to suppress without deleting the row.
+  published             Boolean            @default(true)
+
+  title                 String
+  subtitle              String?
+  category              String?
+  startsAt              DateTime           // canonical UTC
+  durationMinutes       Int                @default(60)
+  presenters            Json               // [{ name, role }]
+
+  streamType            TrainingStreamType @default(GFI_LIVE)
+  streamRoomName        String?
+  streamId              String?
+  passcode              String?
+
+  audienceRestriction   String?
+  partnerBrand          String?
+  targetRegion          String?
+
+  // Discord plumbing
+  discordEventId        String?
+  discordEventCreatedAt DateTime?
+  reminderSentAt        DateTime?
+
+  // Parse metadata (Drive-synced events only)
+  parsedAt              DateTime           @default(now())
+  parseError            String?
+  rawParseJson          Json?
+  modelId               String?
+  inputTokens           Int                @default(0)
+  outputTokens          Int                @default(0)
+
+  // Manual override flag — admin edited the parsed values, don't re-overwrite
+  manuallyEdited        Boolean            @default(false)
+
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  // PostgreSQL allows multiple NULLs in unique constraints, so manual events
+  // (driveFileId=null) won't conflict with each other.
+  @@unique([driveFileId, eventIndex])
+  @@index([startsAt])
+  @@index([reminderSentAt])
+  @@index([published, startsAt])
+  @@map("training_events")
+}
+
+model LicensingNote {
+  id             String       @id @default(cuid())
+  agentProfileId String
+  agentProfile   AgentProfile @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+  authorId       String
+  author         AdminUser    @relation(fields: [authorId], references: [id])
+  body           String
+  scope          NoteScope    @default(LICENSING)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([agentProfileId, scope, createdAt])
+  @@map("licensing_notes")
 }

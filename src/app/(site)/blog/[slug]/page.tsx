@@ -12,9 +12,10 @@ export async function generateStaticParams() {
 export async function generateMetadata({
   params,
 }: {
-  params: { slug: string }
+  params: Promise<{ slug: string }>
 }): Promise<Metadata> {
-  const article = getArticle(params.slug)
+  const { slug } = await params
+  const article = getArticle(slug)
   if (!article) return {}
   return {
     title: `${article.title} | All Financial Freedom Insights`,
@@ -190,8 +191,9 @@ function renderMarkdown(content: string): React.ReactNode[] {
   return nodes
 }
 
-export default function ArticlePage({ params }: { params: { slug: string } }) {
-  const article = getArticle(params.slug)
+export default async function ArticlePage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params
+  const article = getArticle(slug)
   if (!article) notFound()
 
   const formattedDate = new Date(article.date).toLocaleDateString('en-US', {

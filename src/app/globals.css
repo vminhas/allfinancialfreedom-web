@@ -258,6 +258,23 @@
   nav { padding: 1rem 1.5rem !important; }
 }
 
+/* ── Vault shell (desktop: side-by-side, mobile: stacked) ── */
+.vault-shell {
+  display: flex;
+  min-height: 100vh;
+  background: #0C1E30;
+}
+.vault-main {
+  flex: 1;
+  padding: 40px 48px;
+  overflow-y: auto;
+  min-width: 0;
+}
+@media (max-width: 768px) {
+  .vault-shell { flex-direction: column; }
+  .vault-main { padding: 20px 16px; }
+}
+
 /* Instagram in-app browser + iOS safe area support */
 @supports (padding-top: env(safe-area-inset-top)) {
   nav {
