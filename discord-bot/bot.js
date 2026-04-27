@@ -403,14 +403,29 @@ client.on(Events.MessageCreate, async (message) => {
 
     if (apiRes.ok && data.parsed > 0) {
       const titles = data.events.map(e => `• **${e.title}** — ${new Date(e.startsAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`).join('\n');
-      await message.reply({
-        embeds: [new EmbedBuilder()
-          .setColor(COLORS.GOLD)
-          .setTitle(`✅ Created ${data.parsed} training event${data.parsed > 1 ? 's' : ''}`)
-          .setDescription(titles)
-          .setFooter({ text: 'AFF Concierge · Training Parser' })
-        ],
-      });
+      const successEmbed = new EmbedBuilder()
+        .setColor(COLORS.GOLD)
+        .setTitle(`✅ Created ${data.parsed} training event${data.parsed > 1 ? 's' : ''}`)
+        .setDescription(titles)
+        .setFooter({ text: `AFF Concierge · Parsed by ${message.author.displayName || message.author.username}` });
+
+      // Reply in the original channel
+      await message.reply({ embeds: [successEmbed] });
+
+      // Also post in the admin activity channel so the team can see
+      if (adminChannelId && message.channelId !== adminChannelId) {
+        const activityChannel = await client.channels.fetch(adminChannelId).catch(() => null);
+        if (activityChannel?.isTextBased()) {
+          const activityEmbed = new EmbedBuilder()
+            .setColor(COLORS.GOLD)
+            .setTitle(`📅 ${data.parsed} Training Event${data.parsed > 1 ? 's' : ''} Added`)
+            .setDescription(titles)
+            .setFooter({ text: `Parsed from flyer uploaded by ${message.author.displayName || message.author.username}` })
+            .setTimestamp();
+          if (image.url) activityEmbed.setThumbnail(image.url);
+          await activityChannel.send({ embeds: [activityEmbed] }).catch(() => {});
+        }
+      }
     } else {
       await message.reply({
         embeds: [new EmbedBuilder()

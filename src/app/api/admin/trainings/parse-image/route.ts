@@ -36,7 +36,11 @@ export async function POST(req: NextRequest) {
   }
 
   const bytes = Buffer.from(await file.arrayBuffer())
-  const mimeType: 'image/jpeg' | 'image/png' = file.type === 'image/png' ? 'image/png' : 'image/jpeg'
+
+  // Detect actual image type from magic bytes — Discord/mobile uploads
+  // sometimes send the wrong Content-Type header.
+  const isPng = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47
+  const mimeType: 'image/jpeg' | 'image/png' = isPng ? 'image/png' : 'image/jpeg'
 
   // Parse the flyer with Claude vision
   let parsed
