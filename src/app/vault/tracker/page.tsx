@@ -426,7 +426,7 @@ export default function TrackerPage() {
               }}
             >
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#6B8299', marginBottom: 8 }}>Ready to Promote</div>
-              <div style={{ fontSize: 28, fontWeight: 600, color: '#C9A96E', lineHeight: 1, marginBottom: 4 }}>{agents.filter(a => a.readyForPromotion).length}</div>
+              <div style={{ fontSize: 28, fontWeight: 600, color: '#C9A96E', lineHeight: 1, marginBottom: 4 }}>{(stats as DashStats & { readyToPromoteCount?: number }).readyToPromoteCount ?? 0}</div>
               <div style={{ fontSize: 11, color: readyToPromoteOnly ? '#C9A96E' : '#4B5563' }}>
                 {readyToPromoteOnly ? '✕ clear filter' : 'click to filter'}
               </div>

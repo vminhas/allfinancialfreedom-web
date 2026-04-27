@@ -58,6 +58,15 @@ export async function GET() {
     else if (daysInPhase > threshold.days && pct < threshold.minPct) behindCount++
   }
 
+  // Ready to promote count
+  let readyToPromoteCount = 0
+  for (const p of profiles) {
+    if (p.status !== 'ACTIVE' || p.phase >= 5) continue
+    const totalItems = PHASE_ITEMS[p.phase]?.length ?? 0
+    const completedItems = p.phaseItems.filter(i => i.phase === p.phase && i.completed).length
+    if (totalItems > 0 && completedItems >= totalItems) readyToPromoteCount++
+  }
+
   // New this month
   const oneMonthAgo = new Date()
   oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1)
@@ -72,5 +81,6 @@ export async function GET() {
     behindCount,
     newThisMonth,
     activeLoginsLast30d: recentLogins,
+    readyToPromoteCount,
   })
 }
