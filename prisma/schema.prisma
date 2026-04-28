@@ -29,6 +29,7 @@ model AdminUser {
   authoredLicensingNotes LicensingNote[]
   assignedSubmissions NewBusinessSubmission[] @relation("AssignedSubmissions")
   authoredSubmissionNotes NewBusinessNote[] @relation("SubmissionNoteAdmin")
+  renewalRemindersSent RenewalReminder[] @relation("RenewalRemindersSent")
 
   @@map("admin_users")
 }
@@ -713,11 +714,33 @@ model NewBusinessSubmission {
   updatedAt           DateTime      @updatedAt
 
   notes               NewBusinessNote[]
+  renewalReminders    RenewalReminder[]
 
   @@index([agentProfileId, status])
   @@index([status, createdAt])
   @@index([clientLastName, clientFirstName])
   @@map("new_business_submissions")
+}
+
+enum RenewalStage {
+  SIXTY_DAYS
+  THIRTY_DAYS
+  SEVEN_DAYS
+}
+
+model RenewalReminder {
+  id              String                @id @default(cuid())
+  submissionId    String
+  submission      NewBusinessSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  stage           RenewalStage
+  anniversaryYear Int
+  sentAt          DateTime              @default(now())
+  sentByAdminId   String?
+  sentBy          AdminUser?            @relation("RenewalRemindersSent", fields: [sentByAdminId], references: [id])
+
+  @@unique([submissionId, stage, anniversaryYear])
+  @@index([submissionId])
+  @@map("renewal_reminders")
 }
 
 model NewBusinessNote {

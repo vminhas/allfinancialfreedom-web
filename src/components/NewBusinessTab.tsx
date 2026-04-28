@@ -35,6 +35,12 @@ interface SubmissionNote {
   authorAdmin: { name: string } | null
   createdAt: string
 }
+interface RenewalReminder {
+  id: string
+  stage: 'SIXTY_DAYS' | 'THIRTY_DAYS' | 'SEVEN_DAYS'
+  anniversaryYear: number
+  sentAt: string
+}
 interface Submission {
   id: string
   applicationDate: string
@@ -53,20 +59,39 @@ interface Submission {
   policyNumber: string | null
   declinedReason: string | null
   notes: SubmissionNote[]
+  renewalReminders: RenewalReminder[]
   createdAt: string
+  daysUntilAnniversary: number | null
+  currentStage: 'SIXTY_DAYS' | 'THIRTY_DAYS' | 'SEVEN_DAYS' | null
+  anniversaryYear: number | null
 }
 
-export default function NewBusinessTab({ isMobile }: { isMobile: boolean }) {
+type Filter = 'all' | 'pending' | 'clients'
+
+function anniversaryColor(daysUntil: number | null): string {
+  if (daysUntil == null) return '#4B5563'
+  if (daysUntil <= 7) return '#EF4444'
+  if (daysUntil <= 30) return '#C9A96E'
+  if (daysUntil <= 60) return '#9B6DFF'
+  return '#6B8299'
+}
+
+export default function NewBusinessTab({ isMobile, phase }: { isMobile: boolean; phase: number }) {
   const [submissions, setSubmissions] = useState<Submission[]>([])
   const [loading, setLoading] = useState(true)
+  const [locked, setLocked] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [openId, setOpenId] = useState<string | null>(null)
+  const [filter, setFilter] = useState<Filter>('all')
 
   const refresh = useCallback(() => {
     fetch('/api/agents/new-business')
-      .then(r => r.ok ? r.json() : { submissions: [] })
-      .then((d: { submissions: Submission[] }) => {
-        setSubmissions(d.submissions ?? [])
+      .then(async r => {
+        if (r.status === 403) { setLocked(true); setLoading(false); return null }
+        return r.ok ? r.json() : null
+      })
+      .then((d: { submissions: Submission[] } | null) => {
+        if (d?.submissions) setSubmissions(d.submissions)
         setLoading(false)
       })
       .catch(() => setLoading(false))
@@ -74,29 +99,109 @@ export default function NewBusinessTab({ isMobile }: { isMobile: boolean }) {
 
   useEffect(() => { refresh() }, [refresh])
 
+  if (locked || phase < 4) {
+    return (
+      <div style={{ ...card, padding: '40px 28px', textAlign: 'center' }}>
+        <div style={{ ...sectionLabel, marginBottom: 8 }}>New Business — Locked</div>
+        <div style={{ color: '#9BB0C4', fontSize: 13, marginBottom: 4 }}>
+          Unlocks at Phase 4 — Marketing Director track.
+        </div>
+        <div style={{ color: '#6B8299', fontSize: 12 }}>
+          Once you reach Phase 4 you can submit new business and your issued policies will appear here as clients with anniversary reminders.
+        </div>
+      </div>
+    )
+  }
+
   const opened = submissions.find(s => s.id === openId) ?? null
+
+  // Filter the table based on the pill selection
+  const filtered = submissions.filter(s => {
+    if (filter === 'pending') return s.status === 'PENDING'
+    if (filter === 'clients') return s.status === 'ISSUED'
+    return true
+  })
+
+  // Sort: when on the Clients filter, pin upcoming anniversaries to top.
+  const sorted = filter === 'clients'
+    ? [...filtered].sort((a, b) => {
+        const ad = a.daysUntilAnniversary ?? 999
+        const bd = b.daysUntilAnniversary ?? 999
+        return ad - bd
+      })
+    : filtered
+
+  // Issued submissions in any active stage — feed the Coming-up banner.
+  const upcoming = submissions
+    .filter(s => s.status === 'ISSUED' && s.currentStage)
+    .sort((a, b) => (a.daysUntilAnniversary ?? 999) - (b.daysUntilAnniversary ?? 999))
+
+  const showAnniversaryCol = filter !== 'pending'
 
   return (
     <div style={{ ...card, padding: '24px 28px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
         <div style={sectionLabel}>New Business ({submissions.length})</div>
         <button onClick={() => setShowForm(s => !s)} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
           {showForm ? 'Cancel' : '+ Submit New Business'}
         </button>
       </div>
 
+      {/* Filter pills */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+        {(['all', 'pending', 'clients'] as Filter[]).map(f => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            style={{
+              padding: '5px 12px', borderRadius: 999, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
+              background: filter === f ? 'rgba(201,169,110,0.15)' : 'transparent',
+              border: `1px solid ${filter === f ? 'rgba(201,169,110,0.4)' : 'rgba(255,255,255,0.08)'}`,
+              color: filter === f ? '#C9A96E' : '#6B8299',
+              cursor: 'pointer',
+            }}
+          >
+            {f === 'all' ? 'All' : f === 'pending' ? 'Pending' : 'Issued / Clients'}
+          </button>
+        ))}
+      </div>
+
+      {/* Coming up banner — only when there are issued clients in an active stage */}
+      {upcoming.length > 0 && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(201,169,110,0.10), rgba(201,169,110,0.02))',
+          border: '1px solid rgba(201,169,110,0.30)', borderRadius: 6,
+          padding: '14px 16px', marginBottom: 16,
+        }}>
+          <div style={{ ...sectionLabel, fontSize: 9, marginBottom: 8 }}>
+            Coming up in 90 days · {upcoming.length}
+          </div>
+          {upcoming.slice(0, 5).map(u => (
+            <div key={u.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', fontSize: 12 }}>
+              <span style={{ color: '#fff' }}>{u.clientFirstName} {u.clientLastName} · <span style={{ color: '#9BB0C4' }}>{u.carrier}</span></span>
+              <span style={{ color: anniversaryColor(u.daysUntilAnniversary), fontWeight: 700 }}>
+                {u.daysUntilAnniversary === 0 ? 'Today' : `in ${u.daysUntilAnniversary}d`}
+              </span>
+            </div>
+          ))}
+          <div style={{ fontSize: 11, color: '#6B8299', marginTop: 8, fontStyle: 'italic' }}>
+            Renewal reminders are sent by your licensing coordinator — but you can call your client anytime.
+          </div>
+        </div>
+      )}
+
       {showForm && <NewBusinessForm isMobile={isMobile} onSaved={() => { refresh(); setShowForm(false) }} />}
 
       {loading ? <div style={{ color: '#6B8299', fontSize: 13 }}>Loading...</div> :
-        submissions.length === 0 ? <div style={{ color: '#4B5563', fontSize: 13 }}>No submissions yet.</div> :
+        sorted.length === 0 ? <div style={{ color: '#4B5563', fontSize: 13 }}>No submissions match this filter.</div> :
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-            {['Client', 'Carrier', 'Type', 'Points', 'Status', 'Submitted'].map(h => (
+            {(['Client', 'Carrier', 'Type', 'Points', 'Status', 'Submitted', ...(showAnniversaryCol ? ['Next Anniversary'] : [])]).map(h => (
               <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#C9A96E' }}>{h}</th>
             ))}
           </tr></thead>
           <tbody>
-            {submissions.map(s => (
+            {sorted.map(s => (
               <tr key={s.id} onClick={() => setOpenId(s.id)} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', cursor: 'pointer' }}>
                 <td style={{ padding: '10px 12px', fontSize: 12, color: '#ffffff' }}>{s.clientFirstName} {s.clientLastName}</td>
                 <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{s.carrier}</td>
@@ -104,6 +209,20 @@ export default function NewBusinessTab({ isMobile }: { isMobile: boolean }) {
                 <td style={{ padding: '10px 12px', fontSize: 12, color: '#C9A96E' }}>{s.points ?? '—'}</td>
                 <td style={{ padding: '10px 12px', fontSize: 11 }}><StatusPill status={s.status} /></td>
                 <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{new Date(s.createdAt).toLocaleDateString()}</td>
+                {showAnniversaryCol && (
+                  <td style={{ padding: '10px 12px', fontSize: 11 }}>
+                    {s.daysUntilAnniversary != null ? (
+                      <span style={{
+                        display: 'inline-block', padding: '2px 8px', borderRadius: 999,
+                        background: `${anniversaryColor(s.daysUntilAnniversary)}26`,
+                        color: anniversaryColor(s.daysUntilAnniversary),
+                        fontWeight: 700, letterSpacing: '0.08em',
+                      }}>
+                        {s.daysUntilAnniversary === 0 ? 'Today' : `${s.daysUntilAnniversary}d`}
+                      </span>
+                    ) : <span style={{ color: '#4B5563' }}>—</span>}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
