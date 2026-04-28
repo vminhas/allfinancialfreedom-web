@@ -26,18 +26,36 @@ interface Stats {
   thisWeek: number
   thisMonth: number
   total: number
+  clientToday?: number
+  clientThisMonth?: number
+}
+
+interface ClientBirthday {
+  id: string
+  clientName: string
+  agentName: string
+  agentCode: string
+  carrier: string
+  policyType: string
+  dateOfBirth: string
+  nextBirthday: string
+  daysUntil: number
+  turningAge: number
+  isToday: boolean
 }
 
 export default function BirthdaysPage() {
   const [birthdays, setBirthdays] = useState<Birthday[]>([])
+  const [clientBirthdays, setClientBirthdays] = useState<ClientBirthday[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetch('/api/admin/birthdays')
       .then(r => r.json())
-      .then((d: { birthdays: Birthday[]; stats: Stats }) => {
+      .then((d: { birthdays: Birthday[]; clientBirthdays?: ClientBirthday[]; stats: Stats }) => {
         setBirthdays(d.birthdays ?? [])
+        setClientBirthdays(d.clientBirthdays ?? [])
         setStats(d.stats ?? null)
         setLoading(false)
       })
@@ -143,6 +161,42 @@ export default function BirthdaysPage() {
                 </div>
               </div>
             )
+          )}
+
+          {clientBirthdays.length > 0 && (
+            <div style={{ marginTop: 32 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#9B6DFF', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                Client Birthdays
+                <span style={{ fontSize: 9, color: '#6B8299', fontWeight: 500, letterSpacing: '0.05em' }}>
+                  ({clientBirthdays.filter(c => c.daysUntil <= 30).length} in next 30 days)
+                </span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
+                {clientBirthdays.filter(c => c.daysUntil <= 30).map(c => (
+                  <div key={c.id} style={{
+                    background: c.isToday ? 'linear-gradient(135deg, rgba(155,109,255,0.16), rgba(155,109,255,0.04))' : '#142D48',
+                    border: `1px solid ${c.isToday ? 'rgba(155,109,255,0.45)' : 'rgba(155,109,255,0.12)'}`,
+                    borderRadius: 6, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12,
+                  }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ color: '#fff', fontSize: 13, fontWeight: 500 }}>{c.clientName}</div>
+                      <div style={{ fontSize: 11, color: '#9BB0C4', marginTop: 2 }}>
+                        Agent: {c.agentName} · turning {c.turningAge}
+                      </div>
+                    </div>
+                    <div style={{
+                      background: c.isToday ? '#9B6DFF' : 'rgba(155,109,255,0.1)',
+                      color: c.isToday ? '#fff' : '#9B6DFF',
+                      border: `1px solid ${c.isToday ? '#9B6DFF' : 'rgba(155,109,255,0.3)'}`,
+                      borderRadius: 999, padding: '5px 11px', fontSize: 10, fontWeight: 700,
+                      letterSpacing: '0.1em', textTransform: 'uppercase',
+                    }}>
+                      {c.daysUntil === 0 ? 'Today' : c.daysUntil === 1 ? 'Tomorrow' : `${c.daysUntil} days`}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       )}

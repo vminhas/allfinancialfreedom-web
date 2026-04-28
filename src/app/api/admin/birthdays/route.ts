@@ -75,13 +75,60 @@ export async function GET() {
   const thisWeekCount = enriched.filter(e => e.daysUntil > 0 && e.daysUntil <= 7).length
   const thisMonthCount = enriched.filter(e => e.daysUntil >= 0 && e.daysUntil <= 30).length
 
+  // Client birthdays — pulled from issued NewBusinessSubmissions. Used so
+  // licensing coordinators / admins can see upcoming client birthdays alongside
+  // agent birthdays for gift/card workflows.
+  const issuedWithBirthday = await db.newBusinessSubmission.findMany({
+    where: { status: 'ISSUED', clientBirthday: { not: null } },
+    select: {
+      id: true,
+      clientFirstName: true,
+      clientLastName: true,
+      clientBirthday: true,
+      carrier: true,
+      policyType: true,
+      agentProfile: { select: { firstName: true, lastName: true, agentCode: true } },
+    },
+  })
+
+  const clientBirthdays = issuedWithBirthday
+    .map(s => {
+      const dob = s.clientBirthday!
+      const month = dob.getUTCMonth()
+      const day = dob.getUTCDate()
+      const birthYear = dob.getUTCFullYear()
+
+      let next = new Date(etYear, month, day)
+      if (next < today) next = new Date(etYear + 1, month, day)
+      const daysUntil = Math.round((next.getTime() - today.getTime()) / 86400000)
+      const turningAge = next.getFullYear() - birthYear
+
+      return {
+        id: s.id,
+        clientName: `${s.clientFirstName} ${s.clientLastName}`,
+        agentName: `${s.agentProfile.firstName} ${s.agentProfile.lastName}`,
+        agentCode: s.agentProfile.agentCode,
+        carrier: s.carrier,
+        policyType: s.policyType,
+        dateOfBirth: dob.toISOString(),
+        nextBirthday: next.toISOString(),
+        daysUntil,
+        turningAge,
+        isToday: daysUntil === 0,
+      }
+    })
+    .sort((a, b) => a.daysUntil - b.daysUntil)
+
   return NextResponse.json({
     birthdays: enriched,
+    clientBirthdays,
     stats: {
       today: todayCount,
       thisWeek: thisWeekCount,
       thisMonth: thisMonthCount,
       total: enriched.length,
+      clientToday: clientBirthdays.filter(c => c.daysUntil === 0).length,
+      clientThisMonth: clientBirthdays.filter(c => c.daysUntil >= 0 && c.daysUntil <= 30).length,
     },
   })
 }

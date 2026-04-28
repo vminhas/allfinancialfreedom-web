@@ -27,6 +27,8 @@ model AdminUser {
 
   assignedRequests CoordinatorRequest[] @relation("AssignedCoordinator")
   authoredLicensingNotes LicensingNote[]
+  assignedSubmissions NewBusinessSubmission[] @relation("AssignedSubmissions")
+  authoredSubmissionNotes NewBusinessNote[] @relation("SubmissionNoteAdmin")
 
   @@map("admin_users")
 }
@@ -186,6 +188,10 @@ model AgentProfile {
   pfr                   PersonalFinancialReview?
   feedback              AgentFeedback[]
   announcementReads     AnnouncementRead[]
+  submissions           NewBusinessSubmission[] @relation("SubmissionAgent")
+  splitSubmissions      NewBusinessSubmission[] @relation("SplitPartner")
+  authoredSubmissionNotes NewBusinessNote[]     @relation("SubmissionNoteAgent")
+  ftas                  FieldTrainingAppointment[]
 
   @@map("agent_profiles")
 }
@@ -636,4 +642,122 @@ model LicensingNote {
 
   @@index([agentProfileId, scope, createdAt])
   @@map("licensing_notes")
+}
+
+// ─── New Business / FTA / Clients ─────────────────────────────────────────────
+
+enum NewBusinessStatus {
+  PENDING
+  ISSUED
+  DECLINED
+  LAPSED
+  NOT_TAKEN
+}
+
+enum PolicyType {
+  TERM
+  WHOLE_LIFE
+  IUL
+  ANNUITY
+  DISABILITY
+  LTC
+  OTHER
+}
+
+enum NoteAuthorType {
+  AGENT
+  ADMIN
+}
+
+enum FtaCategory {
+  UNDER_50
+  FIFTY_PLUS
+  FIFTY_NINE_HALF_PLUS
+  JUST_RETIRED
+  TRANSITIONING_JOBS
+  RECEIVED_INHERITANCE
+}
+
+model NewBusinessSubmission {
+  id                  String        @id @default(cuid())
+  agentProfileId      String
+  agentProfile        AgentProfile  @relation("SubmissionAgent", fields: [agentProfileId], references: [id], onDelete: Cascade)
+
+  applicationDate     DateTime
+  carrier             String
+  policyType          PolicyType
+  points              Float?
+  splitWithAgentId    String?
+  splitWithAgent      AgentProfile? @relation("SplitPartner", fields: [splitWithAgentId], references: [id])
+  illustrationUrls    String[]
+
+  clientFirstName     String
+  clientLastName      String
+  clientPhone         String?
+  clientEmail         String?
+  clientBirthday      DateTime?
+  clientAddressLine1  String?
+  clientAddressLine2  String?
+  clientCity          String?
+  clientState         String?
+  clientZip           String?
+
+  status              NewBusinessStatus @default(PENDING)
+  issuedDate          DateTime?
+  policyNumber        String?
+  declinedReason      String?
+  assignedToId        String?
+  assignedTo          AdminUser?    @relation("AssignedSubmissions", fields: [assignedToId], references: [id])
+
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  notes               NewBusinessNote[]
+
+  @@index([agentProfileId, status])
+  @@index([status, createdAt])
+  @@index([clientLastName, clientFirstName])
+  @@map("new_business_submissions")
+}
+
+model NewBusinessNote {
+  id              String                @id @default(cuid())
+  submissionId    String
+  submission      NewBusinessSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  body            String
+  authorType      NoteAuthorType
+  authorAgentId   String?
+  authorAgent     AgentProfile?         @relation("SubmissionNoteAgent", fields: [authorAgentId], references: [id])
+  authorAdminId   String?
+  authorAdmin     AdminUser?            @relation("SubmissionNoteAdmin", fields: [authorAdminId], references: [id])
+
+  createdAt       DateTime              @default(now())
+
+  @@index([submissionId, createdAt])
+  @@map("new_business_notes")
+}
+
+model FieldTrainingAppointment {
+  id                String       @id @default(cuid())
+  agentProfileId    String
+  agentProfile      AgentProfile @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+
+  name              String
+  phone             String?
+  timeZone          String?
+  age               Int?
+  married           Boolean?
+  children          Int?
+  homeowner         Boolean?
+  occupation60kPlus Boolean?
+  appointmentDate   DateTime
+  notes             String?
+  category          FtaCategory?
+
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@index([agentProfileId, appointmentDate])
+  @@map("field_training_appointments")
 }

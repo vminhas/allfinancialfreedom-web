@@ -8,7 +8,15 @@ const CATEGORIES = [
   { key: 'bug', label: 'Bug Report' },
   { key: 'feature', label: 'Feature Request' },
   { key: 'improvement', label: 'Improvement' },
+  { key: 'licensing', label: 'Licensing' },
 ]
+
+// The licensing branch routes to /api/agents/coordinator-requests instead of
+// the fire-and-forget feedback table — those become tracked tickets the LC
+// works in their inbox. Server requires ≥10 chars there vs ≥5 for feedback.
+const LICENSING_CATEGORY = 'licensing'
+const FEEDBACK_MIN = 5
+const LICENSING_MIN = 10
 
 export default function FeedbackButton() {
   const [open, setOpen] = useState(false)
@@ -17,19 +25,28 @@ export default function FeedbackButton() {
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
 
+  const isLicensing = category === LICENSING_CATEGORY
+  const minLength = isLicensing ? LICENSING_MIN : FEEDBACK_MIN
+
   const handleSend = async () => {
-    if (!message.trim() || message.trim().length < 5) return
+    if (!message.trim() || message.trim().length < minLength) return
     setSending(true)
     try {
-      const res = await fetch('/api/agents/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: message.trim(), category }),
-      })
+      const res = isLicensing
+        ? await fetch('/api/agents/coordinator-requests', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ topic: 'GENERAL', message: message.trim() }),
+          })
+        : await fetch('/api/agents/feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: message.trim(), category }),
+          })
       if (res.ok) {
         setSent(true)
         setMessage('')
-        setTimeout(() => { setSent(false); setOpen(false) }, 2000)
+        setTimeout(() => { setSent(false); setOpen(false) }, 2500)
       }
     } finally {
       setSending(false)
@@ -70,18 +87,26 @@ export default function FeedbackButton() {
         }}>
           <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(201,169,110,0.1)' }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: '#ffffff', marginBottom: 4 }}>
-              Share Your Feedback
+              {isLicensing ? 'Reach Out to Licensing' : 'Share Your Feedback'}
             </div>
             <div style={{ fontSize: 11, color: '#6B8299', lineHeight: 1.5 }}>
-              Your feedback helps us build a better platform for everyone on the team.
+              {isLicensing
+                ? 'Your message goes straight to the licensing coordinator inbox. Track replies in the Licensing tab.'
+                : 'Your feedback helps us build a better platform for everyone on the team.'}
             </div>
           </div>
 
           {sent ? (
             <div style={{ padding: '32px 20px', textAlign: 'center' }}>
               <div style={{ fontSize: 28, marginBottom: 8, color: '#4ade80' }}>&#10003;</div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: '#ffffff', marginBottom: 4 }}>Thank you!</div>
-              <div style={{ fontSize: 12, color: '#6B8299' }}>Your feedback has been submitted.</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#ffffff', marginBottom: 4 }}>
+                {isLicensing ? 'Sent to coordinator' : 'Thank you!'}
+              </div>
+              <div style={{ fontSize: 12, color: '#6B8299' }}>
+                {isLicensing
+                  ? 'Open the Licensing tab to follow the conversation.'
+                  : 'Your feedback has been submitted.'}
+              </div>
             </div>
           ) : (
             <div style={{ padding: '16px 20px' }}>
@@ -104,7 +129,9 @@ export default function FeedbackButton() {
               <textarea
                 value={message}
                 onChange={e => setMessage(e.target.value)}
-                placeholder="What's on your mind? Tell us what would make this better..."
+                placeholder={isLicensing
+                  ? "What do you need from the licensing coordinator? E.g. exam scheduling, fingerprints, carrier appointments..."
+                  : "What's on your mind? Tell us what would make this better..."}
                 rows={4}
                 style={{
                   width: '100%', padding: '10px 12px', fontSize: 13,
@@ -117,19 +144,21 @@ export default function FeedbackButton() {
 
               <button
                 onClick={handleSend}
-                disabled={sending || message.trim().length < 5}
+                disabled={sending || message.trim().length < minLength}
                 style={{
                   width: '100%', marginTop: 10, padding: '10px 16px',
                   borderRadius: 6, fontSize: 12, fontWeight: 700,
-                  background: message.trim().length >= 5 ? '#C9A96E' : 'rgba(201,169,110,0.2)',
+                  background: message.trim().length >= minLength ? '#C9A96E' : 'rgba(201,169,110,0.2)',
                   border: 'none', color: '#142D48',
-                  cursor: sending || message.trim().length < 5 ? 'not-allowed' : 'pointer',
+                  cursor: sending || message.trim().length < minLength ? 'not-allowed' : 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                   opacity: sending ? 0.7 : 1,
                 }}
               >
                 <Send size={13} />
-                {sending ? 'Sending...' : 'Submit Feedback'}
+                {sending
+                  ? 'Sending...'
+                  : isLicensing ? 'Send to Coordinator' : 'Submit Feedback'}
               </button>
             </div>
           )}
