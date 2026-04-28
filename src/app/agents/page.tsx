@@ -3076,8 +3076,12 @@ const RESOURCE_GROUPS: { key: string; label: string; icon: string }[] = [
 
 // ─── My Team Tab ──────────────────────────────────────────────────────────────
 
+type MemberStatus = 'ACTIVE' | 'INVITED' | 'PENDING'
+
 interface TeamNode {
   id: string
+  agentUserId: string | null
+  referralId: string | null
   agentCode: string
   firstName: string
   lastName: string
@@ -3085,7 +3089,14 @@ interface TeamNode {
   title: string
   state: string | null
   avatarUrl: string | null
+  memberStatus: MemberStatus
   children: TeamNode[]
+}
+
+const MEMBER_STATUS_STYLE: Record<MemberStatus, { bg: string; border: string; fg: string; label: string }> = {
+  ACTIVE:  { bg: 'rgba(74,222,128,0.12)',  border: 'rgba(74,222,128,0.30)',  fg: '#4ADE80', label: 'Active' },
+  INVITED: { bg: 'rgba(96,165,250,0.12)',  border: 'rgba(96,165,250,0.30)',  fg: '#60A5FA', label: 'Invited' },
+  PENDING: { bg: 'rgba(245,158,11,0.12)',  border: 'rgba(245,158,11,0.30)',  fg: '#F59E0B', label: 'Pending Review' },
 }
 
 const TEAM_PHASE_COLORS: Record<number, string> = {
@@ -3094,10 +3105,33 @@ const TEAM_PHASE_COLORS: Record<number, string> = {
 
 function TeamMemberNode({ node, depth, isMobile }: { node: TeamNode; depth: number; isMobile: boolean }) {
   const [expanded, setExpanded] = useState(depth < 2)
+  const [resending, setResending] = useState(false)
+  const [resendMsg, setResendMsg] = useState<string | null>(null)
   const color = TEAM_PHASE_COLORS[node.phase] ?? '#C9A96E'
+  const statusStyle = MEMBER_STATUS_STYLE[node.memberStatus]
+  const isInactive = node.memberStatus !== 'ACTIVE'
   let descendants = 0
   function count(n: TeamNode) { for (const c of n.children) { descendants++; count(c) } }
   count(node)
+
+  const handleResend = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!node.agentUserId || resending) return
+    setResending(true)
+    setResendMsg(null)
+    try {
+      const res = await fetch('/api/agents/team/resend-invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentUserId: node.agentUserId }),
+      })
+      const d = await res.json().catch(() => ({})) as { ok?: boolean; emailError?: string }
+      setResendMsg(d.ok ? 'Sent ✓' : (d.emailError ?? 'Failed'))
+      setTimeout(() => setResendMsg(null), 3000)
+    } finally {
+      setResending(false)
+    }
+  }
 
   return (
     <div>
@@ -3106,10 +3140,11 @@ function TeamMemberNode({ node, depth, isMobile }: { node: TeamNode; depth: numb
           display: 'flex', alignItems: 'center', gap: 12,
           padding: '10px 14px',
           background: '#132238',
-          border: `1px solid ${color}25`,
+          border: `1px solid ${isInactive ? statusStyle.border : `${color}25`}`,
           borderRadius: 8,
           marginLeft: isMobile ? depth * 16 : depth * 32,
           cursor: node.children.length > 0 ? 'pointer' : 'default',
+          opacity: isInactive ? 0.85 : 1,
         }}
         onClick={() => node.children.length > 0 && setExpanded(!expanded)}
       >
@@ -3118,7 +3153,7 @@ function TeamMemberNode({ node, depth, isMobile }: { node: TeamNode; depth: numb
           background: node.avatarUrl ? `url(${node.avatarUrl}) center/cover` : `${color}20`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 12, fontWeight: 700, color, flexShrink: 0,
-          border: `2px solid ${color}35`,
+          border: `2px solid ${isInactive ? statusStyle.border : `${color}35`}`,
         }}>
           {!node.avatarUrl && `${node.firstName?.[0] ?? ''}${node.lastName?.[0] ?? ''}`.toUpperCase()}
         </div>
@@ -3126,17 +3161,46 @@ function TeamMemberNode({ node, depth, isMobile }: { node: TeamNode; depth: numb
           <div style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>
             {node.firstName} {node.lastName}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
             <span style={{
               fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
               padding: '2px 6px', borderRadius: 3,
-              background: `${color}15`, border: `1px solid ${color}30`, color,
+              background: statusStyle.bg, border: `1px solid ${statusStyle.border}`, color: statusStyle.fg,
             }}>
-              {node.title}
+              {statusStyle.label}
             </span>
+            {node.memberStatus === 'ACTIVE' && (
+              <span style={{
+                fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                padding: '2px 6px', borderRadius: 3,
+                background: `${color}15`, border: `1px solid ${color}30`, color,
+              }}>
+                {node.title}
+              </span>
+            )}
             {node.state && <span style={{ fontSize: 9, color: '#6B8299' }}>{node.state}</span>}
           </div>
         </div>
+        {node.memberStatus === 'INVITED' && node.agentUserId && (
+          <button
+            onClick={handleResend}
+            disabled={resending}
+            style={{
+              padding: '5px 10px', borderRadius: 4,
+              background: 'transparent', border: '1px solid rgba(96,165,250,0.4)',
+              color: '#60A5FA', fontSize: 10, fontWeight: 700,
+              letterSpacing: '0.08em', textTransform: 'uppercase',
+              cursor: resending ? 'wait' : 'pointer', flexShrink: 0,
+            }}
+          >
+            {resending ? 'Sending...' : (resendMsg ?? 'Resend invite')}
+          </button>
+        )}
+        {node.memberStatus === 'PENDING' && (
+          <span style={{ fontSize: 9, color: '#6B8299', fontStyle: 'italic', flexShrink: 0 }}>
+            Awaiting admin approval
+          </span>
+        )}
         {node.children.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
             <span style={{ fontSize: 9, color: '#6B8299', fontWeight: 600 }}>{descendants}</span>
@@ -3158,15 +3222,17 @@ function TeamMemberNode({ node, depth, isMobile }: { node: TeamNode; depth: numb
 function MyTeamTab({ isMobile, previewToken }: { isMobile: boolean; previewToken?: string | null }) {
   const [team, setTeam] = useState<TeamNode[]>([])
   const [totalSize, setTotalSize] = useState(0)
+  const [activeSize, setActiveSize] = useState(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const url = previewToken ? `/api/agents/team?preview=${previewToken}` : '/api/agents/team'
     fetch(url)
       .then(r => { if (!r.ok) throw new Error(); return r.json() })
-      .then((d: { team: TeamNode[]; totalTeamSize: number }) => {
+      .then((d: { team: TeamNode[]; totalTeamSize: number; activeTeamSize?: number }) => {
         setTeam(d.team ?? [])
         setTotalSize(d.totalTeamSize ?? 0)
+        setActiveSize(d.activeTeamSize ?? 0)
       })
       .catch(() => { /* no team data available */ })
       .finally(() => setLoading(false))
@@ -3189,13 +3255,24 @@ function MyTeamTab({ isMobile, previewToken }: { isMobile: boolean; previewToken
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
         <div style={{
           padding: '10px 16px', background: '#132238', borderRadius: 6,
+          border: '1px solid rgba(74,222,128,0.18)',
+        }}>
+          <span style={{ fontSize: 20, fontWeight: 300, color: '#4ADE80', fontFamily: "'Cormorant Garamond', Georgia, serif" }}>
+            {activeSize}
+          </span>
+          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6B8299', marginLeft: 8 }}>
+            Active
+          </span>
+        </div>
+        <div style={{
+          padding: '10px 16px', background: '#132238', borderRadius: 6,
           border: '1px solid rgba(201,169,110,0.12)',
         }}>
           <span style={{ fontSize: 20, fontWeight: 300, color: '#C9A96E', fontFamily: "'Cormorant Garamond', Georgia, serif" }}>
             {totalSize}
           </span>
           <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6B8299', marginLeft: 8 }}>
-            Team Member{totalSize !== 1 ? 's' : ''}
+            Total Pipeline
           </span>
         </div>
         <div style={{
