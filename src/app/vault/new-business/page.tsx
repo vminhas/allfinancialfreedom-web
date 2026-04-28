@@ -176,6 +176,8 @@ function SubmissionDrawer({ id, onClose, onChanged }: { id: string; onClose: () 
   const [policyNumber, setPolicyNumber] = useState('')
   const [declinedReason, setDeclinedReason] = useState('')
   const [saving, setSaving] = useState(false)
+  const [justSaved, setJustSaved] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [noteText, setNoteText] = useState('')
   const [posting, setPosting] = useState(false)
 
@@ -196,6 +198,7 @@ function SubmissionDrawer({ id, onClose, onChanged }: { id: string; onClose: () 
 
   const save = async () => {
     setSaving(true)
+    setSaveError(null)
     try {
       const res = await fetch(`/api/vault/new-business/${id}`, {
         method: 'PATCH',
@@ -207,7 +210,17 @@ function SubmissionDrawer({ id, onClose, onChanged }: { id: string; onClose: () 
           declinedReason: declinedReason || null,
         }),
       })
-      if (res.ok) { load(); onChanged() }
+      if (res.ok) {
+        load()
+        onChanged()
+        setJustSaved(true)
+        setTimeout(() => setJustSaved(false), 2000)
+      } else {
+        const d = await res.json().catch(() => ({})) as { error?: string }
+        setSaveError(d.error ?? 'Save failed')
+      }
+    } catch {
+      setSaveError('Save failed — check your connection')
     } finally { setSaving(false) }
   }
 
@@ -229,12 +242,15 @@ function SubmissionDrawer({ id, onClose, onChanged }: { id: string; onClose: () 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 50, display: 'flex', justifyContent: 'flex-end' }}>
       <div onClick={e => e.stopPropagation()} style={{ width: 600, maxWidth: '95vw', height: '100vh', background: '#0F1E33', borderLeft: '1px solid rgba(201,169,110,0.2)', overflowY: 'auto', padding: 24 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h2 style={{ color: '#fff', fontSize: 16, fontWeight: 600, margin: 0 }}>{detail.clientFirstName} {detail.clientLastName}</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <h2 style={{ color: '#fff', fontSize: 16, fontWeight: 600, margin: 0 }}>{detail.clientFirstName} {detail.clientLastName}</h2>
+            <StatusPill status={detail.status} />
+          </div>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#9BB0C4', fontSize: 18, cursor: 'pointer' }}>✕</button>
         </div>
 
-        <div style={{ marginBottom: 8, fontSize: 12, color: '#9BB0C4' }}>
+        <div style={{ marginBottom: 16, fontSize: 12, color: '#9BB0C4' }}>
           Agent: <span style={{ color: '#fff' }}>{detail.agentProfile.firstName} {detail.agentProfile.lastName}</span> · {detail.agentProfile.agentCode}
         </div>
 
@@ -252,9 +268,33 @@ function SubmissionDrawer({ id, onClose, onChanged }: { id: string; onClose: () 
             <div><label style={fieldLabel}>Policy Number</label><input style={inputStyle} value={policyNumber} onChange={e => setPolicyNumber(e.target.value)} /></div>
             <div><label style={fieldLabel}>Declined Reason</label><input style={inputStyle} value={declinedReason} onChange={e => setDeclinedReason(e.target.value)} /></div>
           </div>
-          <button onClick={save} disabled={saving} style={{ marginTop: 12, background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '7px 14px', fontSize: 11, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>
-            {saving ? 'Saving...' : 'Save Changes'}
-          </button>
+          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button
+              onClick={save}
+              disabled={saving}
+              style={{
+                background: justSaved ? '#4ADE80' : '#C9A96E',
+                color: '#142D48', border: 'none', borderRadius: 4,
+                padding: '7px 14px', fontSize: 11, fontWeight: 700,
+                cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1,
+                transition: 'background 0.2s',
+              }}
+            >
+              {saving ? 'Saving...' : justSaved ? '✓ Saved' : 'Save Changes'}
+            </button>
+            {justSaved && (
+              <span style={{ fontSize: 11, color: '#4ADE80', fontWeight: 600 }}>
+                {editStatus === 'ISSUED'
+                  ? 'Marked issued — agent has been notified.'
+                  : editStatus === 'DECLINED'
+                  ? 'Marked declined — agent has been DM’d.'
+                  : 'Updated.'}
+              </span>
+            )}
+            {saveError && (
+              <span style={{ fontSize: 11, color: '#EF4444', fontWeight: 600 }}>{saveError}</span>
+            )}
+          </div>
         </div>
 
         <DetailRow k="Carrier" v={detail.carrier} />
