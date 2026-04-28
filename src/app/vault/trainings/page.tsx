@@ -1551,6 +1551,8 @@ function AddEventModal({ onClose, onCreated }: { onClose: () => void; onCreated:
     partnerBrand: '',
     presenterName: '',
     presenterRole: '',
+    recurring: false,
+    recurringWeeks: '12',
   })
   const [image, setImage] = useState<File | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -1584,6 +1586,10 @@ function AddEventModal({ onClose, onCreated }: { onClose: () => void; onCreated:
     if (form.partnerBrand) fd.append('partnerBrand', form.partnerBrand)
     if (presenters.length > 0) fd.append('presenters', JSON.stringify(presenters))
     if (image) fd.append('flyerImage', image)
+    if (form.recurring) {
+      fd.append('recurring', 'true')
+      fd.append('recurringWeeks', form.recurringWeeks)
+    }
 
     try {
       const res = await fetch('/api/admin/trainings/create', { method: 'POST', body: fd })
@@ -1718,6 +1724,38 @@ function AddEventModal({ onClose, onCreated }: { onClose: () => void; onCreated:
               inputStyle={inputStyle}
               labelStyle={labelStyle}
             />
+          </div>
+
+          {/* Recurring weekly */}
+          <div style={{ padding: '12px 14px', background: 'rgba(201,169,110,0.04)', border: '1px solid rgba(201,169,110,0.15)', borderRadius: 4 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={form.recurring}
+                onChange={e => setForm(f => ({ ...f, recurring: e.target.checked }))}
+                style={{ width: 16, height: 16, accentColor: '#C9A96E', cursor: 'pointer' }}
+              />
+              <span style={{ fontSize: 12, color: '#d1d9e2', fontWeight: 600 }}>
+                Repeat weekly
+              </span>
+              <span style={{ fontSize: 10, color: '#6B8299' }}>
+                same time, same day of week
+              </span>
+            </label>
+            {form.recurring && (
+              <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <label style={{ fontSize: 11, color: '#9BB0C4' }}>For</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={52}
+                  value={form.recurringWeeks}
+                  onChange={set('recurringWeeks')}
+                  style={{ ...inputStyle, width: 80, padding: '6px 10px', fontSize: 12 }}
+                />
+                <label style={{ fontSize: 11, color: '#9BB0C4' }}>weeks (cap 52)</label>
+              </div>
+            )}
           </div>
 
           {/* Image upload */}

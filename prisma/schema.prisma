@@ -618,6 +618,16 @@ model TrainingEvent {
   // Manual override flag — admin edited the parsed values, don't re-overwrite
   manuallyEdited        Boolean            @default(false)
 
+  // Recurrence — populated when the admin creates a recurring training. Each
+  // occurrence is its own TrainingEvent row, linked back to the parent so we
+  // can find siblings and roll forward more occurrences when the series is
+  // running low. Self-relation: parent's recurrenceParentId is null and it
+  // owns a children[] of upcoming + past instances.
+  recurrenceParentId    String?
+  recurrenceParent      TrainingEvent?     @relation("TrainingRecurrence", fields: [recurrenceParentId], references: [id], onDelete: SetNull)
+  recurrenceChildren    TrainingEvent[]    @relation("TrainingRecurrence")
+  recurrenceFrequency   String?            // 'WEEKLY' for now; future: DAILY / BIWEEKLY / MONTHLY
+
   createdAt             DateTime           @default(now())
   updatedAt             DateTime           @updatedAt
 
@@ -627,6 +637,7 @@ model TrainingEvent {
   @@index([startsAt])
   @@index([reminderSentAt])
   @@index([published, startsAt])
+  @@index([recurrenceParentId])
   @@map("training_events")
 }
 

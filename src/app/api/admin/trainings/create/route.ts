@@ -5,8 +5,16 @@ import { db } from '@/lib/db'
 import { requireRole } from '@/lib/permissions'
 import { uploadFlyerToBlob } from '@/lib/blob-upload'
 
-// POST /api/admin/trainings/create — manually create a training event
+const MAX_RECURRING_WEEKS = 52
+
+// POST /api/admin/trainings/create — manually create a training event.
 // Accepts multipart/form-data (for image upload) or JSON (no image).
+//
+// When recurring=true, the route creates N weekly occurrences (capped at 52).
+// The first instance is the parent (recurrenceFrequency='WEEKLY'); the rest
+// link back via recurrenceParentId. Each instance gets its own Discord
+// scheduled event so the existing roundup / reminder cron keeps working
+// without recurrence-aware logic.
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   const denied = requireRole(session, 'admin')
@@ -27,6 +35,8 @@ export async function POST(req: NextRequest) {
   let targetRegion: string | null = null
   let published = true
   let flyerImageUrl: string | null = null
+  let recurring = false
+  let recurringWeeks = 12
 
   const contentType = req.headers.get('content-type') ?? ''
 
@@ -45,13 +55,17 @@ export async function POST(req: NextRequest) {
     partnerBrand = (form.get('partnerBrand') as string) || null
     targetRegion = (form.get('targetRegion') as string) || null
     if (form.get('published') === 'false') published = false
+    if (form.get('recurring') === 'true') recurring = true
+    if (form.get('recurringWeeks')) {
+      const n = parseInt(form.get('recurringWeeks') as string)
+      if (!Number.isNaN(n) && n > 0) recurringWeeks = n
+    }
 
     const presentersJson = form.get('presenters') as string
     if (presentersJson) {
       try { presenters = JSON.parse(presentersJson) } catch { /* ignore bad JSON */ }
     }
 
-    // Handle image upload
     const file = form.get('flyerImage') as File | null
     if (file && file.size > 0) {
       const bytes = Buffer.from(await file.arrayBuffer())
@@ -59,7 +73,6 @@ export async function POST(req: NextRequest) {
       flyerImageUrl = await uploadFlyerToBlob(`manual-${Date.now()}.${ct.includes('png') ? 'png' : 'jpg'}`, bytes, ct)
     }
   } else {
-    // JSON body (no image)
     const body = await req.json() as Record<string, unknown>
     title = body.title as string
     startsAt = body.startsAt as string
@@ -75,6 +88,8 @@ export async function POST(req: NextRequest) {
     targetRegion = (body.targetRegion as string) || null
     if (body.published === false) published = false
     if (Array.isArray(body.presenters)) presenters = body.presenters as { name: string; role: string }[]
+    if (body.recurring === true) recurring = true
+    if (typeof body.recurringWeeks === 'number' && body.recurringWeeks > 0) recurringWeeks = body.recurringWeeks
   }
 
   if (!title || !startsAt) {
@@ -86,57 +101,98 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid startsAt date' }, { status: 400 })
   }
 
-  const event = await db.trainingEvent.create({
+  // Cap so a fat-fingered "1200" doesn't create a thousand events.
+  if (recurring) recurringWeeks = Math.min(Math.max(recurringWeeks, 1), MAX_RECURRING_WEEKS)
+  const occurrenceCount = recurring ? recurringWeeks : 1
+
+  // Build all the start datetimes up front so we can save them in one loop.
+  const startDates: Date[] = []
+  for (let i = 0; i < occurrenceCount; i++) {
+    const d = new Date(parsedStartsAt)
+    d.setDate(d.getDate() + i * 7)
+    startDates.push(d)
+  }
+
+  // Shared payload for every occurrence.
+  const sharedData = {
+    driveFileId: null,
+    driveFileName: null,
+    driveModifiedTime: null,
+    driveThumbnailUrl: null,
+    flyerImageUrl,
+    published,
+    title,
+    subtitle,
+    category,
+    durationMinutes,
+    presenters,
+    streamType,
+    streamRoomName,
+    streamId,
+    passcode,
+    audienceRestriction,
+    partnerBrand,
+    targetRegion,
+  }
+
+  // Create the parent first so its id can anchor the children.
+  const parent = await db.trainingEvent.create({
     data: {
-      // No Drive fields for manual events
-      driveFileId: null,
-      driveFileName: null,
-      driveModifiedTime: null,
-      driveThumbnailUrl: null,
-      flyerImageUrl,
-      published,
-      title,
-      subtitle,
-      category,
-      startsAt: parsedStartsAt,
-      durationMinutes,
-      presenters,
-      streamType,
-      streamRoomName,
-      streamId,
-      passcode,
-      audienceRestriction,
-      partnerBrand,
-      targetRegion,
+      ...sharedData,
+      startsAt: startDates[0],
+      recurrenceFrequency: recurring ? 'WEEKLY' : null,
     },
   })
 
-  // Create Discord scheduled event if published + future + Discord configured
-  let discordCreated = false
-  if (published && parsedStartsAt > new Date() && process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_GUILD_ID) {
-    try {
-      const { createGuildScheduledEvent } = await import('@/lib/discord')
-      const endsAt = new Date(parsedStartsAt.getTime() + durationMinutes * 60_000)
-      const joinUrl = streamId ? `https://zoom.us/j/${streamId.replace(/[\s-]/g, '')}${passcode ? `?pwd=${encodeURIComponent(passcode)}` : ''}` : null
-      const pcStr = passcode ? ` · pw ${passcode}` : ''
-      const location = joinUrl ? `${joinUrl}`.slice(0, 100) : (streamRoomName ? `${streamRoomName} · ID ${streamId}${pcStr}`.slice(0, 100) : 'TBD')
+  const children = recurring
+    ? await Promise.all(startDates.slice(1).map(d =>
+        db.trainingEvent.create({
+          data: {
+            ...sharedData,
+            startsAt: d,
+            recurrenceParentId: parent.id,
+            recurrenceFrequency: 'WEEKLY',
+          },
+        })
+      ))
+    : []
 
-      const discordEvent = await createGuildScheduledEvent({
-        name: title.slice(0, 100),
-        description: subtitle ?? '',
-        scheduledStartTime: parsedStartsAt.toISOString(),
-        scheduledEndTime: endsAt.toISOString(),
-        location,
-      })
-      await db.trainingEvent.update({
-        where: { id: event.id },
-        data: { discordEventId: discordEvent.id, discordEventCreatedAt: new Date() },
-      })
-      discordCreated = true
-    } catch (err) {
-      console.error('[trainings/create] Discord event creation failed:', err)
+  // Create one Discord scheduled event per occurrence. Best-effort —
+  // failures are logged but don't block the DB write so admin can re-sync.
+  let discordCreated = 0
+  if (published && process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_GUILD_ID) {
+    const allEvents = [parent, ...children]
+    for (const ev of allEvents) {
+      if (ev.startsAt <= new Date()) continue
+      try {
+        const { createGuildScheduledEvent } = await import('@/lib/discord')
+        const endsAt = new Date(ev.startsAt.getTime() + durationMinutes * 60_000)
+        const joinUrl = streamId ? `https://zoom.us/j/${streamId.replace(/[\s-]/g, '')}${passcode ? `?pwd=${encodeURIComponent(passcode)}` : ''}` : null
+        const pcStr = passcode ? ` · pw ${passcode}` : ''
+        const location = joinUrl ? `${joinUrl}`.slice(0, 100) : (streamRoomName ? `${streamRoomName} · ID ${streamId}${pcStr}`.slice(0, 100) : 'TBD')
+
+        const discordEvent = await createGuildScheduledEvent({
+          name: title.slice(0, 100),
+          description: subtitle ?? '',
+          scheduledStartTime: ev.startsAt.toISOString(),
+          scheduledEndTime: endsAt.toISOString(),
+          location,
+        })
+        await db.trainingEvent.update({
+          where: { id: ev.id },
+          data: { discordEventId: discordEvent.id, discordEventCreatedAt: new Date() },
+        })
+        discordCreated++
+      } catch (err) {
+        console.error('[trainings/create] Discord event creation failed for', ev.id, err)
+      }
     }
   }
 
-  return NextResponse.json({ event, discordCreated })
+  return NextResponse.json({
+    event: parent,
+    occurrenceCount,
+    discordCreated,
+    children: children.map(c => ({ id: c.id, startsAt: c.startsAt })),
+  })
 }
