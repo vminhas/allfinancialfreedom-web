@@ -100,12 +100,12 @@ export async function buildWelcomeEmailHtml({ firstName, inviteUrl, referredByNa
 
   // First-person voice when an ops contact is configured; "we" otherwise.
   const personalGreeting = ops.name
-    ? `<p style="color:#9BB0C4; margin:0 0 16px; line-height:1.6;">I'm <strong style="color:#fff;">${escapeHtml(ops.name)}</strong>, your point of contact at AFF — for licensing, new business, carrier appointments, CE, and anything else you need. I'll be by your side from today through your first issued policy and well beyond. Anything you need, ask. The only wrong move is going quiet.</p>`
+    ? `<p style="color:#9BB0C4; margin:0 0 16px; line-height:1.6;">I'm <strong style="color:#fff;">${escapeHtml(ops.name)}</strong>, your point of contact at AFF for licensing, new business, carrier appointments, CE, and anything else you need. I'll be by your side from today through your first issued policy and well beyond. Anything you need, ask. The only wrong move is going quiet.</p>`
     : `<p style="color:#9BB0C4; margin:0 0 16px; line-height:1.6;">We'll be by your side from today through your first issued policy and well beyond. Anything you need, ask. The only wrong move is going quiet.</p>`
 
   const replyHint = ops.name
     ? `If anything feels stuck or unclear, just reply to this email or write me directly at <a href="mailto:${ops.email}" style="color:#C9A96E; text-decoration:none;">${ops.email}</a>. We mean it when we say <em>family</em>.`
-    : `If anything feels stuck or unclear, just reply to this email. We mean it when we say <em>family</em> — and the families we build for our clients start with how we show up for each other.`
+    : `If anything feels stuck or unclear, just reply to this email. We mean it when we say <em>family</em>. The families we build for our clients start with how we show up for each other.`
 
   // Personal sign-off when ops is configured; team sign-off otherwise.
   const phoneLine = ops.phone
@@ -124,11 +124,11 @@ export async function buildWelcomeEmailHtml({ firstName, inviteUrl, referredByNa
     `
     : `
       <p style="color:#fff; margin:20px 0 0; font-size:14px;">Welcome aboard. We can't wait to watch you build.</p>
-      <p style="color:#C9A96E; margin:4px 0 0; font-weight:700;">— The All Financial Freedom Team</p>
+      <p style="color:#C9A96E; margin:4px 0 0; font-weight:700;">The All Financial Freedom Team</p>
     `
 
   const referralLine = referredByName
-    ? `<p style="color:#9BB0C4; margin:0 0 16px; line-height:1.6;">You were warmly referred by <strong style="color:#fff;">${escapeHtml(referredByName)}</strong> — and that recommendation says a lot about who you are and what you're capable of.</p>`
+    ? `<p style="color:#9BB0C4; margin:0 0 16px; line-height:1.6;">You were warmly referred by <strong style="color:#fff;">${escapeHtml(referredByName)}</strong>, and that recommendation says a lot about who you are and what you're capable of.</p>`
     : ''
 
   const introVideoBlock = introVideoUrl
@@ -148,7 +148,7 @@ export async function buildWelcomeEmailHtml({ firstName, inviteUrl, referredByNa
     ? `
       <tr><td style="padding:0;">
         <p style="color:#fff; font-weight:700; margin:0 0 4px;">3 · Meet our COO${host.name ? `, ${escapeHtml(host.name)}` : ''}</p>
-        <p style="color:#9BB0C4; margin:0 0 10px; font-size:13px; line-height:1.55;">${ops.name ? `I'd love to connect you with ${host.name ? `<strong style="color:#fff;">${escapeHtml(host.name)}</strong>` : '<strong style="color:#fff;">our COO</strong>'}, who personally hosts every new agent's <strong style="color:#fff;">Meet &amp; Greet</strong>. ` : `${host.name ? `<strong style="color:#fff;">${escapeHtml(host.name)}</strong>, our ${escapeHtml(host.title)}, ` : 'Our COO '}personally hosts every new agent's <strong style="color:#fff;">Meet &amp; Greet</strong>. `}It's a 60-minute call, just the two of you — no paperwork, no pressure. ${host.name ? `${escapeHtml(host.name)} ` : 'She '} will hear what brought you here, share how AFF actually operates, and at the end walk you through the onboarding side: licensing, carrier appointments, CE, E&amp;O, direct deposit. After this call you'll have a clear picture of your first 30 days.</p>
+        <p style="color:#9BB0C4; margin:0 0 10px; font-size:13px; line-height:1.55;">${ops.name ? `I'd love to connect you with ${host.name ? `<strong style="color:#fff;">${escapeHtml(host.name)}</strong>` : '<strong style="color:#fff;">our COO</strong>'}, who personally hosts every new agent's <strong style="color:#fff;">Meet &amp; Greet</strong>. ` : `${host.name ? `<strong style="color:#fff;">${escapeHtml(host.name)}</strong>, our ${escapeHtml(host.title)}, ` : 'Our COO '}personally hosts every new agent's <strong style="color:#fff;">Meet &amp; Greet</strong>. `}It's a 60-minute call, just the two of you. No paperwork, no pressure. ${host.name ? `${escapeHtml(host.name)} ` : 'She '} will hear what brought you here, share how AFF actually operates, and at the end walk you through the onboarding side: licensing, carrier appointments, CE, E&amp;O, direct deposit. After this call you'll have a clear picture of your first 30 days.</p>
         <a href="${host.calendlyUrl}" style="display:inline-block; padding:11px 22px; background:#1F2E47; color:#C9A96E; font-weight:700; text-decoration:none; border:1px solid rgba(201,169,110,0.4); border-radius:4px; font-size:13px;">📅 Book your Meet &amp; Greet${host.name ? ` with ${escapeHtml(host.name)}` : ''}</a>
       </td></tr>
       <tr><td style="height:18px;"></td></tr>
@@ -169,7 +169,7 @@ export async function buildWelcomeEmailHtml({ firstName, inviteUrl, referredByNa
         ${referralLine}
 
         <p style="color:#9BB0C4; margin:0 0 16px; line-height:1.6;">
-          By joining us, you've taken a meaningful step toward something bigger than a career — a mission to help individuals and families build lasting financial legacies. We don't take that lightly. From this moment forward, you're not joining a company. You're joining a family.
+          By joining us, you've taken a meaningful step toward something bigger than a career. It's a mission to help individuals and families build lasting financial legacies. We don't take that lightly. From this moment forward, you're not joining a company. You're joining a family.
         </p>
 
         ${personalGreeting}
@@ -186,7 +186,7 @@ export async function buildWelcomeEmailHtml({ firstName, inviteUrl, referredByNa
 
           <tr><td style="padding:0;">
             <p style="color:#fff; font-weight:700; margin:0 0 4px;">1 · Activate your Agent Portal</p>
-            <p style="color:#9BB0C4; margin:0 0 10px; font-size:13px; line-height:1.55;">Your home base — phase checklist, training schedule, carrier appointments, and progress tracker all live here.</p>
+            <p style="color:#9BB0C4; margin:0 0 10px; font-size:13px; line-height:1.55;">Your home base. Phase checklist, training schedule, carrier appointments, and progress tracker all live here.</p>
             <a href="${inviteUrl}" style="display:inline-block; padding:13px 26px; background:#C9A96E; color:#142D48; font-weight:700; text-decoration:none; border-radius:4px; font-size:14px;">Activate your portal →</a>
           </td></tr>
           <tr><td style="height:22px;"></td></tr>
