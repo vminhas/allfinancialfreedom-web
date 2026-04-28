@@ -232,15 +232,33 @@ export interface DiscordAttachment {
   data: Buffer
 }
 
+// Discord message-component types. We only use buttons today (action rows
+// holding 1-5 buttons), but the typing leaves room to add select menus later.
+export interface DiscordButton {
+  type: 2  // BUTTON
+  style: 1 | 2 | 3 | 4 | 5  // primary, secondary, success, danger, link
+  label: string
+  custom_id?: string  // required for non-link buttons
+  url?: string         // required for link buttons (style 5)
+  emoji?: { name?: string; id?: string }
+  disabled?: boolean
+}
+export interface DiscordActionRow {
+  type: 1  // ACTION_ROW
+  components: DiscordButton[]
+}
+
 export async function sendChannelMessage(channelId: string, payload: {
   content?: string
   embeds?: DiscordEmbed[]
+  components?: DiscordActionRow[]
   allowedMentions?: { parse?: ('everyone' | 'roles' | 'users')[] }
   attachments?: DiscordAttachment[]
 }): Promise<{ id: string }> {
   const payloadJson: Record<string, unknown> = {
     content: payload.content,
     embeds: payload.embeds,
+    components: payload.components,
   }
   if (payload.allowedMentions) {
     payloadJson.allowed_mentions = {

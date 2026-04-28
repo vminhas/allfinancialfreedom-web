@@ -83,7 +83,8 @@ export async function POST(req: NextRequest) {
   })
 
   // Fire-and-forget Discord ping so admins/LC see new pending approvals
-  // without having to refresh the inbox.
+  // without having to refresh the inbox. Includes Approve / Reject buttons
+  // wired to /api/discord/interactions so the LC can act without leaving Discord.
   if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_ADMIN_CHANNEL_ID) {
     try {
       const { sendChannelMessage } = await import('@/lib/discord')
@@ -99,11 +100,18 @@ export async function POST(req: NextRequest) {
             body.state ? `State: ${body.state}` : '',
             body.notes ? `\nNotes: ${body.notes}` : '',
             '',
-            '_Awaiting approval in /vault/licensing → Referrals_',
+            '_Approve to send the welcome email and create the portal account._',
           ].filter(Boolean).join('\n'),
           color: 0xC9A96E,
           timestamp: new Date().toISOString(),
           footer: { text: 'AFF Concierge · Referrals' },
+        }],
+        components: [{
+          type: 1,
+          components: [
+            { type: 2, style: 3, label: 'Approve & Send Invite', custom_id: `referral-approve:${referral.id}` },
+            { type: 2, style: 4, label: 'Reject',                custom_id: `referral-reject:${referral.id}` },
+          ],
         }],
       }).catch(() => {})
     } catch { /* non-fatal */ }
