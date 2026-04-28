@@ -164,7 +164,7 @@ export async function PATCH(req: NextRequest) {
             ? `${referringAgent.firstName} ${referringAgent.lastName}`
             : null
 
-          const html = buildWelcomeEmailHtml({
+          const html = await buildWelcomeEmailHtml({
             firstName: referral.firstName,
             inviteUrl,
             referredByName,

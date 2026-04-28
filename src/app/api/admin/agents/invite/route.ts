@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
         }, config).catch(() => {}) // non-blocking — don't fail the invite if tagging fails
 
         const firstName = agentUser.profile?.firstName ?? 'Agent'
-        const html = buildWelcomeEmailHtml({ firstName, inviteUrl })
+        const html = await buildWelcomeEmailHtml({ firstName, inviteUrl })
         const msgRes = await sendGhlEmail({
           contactId: ghlContactId,
           emailTo: agentUser.email,

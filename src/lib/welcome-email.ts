@@ -8,15 +8,11 @@
 //   WELCOME_ORIENTATION_CALENDLY_URL — adds the "Book your call" block
 //   DISCORD_INVITE_URL — Discord community invite (always shown)
 //
-// Voice / sender identity (zero manual work — set once, applies to every
-// auto-fired welcome from then on):
-//   OPERATIONS_CONTACT_NAME      — e.g. "Natalia"   (drives "I'm Natalia"
-//                                  body line and the personal sign-off)
-//   OPERATIONS_CONTACT_LAST_NAME — optional, appears in the signature
-//   OPERATIONS_CONTACT_EMAIL     — defaults to operations@allfinancialfreedom.com
-//   OPERATIONS_CONTACT_PHONE     — optional, appears in the signature
-// When OPERATIONS_CONTACT_NAME is unset the template falls back to a
-// "from the AFF team" voice so nothing breaks before the new hire is in.
+// Voice / sender identity is now editable from /vault/settings (no deploy
+// needed). Falls back to env vars for first-deploy convenience and finally
+// to a generic "AFF team" voice if nothing is set.
+
+import { getSettings } from './settings'
 
 interface WelcomeEmailInput {
   firstName: string
@@ -24,39 +20,65 @@ interface WelcomeEmailInput {
   referredByName?: string | null
 }
 
-export function buildWelcomeEmailHtml({ firstName, inviteUrl, referredByName }: WelcomeEmailInput): string {
+interface OperationsContact {
+  name: string
+  lastName: string
+  email: string
+  phone: string
+}
+
+async function loadOperationsContact(): Promise<OperationsContact> {
+  const stored = await getSettings([
+    'OPERATIONS_CONTACT_NAME',
+    'OPERATIONS_CONTACT_LAST_NAME',
+    'OPERATIONS_CONTACT_EMAIL',
+    'OPERATIONS_CONTACT_PHONE',
+  ]).catch(() => ({} as Record<string, string>))
+
+  const pick = (settingKey: string, envKey: string, fallback = ''): string => {
+    const fromDb = stored[settingKey]
+    if (fromDb && fromDb.length > 0) return fromDb
+    return process.env[envKey] ?? fallback
+  }
+
+  return {
+    name:     pick('OPERATIONS_CONTACT_NAME',      'OPERATIONS_CONTACT_NAME'),
+    lastName: pick('OPERATIONS_CONTACT_LAST_NAME', 'OPERATIONS_CONTACT_LAST_NAME'),
+    email:    pick('OPERATIONS_CONTACT_EMAIL',     'OPERATIONS_CONTACT_EMAIL', 'operations@allfinancialfreedom.com'),
+    phone:    pick('OPERATIONS_CONTACT_PHONE',     'OPERATIONS_CONTACT_PHONE'),
+  }
+}
+
+export async function buildWelcomeEmailHtml({ firstName, inviteUrl, referredByName }: WelcomeEmailInput): Promise<string> {
   const discordInvite = process.env.DISCORD_INVITE_URL ?? 'https://discord.gg/allfinancialfreedom'
   const introVideoUrl = process.env.WELCOME_INTRO_VIDEO_URL ?? ''
   const orientationCalendlyUrl = process.env.WELCOME_ORIENTATION_CALENDLY_URL ?? ''
   const websiteUrl = 'https://www.allfinancialfreedom.com'
 
-  const opsName = process.env.OPERATIONS_CONTACT_NAME ?? ''
-  const opsLastName = process.env.OPERATIONS_CONTACT_LAST_NAME ?? ''
-  const opsEmail = process.env.OPERATIONS_CONTACT_EMAIL ?? 'operations@allfinancialfreedom.com'
-  const opsPhone = process.env.OPERATIONS_CONTACT_PHONE ?? ''
-  const opsFullName = opsName && opsLastName ? `${opsName} ${opsLastName}` : opsName
+  const ops = await loadOperationsContact()
+  const opsFullName = ops.name && ops.lastName ? `${ops.name} ${ops.lastName}` : ops.name
 
   // First-person voice when an ops contact is configured; "we" otherwise.
-  const personalGreeting = opsName
-    ? `<p style="color:#9BB0C4; margin:0 0 16px; line-height:1.6;">I'm <strong style="color:#fff;">${escapeHtml(opsName)}</strong>, your point of contact at AFF — for licensing, new business, carrier appointments, CE, and anything else you need. I'll be by your side from today through your first issued policy and well beyond. Anything you need, ask. The only wrong move is going quiet.</p>`
+  const personalGreeting = ops.name
+    ? `<p style="color:#9BB0C4; margin:0 0 16px; line-height:1.6;">I'm <strong style="color:#fff;">${escapeHtml(ops.name)}</strong>, your point of contact at AFF — for licensing, new business, carrier appointments, CE, and anything else you need. I'll be by your side from today through your first issued policy and well beyond. Anything you need, ask. The only wrong move is going quiet.</p>`
     : `<p style="color:#9BB0C4; margin:0 0 16px; line-height:1.6;">We'll be by your side from today through your first issued policy and well beyond. Anything you need, ask. The only wrong move is going quiet.</p>`
 
-  const replyHint = opsName
-    ? `If anything feels stuck or unclear, just reply to this email or write me directly at <a href="mailto:${opsEmail}" style="color:#C9A96E; text-decoration:none;">${opsEmail}</a>. We mean it when we say <em>family</em>.`
+  const replyHint = ops.name
+    ? `If anything feels stuck or unclear, just reply to this email or write me directly at <a href="mailto:${ops.email}" style="color:#C9A96E; text-decoration:none;">${ops.email}</a>. We mean it when we say <em>family</em>.`
     : `If anything feels stuck or unclear, just reply to this email. We mean it when we say <em>family</em> — and the families we build for our clients start with how we show up for each other.`
 
   // Personal sign-off when ops is configured; team sign-off otherwise.
-  const phoneLine = opsPhone
-    ? `<p style="color:#9BB0C4; margin:2px 0 0; font-size:12px;">${escapeHtml(opsPhone)}</p>`
+  const phoneLine = ops.phone
+    ? `<p style="color:#9BB0C4; margin:2px 0 0; font-size:12px;">${escapeHtml(ops.phone)}</p>`
     : ''
-  const signOff = opsName
+  const signOff = ops.name
     ? `
       <p style="color:#fff; margin:20px 0 0; font-size:14px;">Welcome aboard. We can't wait to watch you build.</p>
       <p style="color:#fff; margin:18px 0 0; font-weight:600;">Warmly,</p>
       <p style="color:#fff; margin:6px 0 0; font-weight:700; font-size:15px;">${escapeHtml(opsFullName)}</p>
       <p style="color:#C9A96E; margin:2px 0 0; font-weight:700; font-size:12px;">Agent Operations · All Financial Freedom</p>
       <p style="color:#9BB0C4; margin:6px 0 0; font-size:12px;">
-        <a href="mailto:${opsEmail}" style="color:#9BB0C4; text-decoration:none;">${opsEmail}</a>
+        <a href="mailto:${ops.email}" style="color:#9BB0C4; text-decoration:none;">${ops.email}</a>
       </p>
       ${phoneLine}
     `
@@ -83,7 +105,7 @@ export function buildWelcomeEmailHtml({ firstName, inviteUrl, referredByName }: 
     ? `
       <tr><td style="padding:0;">
         <p style="color:#fff; font-weight:700; margin:0 0 4px;">Book your Licensing Orientation Call</p>
-        <p style="color:#9BB0C4; margin:0 0 10px; font-size:13px; line-height:1.55;">30 minutes${opsName ? ` with me` : ` with your operations contact`}. We'll map out your exam, fingerprints, E&amp;O, carrier appointments, and direct deposit — everything you need to launch.</p>
+        <p style="color:#9BB0C4; margin:0 0 10px; font-size:13px; line-height:1.55;">30 minutes${ops.name ? ` with me` : ` with your operations contact`}. We'll map out your exam, fingerprints, E&amp;O, carrier appointments, and direct deposit — everything you need to launch.</p>
         <a href="${orientationCalendlyUrl}" style="display:inline-block; padding:11px 22px; background:#1F2E47; color:#C9A96E; font-weight:700; text-decoration:none; border:1px solid rgba(201,169,110,0.4); border-radius:4px; font-size:13px;">📅 Book your call</a>
       </td></tr>
       <tr><td style="height:18px;"></td></tr>
