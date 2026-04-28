@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import DatePicker from '@/components/DatePicker'
+import { TIME_RANGE_OPTIONS, rangeForKey, type TimeRangeKey } from '@/lib/time-range'
 
 const card = { background: '#132238', border: '1px solid rgba(201,169,110,0.1)', borderRadius: 6 }
 const sectionLabel = { fontSize: 10, fontWeight: 700 as const, letterSpacing: '0.2em', textTransform: 'uppercase' as const, color: '#C9A96E', marginBottom: 14 }
@@ -60,29 +61,66 @@ interface SubmissionDetail extends SubmissionListItem {
   }[]
 }
 
-interface Stats { pending: number; issuedThisMonth: number; declinedThisMonth: number; pointsYtd: number }
+interface Stats {
+  pending: number
+  assignedToMe: number
+  unassigned: number
+  issued: number
+  declined: number
+  points: number
+}
+
+const DEFAULT_RANGE: TimeRangeKey = 'last30'
+const EMPTY_STATS: Stats = { pending: 0, assignedToMe: 0, unassigned: 0, issued: 0, declined: 0, points: 0 }
 
 export default function VaultNewBusinessPage() {
   const [list, setList] = useState<SubmissionListItem[]>([])
-  const [stats, setStats] = useState<Stats>({ pending: 0, issuedThisMonth: 0, declinedThisMonth: 0, pointsYtd: 0 })
+  const [stats, setStats] = useState<Stats>(EMPTY_STATS)
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<string>('')
+  const [assignment, setAssignment] = useState<string>('') // '' | 'me' | 'unassigned'
   const [search, setSearch] = useState('')
+  const [rangeKey, setRangeKey] = useState<TimeRangeKey>(DEFAULT_RANGE)
+  const [customFrom, setCustomFrom] = useState<string>('')
+  const [customTo, setCustomTo] = useState<string>('')
   const [openId, setOpenId] = useState<string | null>(null)
+
+  // Compute the active [from, to) the page is filtering on. For custom we
+  // build it from the two date inputs; for presets we let the helper pick.
+  const activeRange = useMemo(() => {
+    if (rangeKey === 'custom') {
+      const from = customFrom ? new Date(customFrom) : null
+      // Inclusive upper bound — bump to start of next day so the API's
+      // half-open [from, to) clause includes the picked end date.
+      let to: Date | null = null
+      if (customTo) {
+        const t = new Date(customTo)
+        t.setDate(t.getDate() + 1)
+        to = t
+      }
+      return { from, to }
+    }
+    return rangeForKey(rangeKey)
+  }, [rangeKey, customFrom, customTo])
+
+  const rangeLabel = TIME_RANGE_OPTIONS.find(o => o.key === rangeKey)?.label ?? 'Range'
 
   const refresh = useCallback(() => {
     const p = new URLSearchParams()
     if (statusFilter) p.set('status', statusFilter)
+    if (assignment) p.set('assignment', assignment)
     if (search.trim()) p.set('q', search.trim())
+    if (activeRange.from) p.set('from', activeRange.from.toISOString())
+    if (activeRange.to) p.set('to', activeRange.to.toISOString())
     Promise.all([
       fetch(`/api/vault/new-business?${p.toString()}`).then(r => r.ok ? r.json() : { submissions: [] }),
-      fetch('/api/vault/new-business/stats').then(r => r.ok ? r.json() : null),
+      fetch(`/api/vault/new-business/stats?${p.toString()}`).then(r => r.ok ? r.json() : null),
     ]).then(([listRes, statsRes]: [{ submissions: SubmissionListItem[] }, Stats | null]) => {
       setList(listRes.submissions ?? [])
       if (statsRes) setStats(statsRes)
       setLoading(false)
     }).catch(() => setLoading(false))
-  }, [statusFilter, search])
+  }, [statusFilter, assignment, search, activeRange])
 
   useEffect(() => { refresh() }, [refresh])
 
@@ -98,19 +136,99 @@ export default function VaultNewBusinessPage() {
         </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 24 }}>
-        <KpiCard label="Pending" value={stats.pending} accent="#F59E0B" />
-        <KpiCard label="Issued This Month" value={stats.issuedThisMonth} accent="#4ADE80" />
-        <KpiCard label="Declined This Month" value={stats.declinedThisMonth} accent="#EF4444" />
-        <KpiCard label="Points YTD" value={stats.pointsYtd.toLocaleString()} accent="#C9A96E" />
+      {/* KPI cards. The first five act as quick filters — clicking sets the
+          relevant status/assignment combination on the table; clicking again
+          (when the same filter is active) clears it. Points is display-only
+          since it's a tally rather than a row category. */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginBottom: 24 }}>
+        <KpiCard
+          label="Pending (now)"
+          value={stats.pending}
+          accent="#F59E0B"
+          active={statusFilter === 'PENDING' && assignment === ''}
+          onClick={() => {
+            const wasActive = statusFilter === 'PENDING' && assignment === ''
+            setStatusFilter(wasActive ? '' : 'PENDING')
+            setAssignment('')
+          }}
+        />
+        <KpiCard
+          label="Assigned to me"
+          value={stats.assignedToMe}
+          accent="#9B6DFF"
+          active={assignment === 'me'}
+          onClick={() => setAssignment(assignment === 'me' ? '' : 'me')}
+        />
+        <KpiCard
+          label="Unassigned"
+          value={stats.unassigned}
+          accent="#6B8299"
+          active={assignment === 'unassigned'}
+          onClick={() => setAssignment(assignment === 'unassigned' ? '' : 'unassigned')}
+        />
+        <KpiCard
+          label={`Issued · ${rangeLabel}`}
+          value={stats.issued}
+          accent="#4ADE80"
+          active={statusFilter === 'ISSUED'}
+          onClick={() => setStatusFilter(statusFilter === 'ISSUED' ? '' : 'ISSUED')}
+        />
+        <KpiCard
+          label={`Declined · ${rangeLabel}`}
+          value={stats.declined}
+          accent="#EF4444"
+          active={statusFilter === 'DECLINED'}
+          onClick={() => setStatusFilter(statusFilter === 'DECLINED' ? '' : 'DECLINED')}
+        />
+        <KpiCard label={`Points · ${rangeLabel}`} value={stats.points.toLocaleString()} accent="#C9A96E" />
       </div>
 
+      {(statusFilter || assignment || search.trim()) && (
+        <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, color: '#6B8299' }}>Active filters:</span>
+          {statusFilter && <FilterPill label={`Status: ${statusFilter.replace('_', ' ')}`} onClear={() => setStatusFilter('')} />}
+          {assignment === 'me' && <FilterPill label="Assigned to me" onClear={() => setAssignment('')} />}
+          {assignment === 'unassigned' && <FilterPill label="Unassigned" onClear={() => setAssignment('')} />}
+          {search.trim() && <FilterPill label={`Search: "${search.trim()}"`} onClear={() => setSearch('')} />}
+          <button
+            onClick={() => { setStatusFilter(''); setAssignment(''); setSearch('') }}
+            style={{ background: 'transparent', border: 'none', color: '#9B6DFF', fontSize: 11, cursor: 'pointer', textDecoration: 'underline' }}
+          >Clear all</button>
+        </div>
+      )}
+
       <div style={{ ...card, padding: '16px 20px', marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-        <div style={{ minWidth: 180 }}>
+        <div style={{ minWidth: 170 }}>
+          <label style={fieldLabel}>Time range</label>
+          <select style={inputStyle} value={rangeKey} onChange={e => setRangeKey(e.target.value as TimeRangeKey)}>
+            {TIME_RANGE_OPTIONS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+          </select>
+        </div>
+        {rangeKey === 'custom' && (
+          <>
+            <div style={{ minWidth: 150 }}>
+              <label style={fieldLabel}>From</label>
+              <DatePicker value={customFrom} onChange={setCustomFrom} />
+            </div>
+            <div style={{ minWidth: 150 }}>
+              <label style={fieldLabel}>To</label>
+              <DatePicker value={customTo} onChange={setCustomTo} />
+            </div>
+          </>
+        )}
+        <div style={{ minWidth: 170 }}>
           <label style={fieldLabel}>Status</label>
           <select style={inputStyle} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
             <option value="">All</option>
             {STATUSES.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+          </select>
+        </div>
+        <div style={{ minWidth: 170 }}>
+          <label style={fieldLabel}>Assignment</label>
+          <select style={inputStyle} value={assignment} onChange={e => setAssignment(e.target.value)}>
+            <option value="">Anyone</option>
+            <option value="me">Assigned to me</option>
+            <option value="unassigned">Unassigned</option>
           </select>
         </div>
         <div style={{ flex: 1, minWidth: 220 }}>
@@ -151,12 +269,55 @@ export default function VaultNewBusinessPage() {
   )
 }
 
-function KpiCard({ label, value, accent }: { label: string; value: number | string; accent: string }) {
+function KpiCard({
+  label, value, accent, active, onClick,
+}: {
+  label: string
+  value: number | string
+  accent: string
+  active?: boolean
+  onClick?: () => void
+}) {
+  const interactive = !!onClick
   return (
-    <div style={{ ...card, padding: '16px 18px' }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#6B8299', marginBottom: 8 }}>{label}</div>
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!interactive}
+      style={{
+        ...card,
+        padding: '16px 18px',
+        textAlign: 'left',
+        cursor: interactive ? 'pointer' : 'default',
+        background: active ? `${accent}1A` : card.background,
+        border: active
+          ? `1px solid ${accent}`
+          : `1px solid ${interactive ? 'rgba(201,169,110,0.18)' : 'rgba(201,169,110,0.1)'}`,
+        boxShadow: active ? `0 0 0 1px ${accent}55` : 'none',
+        transition: 'background 0.15s, border-color 0.15s, box-shadow 0.15s',
+      }}
+    >
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: active ? accent : '#6B8299', marginBottom: 8 }}>{label}</div>
       <div style={{ fontSize: 28, fontWeight: 300, color: accent, letterSpacing: '-0.02em' }}>{value}</div>
-    </div>
+    </button>
+  )
+}
+
+function FilterPill({ label, onClear }: { label: string; onClear: () => void }) {
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 6,
+      padding: '4px 10px', borderRadius: 999,
+      background: 'rgba(155,109,255,0.12)', border: '1px solid rgba(155,109,255,0.35)',
+      fontSize: 11, fontWeight: 600, color: '#C5B4FF',
+    }}>
+      {label}
+      <button
+        onClick={onClear}
+        style={{ background: 'transparent', border: 'none', color: '#C5B4FF', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}
+        aria-label={`Clear ${label}`}
+      >×</button>
+    </span>
   )
 }
 

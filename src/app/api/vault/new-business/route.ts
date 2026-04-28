@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/permissions'
+import { parseRangeFromSearch, prismaDateClause } from '@/lib/time-range'
 import type { NewBusinessStatus, Prisma } from '@/generated/prisma/client'
 
 const VALID_STATUSES: NewBusinessStatus[] = ['PENDING', 'ISSUED', 'DECLINED', 'LAPSED', 'NOT_TAKEN']
@@ -17,6 +18,10 @@ export async function GET(req: NextRequest) {
   const agent = searchParams.get('agent')
   const carrier = searchParams.get('carrier')
   const search = searchParams.get('q')
+  const assignment = searchParams.get('assignment') // 'me' | 'unassigned' | '<adminId>'
+  const { from, to } = parseRangeFromSearch(searchParams)
+  const dateClause = prismaDateClause(from, to)
+  const selfId = (session!.user as { id?: string }).id
 
   const where: Prisma.NewBusinessSubmissionWhereInput = {}
   if (statusParam) {
@@ -32,6 +37,11 @@ export async function GET(req: NextRequest) {
       { policyNumber: { contains: search, mode: 'insensitive' } },
     ]
   }
+  if (assignment === 'me' && selfId) where.assignedToId = selfId
+  else if (assignment === 'unassigned') where.assignedToId = null
+  else if (assignment) where.assignedToId = assignment
+  // Date range filters createdAt — i.e. when the submission was filed.
+  if (dateClause) where.createdAt = dateClause
 
   const submissions = await db.newBusinessSubmission.findMany({
     where,
