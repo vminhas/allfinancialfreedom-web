@@ -13,6 +13,7 @@ export interface ApprovalInput {
   referralId: string
   approvedById: string  // AdminUser.id, or a free-form identifier (e.g. discord username)
   cft?: string | null   // optional trainer name to attach to the new profile
+  approvedByLabel?: string  // human-readable name shown in the Discord ping ("Vick Minhas", "Natalia")
 }
 
 export interface ApprovalResult {
@@ -154,6 +155,39 @@ export async function approveReferral(input: ApprovalInput): Promise<ApprovalRes
     }
   } catch {
     // swallow — caller decides what to surface
+  }
+
+  // Fire a celebration ping in the admin Discord channel — symmetrical to
+  // the submission notification, and a permanent record of who approved
+  // when. Fires regardless of whether approval came from the Discord button
+  // or the vault UI; the Discord-button path also edits the original
+  // embed in place but that's clicker feedback, this is the audit log.
+  if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_ADMIN_CHANNEL_ID) {
+    try {
+      const { sendChannelMessage } = await import('./discord')
+      const refName = referringAgent
+        ? `${referringAgent.firstName} ${referringAgent.lastName}`
+        : null
+      const approverLabel = input.approvedByLabel ?? 'admin'
+      sendChannelMessage(process.env.DISCORD_ADMIN_CHANNEL_ID, {
+        embeds: [{
+          title: '🎉 New Agent Approved',
+          description: [
+            `**${referral.firstName} ${referral.lastName}** is in.`,
+            '',
+            `Agent code: \`${agentCode}\``,
+            input.cft ? `Trainer: ${input.cft}` : '',
+            refName ? `Referred by: ${refName}` : '',
+            `Approved by: ${approverLabel}`,
+            '',
+            emailSent ? '_Welcome email sent_' : '_Welcome email did not confirm — re-send from My Team if needed_',
+          ].filter(Boolean).join('\n'),
+          color: 0x4ADE80,
+          timestamp: new Date().toISOString(),
+          footer: { text: 'AFF Concierge · Approvals' },
+        }],
+      }).catch(() => {})
+    } catch { /* non-fatal */ }
   }
 
   return { ok: true, status: 'APPROVED', agentCode, profileId, emailSent }

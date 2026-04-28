@@ -16,7 +16,10 @@ export async function GET(req: NextRequest) {
     if (raw) {
       const data = JSON.parse(raw) as { agentProfileId: string; expires: string }
       if (new Date(data.expires) >= new Date()) {
-        await setSetting(`PREVIEW_TOKEN_${previewToken}`, '')
+        // Don't consume the token here — the agents page makes multiple
+        // sub-fetches (/team, /referrals, /coordinator-requests, etc.) that
+        // all need to validate the same preview token. Time-based expiry
+        // (5 min, set when the token was issued) is the only auth boundary.
         const profile = await db.agentProfile.findUnique({
           where: { id: data.agentProfileId },
           select: { agentUserId: true },

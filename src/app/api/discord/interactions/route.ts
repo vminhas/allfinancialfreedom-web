@@ -97,6 +97,7 @@ async function handleReferralApprove(interaction: DiscordInteraction, referralId
   const result = await approveReferral({
     referralId,
     approvedById: `discord:${clicker}`,
+    approvedByLabel: clicker,
   })
 
   // Build the post-approval embed in either success or error shape.
