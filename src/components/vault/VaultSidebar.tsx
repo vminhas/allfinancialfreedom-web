@@ -30,6 +30,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/vault/tracker', label: 'AFF Tracker', icon: '◑' },
       { href: '/vault/org', label: 'Team Structure', icon: '⊞' },
       { href: '/vault/new-business', label: 'New Business', icon: '◆' },
+      { href: '/vault/renewals', label: 'Renewals', icon: '↻' },
       { href: '/vault/licensing', label: 'Licensing Inbox', icon: '◎' },
       { href: '/vault/trainings', label: 'Trainings', icon: '▶' },
       { href: '/vault/call-review', label: 'Call Review', icon: '◐' },
@@ -56,6 +57,7 @@ const NAV_LC_GROUPS: NavGroup[] = [
     items: [
       { href: '/vault/licensing', label: 'Licensing Inbox', icon: '◎' },
       { href: '/vault/new-business', label: 'New Business', icon: '◆' },
+      { href: '/vault/renewals', label: 'Renewals', icon: '↻' },
       { href: '/vault/setup', label: 'Setup', icon: '⊞' },
       { href: '/vault/guide', label: 'Guide', icon: '?' },
     ],

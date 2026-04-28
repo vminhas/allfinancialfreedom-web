@@ -5,22 +5,30 @@ import { db } from '@/lib/db'
 import { uploadIllustrationToBlob, validateIllustration } from '@/lib/illustration-upload'
 import { notifySubmitted } from '@/lib/new-business-notifications'
 import { validatePhone, validateEmail } from '@/lib/contact-validation'
+import { computeRenewalWindow, todayInEt } from '@/lib/renewals'
 import type { PolicyType } from '@/generated/prisma/client'
 
 const VALID_POLICY_TYPES: PolicyType[] = ['TERM', 'WHOLE_LIFE', 'IUL', 'ANNUITY', 'DISABILITY', 'LTC', 'OTHER']
+
+// Phase the agent must reach for the New Business tab to unlock. Below this,
+// they see a locked-state card. Was previously the dedicated Clients tab gate.
+const NEW_BUSINESS_MIN_PHASE = 4
 
 async function getAgentProfile() {
   const session = await getServerSession(authOptions)
   if (!session || (session.user as { role?: string }).role !== 'agent') return null
   return db.agentProfile.findFirst({
     where: { agentUser: { email: session.user!.email! } },
-    select: { id: true, firstName: true, lastName: true },
+    select: { id: true, firstName: true, lastName: true, phase: true },
   })
 }
 
 export async function GET() {
   const profile = await getAgentProfile()
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (profile.phase < NEW_BUSINESS_MIN_PHASE) {
+    return NextResponse.json({ error: 'Locked', minPhase: NEW_BUSINESS_MIN_PHASE, phase: profile.phase }, { status: 403 })
+  }
 
   const submissions = await db.newBusinessSubmission.findMany({
     where: { agentProfileId: profile.id },
@@ -34,14 +42,33 @@ export async function GET() {
           authorAdmin: { select: { name: true } },
         },
       },
+      renewalReminders: { orderBy: { sentAt: 'desc' } },
     },
   })
-  return NextResponse.json({ submissions })
+
+  const today = todayInEt()
+  const enriched = submissions.map(s => {
+    if (s.status !== 'ISSUED' || !s.issuedDate) {
+      return { ...s, daysUntilAnniversary: null, currentStage: null, anniversaryYear: null }
+    }
+    const w = computeRenewalWindow(s.issuedDate, today)
+    return {
+      ...s,
+      daysUntilAnniversary: w.daysUntilAnniversary,
+      currentStage: w.currentStage,
+      anniversaryYear: w.anniversaryYear,
+    }
+  })
+
+  return NextResponse.json({ submissions: enriched })
 }
 
 export async function POST(req: NextRequest) {
   const profile = await getAgentProfile()
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (profile.phase < NEW_BUSINESS_MIN_PHASE) {
+    return NextResponse.json({ error: 'Locked', minPhase: NEW_BUSINESS_MIN_PHASE, phase: profile.phase }, { status: 403 })
+  }
 
   const contentType = req.headers.get('content-type') ?? ''
   let fields: Record<string, unknown> = {}

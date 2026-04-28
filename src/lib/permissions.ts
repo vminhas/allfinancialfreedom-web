@@ -48,6 +48,7 @@ export function requireRole(
 export const LC_ALLOWED_PREFIXES = [
   '/vault/licensing',
   '/vault/new-business',
+  '/vault/renewals',
   '/vault/setup',
   '/vault/guide',
 ]
