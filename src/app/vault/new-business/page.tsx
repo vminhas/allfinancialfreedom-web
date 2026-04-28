@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import DatePicker from '@/components/DatePicker'
 
 const card = { background: '#132238', border: '1px solid rgba(201,169,110,0.1)', borderRadius: 6 }
 const sectionLabel = { fontSize: 10, fontWeight: 700 as const, letterSpacing: '0.2em', textTransform: 'uppercase' as const, color: '#C9A96E', marginBottom: 14 }
@@ -245,7 +246,9 @@ function SubmissionDrawer({ id, onClose, onChanged }: { id: string; onClose: () 
                 {STATUSES.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
               </select>
             </div>
-            <div><label style={fieldLabel}>Issued Date</label><input type="date" style={inputStyle} value={issuedDate} onChange={e => setIssuedDate(e.target.value)} /></div>
+            <div><label style={fieldLabel}>Issued Date</label>
+              <DatePicker value={issuedDate} onChange={setIssuedDate} />
+            </div>
             <div><label style={fieldLabel}>Policy Number</label><input style={inputStyle} value={policyNumber} onChange={e => setPolicyNumber(e.target.value)} /></div>
             <div><label style={fieldLabel}>Declined Reason</label><input style={inputStyle} value={declinedReason} onChange={e => setDeclinedReason(e.target.value)} /></div>
           </div>

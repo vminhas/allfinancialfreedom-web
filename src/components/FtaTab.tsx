@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import DateTimePicker from './DateTimePicker'
 
 const card = { background: '#132238', border: '1px solid rgba(201,169,110,0.1)', borderRadius: 6 }
 const sectionLabel = { fontSize: 10, fontWeight: 700 as const, letterSpacing: '0.2em', textTransform: 'uppercase' as const, color: '#C9A96E', marginBottom: 14 }
@@ -139,7 +140,9 @@ function FtaForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: () => void
     <form onSubmit={submit} style={{ marginBottom: 20, padding: 16, background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)' }}>
       <div style={grid}>
         <div><label style={fieldLabel}>Name *</label><input required style={inputStyle} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
-        <div><label style={fieldLabel}>Appointment Date *</label><input required type="datetime-local" style={inputStyle} value={form.appointmentDate} onChange={e => setForm(f => ({ ...f, appointmentDate: e.target.value }))} /></div>
+        <div><label style={fieldLabel}>Appointment Date *</label>
+          <DateTimePicker value={form.appointmentDate} onChange={v => setForm(f => ({ ...f, appointmentDate: v }))} required />
+        </div>
         <div><label style={fieldLabel}>Phone</label><input style={inputStyle} value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} /></div>
         <div><label style={fieldLabel}>Time Zone</label><input style={inputStyle} value={form.timeZone} onChange={e => setForm(f => ({ ...f, timeZone: e.target.value }))} placeholder="EST / CST / MST / PST" /></div>
         <div><label style={fieldLabel}>Age</label><input type="number" style={inputStyle} value={form.age} onChange={e => setForm(f => ({ ...f, age: e.target.value }))} /></div>

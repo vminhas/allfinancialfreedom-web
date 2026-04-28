@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import DatePicker from './DatePicker'
+import { CARRIERS } from '@/lib/agent-constants'
 
 const card = { background: '#132238', border: '1px solid rgba(201,169,110,0.1)', borderRadius: 6 }
 const sectionLabel = { fontSize: 10, fontWeight: 700 as const, letterSpacing: '0.2em', textTransform: 'uppercase' as const, color: '#C9A96E', marginBottom: 14 }
@@ -157,8 +159,15 @@ function NewBusinessForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: ()
     <form onSubmit={submit} style={{ marginBottom: 20, padding: 16, background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)' }}>
       <div style={{ ...sectionLabel, fontSize: 9, marginBottom: 8 }}>Application</div>
       <div style={grid}>
-        <div><label style={fieldLabel}>Application Date *</label><input required type="date" style={inputStyle} value={form.applicationDate} onChange={e => setForm(f => ({ ...f, applicationDate: e.target.value }))} /></div>
-        <div><label style={fieldLabel}>Carrier *</label><input required style={inputStyle} value={form.carrier} onChange={e => setForm(f => ({ ...f, carrier: e.target.value }))} /></div>
+        <div><label style={fieldLabel}>Application Date *</label>
+          <DatePicker value={form.applicationDate} onChange={v => setForm(f => ({ ...f, applicationDate: v }))} required />
+        </div>
+        <div><label style={fieldLabel}>Carrier *</label>
+          <select required style={inputStyle} value={form.carrier} onChange={e => setForm(f => ({ ...f, carrier: e.target.value }))}>
+            <option value="">Select carrier...</option>
+            {CARRIERS.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
         <div><label style={fieldLabel}>Policy Type *</label>
           <select style={inputStyle} value={form.policyType} onChange={e => setForm(f => ({ ...f, policyType: e.target.value }))}>
             {POLICY_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
@@ -173,7 +182,9 @@ function NewBusinessForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: ()
         <div><label style={fieldLabel}>Last Name *</label><input required style={inputStyle} value={form.clientLastName} onChange={e => setForm(f => ({ ...f, clientLastName: e.target.value }))} /></div>
         <div><label style={fieldLabel}>Phone</label><input style={inputStyle} value={form.clientPhone} onChange={e => setForm(f => ({ ...f, clientPhone: e.target.value }))} /></div>
         <div><label style={fieldLabel}>Email</label><input type="email" style={inputStyle} value={form.clientEmail} onChange={e => setForm(f => ({ ...f, clientEmail: e.target.value }))} /></div>
-        <div><label style={fieldLabel}>Birthday</label><input type="date" style={inputStyle} value={form.clientBirthday} onChange={e => setForm(f => ({ ...f, clientBirthday: e.target.value }))} /></div>
+        <div><label style={fieldLabel}>Birthday</label>
+          <DatePicker value={form.clientBirthday} onChange={v => setForm(f => ({ ...f, clientBirthday: v }))} max={new Date().toISOString().slice(0, 10)} />
+        </div>
         <div><label style={fieldLabel}>Address</label><input style={inputStyle} value={form.clientAddressLine1} onChange={e => setForm(f => ({ ...f, clientAddressLine1: e.target.value }))} /></div>
         <div><label style={fieldLabel}>Address Line 2</label><input style={inputStyle} value={form.clientAddressLine2} onChange={e => setForm(f => ({ ...f, clientAddressLine2: e.target.value }))} /></div>
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 8 }}>
