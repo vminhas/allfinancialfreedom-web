@@ -3,14 +3,17 @@
 // in sync. Keep the template inline-styled — most email clients (Gmail
 // web, Apple Mail, Outlook 365) drop external CSS.
 //
-// Optional sections appear only when the corresponding env var is set:
-//   WELCOME_INTRO_VIDEO_URL — adds the "watch this first" block
-//   WELCOME_ORIENTATION_CALENDLY_URL — adds the "Book your call" block
-//   DISCORD_INVITE_URL — Discord community invite (always shown)
+// Optional sections appear only when the corresponding setting/env is set:
+//   WELCOME_INTRO_VIDEO_URL (env) — "Watch this first" video block
+//   OPERATIONS_CONTACT_CALENDLY_URL (Vault → Settings or env) — Meet & Greet
+//     booking block. Legacy WELCOME_ORIENTATION_CALENDLY_URL env still works
+//     as a fallback.
+//   DISCORD_INVITE_URL (env) — Discord community invite (always shown)
 //
-// Voice / sender identity is now editable from /vault/settings (no deploy
-// needed). Falls back to env vars for first-deploy convenience and finally
-// to a generic "AFF team" voice if nothing is set.
+// Voice / sender identity (name, title, email, phone, calendly) is editable
+// from /vault/settings → Operations Contact (no deploy needed). Falls back
+// to env vars for first-deploy convenience and finally to a generic AFF
+// team voice if nothing is set.
 
 import { getSettings } from './settings'
 
@@ -23,16 +26,20 @@ interface WelcomeEmailInput {
 interface OperationsContact {
   name: string
   lastName: string
+  title: string
   email: string
   phone: string
+  calendlyUrl: string
 }
 
 async function loadOperationsContact(): Promise<OperationsContact> {
   const stored = await getSettings([
     'OPERATIONS_CONTACT_NAME',
     'OPERATIONS_CONTACT_LAST_NAME',
+    'OPERATIONS_CONTACT_TITLE',
     'OPERATIONS_CONTACT_EMAIL',
     'OPERATIONS_CONTACT_PHONE',
+    'OPERATIONS_CONTACT_CALENDLY_URL',
   ]).catch(() => ({} as Record<string, string>))
 
   const pick = (settingKey: string, envKey: string, fallback = ''): string => {
@@ -42,17 +49,18 @@ async function loadOperationsContact(): Promise<OperationsContact> {
   }
 
   return {
-    name:     pick('OPERATIONS_CONTACT_NAME',      'OPERATIONS_CONTACT_NAME'),
-    lastName: pick('OPERATIONS_CONTACT_LAST_NAME', 'OPERATIONS_CONTACT_LAST_NAME'),
-    email:    pick('OPERATIONS_CONTACT_EMAIL',     'OPERATIONS_CONTACT_EMAIL', 'operations@allfinancialfreedom.com'),
-    phone:    pick('OPERATIONS_CONTACT_PHONE',     'OPERATIONS_CONTACT_PHONE'),
+    name:        pick('OPERATIONS_CONTACT_NAME',         'OPERATIONS_CONTACT_NAME'),
+    lastName:    pick('OPERATIONS_CONTACT_LAST_NAME',    'OPERATIONS_CONTACT_LAST_NAME'),
+    title:       pick('OPERATIONS_CONTACT_TITLE',        'OPERATIONS_CONTACT_TITLE', 'Agent Operations'),
+    email:       pick('OPERATIONS_CONTACT_EMAIL',        'OPERATIONS_CONTACT_EMAIL', 'operations@allfinancialfreedom.com'),
+    phone:       pick('OPERATIONS_CONTACT_PHONE',        'OPERATIONS_CONTACT_PHONE'),
+    calendlyUrl: pick('OPERATIONS_CONTACT_CALENDLY_URL', 'WELCOME_ORIENTATION_CALENDLY_URL'),
   }
 }
 
 export async function buildWelcomeEmailHtml({ firstName, inviteUrl, referredByName }: WelcomeEmailInput): Promise<string> {
   const discordInvite = process.env.DISCORD_INVITE_URL ?? 'https://discord.gg/allfinancialfreedom'
   const introVideoUrl = process.env.WELCOME_INTRO_VIDEO_URL ?? ''
-  const orientationCalendlyUrl = process.env.WELCOME_ORIENTATION_CALENDLY_URL ?? ''
   const websiteUrl = 'https://www.allfinancialfreedom.com'
 
   const ops = await loadOperationsContact()
@@ -76,7 +84,7 @@ export async function buildWelcomeEmailHtml({ firstName, inviteUrl, referredByNa
       <p style="color:#fff; margin:20px 0 0; font-size:14px;">Welcome aboard. We can't wait to watch you build.</p>
       <p style="color:#fff; margin:18px 0 0; font-weight:600;">Warmly,</p>
       <p style="color:#fff; margin:6px 0 0; font-weight:700; font-size:15px;">${escapeHtml(opsFullName)}</p>
-      <p style="color:#C9A96E; margin:2px 0 0; font-weight:700; font-size:12px;">Agent Operations · All Financial Freedom</p>
+      <p style="color:#C9A96E; margin:2px 0 0; font-weight:700; font-size:12px;">${escapeHtml(ops.title)} · All Financial Freedom</p>
       <p style="color:#9BB0C4; margin:6px 0 0; font-size:12px;">
         <a href="mailto:${ops.email}" style="color:#9BB0C4; text-decoration:none;">${ops.email}</a>
       </p>
@@ -101,12 +109,12 @@ export async function buildWelcomeEmailHtml({ firstName, inviteUrl, referredByNa
     `
     : ''
 
-  const orientationBlock = orientationCalendlyUrl
+  const meetAndGreetBlock = ops.calendlyUrl
     ? `
       <tr><td style="padding:0;">
-        <p style="color:#fff; font-weight:700; margin:0 0 4px;">Book your Licensing Orientation Call</p>
-        <p style="color:#9BB0C4; margin:0 0 10px; font-size:13px; line-height:1.55;">30 minutes${ops.name ? ` with me` : ` with your operations contact`}. We'll map out your exam, fingerprints, E&amp;O, carrier appointments, and direct deposit — everything you need to launch.</p>
-        <a href="${orientationCalendlyUrl}" style="display:inline-block; padding:11px 22px; background:#1F2E47; color:#C9A96E; font-weight:700; text-decoration:none; border:1px solid rgba(201,169,110,0.4); border-radius:4px; font-size:13px;">📅 Book your call</a>
+        <p style="color:#fff; font-weight:700; margin:0 0 4px;">3 · Book your Meet &amp; Greet${ops.name ? ` with ${escapeHtml(ops.name)}` : ''}</p>
+        <p style="color:#9BB0C4; margin:0 0 10px; font-size:13px; line-height:1.55;">A 60-minute call so we actually know each other before the real work starts. ${ops.name ? `${escapeHtml(ops.name)} ` : 'We'} will hear what brought you here, walk you through how AFF operates, and at the end cover the onboarding side — licensing, carrier appointments, CE, E&amp;O, direct deposit. After this call you'll have a clear picture of your first 30 days.</p>
+        <a href="${ops.calendlyUrl}" style="display:inline-block; padding:11px 22px; background:#1F2E47; color:#C9A96E; font-weight:700; text-decoration:none; border:1px solid rgba(201,169,110,0.4); border-radius:4px; font-size:13px;">📅 Book your Meet &amp; Greet</a>
       </td></tr>
       <tr><td style="height:18px;"></td></tr>
     `
@@ -155,7 +163,7 @@ export async function buildWelcomeEmailHtml({ firstName, inviteUrl, referredByNa
           </td></tr>
           <tr><td style="height:22px;"></td></tr>
 
-          ${orientationBlock}
+          ${meetAndGreetBlock}
         </table>
 
         <hr style="border:none; border-top:1px solid rgba(201,169,110,0.12); margin:24px 0;" />
