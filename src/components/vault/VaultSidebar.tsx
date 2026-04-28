@@ -64,6 +64,22 @@ const NAV_LC_GROUPS: NavGroup[] = [
   },
 ]
 
+interface SidebarCounts {
+  referralsPending: number
+  newBusinessPending: number
+  licensingOpen: number
+  renewalsToSend: number
+}
+
+// Each nav href is mapped to a (counts) -> number selector. Keep the
+// mapping here, near the sidebar, so it's easy to spot what needs a
+// badge when adding new pages. Returning 0 means "no badge."
+const BADGE_FOR_HREF: Record<string, (c: SidebarCounts) => number> = {
+  '/vault/new-business': c => c.newBusinessPending,
+  '/vault/renewals':     c => c.renewalsToSend,
+  '/vault/licensing':    c => c.licensingOpen + c.referralsPending,
+}
+
 export default function VaultSidebar() {
   const pathname = usePathname()
   const isMobile = useIsMobile()
@@ -71,9 +87,32 @@ export default function VaultSidebar() {
   const { data: session } = useSession()
   const role = (session?.user as { role?: string } | undefined)?.role
   const isLC = role === 'licensing_coordinator'
+  const isStaff = role === 'admin' || role === 'licensing_coordinator'
   const groups = isLC ? NAV_LC_GROUPS : NAV_GROUPS
   const brandSubtitle = isLC ? 'Licensing' : 'Vault'
   const userName = (session?.user as { name?: string } | undefined)?.name
+
+  const [counts, setCounts] = useState<SidebarCounts>({
+    referralsPending: 0, newBusinessPending: 0, licensingOpen: 0, renewalsToSend: 0,
+  })
+
+  // Refresh counts on mount, on every navigation, and every 60s so the
+  // badges drop the moment work is cleared even if the LC stays on the page.
+  useEffect(() => {
+    if (!isStaff) return
+    let cancelled = false
+    const load = () => {
+      fetch('/api/vault/sidebar-counts')
+        .then(r => r.ok ? r.json() : null)
+        .then((d: SidebarCounts | null) => {
+          if (!cancelled && d) setCounts(d)
+        })
+        .catch(() => {})
+    }
+    load()
+    const t = setInterval(load, 60_000)
+    return () => { cancelled = true; clearInterval(t) }
+  }, [isStaff, pathname])
 
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
     const collapsed = new Set<string>()
@@ -142,6 +181,7 @@ export default function VaultSidebar() {
 
   const renderNavItem = (item: NavItem) => {
     const active = pathname === item.href || (item.href !== '/vault' && pathname.startsWith(item.href))
+    const badge = BADGE_FOR_HREF[item.href]?.(counts) ?? 0
     return (
       <Link key={item.href} href={item.href} style={{ textDecoration: 'none' }}>
         <div style={{
@@ -153,9 +193,24 @@ export default function VaultSidebar() {
           <span style={{ color: active ? '#C9A96E' : 'rgba(201,169,110,0.35)', fontSize: 13, width: 18, textAlign: 'center' }}>
             {item.icon}
           </span>
-          <span style={{ color: active ? '#ffffff' : '#6B8299', fontSize: 12, fontWeight: active ? 500 : 400 }}>
+          <span style={{ color: active ? '#ffffff' : '#6B8299', fontSize: 12, fontWeight: active ? 500 : 400, flex: 1 }}>
             {item.label}
           </span>
+          {badge > 0 && (
+            <span
+              aria-label={`${badge} item${badge === 1 ? '' : 's'} need attention`}
+              style={{
+                minWidth: 18, height: 18, padding: '0 6px',
+                background: '#C9A96E', color: '#142D48',
+                borderRadius: 999, fontSize: 10, fontWeight: 700,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                lineHeight: 1, letterSpacing: 0,
+                boxShadow: '0 0 0 1px rgba(201,169,110,0.4)',
+              }}
+            >
+              {badge > 99 ? '99+' : badge}
+            </span>
+          )}
         </div>
       </Link>
     )
