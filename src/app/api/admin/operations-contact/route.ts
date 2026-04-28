@@ -11,8 +11,10 @@ import { getSettings, setSetting } from '@/lib/settings'
 const KEYS = [
   'OPERATIONS_CONTACT_NAME',
   'OPERATIONS_CONTACT_LAST_NAME',
+  'OPERATIONS_CONTACT_TITLE',
   'OPERATIONS_CONTACT_EMAIL',
   'OPERATIONS_CONTACT_PHONE',
+  'OPERATIONS_CONTACT_CALENDLY_URL',
 ] as const
 
 export async function GET() {

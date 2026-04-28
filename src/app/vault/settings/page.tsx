@@ -156,8 +156,10 @@ export default function SettingsPage() {
   const [opsFields, setOpsFields] = useState({
     OPERATIONS_CONTACT_NAME: '',
     OPERATIONS_CONTACT_LAST_NAME: '',
+    OPERATIONS_CONTACT_TITLE: '',
     OPERATIONS_CONTACT_EMAIL: '',
     OPERATIONS_CONTACT_PHONE: '',
+    OPERATIONS_CONTACT_CALENDLY_URL: '',
   })
   const [opsSaving, setOpsSaving] = useState(false)
   const [opsSaved, setOpsSaved] = useState(false)
@@ -323,12 +325,14 @@ export default function SettingsPage() {
           {cardHeader('Operations Contact')}
           <div style={{ padding: '28px' }}>
             <p style={{ color: '#6B8299', fontSize: 12, margin: '0 0 24px', lineHeight: 1.6 }}>
-              The person whose voice and signature appear on the auto-welcome email new agents receive on approval. Update this once and every welcome from then on uses it — no deploy needed. Leave blank to fall back to the generic AFF team voice.
+              The person whose voice and signature appear on the auto-welcome email new agents receive on approval, plus the Calendly link they use to book their Meet &amp; Greet. Update once and every welcome from then on uses it — no deploy needed.
             </p>
-            <Field label="First Name" name="OPERATIONS_CONTACT_NAME" value={opsFields.OPERATIONS_CONTACT_NAME} onChange={setOps('OPERATIONS_CONTACT_NAME')} placeholder="Natalia" />
-            <Field label="Last Name" name="OPERATIONS_CONTACT_LAST_NAME" value={opsFields.OPERATIONS_CONTACT_LAST_NAME} onChange={setOps('OPERATIONS_CONTACT_LAST_NAME')} placeholder="(optional)" />
+            <Field label="First Name" name="OPERATIONS_CONTACT_NAME" value={opsFields.OPERATIONS_CONTACT_NAME} onChange={setOps('OPERATIONS_CONTACT_NAME')} placeholder="Melinee" />
+            <Field label="Last Name" name="OPERATIONS_CONTACT_LAST_NAME" value={opsFields.OPERATIONS_CONTACT_LAST_NAME} onChange={setOps('OPERATIONS_CONTACT_LAST_NAME')} placeholder="Minhas" />
+            <Field label="Title (shown in signature)" name="OPERATIONS_CONTACT_TITLE" value={opsFields.OPERATIONS_CONTACT_TITLE} onChange={setOps('OPERATIONS_CONTACT_TITLE')} placeholder="Agent Operations · COO · Etc." />
             <Field label="Email" name="OPERATIONS_CONTACT_EMAIL" value={opsFields.OPERATIONS_CONTACT_EMAIL} onChange={setOps('OPERATIONS_CONTACT_EMAIL')} placeholder="operations@allfinancialfreedom.com" />
             <Field label="Phone" name="OPERATIONS_CONTACT_PHONE" value={opsFields.OPERATIONS_CONTACT_PHONE} onChange={setOps('OPERATIONS_CONTACT_PHONE')} placeholder="(optional, shown in signature)" />
+            <Field label="Meet & Greet Calendly URL" name="OPERATIONS_CONTACT_CALENDLY_URL" value={opsFields.OPERATIONS_CONTACT_CALENDLY_URL} onChange={setOps('OPERATIONS_CONTACT_CALENDLY_URL')} placeholder="https://calendly.com/melinee/meet-and-greet" />
             <button onClick={handleSaveOps} disabled={opsSaving} style={{
               padding: '10px 24px', background: '#C9A96E', color: '#142D48', border: 'none',
               borderRadius: 4, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em',
