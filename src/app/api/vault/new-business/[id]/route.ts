@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/permissions'
 import { notifyIssued, notifyDeclined } from '@/lib/new-business-notifications'
+import { validatePhone, validateEmail } from '@/lib/contact-validation'
 import type { NewBusinessStatus, PolicyType } from '@/generated/prisma/client'
 
 const VALID_STATUSES: NewBusinessStatus[] = ['PENDING', 'ISSUED', 'DECLINED', 'LAPSED', 'NOT_TAKEN']
@@ -55,6 +56,16 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const body = await req.json() as Record<string, unknown>
+
+  if ('clientPhone' in body) {
+    const err = validatePhone(body.clientPhone)
+    if (err) return NextResponse.json({ error: err }, { status: 400 })
+  }
+  if ('clientEmail' in body) {
+    const err = validateEmail(body.clientEmail)
+    if (err) return NextResponse.json({ error: err }, { status: 400 })
+  }
+
   const data: Record<string, unknown> = {}
   for (const f of STAFF_EDITABLE) {
     if (!(f in body)) continue
@@ -73,6 +84,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       data[f] = v ? new Date(v as string) : null
     } else if (f === 'points') {
       data[f] = v == null || v === '' ? null : Number(v)
+    } else if (f === 'clientPhone' || f === 'clientEmail') {
+      data[f] = (v as string).trim()
     } else {
       data[f] = v === '' ? null : v
     }

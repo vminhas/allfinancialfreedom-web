@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { validatePhone, validateEmail } from '@/lib/contact-validation'
 
 async function getAgentProfileId() {
   const session = await getServerSession(authOptions)
@@ -34,6 +35,16 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   }
 
   const body = await req.json() as Record<string, unknown>
+
+  if ('clientPhone' in body) {
+    const err = validatePhone(body.clientPhone)
+    if (err) return NextResponse.json({ error: err }, { status: 400 })
+  }
+  if ('clientEmail' in body) {
+    const err = validateEmail(body.clientEmail)
+    if (err) return NextResponse.json({ error: err }, { status: 400 })
+  }
+
   const data: Record<string, unknown> = {}
   for (const f of EDITABLE_FIELDS) {
     if (f in body) {
@@ -42,6 +53,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         data[f] = v ? new Date(v as string) : null
       } else if (f === 'points') {
         data[f] = v == null || v === '' ? null : Number(v)
+      } else if (f === 'clientPhone' || f === 'clientEmail') {
+        data[f] = (v as string).trim()
       } else {
         data[f] = v === '' ? null : v
       }
