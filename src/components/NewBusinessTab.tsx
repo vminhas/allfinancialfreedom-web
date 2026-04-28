@@ -180,8 +180,28 @@ function NewBusinessForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: ()
       <div style={grid}>
         <div><label style={fieldLabel}>First Name *</label><input required style={inputStyle} value={form.clientFirstName} onChange={e => setForm(f => ({ ...f, clientFirstName: e.target.value }))} /></div>
         <div><label style={fieldLabel}>Last Name *</label><input required style={inputStyle} value={form.clientLastName} onChange={e => setForm(f => ({ ...f, clientLastName: e.target.value }))} /></div>
-        <div><label style={fieldLabel}>Phone</label><input style={inputStyle} value={form.clientPhone} onChange={e => setForm(f => ({ ...f, clientPhone: e.target.value }))} /></div>
-        <div><label style={fieldLabel}>Email</label><input type="email" style={inputStyle} value={form.clientEmail} onChange={e => setForm(f => ({ ...f, clientEmail: e.target.value }))} /></div>
+        <div><label style={fieldLabel}>Phone *</label>
+          <input
+            required
+            type="tel"
+            pattern="^\s*\+?1?\s*\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\s*$"
+            title="10-digit US phone, e.g. (555) 123-4567"
+            placeholder="(555) 123-4567"
+            style={inputStyle}
+            value={form.clientPhone}
+            onChange={e => setForm(f => ({ ...f, clientPhone: e.target.value }))}
+          />
+        </div>
+        <div><label style={fieldLabel}>Email *</label>
+          <input
+            required
+            type="email"
+            placeholder="client@example.com"
+            style={inputStyle}
+            value={form.clientEmail}
+            onChange={e => setForm(f => ({ ...f, clientEmail: e.target.value }))}
+          />
+        </div>
         <div><label style={fieldLabel}>Birthday</label>
           <DatePicker value={form.clientBirthday} onChange={v => setForm(f => ({ ...f, clientBirthday: v }))} max={new Date().toISOString().slice(0, 10)} />
         </div>

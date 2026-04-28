@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { uploadIllustrationToBlob, validateIllustration } from '@/lib/illustration-upload'
 import { notifySubmitted } from '@/lib/new-business-notifications'
+import { validatePhone, validateEmail } from '@/lib/contact-validation'
 import type { PolicyType } from '@/generated/prisma/client'
 
 const VALID_POLICY_TYPES: PolicyType[] = ['TERM', 'WHOLE_LIFE', 'IUL', 'ANNUITY', 'DISABILITY', 'LTC', 'OTHER']
@@ -66,6 +67,12 @@ export async function POST(req: NextRequest) {
   if (!fields.applicationDate || !fields.carrier || !fields.clientFirstName || !fields.clientLastName) {
     return NextResponse.json({ error: 'applicationDate, carrier, clientFirstName, clientLastName are required' }, { status: 400 })
   }
+  const phoneErr = validatePhone(fields.clientPhone)
+  if (phoneErr) return NextResponse.json({ error: phoneErr }, { status: 400 })
+  const emailErr = validateEmail(fields.clientEmail)
+  if (emailErr) return NextResponse.json({ error: emailErr }, { status: 400 })
+  const phoneStr = (fields.clientPhone as string).trim()
+  const emailStr = (fields.clientEmail as string).trim()
 
   for (const f of files) {
     const err = validateIllustration({ size: f.size, type: f.type })
@@ -83,8 +90,8 @@ export async function POST(req: NextRequest) {
       illustrationUrls: [],
       clientFirstName: String(fields.clientFirstName),
       clientLastName: String(fields.clientLastName),
-      clientPhone: (fields.clientPhone as string) || null,
-      clientEmail: (fields.clientEmail as string) || null,
+      clientPhone: phoneStr,
+      clientEmail: emailStr,
       clientBirthday: fields.clientBirthday ? new Date(fields.clientBirthday as string) : null,
       clientAddressLine1: (fields.clientAddressLine1 as string) || null,
       clientAddressLine2: (fields.clientAddressLine2 as string) || null,
