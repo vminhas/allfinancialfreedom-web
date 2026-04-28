@@ -37,6 +37,12 @@ export async function POST(req: NextRequest) {
   const profileId = await getProfileId(session.user!.email!)
   if (!profileId) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
 
+  // Pull the referrer's name for the Discord ping below.
+  const referrer = await db.agentProfile.findUnique({
+    where: { id: profileId },
+    select: { firstName: true, lastName: true, agentCode: true },
+  })
+
   const body = await req.json() as {
     firstName: string
     lastName: string
@@ -75,6 +81,33 @@ export async function POST(req: NextRequest) {
       notes: body.notes,
     },
   })
+
+  // Fire-and-forget Discord ping so admins/LC see new pending approvals
+  // without having to refresh the inbox.
+  if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_ADMIN_CHANNEL_ID) {
+    try {
+      const { sendChannelMessage } = await import('@/lib/discord')
+      const refName = referrer ? `${referrer.firstName} ${referrer.lastName}` : 'An agent'
+      sendChannelMessage(process.env.DISCORD_ADMIN_CHANNEL_ID, {
+        embeds: [{
+          title: 'New Agent Referral',
+          description: [
+            `**${refName}** referred **${body.firstName} ${body.lastName}** to the team.`,
+            '',
+            `Email: ${body.email.toLowerCase()}`,
+            body.phone ? `Phone: ${body.phone}` : '',
+            body.state ? `State: ${body.state}` : '',
+            body.notes ? `\nNotes: ${body.notes}` : '',
+            '',
+            '_Awaiting approval in /vault/licensing → Referrals_',
+          ].filter(Boolean).join('\n'),
+          color: 0xC9A96E,
+          timestamp: new Date().toISOString(),
+          footer: { text: 'AFF Concierge · Referrals' },
+        }],
+      }).catch(() => {})
+    } catch { /* non-fatal */ }
+  }
 
   return NextResponse.json(referral)
 }
