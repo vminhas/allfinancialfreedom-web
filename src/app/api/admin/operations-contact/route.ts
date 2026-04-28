@@ -9,12 +9,19 @@ import { getSettings, setSetting } from '@/lib/settings'
 // (overkill for non-secrets, but keeps one storage layer); returned in
 // plaintext since none of these are credentials.
 const KEYS = [
+  // Ongoing point of contact for the agent — drives the welcome email's
+  // voice and signature (currently Natalia).
   'OPERATIONS_CONTACT_NAME',
   'OPERATIONS_CONTACT_LAST_NAME',
   'OPERATIONS_CONTACT_TITLE',
   'OPERATIONS_CONTACT_EMAIL',
   'OPERATIONS_CONTACT_PHONE',
-  'OPERATIONS_CONTACT_CALENDLY_URL',
+  // Initial Meet & Greet host — separate person who only does the first
+  // onboarding call (currently Melinee, COO). Their calendar link is what
+  // the welcome email's "Book your Meet & Greet" button points at.
+  'ONBOARDING_HOST_NAME',
+  'ONBOARDING_HOST_TITLE',
+  'ONBOARDING_HOST_CALENDLY_URL',
 ] as const
 
 export async function GET() {

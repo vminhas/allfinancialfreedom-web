@@ -154,12 +154,16 @@ export default function SettingsPage() {
   })
 
   const [opsFields, setOpsFields] = useState({
+    // Ongoing operations contact (Natalia) — voice + signature on welcome
     OPERATIONS_CONTACT_NAME: '',
     OPERATIONS_CONTACT_LAST_NAME: '',
     OPERATIONS_CONTACT_TITLE: '',
     OPERATIONS_CONTACT_EMAIL: '',
     OPERATIONS_CONTACT_PHONE: '',
-    OPERATIONS_CONTACT_CALENDLY_URL: '',
+    // Onboarding host (Melinee) — only does the initial Meet & Greet
+    ONBOARDING_HOST_NAME: '',
+    ONBOARDING_HOST_TITLE: '',
+    ONBOARDING_HOST_CALENDLY_URL: '',
   })
   const [opsSaving, setOpsSaving] = useState(false)
   const [opsSaved, setOpsSaved] = useState(false)
@@ -319,27 +323,40 @@ export default function SettingsPage() {
         </>
       )}
 
-      {/* Operations Contact — drives the auto-welcome email's voice/signature */}
+      {/* Welcome email cast — two distinct people drive the auto-welcome */}
       {card(
         <>
-          {cardHeader('Operations Contact')}
+          {cardHeader('Welcome Email Cast')}
           <div style={{ padding: '28px' }}>
             <p style={{ color: '#6B8299', fontSize: 12, margin: '0 0 24px', lineHeight: 1.6 }}>
-              The person whose voice and signature appear on the auto-welcome email new agents receive on approval, plus the Calendly link they use to book their Meet &amp; Greet. Update once and every welcome from then on uses it — no deploy needed.
+              The auto-welcome email features two people. <strong style={{ color: '#9BB0C4' }}>Operations</strong> writes the email and is the agent's ongoing point of contact. <strong style={{ color: '#9BB0C4' }}>Meet &amp; Greet Host</strong> is the executive (typically the COO) who hosts the initial 60-minute call. Operations introduces the host inside the email — same warm 3-way intro you'd do over text. Update once; every welcome from then on uses it.
             </p>
-            <Field label="First Name" name="OPERATIONS_CONTACT_NAME" value={opsFields.OPERATIONS_CONTACT_NAME} onChange={setOps('OPERATIONS_CONTACT_NAME')} placeholder="Melinee" />
-            <Field label="Last Name" name="OPERATIONS_CONTACT_LAST_NAME" value={opsFields.OPERATIONS_CONTACT_LAST_NAME} onChange={setOps('OPERATIONS_CONTACT_LAST_NAME')} placeholder="Minhas" />
-            <Field label="Title (shown in signature)" name="OPERATIONS_CONTACT_TITLE" value={opsFields.OPERATIONS_CONTACT_TITLE} onChange={setOps('OPERATIONS_CONTACT_TITLE')} placeholder="Agent Operations · COO · Etc." />
+
+            <p style={{ color: '#C9A96E', fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', margin: '0 0 16px' }}>
+              Operations Contact &nbsp;<span style={{ color: '#6B8299', fontWeight: 400 }}>· voice &amp; signature</span>
+            </p>
+            <Field label="First Name" name="OPERATIONS_CONTACT_NAME" value={opsFields.OPERATIONS_CONTACT_NAME} onChange={setOps('OPERATIONS_CONTACT_NAME')} placeholder="Natalia" />
+            <Field label="Last Name" name="OPERATIONS_CONTACT_LAST_NAME" value={opsFields.OPERATIONS_CONTACT_LAST_NAME} onChange={setOps('OPERATIONS_CONTACT_LAST_NAME')} placeholder="(optional)" />
+            <Field label="Title (shown in signature)" name="OPERATIONS_CONTACT_TITLE" value={opsFields.OPERATIONS_CONTACT_TITLE} onChange={setOps('OPERATIONS_CONTACT_TITLE')} placeholder="Agent Operations" />
             <Field label="Email" name="OPERATIONS_CONTACT_EMAIL" value={opsFields.OPERATIONS_CONTACT_EMAIL} onChange={setOps('OPERATIONS_CONTACT_EMAIL')} placeholder="operations@allfinancialfreedom.com" />
             <Field label="Phone" name="OPERATIONS_CONTACT_PHONE" value={opsFields.OPERATIONS_CONTACT_PHONE} onChange={setOps('OPERATIONS_CONTACT_PHONE')} placeholder="(optional, shown in signature)" />
-            <Field label="Meet & Greet Calendly URL" name="OPERATIONS_CONTACT_CALENDLY_URL" value={opsFields.OPERATIONS_CONTACT_CALENDLY_URL} onChange={setOps('OPERATIONS_CONTACT_CALENDLY_URL')} placeholder="https://calendly.com/melinee/meet-and-greet" />
+
+            <hr style={{ border: 'none', borderTop: '1px solid rgba(201,169,110,0.12)', margin: '24px 0' }} />
+
+            <p style={{ color: '#C9A96E', fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', margin: '0 0 16px' }}>
+              Meet &amp; Greet Host &nbsp;<span style={{ color: '#6B8299', fontWeight: 400 }}>· initial 60-min call only</span>
+            </p>
+            <Field label="First Name" name="ONBOARDING_HOST_NAME" value={opsFields.ONBOARDING_HOST_NAME} onChange={setOps('ONBOARDING_HOST_NAME')} placeholder="Melinee" />
+            <Field label="Title" name="ONBOARDING_HOST_TITLE" value={opsFields.ONBOARDING_HOST_TITLE} onChange={setOps('ONBOARDING_HOST_TITLE')} placeholder="COO" />
+            <Field label="Calendly / Booking URL" name="ONBOARDING_HOST_CALENDLY_URL" value={opsFields.ONBOARDING_HOST_CALENDLY_URL} onChange={setOps('ONBOARDING_HOST_CALENDLY_URL')} placeholder="https://links.allfinancialfreedom.com/widget/booking/..." />
+
             <button onClick={handleSaveOps} disabled={opsSaving} style={{
               padding: '10px 24px', background: '#C9A96E', color: '#142D48', border: 'none',
               borderRadius: 4, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em',
               textTransform: 'uppercase', cursor: opsSaving ? 'not-allowed' : 'pointer',
-              marginTop: 8,
+              marginTop: 16,
             }}>
-              {opsSaving ? 'Saving...' : opsSaved ? 'Saved ✓' : 'Save Contact'}
+              {opsSaving ? 'Saving...' : opsSaved ? 'Saved ✓' : 'Save'}
             </button>
           </div>
         </>

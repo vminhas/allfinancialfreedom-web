@@ -3,17 +3,23 @@
 // in sync. Keep the template inline-styled — most email clients (Gmail
 // web, Apple Mail, Outlook 365) drop external CSS.
 //
-// Optional sections appear only when the corresponding setting/env is set:
-//   WELCOME_INTRO_VIDEO_URL (env) — "Watch this first" video block
-//   OPERATIONS_CONTACT_CALENDLY_URL (Vault → Settings or env) — Meet & Greet
-//     booking block. Legacy WELCOME_ORIENTATION_CALENDLY_URL env still works
-//     as a fallback.
-//   DISCORD_INVITE_URL (env) — Discord community invite (always shown)
+// Two distinct people drive the email — both editable from /vault/settings
+// (no deploy needed):
 //
-// Voice / sender identity (name, title, email, phone, calendly) is editable
-// from /vault/settings → Operations Contact (no deploy needed). Falls back
-// to env vars for first-deploy convenience and finally to a generic AFF
-// team voice if nothing is set.
+//   Operations Contact: ongoing point of contact for the agent. Drives the
+//   email's first-person voice and signature. Currently Natalia.
+//   Settings keys: OPERATIONS_CONTACT_NAME / _LAST_NAME / _TITLE / _EMAIL
+//   / _PHONE.
+//
+//   Onboarding Host: only does the initial Meet & Greet call (relationship
+//   build + onboarding walkthrough). Currently Melinee (COO). Their
+//   calendar link drives the booking button in the email.
+//   Settings keys: ONBOARDING_HOST_NAME / _TITLE / _CALENDLY_URL.
+//
+// Other env-only knobs:
+//   WELCOME_INTRO_VIDEO_URL — adds the "Watch this first" video block
+//   DISCORD_INVITE_URL — Discord community invite (always shown)
+//   WELCOME_ORIENTATION_CALENDLY_URL — legacy fallback for the host calendar
 
 import { getSettings } from './settings'
 
@@ -29,6 +35,11 @@ interface OperationsContact {
   title: string
   email: string
   phone: string
+}
+
+interface OnboardingHost {
+  name: string
+  title: string
   calendlyUrl: string
 }
 
@@ -39,7 +50,6 @@ async function loadOperationsContact(): Promise<OperationsContact> {
     'OPERATIONS_CONTACT_TITLE',
     'OPERATIONS_CONTACT_EMAIL',
     'OPERATIONS_CONTACT_PHONE',
-    'OPERATIONS_CONTACT_CALENDLY_URL',
   ]).catch(() => ({} as Record<string, string>))
 
   const pick = (settingKey: string, envKey: string, fallback = ''): string => {
@@ -49,12 +59,33 @@ async function loadOperationsContact(): Promise<OperationsContact> {
   }
 
   return {
-    name:        pick('OPERATIONS_CONTACT_NAME',         'OPERATIONS_CONTACT_NAME'),
-    lastName:    pick('OPERATIONS_CONTACT_LAST_NAME',    'OPERATIONS_CONTACT_LAST_NAME'),
-    title:       pick('OPERATIONS_CONTACT_TITLE',        'OPERATIONS_CONTACT_TITLE', 'Agent Operations'),
-    email:       pick('OPERATIONS_CONTACT_EMAIL',        'OPERATIONS_CONTACT_EMAIL', 'operations@allfinancialfreedom.com'),
-    phone:       pick('OPERATIONS_CONTACT_PHONE',        'OPERATIONS_CONTACT_PHONE'),
-    calendlyUrl: pick('OPERATIONS_CONTACT_CALENDLY_URL', 'WELCOME_ORIENTATION_CALENDLY_URL'),
+    name:     pick('OPERATIONS_CONTACT_NAME',      'OPERATIONS_CONTACT_NAME'),
+    lastName: pick('OPERATIONS_CONTACT_LAST_NAME', 'OPERATIONS_CONTACT_LAST_NAME'),
+    title:    pick('OPERATIONS_CONTACT_TITLE',     'OPERATIONS_CONTACT_TITLE', 'Agent Operations'),
+    email:    pick('OPERATIONS_CONTACT_EMAIL',     'OPERATIONS_CONTACT_EMAIL', 'operations@allfinancialfreedom.com'),
+    phone:    pick('OPERATIONS_CONTACT_PHONE',     'OPERATIONS_CONTACT_PHONE'),
+  }
+}
+
+async function loadOnboardingHost(): Promise<OnboardingHost> {
+  const stored = await getSettings([
+    'ONBOARDING_HOST_NAME',
+    'ONBOARDING_HOST_TITLE',
+    'ONBOARDING_HOST_CALENDLY_URL',
+  ]).catch(() => ({} as Record<string, string>))
+
+  const pick = (settingKey: string, envKey: string, fallback = ''): string => {
+    const fromDb = stored[settingKey]
+    if (fromDb && fromDb.length > 0) return fromDb
+    return process.env[envKey] ?? fallback
+  }
+
+  return {
+    name:        pick('ONBOARDING_HOST_NAME',         'ONBOARDING_HOST_NAME'),
+    title:       pick('ONBOARDING_HOST_TITLE',        'ONBOARDING_HOST_TITLE', 'COO'),
+    // Legacy env var still works as a fallback so nothing breaks for
+    // older deploys that set this before the rename.
+    calendlyUrl: pick('ONBOARDING_HOST_CALENDLY_URL', 'WELCOME_ORIENTATION_CALENDLY_URL'),
   }
 }
 
@@ -64,6 +95,7 @@ export async function buildWelcomeEmailHtml({ firstName, inviteUrl, referredByNa
   const websiteUrl = 'https://www.allfinancialfreedom.com'
 
   const ops = await loadOperationsContact()
+  const host = await loadOnboardingHost()
   const opsFullName = ops.name && ops.lastName ? `${ops.name} ${ops.lastName}` : ops.name
 
   // First-person voice when an ops contact is configured; "we" otherwise.
@@ -109,12 +141,15 @@ export async function buildWelcomeEmailHtml({ firstName, inviteUrl, referredByNa
     `
     : ''
 
-  const meetAndGreetBlock = ops.calendlyUrl
+  // Meet & Greet block — Natalia introduces the new agent to Melinee (COO),
+  // who actually hosts the call. Mirrors the warm 3-way text-message intro
+  // the team already does manually.
+  const meetAndGreetBlock = host.calendlyUrl
     ? `
       <tr><td style="padding:0;">
-        <p style="color:#fff; font-weight:700; margin:0 0 4px;">3 · Book your Meet &amp; Greet${ops.name ? ` with ${escapeHtml(ops.name)}` : ''}</p>
-        <p style="color:#9BB0C4; margin:0 0 10px; font-size:13px; line-height:1.55;">A 60-minute call so we actually know each other before the real work starts. ${ops.name ? `${escapeHtml(ops.name)} ` : 'We'} will hear what brought you here, walk you through how AFF operates, and at the end cover the onboarding side — licensing, carrier appointments, CE, E&amp;O, direct deposit. After this call you'll have a clear picture of your first 30 days.</p>
-        <a href="${ops.calendlyUrl}" style="display:inline-block; padding:11px 22px; background:#1F2E47; color:#C9A96E; font-weight:700; text-decoration:none; border:1px solid rgba(201,169,110,0.4); border-radius:4px; font-size:13px;">📅 Book your Meet &amp; Greet</a>
+        <p style="color:#fff; font-weight:700; margin:0 0 4px;">3 · Meet our COO${host.name ? `, ${escapeHtml(host.name)}` : ''}</p>
+        <p style="color:#9BB0C4; margin:0 0 10px; font-size:13px; line-height:1.55;">${ops.name ? `I'd love to connect you with ${host.name ? `<strong style="color:#fff;">${escapeHtml(host.name)}</strong>` : '<strong style="color:#fff;">our COO</strong>'}, who personally hosts every new agent's <strong style="color:#fff;">Meet &amp; Greet</strong>. ` : `${host.name ? `<strong style="color:#fff;">${escapeHtml(host.name)}</strong>, our ${escapeHtml(host.title)}, ` : 'Our COO '}personally hosts every new agent's <strong style="color:#fff;">Meet &amp; Greet</strong>. `}It's a 60-minute call, just the two of you — no paperwork, no pressure. ${host.name ? `${escapeHtml(host.name)} ` : 'She '} will hear what brought you here, share how AFF actually operates, and at the end walk you through the onboarding side: licensing, carrier appointments, CE, E&amp;O, direct deposit. After this call you'll have a clear picture of your first 30 days.</p>
+        <a href="${host.calendlyUrl}" style="display:inline-block; padding:11px 22px; background:#1F2E47; color:#C9A96E; font-weight:700; text-decoration:none; border:1px solid rgba(201,169,110,0.4); border-radius:4px; font-size:13px;">📅 Book your Meet &amp; Greet${host.name ? ` with ${escapeHtml(host.name)}` : ''}</a>
       </td></tr>
       <tr><td style="height:18px;"></td></tr>
     `
