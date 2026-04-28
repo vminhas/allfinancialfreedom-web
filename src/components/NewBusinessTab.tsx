@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import DatePicker from './DatePicker'
 import { CARRIERS } from '@/lib/agent-constants'
+import { formatPhoneAsTyped } from '@/lib/contact-validation'
 
 const card = { background: '#132238', border: '1px solid rgba(201,169,110,0.1)', borderRadius: 6 }
 const sectionLabel = { fontSize: 10, fontWeight: 700 as const, letterSpacing: '0.2em', textTransform: 'uppercase' as const, color: '#C9A96E', marginBottom: 14 }
@@ -308,7 +309,8 @@ function NewBusinessForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: ()
             placeholder="(555) 123-4567"
             style={inputStyle}
             value={form.clientPhone}
-            onChange={e => setForm(f => ({ ...f, clientPhone: e.target.value }))}
+            onChange={e => setForm(f => ({ ...f, clientPhone: formatPhoneAsTyped(e.target.value) }))}
+            inputMode="numeric"
           />
         </div>
         <div><label style={fieldLabel}>Email *</label>
