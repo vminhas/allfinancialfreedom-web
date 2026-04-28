@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
+import { formatPhoneAsTyped } from '@/lib/contact-validation'
 
 const US_STATES = [
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
@@ -191,9 +192,10 @@ export default function OnboardingPage() {
                 <label style={labelStyle}>Phone Number *</label>
                 <input
                   type="tel"
+                  inputMode="numeric"
                   required
                   value={form.phone}
-                  onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                  onChange={e => setForm(f => ({ ...f, phone: formatPhoneAsTyped(e.target.value) }))}
                   placeholder="(555) 555-5555"
                   style={inputStyle}
                 />

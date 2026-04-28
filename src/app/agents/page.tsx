@@ -8,6 +8,7 @@ import {
   CARRIER_UNLOCK_PHASE, LICENSING_CHECKLIST, SYSTEM_PROGRESSIONS, PHASE_EXPECTED_DAYS,
 } from '@/lib/agent-constants'
 import { GROUP_ICONS, PROGRESSION_ICONS, Mail, ChevronDown, ArrowRight, ExternalLink, UserCheck } from '@/lib/checklist-icons'
+import { formatPhoneAsTyped } from '@/lib/contact-validation'
 import CallReviewModal, { CallReviewData } from '@/components/CallReviewModal'
 import LicensingRequestModal, { type LicensingRequestTopic } from '@/components/LicensingRequestModal'
 import LicensingCoordinatorPanel from '@/components/LicensingCoordinatorPanel'
@@ -1960,8 +1961,9 @@ function ProfileTab({ data, onSaved, discordParam, discordUsername, isMobile }: 
             <label style={fieldLabel}>Phone Number</label>
             <input
               type="tel"
+              inputMode="numeric"
               value={form.phone}
-              onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+              onChange={e => setForm(f => ({ ...f, phone: formatPhoneAsTyped(e.target.value) }))}
               placeholder="(555) 555-5555"
               style={inputStyle}
             />
@@ -2367,7 +2369,7 @@ function BusinessPartnersTab({ isMobile }: { isMobile: boolean }) {
             <div><label style={fieldLabel}>First Name *</label><input required style={inputStyle} value={referForm.firstName} onChange={e => setReferForm(f => ({ ...f, firstName: e.target.value }))} /></div>
             <div><label style={fieldLabel}>Last Name *</label><input required style={inputStyle} value={referForm.lastName} onChange={e => setReferForm(f => ({ ...f, lastName: e.target.value }))} /></div>
             <div><label style={fieldLabel}>Email *</label><input required type="email" style={inputStyle} value={referForm.email} onChange={e => setReferForm(f => ({ ...f, email: e.target.value }))} /></div>
-            <div><label style={fieldLabel}>Phone</label><input style={inputStyle} value={referForm.phone} onChange={e => setReferForm(f => ({ ...f, phone: e.target.value }))} /></div>
+            <div><label style={fieldLabel}>Phone</label><input type="tel" inputMode="numeric" placeholder="(555) 123-4567" style={inputStyle} value={referForm.phone} onChange={e => setReferForm(f => ({ ...f, phone: formatPhoneAsTyped(e.target.value) }))} /></div>
             <div><label style={fieldLabel}>State</label><input style={inputStyle} value={referForm.state} onChange={e => setReferForm(f => ({ ...f, state: e.target.value }))} placeholder="e.g., CA" /></div>
             <div><label style={fieldLabel}>Notes</label><input style={inputStyle} value={referForm.notes} onChange={e => setReferForm(f => ({ ...f, notes: e.target.value }))} /></div>
             {referError && <div style={{ gridColumn: isMobile ? undefined : 'span 2', fontSize: 11, color: '#f87171' }}>{referError}</div>}
@@ -2427,7 +2429,7 @@ function BusinessPartnersTab({ isMobile }: { isMobile: boolean }) {
         {showForm && (
           <form onSubmit={handleSubmit} style={{ marginBottom: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 10, padding: 16, background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)' }}>
             <div><label style={fieldLabel}>Name *</label><input required style={inputStyle} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
-            <div><label style={fieldLabel}>Phone</label><input style={inputStyle} value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} /></div>
+            <div><label style={fieldLabel}>Phone</label><input type="tel" inputMode="numeric" placeholder="(555) 123-4567" style={inputStyle} value={form.phone} onChange={e => setForm(f => ({ ...f, phone: formatPhoneAsTyped(e.target.value) }))} /></div>
             <div><label style={fieldLabel}>Email</label><input type="email" style={inputStyle} value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} /></div>
             <div><label style={fieldLabel}>Time Zone</label>
               <select style={{ ...inputStyle, cursor: 'pointer' }} value={form.timeZone} onChange={e => setForm(f => ({ ...f, timeZone: e.target.value }))}>
