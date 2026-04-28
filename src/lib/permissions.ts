@@ -41,3 +41,13 @@ export function requireRole(
   }
   return null
 }
+
+// Vault paths a Licensing Coordinator may visit. Everything else redirects to
+// /vault/licensing. Admins can visit anything. Source of truth — referenced by
+// vault layout for redirect, by API routes when checking authorization.
+export const LC_ALLOWED_PREFIXES = [
+  '/vault/licensing',
+  '/vault/new-business',
+  '/vault/setup',
+  '/vault/guide',
+]

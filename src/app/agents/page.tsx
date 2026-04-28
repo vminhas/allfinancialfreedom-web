@@ -13,6 +13,9 @@ import LicensingRequestModal, { type LicensingRequestTopic } from '@/components/
 import LicensingCoordinatorPanel from '@/components/LicensingCoordinatorPanel'
 import FTALogModal from '@/components/FTALogModal'
 import FeedbackButton from '@/components/FeedbackButton'
+import NewBusinessTab from '@/components/NewBusinessTab'
+import FtaTab from '@/components/FtaTab'
+import ClientsTab from '@/components/ClientsTab'
 import MarkdownDescription from '@/components/MarkdownDescription'
 import AnnouncementBanner from '@/components/AnnouncementBanner'
 import { useIsMobile } from '@/lib/useIsMobile'
@@ -119,7 +122,7 @@ function AgentDashboardInner() {
 
   const [data, setData] = useState<AgentData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'checklist' | 'licensing' | 'carriers' | 'partners' | 'policies' | 'calls' | 'team' | 'resources' | 'profile'>(
+  const [activeTab, setActiveTab] = useState<'checklist' | 'licensing' | 'carriers' | 'partners' | 'policies' | 'new-business' | 'fta' | 'clients' | 'calls' | 'team' | 'resources' | 'profile'>(
     discordParam ? 'profile' : 'checklist'
   )
   const [togglingKey, setTogglingKey] = useState<string | null>(null)
@@ -353,6 +356,9 @@ function AgentDashboardInner() {
     { key: 'carriers', label: 'Carriers' },
     { key: 'partners', label: 'Partners' },
     { key: 'policies', label: 'Policies' },
+    { key: 'new-business', label: 'New Business' },
+    { key: 'fta', label: 'FTA' },
+    { key: 'clients', label: 'Clients' },
     { key: 'calls', label: 'Calls' },
     { key: 'team', label: 'My Team' },
     { key: 'resources', label: 'Resources' },
@@ -1339,6 +1345,9 @@ function AgentDashboardInner() {
         {/* ── PARTNERS / POLICIES / CALLS / PROFILE TABS ── */}
         {activeTab === 'partners' && <BusinessPartnersTab isMobile={isMobile} />}
         {activeTab === 'policies' && <PoliciesTab isMobile={isMobile} />}
+        {activeTab === 'new-business' && <NewBusinessTab isMobile={isMobile} />}
+        {activeTab === 'fta' && <FtaTab isMobile={isMobile} />}
+        {activeTab === 'clients' && <ClientsTab phase={data.phase} />}
         {activeTab === 'calls' && <CallLogsTab />}
         {activeTab === 'team' && <MyTeamTab isMobile={isMobile} previewToken={previewToken} />}
         {activeTab === 'resources' && <TrainingResourcesTab resources={setupResources} />}

@@ -5,15 +5,9 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import VaultSidebar from '@/components/vault/VaultSidebar'
 import VaultSessionProvider from './VaultSessionProvider'
+import { LC_ALLOWED_PREFIXES } from '@/lib/permissions'
 
 export const metadata = { title: 'Vault — AFF' }
-
-// Paths a Licensing Coordinator is allowed to visit. Everything else redirects
-// back to /vault/licensing. Admins can visit anything.
-// LC profile + password change live inside /vault/licensing as a tab — they
-// are NOT allowed into /vault/settings (which exposes admin API keys, GHL
-// config, etc.).
-const LC_ALLOWED_PREFIXES = ['/vault/licensing', '/vault/setup', '/vault/guide']
 
 export default async function VaultLayout({ children }: { children: ReactNode }) {
   const headersList = await headers()
