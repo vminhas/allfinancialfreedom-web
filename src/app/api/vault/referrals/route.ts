@@ -65,9 +65,11 @@ export async function PATCH(req: NextRequest) {
   // in sync. Handler creates the AgentUser+AgentProfile, marks the referral
   // APPROVED, and best-effort fires the welcome email.
   const approvedById = (session!.user as { id?: string }).id ?? session!.user!.email!
+  const approvedByLabel = (session!.user as { name?: string }).name ?? session!.user!.email!
   const result = await approveReferral({
     referralId: body.id,
     approvedById,
+    approvedByLabel,
     cft: body.cft,
   })
 
