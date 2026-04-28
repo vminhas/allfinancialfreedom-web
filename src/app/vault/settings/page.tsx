@@ -153,11 +153,39 @@ export default function SettingsPage() {
     VICK_EMAIL: '',
   })
 
+  const [opsFields, setOpsFields] = useState({
+    OPERATIONS_CONTACT_NAME: '',
+    OPERATIONS_CONTACT_LAST_NAME: '',
+    OPERATIONS_CONTACT_EMAIL: '',
+    OPERATIONS_CONTACT_PHONE: '',
+  })
+  const [opsSaving, setOpsSaving] = useState(false)
+  const [opsSaved, setOpsSaved] = useState(false)
+
   useEffect(() => {
     fetch('/api/admin/settings').then(r => r.json()).then(d => {
       if (d.settings) setFields(f => ({ ...f, ...d.settings }))
     })
+    fetch('/api/admin/operations-contact').then(r => r.json()).then(d => {
+      if (d.settings) setOpsFields(f => ({ ...f, ...d.settings }))
+    })
   }, [])
+
+  const setOps = (key: keyof typeof opsFields) => (v: string) =>
+    setOpsFields(f => ({ ...f, [key]: v }))
+
+  async function handleSaveOps() {
+    setOpsSaving(true)
+    setOpsSaved(false)
+    await fetch('/api/admin/operations-contact', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(opsFields),
+    })
+    setOpsSaving(false)
+    setOpsSaved(true)
+    setTimeout(() => setOpsSaved(false), 2000)
+  }
 
   const set = (key: keyof typeof fields) => (v: string) => setFields(f => ({ ...f, [key]: v }))
 
@@ -285,6 +313,30 @@ export default function SettingsPage() {
                 {testResult.ok ? '✓ ' : '✗ '}{testResult.msg}
               </p>
             )}
+          </div>
+        </>
+      )}
+
+      {/* Operations Contact — drives the auto-welcome email's voice/signature */}
+      {card(
+        <>
+          {cardHeader('Operations Contact')}
+          <div style={{ padding: '28px' }}>
+            <p style={{ color: '#6B8299', fontSize: 12, margin: '0 0 24px', lineHeight: 1.6 }}>
+              The person whose voice and signature appear on the auto-welcome email new agents receive on approval. Update this once and every welcome from then on uses it — no deploy needed. Leave blank to fall back to the generic AFF team voice.
+            </p>
+            <Field label="First Name" name="OPERATIONS_CONTACT_NAME" value={opsFields.OPERATIONS_CONTACT_NAME} onChange={setOps('OPERATIONS_CONTACT_NAME')} placeholder="Natalia" />
+            <Field label="Last Name" name="OPERATIONS_CONTACT_LAST_NAME" value={opsFields.OPERATIONS_CONTACT_LAST_NAME} onChange={setOps('OPERATIONS_CONTACT_LAST_NAME')} placeholder="(optional)" />
+            <Field label="Email" name="OPERATIONS_CONTACT_EMAIL" value={opsFields.OPERATIONS_CONTACT_EMAIL} onChange={setOps('OPERATIONS_CONTACT_EMAIL')} placeholder="operations@allfinancialfreedom.com" />
+            <Field label="Phone" name="OPERATIONS_CONTACT_PHONE" value={opsFields.OPERATIONS_CONTACT_PHONE} onChange={setOps('OPERATIONS_CONTACT_PHONE')} placeholder="(optional, shown in signature)" />
+            <button onClick={handleSaveOps} disabled={opsSaving} style={{
+              padding: '10px 24px', background: '#C9A96E', color: '#142D48', border: 'none',
+              borderRadius: 4, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em',
+              textTransform: 'uppercase', cursor: opsSaving ? 'not-allowed' : 'pointer',
+              marginTop: 8,
+            }}>
+              {opsSaving ? 'Saving...' : opsSaved ? 'Saved ✓' : 'Save Contact'}
+            </button>
           </div>
         </>
       )}
