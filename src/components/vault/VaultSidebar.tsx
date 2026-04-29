@@ -278,11 +278,11 @@ export default function VaultSidebar() {
     return (
       <>
         <header style={{
-          position: 'sticky', top: 0, zIndex: 30,
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 30,
           background: '#142D48', borderBottom: '1px solid rgba(201,169,110,0.1)',
           padding: '12px 16px',
+          paddingTop: 'calc(12px + env(safe-area-inset-top))',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          flexShrink: 0,
         }}>
           <button
             onClick={() => setOpen(true)}
@@ -302,6 +302,14 @@ export default function VaultSidebar() {
             <p style={{ color: '#ffffff', fontSize: 13, fontWeight: 300, margin: 0 }}>Vault</p>
           </div>
         </header>
+        {/* Spacer reserves layout space for the fixed header so content doesn't slide under it */}
+        <div
+          aria-hidden
+          style={{
+            flexShrink: 0,
+            height: 'calc(48px + env(safe-area-inset-top))',
+          }}
+        />
 
         {open && (
           <div
@@ -324,8 +332,9 @@ export default function VaultSidebar() {
             transform: open ? 'translateX(0)' : 'translateX(-100%)',
             transition: 'transform 0.25s ease',
             zIndex: 50,
+            pointerEvents: open ? 'auto' : 'none',
             display: 'flex', flexDirection: 'column',
-            padding: '24px 0 0',
+            padding: 'calc(24px + env(safe-area-inset-top)) 0 0',
             boxShadow: open ? '0 12px 48px rgba(0,0,0,0.5)' : 'none',
           }}
         >
