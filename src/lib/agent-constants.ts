@@ -349,6 +349,7 @@ export const CARRIERS = [
   'Augustar',
   'Corebridge Life',
   'Corebridge Annuity',
+  'Ethos',
   'Lincoln',
   'Foresters',
   'Mutual of Omaha',
@@ -539,6 +540,7 @@ export const CARRIER_UNLOCK_PHASE: Record<string, number> = {
   'ANICO Life': 2,
   'ANICO Annuity': 2,
   'Corebridge Life': 2,
+  'Ethos': 2,
   'Foresters': 2,
   'Mutual of Omaha': 2,
   // Phase 3, intermediate carriers
@@ -584,3 +586,14 @@ export function getAtRiskStatus(
   if (daysInPhase > threshold.days && pct < threshold.minPct) return 'behind'
   return 'on-track'
 }
+
+// US state postal codes (50 + DC). Single source of truth for state
+// dropdowns across the app: vault forms, agent referral form, contact
+// editing. Keep alphabetized.
+export const US_STATES = [
+  'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
+  'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
+  'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT',
+  'VA','WA','WV','WI','WY','DC',
+] as const
+

@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { randomUUID } from 'crypto'
-import { getGhlConfig, sendGhlEmail, ghlPost, ghlPut } from '@/lib/ghl'
+import { getGhlConfig, sendGhlEmail, ghlPost, ghlPut, OPS_MAILBOX } from '@/lib/ghl'
 import { buildWelcomeEmailHtml } from '@/lib/welcome-email'
 import { requireRole } from '@/lib/permissions'
 
@@ -85,6 +85,11 @@ export async function POST(req: NextRequest) {
           subject: 'Welcome to the All Financial Freedom family',
           html,
           config,
+          // Welcome emails come from operations@, not the CEO mailbox.
+          // The body is signed by Natalia and reply-to lands with the
+          // people who actually onboard the new agent.
+          emailFrom: OPS_MAILBOX.email,
+          emailFromName: OPS_MAILBOX.name,
         })
         emailSent = msgRes.ok
         if (!msgRes.ok) {

@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { agentAuthOptions } from '@/lib/agent-auth'
 import { db } from '@/lib/db'
 import { randomUUID } from 'crypto'
-import { getGhlConfig, sendGhlEmail, ghlPost } from '@/lib/ghl'
+import { getGhlConfig, sendGhlEmail, ghlPost, OPS_MAILBOX } from '@/lib/ghl'
 import { buildWelcomeEmailHtml } from '@/lib/welcome-email'
 
 // POST /api/agents/team/resend-invite — agent reissues the welcome email
@@ -93,6 +93,9 @@ export async function POST(req: NextRequest) {
           subject: 'Welcome to the All Financial Freedom family',
           html,
           config,
+          // Welcome emails come from operations@, not the CEO mailbox.
+          emailFrom: OPS_MAILBOX.email,
+          emailFromName: OPS_MAILBOX.name,
         })
         emailSent = msgRes.ok
         if (!msgRes.ok) emailError = `GHL error ${msgRes.status}`

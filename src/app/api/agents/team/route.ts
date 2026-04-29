@@ -61,6 +61,12 @@ interface TeamNode {
   avatarUrl: string | null
   memberStatus: MemberStatus
   progress: TeamProgress | null
+  // Invite metadata for INVITED rows. Lets the detail panel show "invite
+  // sent on X, expires Y" so the upline knows whether to nudge the
+  // recruit or just wait for them to activate.
+  inviteEmail: string | null
+  inviteSentAt: string | null
+  inviteExpiresAt: string | null
   children: TeamNode[]
 }
 
@@ -113,7 +119,12 @@ export async function GET(req: NextRequest) {
       recruiterId: true,
       // passwordHash drives the ACTIVE vs INVITED distinction. If null,
       // the agent was approved + emailed but never set their password.
-      agentUser: { select: { id: true, passwordHash: true } },
+      // email + inviteExpires let the upline see the invite status panel
+      // for INVITED members (when did the invite go out, has it expired).
+      agentUser: { select: {
+        id: true, passwordHash: true, email: true,
+        inviteExpires: true, lastLoginAt: true, createdAt: true,
+      } },
     },
   })
 
@@ -187,10 +198,13 @@ export async function GET(req: NextRequest) {
       state: a.state,
       avatarUrl: a.avatarUrl,
       memberStatus,
-      // Only ACTIVE members get progress — INVITED agents haven't logged
-      // in to start their checklist, so the numbers would all be zero
-      // and would visually clutter the row with nothing actionable.
+      // Only ACTIVE members get progress: INVITED agents haven't logged
+      // in to start their checklist, so the numbers would all be zero.
+      // Their detail panel shows the invite status instead.
       progress: memberStatus === 'ACTIVE' ? computeProgress(a) : null,
+      inviteEmail:    memberStatus === 'INVITED' ? (a.agentUser?.email ?? null) : null,
+      inviteSentAt:   memberStatus === 'INVITED' ? (a.agentUser?.createdAt?.toISOString() ?? null) : null,
+      inviteExpiresAt: memberStatus === 'INVITED' ? (a.agentUser?.inviteExpires?.toISOString() ?? null) : null,
       children: kids.map(buildNode),
     }
   }
@@ -222,6 +236,9 @@ export async function GET(req: NextRequest) {
     avatarUrl: null,
     memberStatus: 'PENDING',
     progress: null,
+    inviteEmail: null,
+    inviteSentAt: r.createdAt.toISOString(),
+    inviteExpiresAt: null,
     children: [],
   }))
 

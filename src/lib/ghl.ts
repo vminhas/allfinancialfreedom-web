@@ -50,20 +50,37 @@ export async function ghlPut(path: string, body: unknown, config?: GhlConfig) {
   return res
 }
 
+// Default sender mailboxes. Different flows use different ones:
+//   CEO_MAILBOX (Vick) — cold outreach, CEO recruiting intros
+//   OPS_MAILBOX (Operations / Natalia) — welcome emails, onboarding
+// Caller can override via emailFrom/emailFromName.
+export const CEO_MAILBOX = { email: 'vick@allfinancialfreedom.com', name: 'Vick Minhas' }
+export const OPS_MAILBOX = { email: 'operations@allfinancialfreedom.com', name: 'All Financial Freedom' }
+
 export async function sendGhlEmail(params: {
   contactId: string
   emailTo: string
   subject: string
   html: string
   config?: GhlConfig
+  // Override the sender. Default is the CEO mailbox so cold outreach
+  // keeps coming from Vick. Welcome / onboarding emails should pass
+  // OPS_MAILBOX so the new agent's reply lands with operations, not
+  // the CEO.
+  emailFrom?: string
+  emailFromName?: string
+  emailReplyTo?: string
 }) {
   const config = params.config ?? await getGhlConfig()
+  const from = params.emailFrom ?? CEO_MAILBOX.email
+  const fromName = params.emailFromName ?? CEO_MAILBOX.name
+  const replyTo = params.emailReplyTo ?? from
   return ghlPost('/conversations/messages', {
     type: 'Email',
     contactId: params.contactId,
-    emailFrom: 'vick@allfinancialfreedom.com',
-    emailFromName: 'Vick Minhas',
-    emailReplyTo: 'vick@allfinancialfreedom.com',
+    emailFrom: from,
+    emailFromName: fromName,
+    emailReplyTo: replyTo,
     emailTo: params.emailTo,
     subject: params.subject,
     emailSubject: params.subject,

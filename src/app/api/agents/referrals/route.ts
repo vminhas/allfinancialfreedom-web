@@ -1,27 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
-
-async function getProfileId(email: string) {
-  const u = await db.agentUser.findUnique({
-    where: { email },
-    include: { profile: { select: { id: true } } },
-  })
-  return u?.profile?.id ?? null
-}
+import { resolveAgentIdentity } from '@/lib/agent-identity'
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const profileId = await getProfileId(session.user!.email!)
-  if (!profileId) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+  const id = await resolveAgentIdentity(req)
+  if ('error' in id) return id.error
 
   const referrals = await db.agentReferral.findMany({
-    where: { referringAgentId: profileId },
+    where: { referringAgentId: id.profileId },
     orderBy: { createdAt: 'desc' },
   })
 
@@ -29,13 +15,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const profileId = await getProfileId(session.user!.email!)
-  if (!profileId) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+  const id = await resolveAgentIdentity(req)
+  if ('error' in id) return id.error
+  const profileId = id.profileId
 
   // Pull the referrer's name for the Discord ping below.
   const referrer = await db.agentProfile.findUnique({
@@ -113,6 +95,21 @@ export async function POST(req: NextRequest) {
             { type: 2, style: 4, label: 'Reject',                custom_id: `referral-reject:${referral.id}` },
           ],
         }],
+      }).catch(() => {})
+    } catch { /* non-fatal */ }
+  }
+
+  // Public-facing celebration in #announcements: matches the promotion
+  // pattern (single-line content, no embed) so the team sees the recruit
+  // pipeline grow in real time. Fires alongside the admin ping above so
+  // the LC can still triage in their own channel.
+  if (process.env.DISCORD_BOT_TOKEN && referrer) {
+    try {
+      const { sendChannelMessage } = await import('@/lib/discord')
+      const announcementsChannel = process.env.DISCORD_ANNOUNCEMENTS_CHANNEL_ID ?? '1295044213590982724'
+      const refName = `${referrer.firstName} ${referrer.lastName}`
+      sendChannelMessage(announcementsChannel, {
+        content: `**${refName}** is bringing new business partners to the team! Welcome **${body.firstName} ${body.lastName}** to the AFF family. Let's go!`,
       }).catch(() => {})
     } catch { /* non-fatal */ }
   }

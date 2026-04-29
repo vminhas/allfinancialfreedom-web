@@ -1,10 +1,17 @@
 // Builds the "CEO intro" email an agent can fire from a prospect row.
 //
-// Voice and signature are Vick's — the email comes from
+// Voice and signature are Vick's: the email comes from
 // vick@allfinancialfreedom.com and signs as Vick. The body credits the
 // agent ("{Agent} mentioned you to me...") so the recipient knows where
-// the warm intro is coming from. Calendly link is the same ProsHog
-// booking link used for outbound recruiting.
+// the warm intro is coming from.
+//
+// Vick doesn't actually take every discovery call (he's the CEO, not
+// the booking calendar). The intro hands off to the team's onboarding
+// host, usually the COO. The Calendly link routes to whoever the team
+// has configured for the discovery call.
+//
+// No em dashes anywhere in the body. Use commas, periods, colons, or
+// parentheses. This is a project-wide rule.
 
 import { getSetting } from './settings'
 
@@ -23,7 +30,7 @@ export async function buildCeoIntroHtml(input: CeoIntroInput): Promise<{ subject
   const subject = `${input.agentFullName.split(' ')[0]} thought you'd be a great fit`
 
   const personalNoteBlock = input.agentPersonalNote
-    ? `<blockquote style="margin:18px 0; padding:12px 16px; border-left:3px solid #C9A96E; background:rgba(201,169,110,0.06); color:#9BB0C4; font-style:italic; line-height:1.55;">${escapeHtml(input.agentPersonalNote)}<br><span style="display:block; margin-top:6px; font-size:12px; color:#6B8299; font-style:normal;">— ${escapeHtml(input.agentFullName)}</span></blockquote>`
+    ? `<blockquote style="margin:18px 0; padding:12px 16px; border-left:3px solid #C9A96E; background:rgba(201,169,110,0.06); color:#9BB0C4; font-style:italic; line-height:1.55;">${escapeHtml(input.agentPersonalNote)}<br><span style="display:block; margin-top:6px; font-size:12px; color:#6B8299; font-style:normal;">${escapeHtml(input.agentFullName)}</span></blockquote>`
     : ''
 
   const html = `
@@ -34,23 +41,23 @@ export async function buildCeoIntroHtml(input: CeoIntroInput): Promise<{ subject
 
         <p style="color:#9BB0C4; margin:0 0 16px; line-height:1.6;">Hi ${escapeHtml(input.prospectFirstName)},</p>
 
-        <p style="color:#9BB0C4; margin:0 0 16px; line-height:1.6;">I'm Vick Minhas, the founder and CEO of All Financial Freedom. <strong style="color:#fff;">${escapeHtml(input.agentFullName)}</strong>, ${escapeHtml(input.agentRoleLabel)}, mentioned you to me — and thought you'd be a great fit for what we're building.</p>
+        <p style="color:#9BB0C4; margin:0 0 16px; line-height:1.6;">I'm Vick Minhas, the founder and CEO of All Financial Freedom. <strong style="color:#fff;">${escapeHtml(input.agentFullName)}</strong>, ${escapeHtml(input.agentRoleLabel)}, mentioned you to me, and thought you'd be a great fit for what we're building.</p>
 
         ${personalNoteBlock}
 
-        <p style="color:#9BB0C4; margin:0 0 16px; line-height:1.6;">We help everyday people build a financial business that gives them income, ownership, and a real path to time freedom — not a job, not a side hustle, a business. We work with people from all walks of life: nurses, teachers, real-estate pros, business owners, parents who want something more flexible. What ${escapeHtml(input.agentFullName.split(' ')[0])} saw in you matters; that's usually the strongest signal.</p>
+        <p style="color:#9BB0C4; margin:0 0 16px; line-height:1.6;">We help everyday people build a financial business that gives them income, ownership, and a real path to time freedom. Not a job, not a side hustle, a business. We work with people from all walks of life: nurses, teachers, real-estate pros, business owners, parents who want something more flexible. What ${escapeHtml(input.agentFullName.split(' ')[0])} saw in you matters; that's usually the strongest signal.</p>
 
-        <p style="color:#9BB0C4; margin:0 0 24px; line-height:1.6;">If you're even a little curious, I'd love to put 20 minutes on the calendar — no pitch, no pressure. Just a real conversation about what you're after and whether what we do could fit.</p>
+        <p style="color:#9BB0C4; margin:0 0 24px; line-height:1.6;">If you're even a little curious, grab 15 minutes with someone on our team (usually our COO). No pitch, no pressure. Just a real conversation about what you're after and whether what we do could fit.</p>
 
         <div style="text-align:center; margin:0 0 24px;">
-          <a href="${bookingUrl}" style="display:inline-block; padding:14px 32px; background:#C9A96E; color:#142D48; font-weight:700; text-decoration:none; border-radius:4px; font-size:14px;">Book a 20-minute conversation →</a>
+          <a href="${bookingUrl}" style="display:inline-block; padding:14px 32px; background:#C9A96E; color:#142D48; font-weight:700; text-decoration:none; border-radius:4px; font-size:14px;">Book a 15-minute conversation &rarr;</a>
         </div>
 
         <p style="color:#9BB0C4; margin:0 0 8px; line-height:1.6; font-size:13px;">If the calendar doesn't work, just reply to this email and we'll find a time.</p>
 
         <p style="color:#fff; margin:24px 0 0; font-weight:600;">Talk soon,</p>
         <p style="color:#fff; margin:6px 0 0; font-weight:700; font-size:15px;">Vick Minhas</p>
-        <p style="color:#C9A96E; margin:2px 0 0; font-weight:700; font-size:12px;">CEO · All Financial Freedom</p>
+        <p style="color:#C9A96E; margin:2px 0 0; font-weight:700; font-size:12px;">CEO &middot; All Financial Freedom</p>
 
         <hr style="border:none; border-top:1px solid rgba(255,255,255,0.06); margin:28px 0 16px;" />
         <p style="color:#4B5563; font-size:11px; margin:0;">

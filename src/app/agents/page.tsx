@@ -6,6 +6,7 @@ import { signOut } from 'next-auth/react'
 import {
   PHASE_LABELS, PHASE_ITEMS, PHASE_GROUPS, CARRIERS,
   CARRIER_UNLOCK_PHASE, LICENSING_CHECKLIST, SYSTEM_PROGRESSIONS, PHASE_EXPECTED_DAYS,
+  US_STATES,
 } from '@/lib/agent-constants'
 import { GROUP_ICONS, PROGRESSION_ICONS, Mail, ChevronDown, ArrowRight, ExternalLink, UserCheck } from '@/lib/checklist-icons'
 import { formatPhoneAsTyped } from '@/lib/contact-validation'
@@ -376,7 +377,7 @@ function AgentDashboardInner() {
           padding: '8px 20px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           fontSize: 12, color: '#9B6DFF', fontWeight: 600,
         }}>
-          Viewing as {data.firstName} {data.lastName} ({data.agentCode}) — read-only preview
+          Viewing as {data.firstName} {data.lastName} ({data.agentCode}) &middot; read-only preview
           <button onClick={() => window.close()} style={{ background: 'rgba(155,109,255,0.15)', border: '1px solid rgba(155,109,255,0.3)', color: '#9B6DFF', borderRadius: 4, padding: '4px 10px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>Close</button>
         </div>
       )}
@@ -865,7 +866,7 @@ function AgentDashboardInner() {
             <div style={{ marginBottom: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                 <div>
-                  <div style={sectionLabel}>Phase {activeChecklistPhase} — {PHASE_LABELS[activeChecklistPhase].title}</div>
+                  <div style={sectionLabel}>Phase {activeChecklistPhase}: {PHASE_LABELS[activeChecklistPhase].title}</div>
                   <div style={{ fontSize: 11, color: '#6B8299', marginBottom: 2 }}>{PHASE_LABELS[activeChecklistPhase].standard} · Goal: {PHASE_LABELS[activeChecklistPhase].goal}</div>
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 16 }}>
@@ -1355,7 +1356,7 @@ function AgentDashboardInner() {
         )}
 
         {/* ── PARTNERS / POLICIES / CALLS / PROFILE TABS ── */}
-        {activeTab === 'partners' && <BusinessPartnersTab isMobile={isMobile} />}
+        {activeTab === 'partners' && <BusinessPartnersTab isMobile={isMobile} previewToken={previewToken} />}
         {activeTab === 'policies' && <PoliciesTab isMobile={isMobile} />}
         {activeTab === 'new-business' && <NewBusinessTab isMobile={isMobile} phase={data.phase} />}
         {activeTab === 'fta' && <FtaTab isMobile={isMobile} />}
@@ -1593,7 +1594,7 @@ function LicensingTab({
       </div>
 
       <p style={{ fontSize: 12, color: '#6B8299', marginBottom: 20, lineHeight: 1.6 }}>
-        Complete these steps once to get fully licensed and appointed. Some items overlap with your Phase 1 checklist — checking them here updates both.
+        Complete these steps once to get fully licensed and appointed. Some items overlap with your Phase 1 checklist; checking them here updates both.
       </p>
 
       {/* Progress bar */}
@@ -1715,7 +1716,7 @@ function CarriersTab({
                 fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase',
                 color: isLocked ? '#4B5563' : '#C9A96E',
               }}>
-                Phase {unlockPhase} — {phaseLabel}
+                Phase {unlockPhase}: {phaseLabel}
               </div>
               {isLocked && (
                 <span style={{
@@ -2112,7 +2113,7 @@ function ProfileTab({ data, onSaved, discordParam, discordUsername, isMobile }: 
             <span style={{ color: '#C9A96E', fontSize: 14, lineHeight: 1, flexShrink: 0, marginTop: 1 }}>⚑</span>
             <p style={{ margin: 0, fontSize: 11, color: '#9BB0C4', lineHeight: 1.6 }}>
               Your SSN is collected solely for employment verification, carrier appointment processing, and E&O insurance purposes as required by All Financial Freedom.
-              It is encrypted and stored securely — only authorized AFF staff can access it, and it is never shared with third parties outside of these licensing requirements.
+              It is encrypted and stored securely. Only authorized AFF staff can access it, and it is never shared with third parties outside of these licensing requirements.
             </p>
           </div>
 
@@ -2263,6 +2264,43 @@ interface Partner {
   notes: string | null; phaseItemKey: string | null
   introSentAt: string | null
   source: string | null
+  // Workflow lifecycle.
+  //   PENDING    = in the import queue, agent hasn't classified yet
+  //   NEW        = classified, no outreach yet
+  //   CONTACTED  = agent reached out (manual flag for FTA flow)
+  //   INTRO_SENT = CEO intro sent (BP flow)
+  //   BOOKED     = appointment on the calendar
+  //   CONVERTED  = joined the team / became a client
+  //   SKIPPED    = decided not to pursue, hidden from queue but kept
+  status: string
+  lastContactAt: string | null
+  createdAt?: string
+}
+
+// Lanes within the contact pipeline. Two visible buckets, plus the queue
+// (pre-classification) and a skipped archive for revisit. Life-Market /
+// Rollover-Market live in the legacy categories but aren't part of the
+// recruit-flow tabs.
+type ContactView = 'queue' | 'business_partners' | 'fta' | 'skipped'
+
+const STATUS_LABEL: Record<string, string> = {
+  PENDING: 'In Queue',
+  NEW: 'New',
+  CONTACTED: 'Contacted',
+  INTRO_SENT: 'Intro Sent',
+  BOOKED: 'Booked',
+  CONVERTED: 'Converted',
+  SKIPPED: 'Skipped',
+}
+
+const STATUS_COLOR: Record<string, string> = {
+  PENDING: '#9BB0C4',
+  NEW: '#60a5fa',
+  CONTACTED: '#C9A96E',
+  INTRO_SENT: '#9B6DFF',
+  BOOKED: '#f59e0b',
+  CONVERTED: '#4ade80',
+  SKIPPED: '#4B5563',
 }
 
 interface ImportPreviewRow {
@@ -2298,7 +2336,21 @@ const PARTNER_CATEGORIES = [
 
 const TIMEZONES = ['EST', 'CST', 'MST', 'PST', 'HST', 'AKST'] as const
 
-function BusinessPartnersTab({ isMobile }: { isMobile: boolean }) {
+function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; previewToken?: string | null }) {
+  // Append ?preview=<token> to any agent endpoint when an admin / LC is
+  // viewing-as-agent. Without it, the API can't tell which agent's data
+  // to read or attribute writes to, and returns Unauthorized.
+  const withPreview = (path: string) => previewToken
+    ? `${path}${path.includes('?') ? '&' : '?'}preview=${previewToken}`
+    : path
+
+  // ── View / filter / search state ────────────────────────────────────
+  const [view, setView] = useState<ContactView>('queue')
+  const [search, setSearch] = useState('')
+  const [sortBy, setSortBy] = useState<'name' | 'imported' | 'lastContact'>('imported')
+  // "Stale" = no contact action in 12+ months. Helps mass-prune the list.
+  const [showStaleOnly, setShowStaleOnly] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [partners, setPartners] = useState<Partner[]>([])
   const [referrals, setReferrals] = useState<Referral[]>([])
   const [loading, setLoading] = useState(true)
@@ -2325,8 +2377,8 @@ function BusinessPartnersTab({ isMobile }: { isMobile: boolean }) {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/agents/partners').then(r => r.json()),
-      fetch('/api/agents/referrals').then(r => r.json()),
+      fetch(withPreview('/api/agents/partners')).then(r => r.json()),
+      fetch(withPreview('/api/agents/referrals')).then(r => r.json()),
     ]).then(([pd, rd]: [{ partners: Partner[] }, { referrals: Referral[] }]) => {
       setPartners(pd.partners ?? [])
       setReferrals(rd.referrals ?? [])
@@ -2375,7 +2427,7 @@ function BusinessPartnersTab({ isMobile }: { isMobile: boolean }) {
     setSaving(true)
     setReferError(null)
     try {
-      const res = await fetch('/api/agents/referrals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(referForm) })
+      const res = await fetch(withPreview('/api/agents/referrals'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(referForm) })
       if (!res.ok) { const d = await res.json() as { error?: string }; setReferError(d.error ?? 'Failed to submit'); return }
       const r = await res.json() as Referral
       setReferrals(prev => [r, ...prev])
@@ -2449,9 +2501,164 @@ function BusinessPartnersTab({ isMobile }: { isMobile: boolean }) {
     } finally { setIntroSending(false) }
   }
 
-  const filtered = activeCategory
-    ? partners.filter(p => p.category === activeCategory)
-    : partners
+  // ── View routing: split contacts into Queue / BP Prospects / FTA / Skipped ──
+  // The Queue is the import dump that hasn't been classified yet. Each
+  // lane shows its own pipeline stages. Skipped is an archive (kept so
+  // re-imports don't re-queue the same person).
+  const inQueue       = partners.filter(p => p.status === 'PENDING')
+  const businessLane  = partners.filter(p => p.status !== 'PENDING' && p.status !== 'SKIPPED'
+                                             && (p.category === 'business_partner' || p.category === 'recruit'))
+  const ftaLane       = partners.filter(p => p.status !== 'PENDING' && p.status !== 'SKIPPED'
+                                             && p.category === 'fta_contact')
+  const skippedLane   = partners.filter(p => p.status === 'SKIPPED')
+  const queueCount = inQueue.length
+
+  const baseList = view === 'queue'             ? inQueue
+                  : view === 'business_partners' ? businessLane
+                  : view === 'fta'               ? ftaLane
+                                                 : skippedLane
+
+  // Search across name / email / phone / occupation. Cheap on a 500-row
+  // list — no need for a debounced fetch.
+  const searchLower = search.trim().toLowerCase()
+  const searched = searchLower
+    ? baseList.filter(p => [p.name, p.email, p.phone, p.occupation].some(
+        f => f && f.toLowerCase().includes(searchLower)
+      ))
+    : baseList
+
+  // Stale = no lastContactAt for 365+ days, OR (no lastContactAt at all
+  // AND created over 365 days ago). Useful for cleaning up old contacts
+  // the agent hasn't actually engaged with in years.
+  const staleThreshold = Date.now() - 365 * 86_400_000
+  const filtered = showStaleOnly
+    ? searched.filter(p => {
+        const ref = p.lastContactAt ?? p.createdAt ?? null
+        return ref ? new Date(ref).getTime() < staleThreshold : true
+      })
+    : searched
+
+  // Sort
+  const sorted = [...filtered].sort((a, b) => {
+    if (sortBy === 'name') return a.name.localeCompare(b.name)
+    if (sortBy === 'lastContact') {
+      const at = a.lastContactAt ? new Date(a.lastContactAt).getTime() : 0
+      const bt = b.lastContactAt ? new Date(b.lastContactAt).getTime() : 0
+      return bt - at
+    }
+    // 'imported' (default): newest first by createdAt, falling back to id ordering
+    const at = a.createdAt ? new Date(a.createdAt).getTime() : 0
+    const bt = b.createdAt ? new Date(b.createdAt).getTime() : 0
+    return bt - at
+  })
+
+  // Drop selections that are no longer visible in the current view so
+  // bulk actions only touch what the user can actually see.
+  const visibleIds = new Set(sorted.map(p => p.id))
+  const effectiveSelection = new Set([...selectedIds].filter(id => visibleIds.has(id)))
+  const allSelected = sorted.length > 0 && sorted.every(p => effectiveSelection.has(p.id))
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  const selectAll = (checked: boolean) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (checked) sorted.forEach(p => next.add(p.id))
+      else sorted.forEach(p => next.delete(p.id))
+      return next
+    })
+  }
+  const clearSelection = () => setSelectedIds(new Set())
+
+  // ── Single-row actions ──────────────────────────────────────────────
+  const classifyOne = async (id: string, category: string) => {
+    // Optimistic: flip status + category locally so the row leaves the
+    // queue immediately. Keeps the UI feeling instant on a 500-contact
+    // list. If the call fails, revert.
+    const prev = partners
+    setPartners(ps => ps.map(p => p.id === id ? { ...p, category, status: 'NEW' } : p))
+    const res = await fetch(withPreview(`/api/agents/partners/${id}/classify`), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'classify', category }),
+    })
+    if (!res.ok) setPartners(prev)
+  }
+
+  const skipOne = async (id: string) => {
+    const prev = partners
+    setPartners(ps => ps.map(p => p.id === id ? { ...p, status: 'SKIPPED' } : p))
+    const res = await fetch(withPreview(`/api/agents/partners/${id}/classify`), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'skip' }),
+    })
+    if (!res.ok) setPartners(prev)
+  }
+
+  const advanceOne = async (id: string, status: string) => {
+    const prev = partners
+    setPartners(ps => ps.map(p => p.id === id ? { ...p, status, lastContactAt: new Date().toISOString() } : p))
+    const res = await fetch(withPreview(`/api/agents/partners/${id}/classify`), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'advance', status }),
+    })
+    if (!res.ok) setPartners(prev)
+  }
+
+  const deleteOne = async (id: string) => {
+    if (!confirm('Delete this contact permanently?')) return
+    const prev = partners
+    setPartners(ps => ps.filter(p => p.id !== id))
+    const res = await fetch(withPreview('/api/agents/partners'), {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
+    if (!res.ok) setPartners(prev)
+  }
+
+  // ── Bulk actions over selected rows ─────────────────────────────────
+  const bulkClassify = async (category: string) => {
+    const ids = [...effectiveSelection]
+    if (ids.length === 0) return
+    const prev = partners
+    setPartners(ps => ps.map(p => ids.includes(p.id) ? { ...p, category, status: 'NEW' } : p))
+    clearSelection()
+    const res = await fetch(withPreview('/api/agents/partners/bulk'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, action: 'classify', category }),
+    })
+    if (!res.ok) setPartners(prev)
+  }
+  const bulkSkip = async () => {
+    const ids = [...effectiveSelection]
+    if (ids.length === 0) return
+    const prev = partners
+    setPartners(ps => ps.map(p => ids.includes(p.id) ? { ...p, status: 'SKIPPED' } : p))
+    clearSelection()
+    const res = await fetch(withPreview('/api/agents/partners/bulk'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, action: 'skip' }),
+    })
+    if (!res.ok) setPartners(prev)
+  }
+  const bulkDelete = async () => {
+    const ids = [...effectiveSelection]
+    if (ids.length === 0) return
+    if (!confirm(`Delete ${ids.length} contact${ids.length === 1 ? '' : 's'} permanently? This can't be undone.`)) return
+    const prev = partners
+    setPartners(ps => ps.filter(p => !ids.includes(p.id)))
+    clearSelection()
+    const res = await fetch(withPreview('/api/agents/partners/bulk'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, action: 'delete' }),
+    })
+    if (!res.ok) setPartners(prev)
+  }
 
   const thStyle: React.CSSProperties = { padding: '8px 10px', textAlign: 'left', fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#C9A96E', whiteSpace: 'nowrap' }
   const tdStyle: React.CSSProperties = { padding: '8px 10px', fontSize: 11, color: '#9BB0C4' }
@@ -2474,7 +2681,12 @@ function BusinessPartnersTab({ isMobile }: { isMobile: boolean }) {
             <div><label style={fieldLabel}>Last Name *</label><input required style={inputStyle} value={referForm.lastName} onChange={e => setReferForm(f => ({ ...f, lastName: e.target.value }))} /></div>
             <div><label style={fieldLabel}>Email *</label><input required type="email" style={inputStyle} value={referForm.email} onChange={e => setReferForm(f => ({ ...f, email: e.target.value }))} /></div>
             <div><label style={fieldLabel}>Phone</label><input type="tel" inputMode="numeric" placeholder="(555) 123-4567" style={inputStyle} value={referForm.phone} onChange={e => setReferForm(f => ({ ...f, phone: formatPhoneAsTyped(e.target.value) }))} /></div>
-            <div><label style={fieldLabel}>State</label><input style={inputStyle} value={referForm.state} onChange={e => setReferForm(f => ({ ...f, state: e.target.value }))} placeholder="e.g., CA" /></div>
+            <div><label style={fieldLabel}>State</label>
+              <select style={{ ...inputStyle, cursor: 'pointer', appearance: 'auto' }} value={referForm.state} onChange={e => setReferForm(f => ({ ...f, state: e.target.value }))}>
+                <option value="">Select a state</option>
+                {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
             <div><label style={fieldLabel}>Notes</label><input style={inputStyle} value={referForm.notes} onChange={e => setReferForm(f => ({ ...f, notes: e.target.value }))} /></div>
             {referError && <div style={{ gridColumn: isMobile ? undefined : 'span 2', fontSize: 11, color: '#f87171' }}>{referError}</div>}
             <div style={{ gridColumn: isMobile ? undefined : 'span 2', display: 'flex', gap: 8 }}>
@@ -2501,42 +2713,102 @@ function BusinessPartnersTab({ isMobile }: { isMobile: boolean }) {
         )}
       </div>
 
-      {/* Contacts & Prospects — full spreadsheet parity */}
+      {/* Contacts pipeline: Queue → Business Partners / FTA / Skipped */}
       <div style={{ ...card, padding: '20px 24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
-          <div>
-            <div style={sectionLabel}>Contacts & Prospects ({partners.length})</div>
-            <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>
-              Import contacts from your phone, classify each as an FTA contact or business partner prospect, and send a CEO intro to anyone you'd like to recruit.
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={sectionLabel}>Contacts</div>
+            <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2, lineHeight: 1.5 }}>
+              Import contacts from your phone, classify each as a Business Partner prospect or FTA contact, and reach out from there.
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => { setImportOpen(true); setImportPreview(null); setImportError(null) }} style={{ background: 'transparent', color: '#C9A96E', border: '1px solid rgba(201,169,110,0.4)', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>↑ Import CSV</button>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            {queueCount > 0 && (
+              <button
+                onClick={() => setView('queue')}
+                style={{
+                  background: 'rgba(245,158,11,0.12)',
+                  border: '1px solid rgba(245,158,11,0.4)',
+                  color: '#F59E0B',
+                  borderRadius: 4, padding: '6px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}
+                title="Click to jump to the queue"
+              >
+                <span style={{ background: '#F59E0B', color: '#0A1628', borderRadius: 999, padding: '1px 7px', fontSize: 10 }}>{queueCount}</span>
+                in queue
+              </button>
+            )}
+            <button onClick={() => { setImportOpen(true); setImportPreview(null); setImportError(null) }} style={{ background: 'transparent', color: '#C9A96E', border: '1px solid rgba(201,169,110,0.4)', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>&uarr; Import CSV</button>
             <button onClick={() => { resetForm(); setShowForm(!showForm) }} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>+ Add</button>
           </div>
         </div>
 
-        {/* Category filter tabs */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 12, flexWrap: 'wrap' }}>
-          <button onClick={() => setActiveCategory(null)} style={{
-            padding: '4px 12px', borderRadius: 4, fontSize: 10, fontWeight: 600,
-            background: !activeCategory ? 'rgba(201,169,110,0.12)' : 'transparent',
-            border: `1px solid ${!activeCategory ? 'rgba(201,169,110,0.3)' : 'rgba(255,255,255,0.06)'}`,
-            color: !activeCategory ? '#C9A96E' : '#6B8299', cursor: 'pointer',
-          }}>All ({partners.length})</button>
-          {PARTNER_CATEGORIES.map(c => {
-            const count = partners.filter(p => p.category === c.key).length
-            if (count === 0 && activeCategory !== c.key) return null
+        {/* View tabs: Queue / Business Partners / FTA / Skipped */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 12, flexWrap: 'wrap', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: 0 }}>
+          {([
+            { key: 'queue',              label: 'Queue',              count: inQueue.length,      color: '#F59E0B' },
+            { key: 'business_partners',  label: 'Business Partners',  count: businessLane.length, color: '#9B6DFF' },
+            { key: 'fta',                label: 'FTA Contacts',       count: ftaLane.length,      color: '#60a5fa' },
+            { key: 'skipped',            label: 'Skipped',            count: skippedLane.length,  color: '#6B8299' },
+          ] as Array<{ key: ContactView; label: string; count: number; color: string }>).map(t => {
+            const active = view === t.key
             return (
-              <button key={c.key} onClick={() => setActiveCategory(activeCategory === c.key ? null : c.key)} style={{
-                padding: '4px 12px', borderRadius: 4, fontSize: 10, fontWeight: 600,
-                background: activeCategory === c.key ? 'rgba(201,169,110,0.12)' : 'transparent',
-                border: `1px solid ${activeCategory === c.key ? 'rgba(201,169,110,0.3)' : 'rgba(255,255,255,0.06)'}`,
-                color: activeCategory === c.key ? '#C9A96E' : '#6B8299', cursor: 'pointer',
-              }}>{c.label} ({count})</button>
+              <button key={t.key} onClick={() => { setView(t.key); clearSelection() }} style={{
+                padding: '8px 14px', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                background: 'none', border: 'none',
+                color: active ? t.color : '#6B8299',
+                borderBottom: active ? `2px solid ${t.color}` : '2px solid transparent',
+                marginBottom: -1, cursor: 'pointer',
+              }}>
+                {t.label} <span style={{ fontWeight: 400, opacity: 0.7 }}>({t.count})</span>
+              </button>
             )
           })}
         </div>
+
+        {/* Search + sort + stale filter */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by name, email, phone, occupation..."
+            style={{ ...inputStyle, flex: 1, minWidth: 200, padding: '7px 12px' }}
+          />
+          <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)} style={{ ...inputStyle, width: 'auto', cursor: 'pointer' }}>
+            <option value="imported">Newest first</option>
+            <option value="name">Name (A-Z)</option>
+            <option value="lastContact">Last contacted</option>
+          </select>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: showStaleOnly ? '#F59E0B' : '#6B8299', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            <input type="checkbox" checked={showStaleOnly} onChange={e => setShowStaleOnly(e.target.checked)} />
+            Stale (12+ months)
+          </label>
+        </div>
+
+        {/* Bulk action bar — shows when any rows in this view are selected */}
+        {effectiveSelection.size > 0 && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+            padding: '10px 14px', marginBottom: 12,
+            background: 'rgba(201,169,110,0.08)',
+            border: '1px solid rgba(201,169,110,0.25)',
+            borderRadius: 6,
+          }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#C9A96E' }}>
+              {effectiveSelection.size} selected
+            </span>
+            {view === 'queue' && (
+              <>
+                <button onClick={() => bulkClassify('business_partner')} style={{ background: 'rgba(155,109,255,0.15)', border: '1px solid rgba(155,109,255,0.4)', color: '#9B6DFF', fontSize: 10, fontWeight: 700, padding: '5px 10px', borderRadius: 3, cursor: 'pointer' }}>&rarr; Business Partner</button>
+                <button onClick={() => bulkClassify('fta_contact')} style={{ background: 'rgba(96,165,250,0.15)', border: '1px solid rgba(96,165,250,0.4)', color: '#60A5FA', fontSize: 10, fontWeight: 700, padding: '5px 10px', borderRadius: 3, cursor: 'pointer' }}>&rarr; FTA Contact</button>
+                <button onClick={() => bulkSkip()} style={{ background: 'transparent', border: '1px solid rgba(107,130,153,0.4)', color: '#9BB0C4', fontSize: 10, fontWeight: 700, padding: '5px 10px', borderRadius: 3, cursor: 'pointer' }}>Skip</button>
+              </>
+            )}
+            <button onClick={() => bulkDelete()} style={{ background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.35)', color: '#f87171', fontSize: 10, fontWeight: 700, padding: '5px 10px', borderRadius: 3, cursor: 'pointer' }}>Delete</button>
+            <button onClick={clearSelection} style={{ background: 'none', border: 'none', color: '#6B8299', fontSize: 10, cursor: 'pointer', marginLeft: 'auto' }}>Clear</button>
+          </div>
+        )}
 
         {showForm && (
           <form onSubmit={handleSubmit} style={{ marginBottom: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 10, padding: 16, background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)' }}>
@@ -2581,50 +2853,108 @@ function BusinessPartnersTab({ isMobile }: { isMobile: boolean }) {
         )}
 
         {loading ? <div style={{ color: '#6B8299', fontSize: 13 }}>Loading...</div> :
-          filtered.length === 0 ? <div style={{ color: '#4B5563', fontSize: 13 }}>{activeCategory ? 'No contacts in this category.' : 'No contacts yet. Add your first prospect.'}</div> :
+          sorted.length === 0 ? (
+            <div style={{ color: '#4B5563', fontSize: 13, padding: '24px 0', textAlign: 'center' }}>
+              {view === 'queue' && (search || showStaleOnly ? 'No contacts match those filters.' : 'Queue is empty. Tap "Import CSV" to add contacts from your phone.')}
+              {view === 'business_partners' && 'No business partner prospects yet. Classify someone from the queue to get started.'}
+              {view === 'fta' && 'No FTA contacts yet. Classify someone from the queue to get started.'}
+              {view === 'skipped' && 'No skipped contacts.'}
+            </div>
+          ) :
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
               <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                {['Name', 'Phone', 'TZ', 'Age', 'M', 'K', 'H', 'Occupation', 'Traits', 'Appt Date', '1st Call', '2nd Call', 'Booked', ''].map(h => <th key={h} style={thStyle}>{h}</th>)}
+                <th style={{ ...thStyle, width: 24 }}>
+                  <input type="checkbox" checked={allSelected} onChange={e => selectAll(e.target.checked)} />
+                </th>
+                <th style={thStyle}>Name</th>
+                <th style={thStyle}>Email</th>
+                <th style={thStyle}>Phone</th>
+                {view !== 'queue' && <th style={thStyle}>Stage</th>}
+                <th style={thStyle}>Occupation</th>
+                {!isMobile && <th style={thStyle}>Last Contact</th>}
+                <th style={{ ...thStyle, textAlign: 'right' }}>Actions</th>
               </tr></thead>
-              <tbody>{filtered.map(p => (
-                <tr key={p.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                  <td style={{ ...tdStyle, color: '#ffffff', fontWeight: 500 }}>{p.name}</td>
-                  <td style={tdStyle}>{p.phone ?? ''}</td>
-                  <td style={tdStyle}>{p.timeZone ?? ''}</td>
-                  <td style={tdStyle}>{p.age ?? ''}</td>
-                  <td style={checkStyle}>{p.married ? '✓' : ''}</td>
-                  <td style={checkStyle}>{p.children ? '✓' : ''}</td>
-                  <td style={checkStyle}>{p.homeowner ? '✓' : ''}</td>
-                  <td style={tdStyle}>{p.occupation ?? ''}</td>
-                  <td style={{ ...tdStyle, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.characterTraits ?? ''}</td>
-                  <td style={tdStyle}>{p.appointmentDate ? new Date(p.appointmentDate).toLocaleDateString() : ''}</td>
-                  <td style={tdStyle}>{p.firstCallDate ? new Date(p.firstCallDate).toLocaleDateString() : ''}</td>
-                  <td style={tdStyle}>{p.secondCallDate ? new Date(p.secondCallDate).toLocaleDateString() : ''}</td>
-                  <td style={checkStyle}>{p.bookedAppt ? '✓' : ''}</td>
-                  <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    {/* "Send CEO intro" only makes sense for recruit-style categories — */}
-                    {/* an FTA contact is a client lead, not someone we'd recruit. */}
-                    {(p.category === 'business_partner' || p.category === 'recruit') && (
-                      p.introSentAt ? (
-                        <span style={{ fontSize: 9, color: '#4ade80', marginRight: 8, fontWeight: 700 }} title={`Sent ${new Date(p.introSentAt).toLocaleDateString()}`}>
-                          ✓ INTRO SENT
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => { setIntroModalPartner(p); setIntroNote(''); setIntroError(null) }}
-                          disabled={!p.email}
-                          title={p.email ? 'Have Vick send a warm intro' : 'Add an email first'}
-                          style={{ background: 'rgba(201,169,110,0.12)', border: '1px solid rgba(201,169,110,0.3)', color: p.email ? '#C9A96E' : '#4B5563', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: p.email ? 'pointer' : 'not-allowed', marginRight: 8 }}
-                        >
-                          CEO INTRO
-                        </button>
-                      )
+              <tbody>{sorted.map(p => {
+                const isSelected = effectiveSelection.has(p.id)
+                const isStale = (p.lastContactAt ?? p.createdAt) ? new Date(p.lastContactAt ?? p.createdAt!).getTime() < staleThreshold : true
+                return (
+                  <tr key={p.id} style={{
+                    borderBottom: '1px solid rgba(255,255,255,0.03)',
+                    background: isSelected ? 'rgba(201,169,110,0.06)' : 'transparent',
+                  }}>
+                    <td style={{ ...tdStyle, width: 24 }}>
+                      <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(p.id)} />
+                    </td>
+                    <td style={{ ...tdStyle, color: '#ffffff', fontWeight: 500 }}>{p.name}</td>
+                    <td style={tdStyle}>{p.email ?? ''}</td>
+                    <td style={tdStyle}>{p.phone ?? ''}</td>
+                    {view !== 'queue' && (
+                      <td style={tdStyle}>
+                        <span style={{
+                          fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                          padding: '2px 7px', borderRadius: 3,
+                          background: `${STATUS_COLOR[p.status] ?? '#6B8299'}15`,
+                          border: `1px solid ${STATUS_COLOR[p.status] ?? '#6B8299'}40`,
+                          color: STATUS_COLOR[p.status] ?? '#6B8299',
+                        }}>{STATUS_LABEL[p.status] ?? p.status}</span>
+                      </td>
                     )}
-                    <button onClick={() => startEdit(p)} style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 10, cursor: 'pointer' }}>Edit</button>
-                  </td>
-                </tr>
-              ))}</tbody>
+                    <td style={{ ...tdStyle, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.occupation ?? ''}</td>
+                    {!isMobile && (
+                      <td style={{ ...tdStyle, color: isStale ? '#f59e0b' : '#9BB0C4' }}>
+                        {p.lastContactAt ? new Date(p.lastContactAt).toLocaleDateString() : (p.createdAt ? `imported ${new Date(p.createdAt).toLocaleDateString()}` : '')}
+                      </td>
+                    )}
+                    <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {/* Queue view: classify or skip in one tap */}
+                      {view === 'queue' && (
+                        <>
+                          <button onClick={() => classifyOne(p.id, 'business_partner')} title="Classify as Business Partner Prospect" style={{ background: 'rgba(155,109,255,0.15)', border: '1px solid rgba(155,109,255,0.4)', color: '#9B6DFF', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: 'pointer', marginRight: 6 }}>BP</button>
+                          <button onClick={() => classifyOne(p.id, 'fta_contact')} title="Classify as FTA Contact" style={{ background: 'rgba(96,165,250,0.15)', border: '1px solid rgba(96,165,250,0.4)', color: '#60A5FA', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: 'pointer', marginRight: 6 }}>FTA</button>
+                          <button onClick={() => skipOne(p.id)} title="Skip (kept but hidden from queue)" style={{ background: 'transparent', border: '1px solid rgba(107,130,153,0.4)', color: '#9BB0C4', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: 'pointer', marginRight: 6 }}>SKIP</button>
+                        </>
+                      )}
+                      {/* Business Partner lane: CEO intro + stage advance */}
+                      {view === 'business_partners' && (
+                        <>
+                          {p.introSentAt ? (
+                            <span style={{ fontSize: 9, color: '#4ade80', marginRight: 8, fontWeight: 700 }} title={`Sent ${new Date(p.introSentAt).toLocaleDateString()}`}>&check; INTRO</span>
+                          ) : (
+                            <button onClick={() => { setIntroModalPartner(p); setIntroNote(''); setIntroError(null) }} disabled={!p.email} title={p.email ? 'Have Vick send a warm intro' : 'Add an email first'} style={{ background: 'rgba(201,169,110,0.12)', border: '1px solid rgba(201,169,110,0.3)', color: p.email ? '#C9A96E' : '#4B5563', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: p.email ? 'pointer' : 'not-allowed', marginRight: 6 }}>CEO INTRO</button>
+                          )}
+                          {p.status !== 'BOOKED' && p.status !== 'CONVERTED' && (
+                            <button onClick={() => advanceOne(p.id, 'BOOKED')} title="Mark as Booked" style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.35)', color: '#F59E0B', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: 'pointer', marginRight: 6 }}>BOOKED</button>
+                          )}
+                          {p.status !== 'CONVERTED' && (
+                            <button onClick={() => advanceOne(p.id, 'CONVERTED')} title="Mark as Converted (joined / closed)" style={{ background: 'rgba(74,222,128,0.12)', border: '1px solid rgba(74,222,128,0.35)', color: '#4ade80', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: 'pointer', marginRight: 6 }}>CONVERTED</button>
+                          )}
+                        </>
+                      )}
+                      {/* FTA lane: stage advance */}
+                      {view === 'fta' && (
+                        <>
+                          {p.status === 'NEW' && (
+                            <button onClick={() => advanceOne(p.id, 'CONTACTED')} title="Mark as Contacted" style={{ background: 'rgba(201,169,110,0.12)', border: '1px solid rgba(201,169,110,0.3)', color: '#C9A96E', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: 'pointer', marginRight: 6 }}>CONTACTED</button>
+                          )}
+                          {p.status !== 'BOOKED' && p.status !== 'CONVERTED' && (
+                            <button onClick={() => advanceOne(p.id, 'BOOKED')} title="Mark as Booked" style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.35)', color: '#F59E0B', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: 'pointer', marginRight: 6 }}>BOOKED</button>
+                          )}
+                          {p.status !== 'CONVERTED' && (
+                            <button onClick={() => advanceOne(p.id, 'CONVERTED')} title="Mark as Trained / Closed" style={{ background: 'rgba(74,222,128,0.12)', border: '1px solid rgba(74,222,128,0.35)', color: '#4ade80', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: 'pointer', marginRight: 6 }}>DONE</button>
+                          )}
+                        </>
+                      )}
+                      {/* Skipped: only un-skip available */}
+                      {view === 'skipped' && (
+                        <button onClick={() => advanceOne(p.id, p.category ? 'NEW' : 'PENDING')} title="Move back to active" style={{ background: 'rgba(96,165,250,0.15)', border: '1px solid rgba(96,165,250,0.4)', color: '#60A5FA', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: 'pointer', marginRight: 6 }}>UNSKIP</button>
+                      )}
+                      <button onClick={() => startEdit(p)} style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 10, cursor: 'pointer', marginRight: 6 }}>Edit</button>
+                      <button onClick={() => deleteOne(p.id)} title="Delete permanently" style={{ background: 'none', border: 'none', color: '#f87171', fontSize: 10, cursor: 'pointer' }}>&times;</button>
+                    </td>
+                  </tr>
+                )
+              })}</tbody>
             </table>
           </div>
         }
@@ -2699,18 +3029,57 @@ function ImportModal({
         </div>
 
         {!preview && (
-          <div style={{ padding: '40px 24px', textAlign: 'center' }}>
-            <label style={{ display: 'inline-block', cursor: busy ? 'wait' : 'pointer', background: '#C9A96E', color: '#142D48', padding: '12px 28px', borderRadius: 4, fontSize: 13, fontWeight: 700 }}>
-              {busy ? 'Reading...' : 'Choose CSV file'}
-              <input
-                type="file" accept=".csv,text/csv" hidden
-                onChange={e => { const f = e.target.files?.[0]; if (f) onPickFile(f) }}
-                disabled={busy}
-              />
-            </label>
-            <div style={{ fontSize: 11, color: '#6B8299', marginTop: 16, lineHeight: 1.6 }}>
-              On iPhone: open the Contacts app → select contacts → Share → Save to Files as a vCard, then convert to CSV with any free converter.<br />
-              On Google Contacts: Export → Google CSV.
+          <div style={{ padding: '28px 24px' }}>
+            <div style={{ textAlign: 'center', marginBottom: 28 }}>
+              <label style={{ display: 'inline-block', cursor: busy ? 'wait' : 'pointer', background: '#C9A96E', color: '#142D48', padding: '14px 32px', borderRadius: 4, fontSize: 14, fontWeight: 700 }}>
+                {busy ? 'Reading...' : 'Choose CSV file'}
+                <input
+                  type="file" accept=".csv,text/csv" hidden
+                  onChange={e => { const f = e.target.files?.[0]; if (f) onPickFile(f) }}
+                  disabled={busy}
+                />
+              </label>
+              <div style={{ fontSize: 11, color: '#6B8299', marginTop: 8 }}>
+                Up to 500 contacts per import. We never share your contact list.
+              </div>
+            </div>
+
+            {/* Per-platform instructions, two compact columns on desktop */}
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
+              {/* iPhone */}
+              <div style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(201,169,110,0.15)', borderRadius: 6 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 10 }}>
+                  iPhone
+                </div>
+                <ol style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: '#9BB0C4', lineHeight: 1.7 }}>
+                  <li>Open the <strong style={{ color: '#fff' }}>Contacts</strong> app.</li>
+                  <li>Tap <strong style={{ color: '#fff' }}>Lists</strong> in the top-left, then <strong style={{ color: '#fff' }}>All Contacts</strong>.</li>
+                  <li><strong style={{ color: '#fff' }}>Press and hold</strong> on any contact until a menu appears. Tap <strong style={{ color: '#fff' }}>Select</strong>.</li>
+                  <li>Tap each contact you want to import. Or tap <strong style={{ color: '#fff' }}>Select All</strong>.</li>
+                  <li>Tap <strong style={{ color: '#fff' }}>Share</strong>, then <strong style={{ color: '#fff' }}>Save to Files</strong>. This creates a <code style={{ background: 'rgba(255,255,255,0.05)', padding: '0 4px', borderRadius: 2, fontSize: 11 }}>.vcf</code> file.</li>
+                  <li>Open <a href="https://www.vcardtocsv.com/" target="_blank" rel="noopener noreferrer" style={{ color: '#C9A96E' }}>vcardtocsv.com</a> on your phone, upload the file, download the CSV.</li>
+                  <li>Come back here and tap <strong style={{ color: '#fff' }}>Choose CSV file</strong> above.</li>
+                </ol>
+              </div>
+
+              {/* Android */}
+              <div style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(96,165,250,0.15)', borderRadius: 6 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#60A5FA', marginBottom: 10 }}>
+                  Android (Google Contacts)
+                </div>
+                <ol style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: '#9BB0C4', lineHeight: 1.7 }}>
+                  <li>On your phone or laptop, open <a href="https://contacts.google.com" target="_blank" rel="noopener noreferrer" style={{ color: '#60A5FA' }}>contacts.google.com</a>.</li>
+                  <li>Tap <strong style={{ color: '#fff' }}>Export</strong> in the left menu (Settings on mobile).</li>
+                  <li>Pick <strong style={{ color: '#fff' }}>Selected contacts</strong> or <strong style={{ color: '#fff' }}>All contacts</strong>.</li>
+                  <li>Choose <strong style={{ color: '#fff' }}>Google CSV</strong> as the format.</li>
+                  <li>Tap <strong style={{ color: '#fff' }}>Export</strong> and save the file.</li>
+                  <li>Come back here and tap <strong style={{ color: '#fff' }}>Choose CSV file</strong> above.</li>
+                </ol>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 16, fontSize: 11, color: '#4B5563', textAlign: 'center', lineHeight: 1.6 }}>
+              We auto-detect Name, Email, Phone, and Occupation from any of these formats. Imports land in your <strong style={{ color: '#9BB0C4' }}>Queue</strong>; classify each as a Business Partner or FTA contact afterwards.
             </div>
           </div>
         )}
@@ -2720,7 +3089,7 @@ function ImportModal({
             <div style={{ padding: '12px 24px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 11, color: '#9BB0C4' }}>Bulk classify all rows as</span>
               <select value={bulkCategory} onChange={e => setBulkCategory(e.target.value)} style={{ background: '#0A1628', border: '1px solid rgba(201,169,110,0.2)', color: '#9BB0C4', borderRadius: 4, padding: '6px 10px', fontSize: 11 }}>
-                <option value="">— Pick a category —</option>
+                <option value="">Pick a category...</option>
                 {PARTNER_CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
               </select>
               <button onClick={applyBulkCategory} disabled={!bulkCategory} style={{ background: 'rgba(201,169,110,0.12)', border: '1px solid rgba(201,169,110,0.3)', color: '#C9A96E', fontSize: 10, fontWeight: 700, padding: '5px 12px', borderRadius: 3, cursor: bulkCategory ? 'pointer' : 'not-allowed' }}>
@@ -3415,6 +3784,9 @@ interface TeamNode {
   avatarUrl: string | null
   memberStatus: MemberStatus
   progress: TeamProgress | null
+  inviteEmail: string | null
+  inviteSentAt: string | null
+  inviteExpiresAt: string | null
   children: TeamNode[]
 }
 
@@ -3571,22 +3943,22 @@ function TeamMemberNode({ node, depth, isMobile }: { node: TeamNode; depth: numb
             Awaiting admin approval
           </span>
         )}
-        {/* Progress toggle — separate from children expand. Stops click */}
+        {/* Details toggle. Always available so the upline can see SOMETHING */}
+        {/* useful regardless of member status: progress for ACTIVE, invite */}
+        {/* status for INVITED, referral status for PENDING. Stops click */}
         {/* propagation so it doesn't also collapse/expand the children. */}
-        {node.progress && (
-          <button
-            onClick={(e) => { e.stopPropagation(); setShowProgress(s => !s) }}
-            style={{
-              padding: '4px 10px', borderRadius: 4,
-              background: showProgress ? `${color}20` : 'transparent',
-              border: `1px solid ${color}40`, color,
-              fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
-              cursor: 'pointer', flexShrink: 0,
-            }}
-          >
-            {showProgress ? 'Hide' : 'View'} progress
-          </button>
-        )}
+        <button
+          onClick={(e) => { e.stopPropagation(); setShowProgress(s => !s) }}
+          style={{
+            padding: '4px 10px', borderRadius: 4,
+            background: showProgress ? `${color}20` : 'transparent',
+            border: `1px solid ${color}40`, color,
+            fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+            cursor: 'pointer', flexShrink: 0,
+          }}
+        >
+          {showProgress ? 'Hide' : 'View'} {node.memberStatus === 'ACTIVE' ? 'progress' : 'details'}
+        </button>
         {node.children.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
             <span style={{ fontSize: 9, color: '#6B8299', fontWeight: 600 }}>{descendants}</span>
@@ -3594,6 +3966,53 @@ function TeamMemberNode({ node, depth, isMobile }: { node: TeamNode; depth: numb
           </div>
         )}
       </div>
+      {/* INVITED detail panel: invite email + sent date + expiration. */}
+      {/* Mirrors the layout of the active progress panel so the upline */}
+      {/* always gets a useful expansion regardless of who they click. */}
+      {showProgress && node.memberStatus === 'INVITED' && (
+        <div style={{
+          marginLeft: isMobile ? depth * 16 + 14 : depth * 32 + 14,
+          marginTop: 6,
+          padding: '12px 14px',
+          background: 'rgba(96,165,250,0.04)',
+          border: '1px solid rgba(96,165,250,0.15)',
+          borderRadius: 6,
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#60A5FA', marginBottom: 6 }}>
+            Hasn&apos;t activated yet
+          </div>
+          <div style={{ fontSize: 11, color: '#9BB0C4', lineHeight: 1.6 }}>
+            {node.firstName} got the welcome email but hasn&apos;t set their password yet.
+            {node.inviteEmail && <><br /><strong style={{ color: '#fff' }}>Email:</strong> {node.inviteEmail}</>}
+            {node.inviteSentAt && <><br /><strong style={{ color: '#fff' }}>Invited:</strong> {new Date(node.inviteSentAt).toLocaleDateString()}</>}
+            {node.inviteExpiresAt && (
+              <><br /><strong style={{ color: '#fff' }}>Link expires:</strong> {new Date(node.inviteExpiresAt).toLocaleString()}{new Date(node.inviteExpiresAt).getTime() < Date.now() ? ' (expired)' : ''}</>
+            )}
+          </div>
+          <div style={{ marginTop: 10, fontSize: 10, color: '#4B5563', fontStyle: 'italic' }}>
+            Tap &quot;Resend invite&quot; on the row above if the link expired or they lost the email.
+          </div>
+        </div>
+      )}
+      {/* PENDING detail panel: just confirms what's happening. */}
+      {showProgress && node.memberStatus === 'PENDING' && (
+        <div style={{
+          marginLeft: isMobile ? depth * 16 + 14 : depth * 32 + 14,
+          marginTop: 6,
+          padding: '12px 14px',
+          background: 'rgba(245,158,11,0.04)',
+          border: '1px solid rgba(245,158,11,0.15)',
+          borderRadius: 6,
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#F59E0B', marginBottom: 6 }}>
+            Awaiting admin approval
+          </div>
+          <div style={{ fontSize: 11, color: '#9BB0C4', lineHeight: 1.6 }}>
+            You referred {node.firstName} {node.lastName} on {node.inviteSentAt ? new Date(node.inviteSentAt).toLocaleDateString() : 'recently'}.
+            An admin or licensing coordinator will review the referral and send the welcome email.
+          </div>
+        </div>
+      )}
       {showProgress && node.progress && (
         <div style={{
           marginLeft: isMobile ? depth * 16 + 14 : depth * 32 + 14,

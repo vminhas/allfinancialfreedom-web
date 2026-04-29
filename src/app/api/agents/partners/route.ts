@@ -1,24 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
-
-async function getProfileId(email: string) {
-  const u = await db.agentUser.findUnique({
-    where: { email },
-    include: { profile: { select: { id: true } } },
-  })
-  return u?.profile?.id ?? null
-}
+import { resolveAgentIdentity } from '@/lib/agent-identity'
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const profileId = await getProfileId(session.user!.email!)
-  if (!profileId) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+  const id = await resolveAgentIdentity(req)
+  if ('error' in id) return id.error
 
   const { searchParams } = new URL(req.url)
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1'))
@@ -27,12 +13,12 @@ export async function GET(req: NextRequest) {
 
   const [partners, total] = await Promise.all([
     db.businessPartner.findMany({
-      where: { agentProfileId: profileId },
+      where: { agentProfileId: id.profileId },
       orderBy: { createdAt: 'asc' },
       skip,
       take: limit,
     }),
-    db.businessPartner.count({ where: { agentProfileId: profileId } }),
+    db.businessPartner.count({ where: { agentProfileId: id.profileId } }),
   ])
 
   return NextResponse.json({ partners, total, page })
@@ -60,20 +46,15 @@ interface PartnerBody {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const profileId = await getProfileId(session.user!.email!)
-  if (!profileId) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+  const id = await resolveAgentIdentity(req)
+  if ('error' in id) return id.error
 
   const body = await req.json() as PartnerBody
   if (!body.name) return NextResponse.json({ error: 'name required' }, { status: 400 })
 
   const partner = await db.businessPartner.create({
     data: {
-      agentProfileId: profileId,
+      agentProfileId: id.profileId,
       name: body.name,
       email: body.email,
       phone: body.phone,
@@ -106,19 +87,14 @@ const UPDATABLE = [
 const DATE_FIELDS = ['appointmentDate', 'icaDate', 'firstCallDate', 'secondCallDate'] as const
 
 export async function PUT(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const profileId = await getProfileId(session.user!.email!)
-  if (!profileId) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+  const id = await resolveAgentIdentity(req)
+  if ('error' in id) return id.error
 
   const body = await req.json() as Record<string, unknown> & { id: string }
   if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
   const existing = await db.businessPartner.findUnique({ where: { id: body.id } })
-  if (!existing || existing.agentProfileId !== profileId) {
+  if (!existing || existing.agentProfileId !== id.profileId) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
@@ -134,4 +110,22 @@ export async function PUT(req: NextRequest) {
 
   const updated = await db.businessPartner.update({ where: { id: body.id }, data })
   return NextResponse.json(updated)
+}
+
+export async function DELETE(req: NextRequest) {
+  const id = await resolveAgentIdentity(req)
+  if ('error' in id) return id.error
+
+  const body = await req.json() as { ids?: string[]; id?: string }
+  // Accept either a single id or an array for bulk delete.
+  const targetIds = body.ids?.length ? body.ids : (body.id ? [body.id] : [])
+  if (targetIds.length === 0) return NextResponse.json({ error: 'id(s) required' }, { status: 400 })
+
+  // Only delete contacts owned by this agent. Even if a malicious caller
+  // sends someone else's id, the agentProfileId filter drops it.
+  const result = await db.businessPartner.deleteMany({
+    where: { id: { in: targetIds }, agentProfileId: id.profileId },
+  })
+
+  return NextResponse.json({ deleted: result.count })
 }

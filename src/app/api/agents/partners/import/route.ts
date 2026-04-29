@@ -10,11 +10,10 @@
 //     the existing list without a refetch.
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { parseCsv } from '@/lib/csv-parse'
 import { extractContactRow } from '@/lib/contact-csv'
+import { resolveAgentIdentity } from '@/lib/agent-identity'
 
 const ALLOWED_CATEGORIES = new Set([
   'business_partner', 'life_market', 'rollover_market', 'fta_contact', 'recruit',
@@ -25,26 +24,18 @@ interface ImportRow {
   email?: string | null
   phone?: string | null
   occupation?: string | null
+  organization?: string | null
+  birthday?: string | null
+  city?: string | null
+  state?: string | null
   notes?: string | null
-  category?: string | null
-}
-
-async function getProfileId(email: string) {
-  const u = await db.agentUser.findUnique({
-    where: { email },
-    include: { profile: { select: { id: true } } },
-  })
-  return u?.profile?.id ?? null
+  category?: string | null  // optional: if set, contact leaves the queue immediately
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const profileId = await getProfileId(session.user!.email!)
-  if (!profileId) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+  const id = await resolveAgentIdentity(req)
+  if ('error' in id) return id.error
+  const profileId = id.profileId
 
   const body = await req.json() as
     | { mode: 'preview'; csv: string }
@@ -87,20 +78,38 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No rows with a name' }, { status: 400 })
     }
 
-    // createMany is the single fastest path for bulk insert. We don't need
-    // the inserted records to come back from the DB — the UI already has
-    // the list with category overrides applied, so we can echo it.
+    // Compose notes from any extra context the parser found that doesn't
+    // fit a dedicated column (organization, birthday, city, state). The
+    // agent can edit these later, but having them visible on the row is
+    // far better than dropping the data on the floor.
+    const composeNotes = (r: ImportRow): string | null => {
+      const bits = [
+        r.notes,
+        r.organization && r.organization !== r.occupation ? `Org: ${r.organization}` : null,
+        r.birthday ? `Bday: ${r.birthday}` : null,
+        r.city && r.state ? `${r.city}, ${r.state}` : (r.city || r.state),
+      ].filter((b): b is string => !!b && b.trim().length > 0)
+      return bits.length > 0 ? bits.join(' · ') : null
+    }
+
+    // Imports go straight into the queue (status PENDING). If the agent
+    // pre-classified some rows during preview, those skip the queue and
+    // land in their lane as NEW.
     await db.businessPartner.createMany({
-      data: valid.map(r => ({
-        agentProfileId: profileId,
-        name: r.name.trim(),
-        email: r.email?.trim() || null,
-        phone: r.phone?.trim() || null,
-        occupation: r.occupation?.trim() || null,
-        notes: r.notes?.trim() || null,
-        category: r.category && ALLOWED_CATEGORIES.has(r.category) ? r.category : null,
-        source: 'csv_import',
-      })),
+      data: valid.map(r => {
+        const cat = r.category && ALLOWED_CATEGORIES.has(r.category) ? r.category : null
+        return {
+          agentProfileId: profileId,
+          name: r.name.trim(),
+          email: r.email?.trim() || null,
+          phone: r.phone?.trim() || null,
+          occupation: r.occupation?.trim() || null,
+          notes: composeNotes(r),
+          category: cat,
+          status: cat ? 'NEW' : 'PENDING',
+          source: 'csv_import',
+        }
+      }),
     })
 
     // Return the freshly-inserted rows so the UI can update without a

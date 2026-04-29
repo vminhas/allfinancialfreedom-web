@@ -3,7 +3,7 @@ import AgentSessionProvider from './AgentSessionProvider'
 import PullToRefresh from '@/components/PullToRefresh'
 
 export const metadata: Metadata = {
-  title: 'Agent Portal — All Financial Freedom',
+  title: 'Agent Portal · All Financial Freedom',
   description: 'Your personal Agent Progression Tracker',
   // Tell iOS this app is installable and behaves like a standalone app
   // when launched from the home screen via "Add to Home Screen".
