@@ -349,6 +349,7 @@ export const CARRIERS = [
   'Augustar',
   'Corebridge Life',
   'Corebridge Annuity',
+  'Ethos',
   'Lincoln',
   'Foresters',
   'Mutual of Omaha',
@@ -539,6 +540,7 @@ export const CARRIER_UNLOCK_PHASE: Record<string, number> = {
   'ANICO Life': 2,
   'ANICO Annuity': 2,
   'Corebridge Life': 2,
+  'Ethos': 2,
   'Foresters': 2,
   'Mutual of Omaha': 2,
   // Phase 3, intermediate carriers
