@@ -6,6 +6,7 @@ import { signOut } from 'next-auth/react'
 import {
   PHASE_LABELS, PHASE_ITEMS, PHASE_GROUPS, CARRIERS,
   CARRIER_UNLOCK_PHASE, LICENSING_CHECKLIST, SYSTEM_PROGRESSIONS, PHASE_EXPECTED_DAYS,
+  US_STATES,
 } from '@/lib/agent-constants'
 import { GROUP_ICONS, PROGRESSION_ICONS, Mail, ChevronDown, ArrowRight, ExternalLink, UserCheck } from '@/lib/checklist-icons'
 import { formatPhoneAsTyped } from '@/lib/contact-validation'
@@ -2680,7 +2681,12 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
             <div><label style={fieldLabel}>Last Name *</label><input required style={inputStyle} value={referForm.lastName} onChange={e => setReferForm(f => ({ ...f, lastName: e.target.value }))} /></div>
             <div><label style={fieldLabel}>Email *</label><input required type="email" style={inputStyle} value={referForm.email} onChange={e => setReferForm(f => ({ ...f, email: e.target.value }))} /></div>
             <div><label style={fieldLabel}>Phone</label><input type="tel" inputMode="numeric" placeholder="(555) 123-4567" style={inputStyle} value={referForm.phone} onChange={e => setReferForm(f => ({ ...f, phone: formatPhoneAsTyped(e.target.value) }))} /></div>
-            <div><label style={fieldLabel}>State</label><input style={inputStyle} value={referForm.state} onChange={e => setReferForm(f => ({ ...f, state: e.target.value }))} placeholder="e.g., CA" /></div>
+            <div><label style={fieldLabel}>State</label>
+              <select style={{ ...inputStyle, cursor: 'pointer', appearance: 'auto' }} value={referForm.state} onChange={e => setReferForm(f => ({ ...f, state: e.target.value }))}>
+                <option value="">Select a state</option>
+                {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
             <div><label style={fieldLabel}>Notes</label><input style={inputStyle} value={referForm.notes} onChange={e => setReferForm(f => ({ ...f, notes: e.target.value }))} /></div>
             {referError && <div style={{ gridColumn: isMobile ? undefined : 'span 2', fontSize: 11, color: '#f87171' }}>{referError}</div>}
             <div style={{ gridColumn: isMobile ? undefined : 'span 2', display: 'flex', gap: 8 }}>
@@ -3023,18 +3029,57 @@ function ImportModal({
         </div>
 
         {!preview && (
-          <div style={{ padding: '40px 24px', textAlign: 'center' }}>
-            <label style={{ display: 'inline-block', cursor: busy ? 'wait' : 'pointer', background: '#C9A96E', color: '#142D48', padding: '12px 28px', borderRadius: 4, fontSize: 13, fontWeight: 700 }}>
-              {busy ? 'Reading...' : 'Choose CSV file'}
-              <input
-                type="file" accept=".csv,text/csv" hidden
-                onChange={e => { const f = e.target.files?.[0]; if (f) onPickFile(f) }}
-                disabled={busy}
-              />
-            </label>
-            <div style={{ fontSize: 11, color: '#6B8299', marginTop: 16, lineHeight: 1.6 }}>
-              On iPhone: open the Contacts app → select contacts → Share → Save to Files as a vCard, then convert to CSV with any free converter.<br />
-              On Google Contacts: Export → Google CSV.
+          <div style={{ padding: '28px 24px' }}>
+            <div style={{ textAlign: 'center', marginBottom: 28 }}>
+              <label style={{ display: 'inline-block', cursor: busy ? 'wait' : 'pointer', background: '#C9A96E', color: '#142D48', padding: '14px 32px', borderRadius: 4, fontSize: 14, fontWeight: 700 }}>
+                {busy ? 'Reading...' : 'Choose CSV file'}
+                <input
+                  type="file" accept=".csv,text/csv" hidden
+                  onChange={e => { const f = e.target.files?.[0]; if (f) onPickFile(f) }}
+                  disabled={busy}
+                />
+              </label>
+              <div style={{ fontSize: 11, color: '#6B8299', marginTop: 8 }}>
+                Up to 500 contacts per import. We never share your contact list.
+              </div>
+            </div>
+
+            {/* Per-platform instructions, two compact columns on desktop */}
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
+              {/* iPhone */}
+              <div style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(201,169,110,0.15)', borderRadius: 6 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 10 }}>
+                  iPhone
+                </div>
+                <ol style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: '#9BB0C4', lineHeight: 1.7 }}>
+                  <li>Open the <strong style={{ color: '#fff' }}>Contacts</strong> app.</li>
+                  <li>Tap <strong style={{ color: '#fff' }}>Lists</strong> in the top-left, then <strong style={{ color: '#fff' }}>All Contacts</strong>.</li>
+                  <li><strong style={{ color: '#fff' }}>Press and hold</strong> on any contact until a menu appears. Tap <strong style={{ color: '#fff' }}>Select</strong>.</li>
+                  <li>Tap each contact you want to import. Or tap <strong style={{ color: '#fff' }}>Select All</strong>.</li>
+                  <li>Tap <strong style={{ color: '#fff' }}>Share</strong>, then <strong style={{ color: '#fff' }}>Save to Files</strong>. This creates a <code style={{ background: 'rgba(255,255,255,0.05)', padding: '0 4px', borderRadius: 2, fontSize: 11 }}>.vcf</code> file.</li>
+                  <li>Open <a href="https://www.vcardtocsv.com/" target="_blank" rel="noopener noreferrer" style={{ color: '#C9A96E' }}>vcardtocsv.com</a> on your phone, upload the file, download the CSV.</li>
+                  <li>Come back here and tap <strong style={{ color: '#fff' }}>Choose CSV file</strong> above.</li>
+                </ol>
+              </div>
+
+              {/* Android */}
+              <div style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(96,165,250,0.15)', borderRadius: 6 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#60A5FA', marginBottom: 10 }}>
+                  Android (Google Contacts)
+                </div>
+                <ol style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: '#9BB0C4', lineHeight: 1.7 }}>
+                  <li>On your phone or laptop, open <a href="https://contacts.google.com" target="_blank" rel="noopener noreferrer" style={{ color: '#60A5FA' }}>contacts.google.com</a>.</li>
+                  <li>Tap <strong style={{ color: '#fff' }}>Export</strong> in the left menu (Settings on mobile).</li>
+                  <li>Pick <strong style={{ color: '#fff' }}>Selected contacts</strong> or <strong style={{ color: '#fff' }}>All contacts</strong>.</li>
+                  <li>Choose <strong style={{ color: '#fff' }}>Google CSV</strong> as the format.</li>
+                  <li>Tap <strong style={{ color: '#fff' }}>Export</strong> and save the file.</li>
+                  <li>Come back here and tap <strong style={{ color: '#fff' }}>Choose CSV file</strong> above.</li>
+                </ol>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 16, fontSize: 11, color: '#4B5563', textAlign: 'center', lineHeight: 1.6 }}>
+              We auto-detect Name, Email, Phone, and Occupation from any of these formats. Imports land in your <strong style={{ color: '#9BB0C4' }}>Queue</strong>; classify each as a Business Partner or FTA contact afterwards.
             </div>
           </div>
         )}

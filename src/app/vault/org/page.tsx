@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef, type RefObject } from 'react'
 import { useIsMobile } from '@/lib/useIsMobile'
+import { US_STATES } from '@/lib/agent-constants'
 
 interface OrgNode {
   id: string
@@ -44,12 +45,8 @@ const PHASE_TITLES: Record<number, string> = {
   4: 'Marketing Director', 5: 'Executive Marketing Director',
 }
 
-const US_STATES = [
-  'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
-  'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
-  'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT',
-  'VA','WA','WV','WI','WY','DC',
-]
+// US states list now lives in agent-constants so every state-picker in
+// the app uses the same source of truth.
 
 function initials(first: string, last: string) {
   const f = (first ?? '').replace(/[^a-zA-Z]/g, '')
@@ -326,12 +323,13 @@ function TreeNode({ node, depth, onSelect, showTrainers, expandedSet, onAvatarUp
 
 // ─── Edit Panel ───────────────────────────────────────────────────────────────
 
-function EditPanel({ node, allAgents, onSave, onClose, onDeactivate }: {
+function EditPanel({ node, allAgents, onSave, onClose, onDeactivate, onAddRecruitUnder }: {
   node: OrgNode
   allAgents: FlatAgent[]
   onSave: () => void
   onClose: () => void
   onDeactivate: (id: string) => void
+  onAddRecruitUnder: (recruiterId: string, recruiterName: string) => void
 }) {
   const isMobile = useIsMobile()
   const isLeadership = node.id.startsWith('_')
@@ -509,11 +507,17 @@ function EditPanel({ node, allAgents, onSave, onClose, onDeactivate }: {
           <div>
             <label style={labelStyle}>Reports To (Mentor)</label>
             <select value={form.recruiterId} onChange={set('recruiterId')} style={{ ...inputStyle, appearance: 'auto' }}>
-              <option value="">Vick & Melinee Minhas (Leadership)</option>
-              {allAgents.filter(a => a.agentCode !== node.agentCode && a.phase >= node.phase).map(a => (
-                <option key={a.agentCode} value={a.agentCode}>{a.firstName} {a.lastName} — {PHASE_TITLES[a.phase]}</option>
+              <option value="">Vick &amp; Melinee Minhas (Leadership)</option>
+              {/* All agents are valid mentors. The previous "phase >= node.phase" */}
+              {/* filter blocked legitimate reassignment cases (e.g. Sadie entered */}
+              {/* a referral but Morgan actually recruited the person). */}
+              {allAgents.filter(a => a.agentCode !== node.agentCode).map(a => (
+                <option key={a.agentCode} value={a.agentCode}>{a.firstName} {a.lastName} ({PHASE_TITLES[a.phase]})</option>
               ))}
             </select>
+            <div style={{ fontSize: 10, color: '#6B8299', marginTop: 4 }}>
+              Reassigning will move {node.firstName} under the new mentor on the org chart.
+            </div>
           </div>
 
           <div>
@@ -535,6 +539,26 @@ function EditPanel({ node, allAgents, onSave, onClose, onDeactivate }: {
               {error}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Quick action: add a recruit under this agent. Pre-fills the */}
+      {/* recruiter so the admin doesn't have to scroll-find them in the */}
+      {/* full agent dropdown on the next screen. */}
+      {!isLeadership && (
+        <div style={{ padding: '0 24px 8px' }}>
+          <button
+            onClick={() => onAddRecruitUnder(node.agentCode, `${node.firstName} ${node.lastName}`)}
+            style={{
+              background: 'rgba(201,169,110,0.08)',
+              border: '1px solid rgba(201,169,110,0.3)',
+              color: '#C9A96E', borderRadius: 4, padding: '10px 14px', fontSize: 11,
+              fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+              cursor: 'pointer', width: '100%',
+            }}
+          >
+            + Add Recruit Under {node.firstName}
+          </button>
         </div>
       )}
 
@@ -586,15 +610,17 @@ function EditPanel({ node, allAgents, onSave, onClose, onDeactivate }: {
 
 // ─── Add Agent Panel ──────────────────────────────────────────────────────────
 
-function AddAgentPanel({ allAgents, onCreated, onClose }: {
+function AddAgentPanel({ allAgents, onCreated, onClose, defaultRecruiterId, defaultRecruiterName }: {
   allAgents: FlatAgent[]
   onCreated: () => void
   onClose: () => void
+  defaultRecruiterId?: string         // agentCode of the recruiter to pre-select
+  defaultRecruiterName?: string       // human-readable name for the title bar
 }) {
   const isMobile = useIsMobile()
   const [form, setForm] = useState({
     firstName: '', lastName: '', email: '', agentCode: '',
-    state: '', phone: '', recruiterId: '',
+    state: '', phone: '', recruiterId: defaultRecruiterId ?? '',
   })
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -623,6 +649,19 @@ function AddAgentPanel({ allAgents, onCreated, onClose }: {
         const d = await res.json() as { error?: string }
         setError(d.error ?? 'Failed to create'); setSubmitting(false); return
       }
+      const created = await res.json() as { agentUserId?: string }
+
+      // Send the welcome email so the new recruit can activate their
+      // portal. Mirrors the referral-approved flow. Non-fatal if the
+      // email fails (admin can resend from the agent tracker).
+      if (created.agentUserId) {
+        await fetch('/api/admin/agents/invite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agentUserId: created.agentUserId }),
+        }).catch(() => { /* admin can resend later */ })
+      }
+
       onCreated()
     } catch { setError('Network error'); setSubmitting(false) }
   }
@@ -640,7 +679,9 @@ function AddAgentPanel({ allAgents, onCreated, onClose }: {
       }}>
         <div>
           <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 4 }}>New Agent</div>
-          <div style={{ fontSize: 15, fontWeight: 500, color: '#fff' }}>Add to Team</div>
+          <div style={{ fontSize: 15, fontWeight: 500, color: '#fff' }}>
+            {defaultRecruiterName ? `Add Recruit Under ${defaultRecruiterName}` : 'Add to Team'}
+          </div>
         </div>
         <button onClick={onClose} style={{
           background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(201,169,110,0.25)',
@@ -688,6 +729,9 @@ export default function OrgPage() {
   const [loading, setLoading] = useState(true)
   const [selectedNode, setSelectedNode] = useState<OrgNode | null>(null)
   const [showAddAgent, setShowAddAgent] = useState(false)
+  // When opened from "Add recruit under X," pre-populate the recruiter
+  // so the admin doesn't have to scroll-find them in a long dropdown.
+  const [addAgentDefault, setAddAgentDefault] = useState<{ recruiterId: string; recruiterName: string } | null>(null)
   const [showTrainers, setShowTrainers] = useState(false)
   const [expandedSet, setExpandedSet] = useState<Set<string> | 'all'>('all')
   const isMobile = useIsMobile()
@@ -804,12 +848,23 @@ export default function OrgPage() {
             setSelectedNode(null)
             load()
           }}
+          onAddRecruitUnder={(recruiterId, recruiterName) => {
+            // Close the edit drawer, open the add panel pre-filled.
+            setSelectedNode(null)
+            setAddAgentDefault({ recruiterId, recruiterName })
+            setShowAddAgent(true)
+          }}
         />
       )}
 
       {showAddAgent && (
-        <AddAgentPanel allAgents={allAgents}
-          onCreated={() => { load(); setShowAddAgent(false) }} onClose={() => setShowAddAgent(false)} />
+        <AddAgentPanel
+          allAgents={allAgents}
+          defaultRecruiterId={addAgentDefault?.recruiterId}
+          defaultRecruiterName={addAgentDefault?.recruiterName}
+          onCreated={() => { load(); setShowAddAgent(false); setAddAgentDefault(null) }}
+          onClose={() => { setShowAddAgent(false); setAddAgentDefault(null) }}
+        />
       )}
     </div>
   )
