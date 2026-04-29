@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { getAgentProfileIdFromEmail as getProfileId } from '@/lib/agent-identity'
 
 const VALID_TOPICS = [
   'SCHEDULE_EXAM',
@@ -15,14 +16,6 @@ const VALID_TOPICS = [
   'GENERAL',
 ] as const
 type LicensingRequestTopic = typeof VALID_TOPICS[number]
-
-async function getProfileId(email: string) {
-  const u = await db.agentUser.findUnique({
-    where: { email },
-    include: { profile: { select: { id: true } } },
-  })
-  return u?.profile?.id ?? null
-}
 
 // GET /api/agents/coordinator-requests?phaseItemKey=xxx
 // Returns the logged-in agent's own requests. If phaseItemKey is given, only

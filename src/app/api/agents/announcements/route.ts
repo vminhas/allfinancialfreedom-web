@@ -3,8 +3,15 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 
-async function getProfileId(email: string) {
-  const u = await db.agentUser.findUnique({ where: { email }, include: { profile: { select: { id: true, phase: true } } } })
+// Local profile-with-phase lookup. Uses the same case-insensitive +
+// validated-email pattern as the shared findAgentUserByEmail helper so
+// we don't regress the empty-email and email-casing bugs here.
+async function getProfileId(email: string | null | undefined) {
+  if (typeof email !== 'string' || email.trim().length === 0) return null
+  const u = await db.agentUser.findFirst({
+    where: { email: { equals: email, mode: 'insensitive' } },
+    include: { profile: { select: { id: true, phase: true } } },
+  })
   return u?.profile ?? null
 }
 

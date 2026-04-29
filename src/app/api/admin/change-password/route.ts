@@ -17,7 +17,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'New password must be at least 8 characters' }, { status: 400 })
   }
 
-  const user = await db.adminUser.findUnique({ where: { email: session.user.email } })
+  // Case-insensitive lookup (Postgres defaults to case-sensitive string
+  // equality, which would 404 a real admin if their stored email casing
+  // doesn't match what NextAuth reports for their session).
+  const user = await db.adminUser.findFirst({ where: { email: { equals: session.user.email, mode: 'insensitive' } } })
   if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
   const valid = await bcrypt.compare(currentPassword, user.passwordHash)

@@ -20,6 +20,35 @@ export type AgentIdentity =
   | { profileId: string; previewing: boolean }
   | { error: NextResponse }
 
+// Shared helper: find an AgentUser (with profile) by session email, with
+// the safety net of a) rejecting empty emails and b) case-insensitive
+// match. Use this everywhere we'd otherwise write
+//   db.agentUser.findUnique({ where: { email: session.user.email } })
+//
+// Two real production bugs this centralizes the fix for:
+//   1. session.user.email can be undefined for stale sessions; with
+//      findUnique that throws, with findFirst on a nested relation it
+//      silently returns the first arbitrary row.
+//   2. Postgres string equality is case-sensitive; an email stored as
+//      "Joanna@Email.com" wouldn't resolve when the session reports
+//      "joanna@email.com" (and vice versa), and the user got mysterious
+//      empty data instead of an error.
+export async function findAgentUserByEmail(rawEmail: string | null | undefined) {
+  if (typeof rawEmail !== 'string' || rawEmail.trim().length === 0) return null
+  return db.agentUser.findFirst({
+    where: { email: { equals: rawEmail, mode: 'insensitive' } },
+    include: { profile: { select: { id: true } } },
+  })
+}
+
+// Convenience: just the profileId or null. The 90% use case across the
+// agents API is "I have a session, I just need to know which
+// agentProfile is asking for data."
+export async function getAgentProfileIdFromEmail(rawEmail: string | null | undefined) {
+  const u = await findAgentUserByEmail(rawEmail)
+  return u?.profile?.id ?? null
+}
+
 export async function resolveAgentIdentity(req: NextRequest): Promise<AgentIdentity> {
   const previewToken = new URL(req.url).searchParams.get('preview')
   if (previewToken) {

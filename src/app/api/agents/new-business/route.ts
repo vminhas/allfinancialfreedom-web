@@ -17,8 +17,10 @@ const NEW_BUSINESS_MIN_PHASE = 4
 async function getAgentProfile() {
   const session = await getServerSession(authOptions)
   if (!session || (session.user as { role?: string }).role !== 'agent') return null
+  const email = session.user!.email
+  if (typeof email !== 'string' || email.trim().length === 0) return null
   return db.agentProfile.findFirst({
-    where: { agentUser: { email: session.user!.email! } },
+    where: { agentUser: { email: { equals: email, mode: 'insensitive' } } },
     select: { id: true, firstName: true, lastName: true, phase: true },
   })
 }

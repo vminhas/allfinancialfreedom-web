@@ -18,8 +18,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const email = session.user.email
+  if (typeof email !== 'string' || email.trim().length === 0) {
+    return NextResponse.json({ error: 'Session has no email' }, { status: 401 })
+  }
   const me = await db.agentProfile.findFirst({
-    where: { agentUser: { email: session.user.email! } },
+    where: { agentUser: { email: { equals: email, mode: 'insensitive' } } },
     select: { agentCode: true },
   })
   if (!me) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })

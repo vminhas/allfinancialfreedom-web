@@ -3,14 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { reviewTranscript, TranscriptTooShortError } from '@/lib/call-review'
-
-async function getProfileId(email: string) {
-  const u = await db.agentUser.findUnique({
-    where: { email },
-    include: { profile: { select: { id: true } } },
-  })
-  return u?.profile?.id ?? null
-}
+import { getAgentProfileIdFromEmail as getProfileId } from '@/lib/agent-identity'
 
 // GET /api/agents/calls/[id]/review — fetch review for a call
 export async function GET(
