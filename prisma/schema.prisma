@@ -431,14 +431,23 @@ model BusinessPartner {
   notes           String?
   phaseItemKey    String?
   bookedAppt      Boolean      @default(false)
-  // CEO intro email — when the agent has Vick send a "thought you'd be a great
-  // fit" intro. Tracked so the row can show "Intro sent <date>" and the button
-  // can disable itself; nullable because most rows never get an intro.
+  // CEO intro email: when the agent has Vick send a "thought you'd be a
+  // great fit" intro. Tracked so the row can show "Intro sent <date>" and
+  // the button can disable itself; nullable because most rows never get
+  // an intro.
   introSentAt     DateTime?
   introMessageId  String?      // GHL message id for the audit trail
-  source          String?      // 'manual' | 'csv_import' — for analytics
+  source          String?      // 'manual' | 'csv_import' (for analytics)
+  // Workflow lifecycle. Imports land as PENDING (the queue). Classifying
+  // them as Business Partner / FTA / Recruit stamps category + advances
+  // them to NEW. Each lane then progresses through its own stages.
+  // SKIPPED = "I went through this contact and decided not to pursue,"
+  // hidden from queue but kept so re-imports don't re-queue them.
+  status          String       @default("PENDING")  // PENDING | NEW | CONTACTED | INTRO_SENT | BOOKED | CONVERTED | SKIPPED
+  lastContactAt   DateTime?    // last meaningful action (call, email, intro)
   createdAt       DateTime     @default(now())
 
+  @@index([agentProfileId, status])
   @@map("business_partners")
 }
 
