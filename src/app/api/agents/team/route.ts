@@ -100,8 +100,21 @@ export async function GET(req: NextRequest) {
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    // Bug we hit in prod: a stale/odd session can have session.user.email
+    // be undefined. Plain {email: undefined} in a nested findFirst is
+    // silently treated as "no filter" by Prisma, so the query returns
+    // the first arbitrary agent and the team renders empty. Validate
+    // the email string before we touch the DB.
+    const email = session.user.email
+    if (typeof email !== 'string' || email.trim().length === 0) {
+      return NextResponse.json({ error: 'Session has no email' }, { status: 401 })
+    }
+    // Case-insensitive lookup. Postgres string equality is case-sensitive
+    // by default; if the agent was stored with one casing and the
+    // session reports another, the exact match fails and the UI lands
+    // on the empty "Build Your Team" state.
     const me = await db.agentProfile.findFirst({
-      where: { agentUser: { email: session.user.email! } },
+      where: { agentUser: { email: { equals: email, mode: 'insensitive' } } },
       select: { id: true, agentCode: true },
     })
     if (!me) return NextResponse.json({ error: 'Not found' }, { status: 404 })

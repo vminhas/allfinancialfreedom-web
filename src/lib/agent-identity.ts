@@ -43,8 +43,21 @@ export async function resolveAgentIdentity(req: NextRequest): Promise<AgentIdent
     return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   }
 
-  const u = await db.agentUser.findUnique({
-    where: { email: session.user!.email! },
+  // Validate before hitting the DB. Prisma silently treats
+  // `email: undefined` as "no filter" on nested lookups, which can
+  // return arbitrary rows. Bail explicitly when the session has no
+  // email so callers get a clean 401 instead of mysterious empty data.
+  const email = session.user!.email
+  if (typeof email !== 'string' || email.trim().length === 0) {
+    return { error: NextResponse.json({ error: 'Session has no email' }, { status: 401 }) }
+  }
+
+  // Case-insensitive lookup so an email stored as "Joanna@email.com"
+  // still resolves when the session reports "joanna@email.com" (and
+  // vice versa). Postgres string equality is case-sensitive by
+  // default which has bitten us in production.
+  const u = await db.agentUser.findFirst({
+    where: { email: { equals: email, mode: 'insensitive' } },
     include: { profile: { select: { id: true } } },
   })
   if (!u?.profile?.id) {
