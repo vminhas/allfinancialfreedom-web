@@ -12,8 +12,10 @@ const VALID_CATEGORIES: FtaCategory[] = [
 async function getAgentProfileId() {
   const session = await getServerSession(authOptions)
   if (!session || (session.user as { role?: string }).role !== 'agent') return null
+  const email = session.user!.email
+  if (typeof email !== 'string' || email.trim().length === 0) return null
   const p = await db.agentProfile.findFirst({
-    where: { agentUser: { email: session.user!.email! } },
+    where: { agentUser: { email: { equals: email, mode: 'insensitive' } } },
     select: { id: true },
   })
   return p?.id ?? null

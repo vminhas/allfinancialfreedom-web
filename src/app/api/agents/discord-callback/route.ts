@@ -66,8 +66,12 @@ export async function GET(req: NextRequest) {
   const discordUser = await userRes.json() as { id: string; username: string; global_name?: string }
 
   // Save Discord user ID and assign phase role
-  const agentUser = await db.agentUser.findUnique({
-    where: { email: session.user!.email! },
+  const sessionEmail = session.user!.email
+  if (typeof sessionEmail !== 'string' || sessionEmail.trim().length === 0) {
+    return NextResponse.redirect(`${portalUrl}?discord=error&reason=no_email`)
+  }
+  const agentUser = await db.agentUser.findFirst({
+    where: { email: { equals: sessionEmail, mode: 'insensitive' } },
     include: { profile: { select: { id: true, phase: true } } },
   })
 

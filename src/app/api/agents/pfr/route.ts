@@ -2,14 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
-
-async function getProfileId(email: string) {
-  const u = await db.agentUser.findUnique({
-    where: { email },
-    include: { profile: { select: { id: true } } },
-  })
-  return u?.profile?.id ?? null
-}
+import { getAgentProfileIdFromEmail as getProfileId } from '@/lib/agent-identity'
 
 export async function GET() {
   const session = await getServerSession(authOptions)

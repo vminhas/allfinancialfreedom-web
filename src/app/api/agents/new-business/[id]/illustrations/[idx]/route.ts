@@ -9,8 +9,12 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string;
   if (!session || (session.user as { role?: string }).role !== 'agent') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+  const email = session.user!.email
+  if (typeof email !== 'string' || email.trim().length === 0) {
+    return NextResponse.json({ error: 'Session has no email' }, { status: 401 })
+  }
   const profile = await db.agentProfile.findFirst({
-    where: { agentUser: { email: session.user!.email! } },
+    where: { agentUser: { email: { equals: email, mode: 'insensitive' } } },
     select: { id: true },
   })
   if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
