@@ -123,6 +123,10 @@ export async function GET(req: NextRequest) {
   const portalUrl = `${process.env.NEXTAUTH_URL ?? 'https://allfinancialfreedom.com'}/agents`
   let sent = 0
   const errors: string[] = []
+  // Audit data for the admin-channel digest at the end. We only collect
+  // agents who actually got an email — not anyone we skipped — so the
+  // digest reflects exactly what hit inboxes.
+  const reminded: { name: string; phase: number; daysInPhase: number; pct: number }[] = []
 
   for (const agent of agents) {
     const threshold = PHASE_THRESHOLDS[agent.phase]
@@ -186,12 +190,46 @@ export async function GET(req: NextRequest) {
           data: { lastReminderSentAt: now },
         })
         sent++
+        reminded.push({
+          name: `${agent.firstName} ${agent.lastName}`,
+          phase: agent.phase,
+          daysInPhase,
+          pct: Math.round(completionPct * 100),
+        })
       } else {
         errors.push(`${agent.firstName} ${agent.lastName}: GHL ${res.status}`)
       }
     } catch (err) {
       errors.push(`${agent.firstName} ${agent.lastName}: ${err instanceof Error ? err.message : 'unknown'}`)
     }
+  }
+
+  // Post a digest in the admin channel so leadership sees who got nudged
+  // today. Skip when nothing went out so we don't spam empty days.
+  if (sent > 0 && process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_ADMIN_CHANNEL_ID) {
+    try {
+      const { sendChannelMessage } = await import('@/lib/discord')
+      // Sort by days-in-phase desc so the most-stalled show first.
+      const lines = [...reminded]
+        .sort((a, b) => b.daysInPhase - a.daysInPhase)
+        .slice(0, 15)
+        .map(r => `• **${r.name}** · Phase ${r.phase} · ${r.daysInPhase}d in phase · ${r.pct}% complete`)
+      const overflow = reminded.length > 15 ? `\n\n_…and ${reminded.length - 15} more_` : ''
+      sendChannelMessage(process.env.DISCORD_ADMIN_CHANNEL_ID, {
+        embeds: [{
+          title: '🔔 Phase Reminders Sent',
+          description: [
+            `Sent **${sent}** check-in email${sent === 1 ? '' : 's'} to agent${sent === 1 ? '' : 's'} falling behind on their phase checklist.`,
+            '',
+            ...lines,
+            overflow,
+          ].filter(Boolean).join('\n'),
+          color: 0xC9A96E,
+          timestamp: new Date().toISOString(),
+          footer: { text: `AFF Concierge · 3-day cooldown · ${agents.length} agents evaluated` },
+        }],
+      }).catch(() => {})
+    } catch { /* non-fatal */ }
   }
 
   return NextResponse.json({ sent, checked: agents.length, errors: errors.slice(0, 10) })
