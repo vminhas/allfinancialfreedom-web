@@ -47,13 +47,16 @@ function AgentLoginInner() {
     const err = searchParams.get('error')
     if (!err) return
     if (err === 'AccessDenied' || err === 'OAuthAccountNotLinked') {
-      setError("We couldn't find an agent account for that Google email. If you were just invited, sign in once with the password from your welcome email; you can use Google after that. Otherwise contact your trainer or AFF support.")
+      // Be explicit: agent accounts require approval. If an unauthorized
+      // Google account hits this, route them to operations rather than
+      // making it sound like the login system is broken.
+      setError("This Google account isn't approved for the AFF agent portal. New agents have to be invited and approved first. If you think this is a mistake, email operations@allfinancialfreedom.com and we'll get you set up.")
     } else if (err === 'AccountInactive') {
-      setError('Your account has been deactivated. If you believe this is an error, please contact your trainer or AFF support.')
+      setError("Your account has been deactivated. Please contact operations@allfinancialfreedom.com if you believe this is in error.")
     } else if (err === 'OAuthSignin' || err === 'OAuthCallback' || err === 'Callback') {
       setError(`Google sign-in failed (${err}). Make sure the redirect URI in Google Cloud Console matches this domain exactly, including https://.`)
     } else if (err === 'Configuration') {
-      setError("Google sign-in isn't configured on the server. Reach out to support.")
+      setError("Google sign-in isn't configured on the server. Reach out to operations@allfinancialfreedom.com.")
     } else {
       setError(`Sign-in error: ${err}`)
     }

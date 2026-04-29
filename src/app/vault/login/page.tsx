@@ -61,11 +61,11 @@ function VaultLoginInner() {
     const err = searchParams.get('error')
     if (!err) return
     if (err === 'AccessDenied' || err === 'OAuthAccountNotLinked') {
-      setError("That Google account isn't on the AFF roster. Sign in with the email/password you were given, or contact support.")
+      setError("This Google account isn't authorized for the AFF vault. Vault access is limited to admins and licensing coordinators. If you think this is a mistake, email operations@allfinancialfreedom.com.")
     } else if (err === 'OAuthSignin' || err === 'OAuthCallback' || err === 'Callback') {
       setError(`Google sign-in failed (${err}). Make sure the redirect URI in Google Cloud Console matches this domain exactly, including https://.`)
     } else if (err === 'Configuration') {
-      setError("Google sign-in isn't configured on the server. Reach out to support.")
+      setError("Google sign-in isn't configured on the server. Reach out to operations@allfinancialfreedom.com.")
     } else {
       setError(`Sign-in error: ${err}`)
     }
