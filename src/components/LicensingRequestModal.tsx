@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useIsMobile } from '@/lib/useIsMobile'
+import { LC_CALENDAR_URL } from '@/lib/agent-constants'
 
 export type LicensingRequestTopic =
   | 'SCHEDULE_EXAM'
@@ -168,6 +169,24 @@ export default function LicensingRequestModal({
             <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>
               About: {phaseItemLabel}
             </div>
+            {/* Calendar shortcut as a peer to the message form. Some agents */}
+            {/* would rather just book 15 minutes than type out a message. */}
+            <a
+              href={LC_CALENDAR_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                marginTop: 10,
+                fontSize: 11, fontWeight: 700, color: '#60A5FA',
+                textDecoration: 'none',
+                padding: '6px 10px', borderRadius: 4,
+                background: 'rgba(96,165,250,0.08)',
+                border: '1px solid rgba(96,165,250,0.3)',
+              }}
+            >
+              📅 Or schedule time on their calendar
+            </a>
           </div>
           <button
             onClick={onClose}

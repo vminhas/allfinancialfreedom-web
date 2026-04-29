@@ -6,7 +6,7 @@ import { signOut } from 'next-auth/react'
 import {
   PHASE_LABELS, PHASE_ITEMS, PHASE_GROUPS, CARRIERS,
   CARRIER_UNLOCK_PHASE, LICENSING_CHECKLIST, SYSTEM_PROGRESSIONS, PHASE_EXPECTED_DAYS,
-  US_STATES,
+  US_STATES, LC_CALENDAR_URL,
 } from '@/lib/agent-constants'
 import { GROUP_ICONS, PROGRESSION_ICONS, Mail, ChevronDown, ArrowRight, ExternalLink, UserCheck } from '@/lib/checklist-icons'
 import { formatPhoneAsTyped } from '@/lib/contact-validation'
@@ -1245,24 +1245,50 @@ function AgentDashboardInner() {
                           )}
 
 
-                          {/* Coordinator request — inline CTA for items with coordinatorTopic */}
+                          {/* Coordinator request — inline CTAs for items with coordinatorTopic. */}
+                          {/* Two paths: an async message (modal) or a synchronous calendar booking. */}
+                          {/* Most agents do best with one or the other, so surfacing both removes a step. */}
                           {item.coordinatorTopic && (
                             <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px dashed rgba(201,169,110,0.2)' }}>
-                              <button
-                                onClick={e => { e.stopPropagation(); setRequestModalItemKey(item.key) }}
-                                style={{
-                                  background: 'rgba(201,169,110,0.08)',
-                                  border: '1px solid rgba(201,169,110,0.3)',
-                                  borderRadius: 6, padding: '12px 16px',
-                                  cursor: 'pointer', color: '#C9A96E',
-                                  fontSize: 12, fontWeight: 600,
-                                  display: 'flex', alignItems: 'center', gap: 8,
-                                  width: '100%',
-                                }}
-                              >
-                                <Mail size={15} color="#C9A96E" />
-                                Need help? Message your licensing coordinator
-                              </button>
+                              <div style={{ fontSize: 11, color: '#9BB0C4', marginBottom: 8 }}>
+                                Need help with this step?
+                              </div>
+                              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                <button
+                                  onClick={e => { e.stopPropagation(); setRequestModalItemKey(item.key) }}
+                                  style={{
+                                    flex: '1 1 200px',
+                                    background: 'rgba(201,169,110,0.08)',
+                                    border: '1px solid rgba(201,169,110,0.3)',
+                                    borderRadius: 6, padding: '12px 16px',
+                                    cursor: 'pointer', color: '#C9A96E',
+                                    fontSize: 12, fontWeight: 600,
+                                    display: 'flex', alignItems: 'center', gap: 8,
+                                  }}
+                                >
+                                  <Mail size={15} color="#C9A96E" />
+                                  Message the coordinator
+                                </button>
+                                <a
+                                  href={LC_CALENDAR_URL}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={e => e.stopPropagation()}
+                                  style={{
+                                    flex: '1 1 200px',
+                                    background: 'rgba(96,165,250,0.08)',
+                                    border: '1px solid rgba(96,165,250,0.3)',
+                                    borderRadius: 6, padding: '12px 16px',
+                                    color: '#60A5FA',
+                                    fontSize: 12, fontWeight: 600,
+                                    display: 'flex', alignItems: 'center', gap: 8,
+                                    textDecoration: 'none',
+                                  }}
+                                >
+                                  <span style={{ fontSize: 14 }}>📅</span>
+                                  Schedule time on their calendar
+                                </a>
+                              </div>
                             </div>
                           )}
 

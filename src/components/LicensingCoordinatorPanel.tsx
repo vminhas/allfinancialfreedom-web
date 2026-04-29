@@ -2,6 +2,7 @@
 
 import { Headset } from 'lucide-react'
 import type { PhaseItemDef } from '@/lib/agent-constants'
+import { LC_CALENDAR_URL } from '@/lib/agent-constants'
 
 interface CoordinatorRequest {
   id: string
@@ -104,21 +105,58 @@ export default function LicensingCoordinatorPanel({ items, phaseItems, requests,
                 </span>
               )}
               {!done && !hasOpenReq && (
-                <button
-                  onClick={() => onRequestHelp(item.key)}
-                  style={{
-                    background: 'none', border: '1px solid rgba(201,169,110,0.25)',
-                    color: '#C9A96E', borderRadius: 3,
-                    padding: '3px 10px', fontSize: 9, fontWeight: 600,
-                    cursor: 'pointer', flexShrink: 0,
-                  }}
-                >
-                  Request Help
-                </button>
+                <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                  <button
+                    onClick={() => onRequestHelp(item.key)}
+                    title="Send a message to the licensing coordinator"
+                    style={{
+                      background: 'none', border: '1px solid rgba(201,169,110,0.25)',
+                      color: '#C9A96E', borderRadius: 3,
+                      padding: '3px 10px', fontSize: 9, fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Message
+                  </button>
+                  <a
+                    href={LC_CALENDAR_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Schedule time on the licensing coordinator's calendar"
+                    style={{
+                      background: 'none', border: '1px solid rgba(96,165,250,0.3)',
+                      color: '#60A5FA', borderRadius: 3,
+                      padding: '3px 10px', fontSize: 9, fontWeight: 600,
+                      cursor: 'pointer', textDecoration: 'none',
+                    }}
+                  >
+                    Schedule
+                  </a>
+                </div>
               )}
             </div>
           )
         })}
+      </div>
+
+      {/* Footer note: standing offer to schedule, even on items that already */}
+      {/* have an open request. Mirrors the message-or-schedule choice we */}
+      {/* offer everywhere else for LC-driven steps. */}
+      <div style={{
+        padding: '8px 14px',
+        borderTop: '1px solid rgba(201,169,110,0.08)',
+        fontSize: 10, color: '#6B8299',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+      }}>
+        <span>Need a live walkthrough? Book a 1:1 with the coordinator.</span>
+        <a
+          href={LC_CALENDAR_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: '#60A5FA', textDecoration: 'none', fontWeight: 700, fontSize: 10 }}
+        >
+          📅 Open calendar
+        </a>
       </div>
     </div>
   )
