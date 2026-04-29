@@ -7,11 +7,22 @@
 // lock that Prisma migrate needs (`pg_advisory_lock(72707369)`), which causes
 // a 10-second timeout — P1002 — on every deploy.
 //
-// Fix: prefer DIRECT_URL when set. Set DIRECT_URL in Vercel env vars to the
-// non-pooler Neon connection string (drop the "-pooler" segment from the
-// hostname). DATABASE_URL stays the pooled URL for runtime.
+// Resolution order (first non-empty wins):
+//   1. DIRECT_URL                  — manual override
+//   2. DATABASE_URL_UNPOOLED       — Neon integration sometimes auto-sets this
+//   3. POSTGRES_URL_NON_POOLING    — Neon's legacy auto-set unpooled URL,
+//                                    confirmed present in this project's env
+//   4. DATABASE_URL                — last-resort fallback (pooled, may fail)
+//
+// As long as ANY unpooled URL is in env, migrations succeed.
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
+
+const migrationUrl =
+  process.env["DIRECT_URL"] ||
+  process.env["DATABASE_URL_UNPOOLED"] ||
+  process.env["POSTGRES_URL_NON_POOLING"] ||
+  process.env["DATABASE_URL"];
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
@@ -19,6 +30,6 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env["DIRECT_URL"] ?? process.env["DATABASE_URL"],
+    url: migrationUrl,
   },
 });
