@@ -39,6 +39,27 @@ enum AdminRole {
   LICENSING_COORDINATOR
 }
 
+// Audit log of sign-in attempts. Only rejected attempts are logged
+// (successful sign-ins are tracked via AdminUser.lastLoginAt /
+// AgentUser.lastLoginAt). Lets admins answer "did anyone try to get
+// in who shouldn't have?" without trawling Vercel logs.
+//
+// Triggered today by the Google OAuth signIn callback when the email
+// doesn't match an AdminUser or active AgentUser. Credentials-path
+// failures (wrong password) are not logged here yet - those don't
+// indicate someone trying to bypass approval, just a typo.
+model SignInAttempt {
+  id        String   @id @default(cuid())
+  email     String
+  provider  String   // 'google' for now
+  outcome   String   // 'rejected_unknown_email' | 'rejected_inactive_agent'
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([email])
+  @@map("sign_in_attempts")
+}
+
 model ImportJob {
   id              String    @id @default(cuid())
   fileName        String

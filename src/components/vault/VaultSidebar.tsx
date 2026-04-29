@@ -45,6 +45,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/vault/setup', label: 'Setup', icon: '⊞' },
       { href: '/vault/checklist-editor', label: 'Checklist Editor', icon: '◇' },
       { href: '/vault/email-templates', label: 'Email Templates', icon: '✉' },
+      { href: '/vault/audit', label: 'Auth Audit', icon: '⚠' },
       { href: '/vault/guide', label: 'Guide', icon: '?' },
       { href: '/vault/settings', label: 'Settings', icon: '⚙' },
     ],
