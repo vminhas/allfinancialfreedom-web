@@ -23,6 +23,20 @@ function AgentLoginInner() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
+  // Whether the Google provider is actually registered server-side. If
+  // GOOGLE_CLIENT_ID isn't set in the environment, the provider isn't
+  // there and signIn('google', ...) silently fails. Hide the button in
+  // that case rather than showing a dead button.
+  const [googleAvailable, setGoogleAvailable] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/auth/providers')
+      .then(r => r.ok ? r.json() : null)
+      .then((d: Record<string, { id: string }> | null) => {
+        if (d && 'google' in d) setGoogleAvailable(true)
+      })
+      .catch(() => {})
+  }, [])
 
   // NextAuth sends ?error=... back to the login page when an OAuth
   // sign-in is rejected. Surface a friendly message instead of the raw
@@ -36,6 +50,12 @@ function AgentLoginInner() {
       setError("We couldn't find an agent account for that Google email. If you were just invited, sign in once with the password from your welcome email; you can use Google after that. Otherwise contact your trainer or AFF support.")
     } else if (err === 'AccountInactive') {
       setError('Your account has been deactivated. If you believe this is an error, please contact your trainer or AFF support.')
+    } else if (err === 'OAuthSignin' || err === 'OAuthCallback' || err === 'Callback') {
+      setError(`Google sign-in failed (${err}). Make sure the redirect URI in Google Cloud Console matches this domain exactly, including https://.`)
+    } else if (err === 'Configuration') {
+      setError("Google sign-in isn't configured on the server. Reach out to support.")
+    } else {
+      setError(`Sign-in error: ${err}`)
     }
   }, [searchParams])
 
@@ -63,9 +83,33 @@ function AgentLoginInner() {
   const signInWithGoogle = async () => {
     setError('')
     setGoogleLoading(true)
-    // redirect:true so NextAuth handles the OAuth round-trip end to end.
-    // Errors come back via ?error= which the useEffect above formats.
-    await signIn('google', { callbackUrl: '/agents' })
+    // redirect:false so we can inspect the response. If the OAuth init
+    // succeeded NextAuth returns a `url` to navigate to (Google's
+    // consent screen). If it didn't, we surface the failure inline
+    // instead of leaving the user on a stuck page.
+    try {
+      const res = await signIn('google', { redirect: false, callbackUrl: '/agents' })
+      if (!res) {
+        setError('Google sign-in did not respond. Make sure GOOGLE_CLIENT_ID is set in the environment and the deployment was rebuilt.')
+        setGoogleLoading(false)
+        return
+      }
+      if (res.error) {
+        setError(`Google sign-in failed: ${res.error}`)
+        setGoogleLoading(false)
+        return
+      }
+      if (res.url) {
+        window.location.href = res.url
+        return
+      }
+      // Shouldn't reach here, but just in case.
+      setError('Unexpected response from Google sign-in. Try again or use email/password.')
+      setGoogleLoading(false)
+    } catch (e) {
+      setError(`Google sign-in error: ${e instanceof Error ? e.message : String(e)}`)
+      setGoogleLoading(false)
+    }
   }
 
   return (
@@ -104,6 +148,10 @@ function AgentLoginInner() {
         {/* Google sign-in. Surfaced above email/password because it's */}
         {/* the friendlier path on mobile and bypasses the email-case */}
         {/* footgun entirely (Google always returns a canonical email). */}
+        {/* Hidden when the provider isn't registered server-side (e.g. */}
+        {/* GOOGLE_CLIENT_ID env var missing) so we never show a dead */}
+        {/* button. */}
+        {googleAvailable && (<>
         <button
           type="button"
           onClick={signInWithGoogle}
@@ -136,6 +184,15 @@ function AgentLoginInner() {
           <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#6B8299' }}>or</span>
           <div style={{ flex: 1, height: 1, background: 'rgba(201,169,110,0.15)' }} />
         </div>
+        </>)}
+
+        {/* Inline error banner - visible above the form so the user */}
+        {/* sees Google sign-in failures without scrolling. */}
+        {error && (
+          <div style={{ fontSize: 12, color: '#f87171', padding: '10px 12px', marginBottom: 18, background: 'rgba(248,113,113,0.08)', borderRadius: 4, border: '1px solid rgba(248,113,113,0.2)', lineHeight: 1.5 }}>
+            {error}
+          </div>
+        )}
 
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div>
@@ -175,11 +232,8 @@ function AgentLoginInner() {
             />
           </div>
 
-          {error && (
-            <div style={{ fontSize: 12, color: '#f87171', padding: '8px 12px', background: 'rgba(248,113,113,0.08)', borderRadius: 4, border: '1px solid rgba(248,113,113,0.15)' }}>
-              {error}
-            </div>
-          )}
+          {/* Error banner is rendered above the form (see top of */}
+          {/* render) so credentials AND Google failures both show. */}
 
           <button
             type="submit"
