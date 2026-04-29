@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { agentAuthOptions } from '@/lib/agent-auth'
+import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { randomUUID } from 'crypto'
 import { getGhlConfig, sendGhlEmail, ghlPost, OPS_MAILBOX } from '@/lib/ghl'
@@ -13,8 +13,8 @@ import { buildWelcomeEmailHtml } from '@/lib/welcome-email'
 // the calling agent's agentCode). Pending referrals (no AgentUser yet)
 // are rejected — those are still awaiting admin approval.
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(agentAuthOptions)
-  if (!session?.user) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user || (session.user as { role?: string }).role !== 'agent') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

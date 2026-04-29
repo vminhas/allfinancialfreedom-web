@@ -1,15 +1,43 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { signIn } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
+// Wrap useSearchParams in Suspense per Next.js 15 build requirements;
+// without it the route fails static generation. Inner component holds
+// the actual login UI.
 export default function AgentLoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <AgentLoginInner />
+    </Suspense>
+  )
+}
+
+function AgentLoginInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
+
+  // NextAuth sends ?error=... back to the login page when an OAuth
+  // sign-in is rejected. Surface a friendly message instead of the raw
+  // code. The most likely case is "Google identity has no AgentUser
+  // here yet" - i.e. the agent typed the wrong Google account or
+  // hasn't been invited to AFF yet.
+  useEffect(() => {
+    const err = searchParams.get('error')
+    if (!err) return
+    if (err === 'AccessDenied' || err === 'OAuthAccountNotLinked') {
+      setError("We couldn't find an agent account for that Google email. If you were just invited, sign in once with the password from your welcome email; you can use Google after that. Otherwise contact your trainer or AFF support.")
+    } else if (err === 'AccountInactive') {
+      setError('Your account has been deactivated. If you believe this is an error, please contact your trainer or AFF support.')
+    }
+  }, [searchParams])
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -30,6 +58,14 @@ export default function AgentLoginPage() {
     } else {
       router.push('/agents')
     }
+  }
+
+  const signInWithGoogle = async () => {
+    setError('')
+    setGoogleLoading(true)
+    // redirect:true so NextAuth handles the OAuth round-trip end to end.
+    // Errors come back via ?error= which the useEffect above formats.
+    await signIn('google', { callbackUrl: '/agents' })
   }
 
   return (
@@ -63,6 +99,42 @@ export default function AgentLoginPage() {
           </div>
           <div style={{ fontSize: 20, fontWeight: 300, color: '#ffffff' }}>Agent Portal</div>
           <div style={{ width: 40, height: 1, background: 'rgba(201,169,110,0.3)', margin: '16px auto 0' }} />
+        </div>
+
+        {/* Google sign-in. Surfaced above email/password because it's */}
+        {/* the friendlier path on mobile and bypasses the email-case */}
+        {/* footgun entirely (Google always returns a canonical email). */}
+        <button
+          type="button"
+          onClick={signInWithGoogle}
+          disabled={googleLoading}
+          style={{
+            width: '100%',
+            background: '#ffffff',
+            color: '#1a1a1a',
+            border: '1px solid rgba(255,255,255,0.7)',
+            borderRadius: 4,
+            padding: '11px 14px',
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: googleLoading ? 'wait' : 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+            marginBottom: 18,
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true">
+            <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.7 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 7.9 3l5.7-5.7C34.5 6.5 29.5 4.5 24 4.5 13.2 4.5 4.5 13.2 4.5 24S13.2 43.5 24 43.5 43.5 34.8 43.5 24c0-1.2-.1-2.4-.4-3.5z"/>
+            <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19 13 24 13c3.1 0 5.8 1.1 7.9 3l5.7-5.7C34.5 6.5 29.5 4.5 24 4.5 16.4 4.5 9.8 8.7 6.3 14.7z"/>
+            <path fill="#4CAF50" d="M24 43.5c5.4 0 10.3-2 14-5.4l-6.5-5.5c-2 1.4-4.5 2.4-7.5 2.4-5.2 0-9.5-3.3-11.2-7.9l-6.5 5C9.7 39.2 16.3 43.5 24 43.5z"/>
+            <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.3 5.6l6.5 5.5c-.5.5 7-5 7-15.1 0-1.3-.1-2.4-.4-3.5z"/>
+          </svg>
+          {googleLoading ? 'Redirecting...' : 'Sign in with Google'}
+        </button>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+          <div style={{ flex: 1, height: 1, background: 'rgba(201,169,110,0.15)' }} />
+          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#6B8299' }}>or</span>
+          <div style={{ flex: 1, height: 1, background: 'rgba(201,169,110,0.15)' }} />
         </div>
 
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
