@@ -343,6 +343,14 @@ export const DISCORD_PHASE_ROLE_KEYS = [1, 2, 3, 4, 5].map(n => `DISCORD_ROLE_PH
 export const DISCORD_GUILD_ID_KEY = 'DISCORD_GUILD_ID'
 export const DISCORD_BOT_TOKEN_KEY = 'DISCORD_BOT_TOKEN'
 
+// Public Google Calendar appointment-scheduling link for the licensing
+// coordinator. Surfaced alongside the "Message LC" button on every phase
+// item that needs LC interaction so the agent can either fire off a
+// quick async request or drop a synchronous appointment on the LC's
+// calendar. If the LC ever changes calendars, edit here (or move to
+// /vault/settings later if it needs to be runtime-configurable).
+export const LC_CALENDAR_URL = 'https://calendar.app.google/fSVryPX8wezQetsV6'
+
 export const CARRIERS = [
   'ANICO Life',
   'ANICO Annuity',
