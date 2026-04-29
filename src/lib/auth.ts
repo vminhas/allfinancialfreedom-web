@@ -131,6 +131,10 @@ export const authOptions: NextAuthOptions = {
     // Google sign-in is allowed only if the email already exists in our
     // DB - either as an AdminUser (admin / LC) OR an active AgentUser.
     // We don't auto-provision either flow from a Google identity.
+    //
+    // Every rejected attempt is logged to SignInAttempt + pinged to the
+    // admin Discord channel so we have an immediate audit trail of who
+    // tried to get in without authorization.
     async signIn({ user, account }) {
       if (account?.provider !== 'google') return true
       const email = user.email
@@ -150,7 +154,14 @@ export const authOptions: NextAuthOptions = {
       })
       if (agentUser && agentUser.profile?.status !== 'INACTIVE') return true
 
-      // No matching row - the login page handles ?error=AccessDenied.
+      // Reject + audit. Outcome distinguishes "we have no record at all"
+      // from "we deactivated this person on purpose" so an admin scanning
+      // the log can tell at a glance which deserves a follow-up.
+      const outcome = agentUser ? 'rejected_inactive_agent' : 'rejected_unknown_email'
+      // Fire-and-forget so the redirect doesn't wait on Discord/DB.
+      // The .catch swallows failures because losing an audit-log row
+      // shouldn't block the user-facing redirect.
+      logRejectedSignIn(email, outcome).catch(() => {})
       return false
     },
 
@@ -231,4 +242,41 @@ export const authOptions: NextAuthOptions = {
     },
   },
   secret: process.env.NEXTAUTH_SECRET,
+}
+
+// Persist a rejected Google sign-in attempt to the audit log AND ping
+// the admin Discord channel. Both writes are best-effort; if either
+// fails the user-facing OAuth redirect still completes normally.
+async function logRejectedSignIn(email: string, outcome: string) {
+  await db.signInAttempt.create({
+    data: { email, provider: 'google', outcome },
+  })
+
+  // Discord ping for immediate visibility. Skipped if Discord isn't
+  // configured (dev environments without bot token).
+  if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_ADMIN_CHANNEL_ID) {
+    try {
+      const { sendChannelMessage } = await import('./discord')
+      const reason = outcome === 'rejected_inactive_agent'
+        ? 'agent profile is INACTIVE'
+        : 'no AdminUser or AgentUser record matches this email'
+      await sendChannelMessage(process.env.DISCORD_ADMIN_CHANNEL_ID, {
+        embeds: [{
+          title: '⚠️ Unauthorized sign-in attempt',
+          description: [
+            `**${email}** tried to sign in with Google and was rejected.`,
+            '',
+            `Reason: ${reason}`,
+            '',
+            outcome === 'rejected_unknown_email'
+              ? '_If this person should have access, add them via the referral approval flow (agent) or the admin user table (admin/LC)._'
+              : '_If this person should be reactivated, flip their AgentProfile status from INACTIVE to ACTIVE in /vault/tracker._',
+          ].join('\n'),
+          color: 0xF59E0B,
+          timestamp: new Date().toISOString(),
+          footer: { text: 'AFF Concierge · Auth audit' },
+        }],
+      })
+    } catch { /* non-fatal */ }
+  }
 }
