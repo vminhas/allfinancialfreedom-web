@@ -30,6 +30,8 @@ export interface PhaseItemDef {
   action?: PhaseItemAction
   coordinatorTopic?: LicensingCoordinatorTopic
   adminOnly?: boolean
+  videoUrl?: string
+  videoTitle?: string
 }
 
 export interface PhaseGroupDef {

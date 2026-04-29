@@ -17,6 +17,7 @@ import FeedbackButton from '@/components/FeedbackButton'
 import NewBusinessTab from '@/components/NewBusinessTab'
 import FtaTab from '@/components/FtaTab'
 import MarkdownDescription from '@/components/MarkdownDescription'
+import ChecklistItemVideo from '@/components/ChecklistItemVideo'
 import AnnouncementBanner from '@/components/AnnouncementBanner'
 import { useIsMobile } from '@/lib/useIsMobile'
 
@@ -225,7 +226,7 @@ function AgentDashboardInner() {
   useEffect(() => {
     fetch('/api/agents/phase-items')
       .then(r => r.ok ? r.json() : null)
-      .then((d: { items: Record<string, { itemKey: string; label: string; description: string; duration?: string; groupKey?: string; adminOnly?: boolean; coordinatorTopic?: string; actionJson?: string }[]>; source: string } | null) => {
+      .then((d: { items: Record<string, { itemKey: string; label: string; description: string; duration?: string; groupKey?: string; adminOnly?: boolean; coordinatorTopic?: string; actionJson?: string; videoUrl?: string | null; videoTitle?: string | null }[]>; source: string } | null) => {
         if (d?.source === 'database' && d.items) {
           const mapped: Record<number, typeof PHASE_ITEMS[1]> = {}
           for (const [phase, phaseItems] of Object.entries(d.items)) {
@@ -235,6 +236,8 @@ function AgentDashboardInner() {
               adminOnly: i.adminOnly,
               coordinatorTopic: i.coordinatorTopic as typeof PHASE_ITEMS[1][0]['coordinatorTopic'],
               action: i.actionJson ? JSON.parse(i.actionJson) : undefined,
+              videoUrl: i.videoUrl ?? undefined,
+              videoTitle: i.videoTitle ?? undefined,
             }))
           }
           setDbPhaseItems(mapped)
@@ -1229,6 +1232,16 @@ function AgentDashboardInner() {
                           <div style={{ fontSize: 12, color: '#9BB0C4', lineHeight: 1.6 }}>
                             <MarkdownDescription text={item.description} />
                           </div>
+
+                          {/* Walkthrough video — admins attach a Loom share URL or
+                              uploaded video on the phase item; we render an
+                              expandable player here. */}
+                          {item.videoUrl && (
+                            <ChecklistItemVideo
+                              videoUrl={item.videoUrl}
+                              videoTitle={item.videoTitle ?? null}
+                            />
+                          )}
 
 
                           {/* Coordinator request — inline CTA for items with coordinatorTopic */}
