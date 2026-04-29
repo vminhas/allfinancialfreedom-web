@@ -23,8 +23,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { resolveAgentIdentity } from '@/lib/agent-identity'
 
+// Three-bucket model after consolidating life_market / rollover_market
+// into business_partner / fta_contact. See migration
+// 20260430010000_partner_categories_consolidate.
 const ALLOWED_CATEGORIES = new Set([
-  'business_partner', 'life_market', 'rollover_market', 'fta_contact', 'recruit',
+  'recruit', 'business_partner', 'fta_contact',
 ])
 const ALLOWED_STATUSES = new Set([
   'PENDING', 'NEW', 'CONTACTED', 'INTRO_SENT', 'BOOKED', 'CONVERTED', 'SKIPPED',

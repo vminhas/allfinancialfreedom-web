@@ -15,8 +15,12 @@ import { parseCsv } from '@/lib/csv-parse'
 import { extractContactRow } from '@/lib/contact-csv'
 import { resolveAgentIdentity } from '@/lib/agent-identity'
 
+// Three-bucket model. life_market / rollover_market were retired in
+// favor of the simpler intent-based set (recruit, business_partner,
+// fta_contact). Old data is migrated by the
+// 20260430010000_partner_categories_consolidate migration.
 const ALLOWED_CATEGORIES = new Set([
-  'business_partner', 'life_market', 'rollover_market', 'fta_contact', 'recruit',
+  'recruit', 'business_partner', 'fta_contact',
 ])
 
 interface ImportRow {

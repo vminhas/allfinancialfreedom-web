@@ -18,7 +18,7 @@ import { db } from '@/lib/db'
 import { resolveAgentIdentity } from '@/lib/agent-identity'
 
 const ALLOWED_CATEGORIES = new Set([
-  'business_partner', 'life_market', 'rollover_market', 'fta_contact', 'recruit',
+  'recruit', 'business_partner', 'fta_contact',
 ])
 const ALLOWED_STATUSES = new Set([
   'PENDING', 'NEW', 'CONTACTED', 'INTRO_SENT', 'BOOKED', 'CONVERTED', 'SKIPPED',
