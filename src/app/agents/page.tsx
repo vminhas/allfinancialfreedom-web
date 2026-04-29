@@ -2352,12 +2352,15 @@ const REFERRAL_STATUS_COLORS: Record<string, string> = {
   PENDING: '#f59e0b', APPROVED: '#4ade80', REJECTED: '#f87171',
 }
 
+// Three-bucket model. The Partners tab was getting noisy with five
+// overlapping categories; agents kept asking "what's the difference
+// between business_partner and recruit?" Now it's just two intents
+// (recruit them OR train them) plus a generic "business partner"
+// catch-all. Keeps the dropdown short and the lanes obvious.
 const PARTNER_CATEGORIES = [
-  { key: 'business_partner', label: 'Business Partner' },
-  { key: 'life_market', label: 'Life Market (28-50)' },
-  { key: 'rollover_market', label: 'Rollover Market (50+)' },
-  { key: 'fta_contact', label: 'FTA Contact' },
   { key: 'recruit', label: 'Recruit' },
+  { key: 'business_partner', label: 'Business Partner' },
+  { key: 'fta_contact', label: 'FTA Contact' },
 ] as const
 
 const TIMEZONES = ['EST', 'CST', 'MST', 'PST', 'HST', 'AKST'] as const
@@ -2400,6 +2403,13 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
   const [introNote, setIntroNote] = useState('')
   const [introSending, setIntroSending] = useState(false)
   const [introError, setIntroError] = useState<string | null>(null)
+  // Schedule-FTA flow: opens a small date picker on an FTA contact and
+  // creates a FieldTrainingAppointment + flips the contact to BOOKED so
+  // it disappears from the FTA Contacts lane and shows up in the FTA tab.
+  const [scheduleFtaPartner, setScheduleFtaPartner] = useState<Partner | null>(null)
+  const [scheduleFtaDate, setScheduleFtaDate] = useState('')
+  const [scheduleFtaSaving, setScheduleFtaSaving] = useState(false)
+  const [scheduleFtaError, setScheduleFtaError] = useState<string | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -2534,7 +2544,11 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
   const inQueue       = partners.filter(p => p.status === 'PENDING')
   const businessLane  = partners.filter(p => p.status !== 'PENDING' && p.status !== 'SKIPPED'
                                              && (p.category === 'business_partner' || p.category === 'recruit'))
+  // BOOKED FTA contacts are excluded here because they get promoted to
+  // a real FieldTrainingAppointment row and live in the FTA tab from
+  // that point on. Avoids "is this person in two places?" confusion.
   const ftaLane       = partners.filter(p => p.status !== 'PENDING' && p.status !== 'SKIPPED'
+                                             && p.status !== 'BOOKED'
                                              && p.category === 'fta_contact')
   const skippedLane   = partners.filter(p => p.status === 'SKIPPED')
   const queueCount = inQueue.length
@@ -2634,6 +2648,37 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
       body: JSON.stringify({ action: 'advance', status }),
     })
     if (!res.ok) setPartners(prev)
+  }
+
+  // Two writes: create the FieldTrainingAppointment record, then advance
+  // the contact's status to BOOKED. The FTA lane filter excludes BOOKED
+  // so the row visually moves from Partners > FTA Contacts into the FTA
+  // tab, which is what the agent expects after scheduling.
+  const scheduleFta = async () => {
+    if (!scheduleFtaPartner) return
+    if (!scheduleFtaDate) { setScheduleFtaError('Pick a date'); return }
+    setScheduleFtaSaving(true)
+    setScheduleFtaError(null)
+    try {
+      const ftaRes = await fetch('/api/agents/fta', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: scheduleFtaPartner.name,
+          phone: scheduleFtaPartner.phone,
+          appointmentDate: scheduleFtaDate,
+          notes: scheduleFtaPartner.notes,
+        }),
+      })
+      if (!ftaRes.ok) {
+        const d = await ftaRes.json().catch(() => ({})) as { error?: string }
+        setScheduleFtaError(d.error ?? 'Failed to create FTA')
+        return
+      }
+      // FTA created; flip the partner to BOOKED so it leaves the lane.
+      await advanceOne(scheduleFtaPartner.id, 'BOOKED')
+      setScheduleFtaPartner(null)
+      setScheduleFtaDate('')
+    } finally { setScheduleFtaSaving(false) }
   }
 
   const deleteOne = async (id: string) => {
@@ -2964,7 +3009,25 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
                             <button onClick={() => advanceOne(p.id, 'CONTACTED')} title="Mark as Contacted" style={{ background: 'rgba(201,169,110,0.12)', border: '1px solid rgba(201,169,110,0.3)', color: '#C9A96E', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: 'pointer', marginRight: 6 }}>CONTACTED</button>
                           )}
                           {p.status !== 'BOOKED' && p.status !== 'CONVERTED' && (
-                            <button onClick={() => advanceOne(p.id, 'BOOKED')} title="Mark as Booked" style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.35)', color: '#F59E0B', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: 'pointer', marginRight: 6 }}>BOOKED</button>
+                            <button
+                              onClick={() => {
+                                // Default the date to "tomorrow at 6pm" - more useful
+                                // than blank, easy to overwrite if the agent has a real
+                                // booked time. ISO local format for the datetime-local input.
+                                const t = new Date()
+                                t.setDate(t.getDate() + 1)
+                                t.setHours(18, 0, 0, 0)
+                                const pad = (n: number) => String(n).padStart(2, '0')
+                                const def = `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}T${pad(t.getHours())}:${pad(t.getMinutes())}`
+                                setScheduleFtaDate(def)
+                                setScheduleFtaError(null)
+                                setScheduleFtaPartner(p)
+                              }}
+                              title="Schedule a Field Training Appointment with this contact"
+                              style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.35)', color: '#F59E0B', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: 'pointer', marginRight: 6 }}
+                            >
+                              SCHEDULE FTA
+                            </button>
                           )}
                           {p.status !== 'CONVERTED' && (
                             <button onClick={() => advanceOne(p.id, 'CONVERTED')} title="Mark as Trained / Closed" style={{ background: 'rgba(74,222,128,0.12)', border: '1px solid rgba(74,222,128,0.35)', color: '#4ade80', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: 'pointer', marginRight: 6 }}>DONE</button>
@@ -3010,6 +3073,18 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
           onClose={() => { setIntroModalPartner(null); setIntroNote('') }}
           sending={introSending}
           error={introError}
+        />
+      )}
+
+      {scheduleFtaPartner && (
+        <ScheduleFtaModal
+          partner={scheduleFtaPartner}
+          date={scheduleFtaDate}
+          setDate={setScheduleFtaDate}
+          onSchedule={scheduleFta}
+          onClose={() => { setScheduleFtaPartner(null); setScheduleFtaDate('') }}
+          saving={scheduleFtaSaving}
+          error={scheduleFtaError}
         />
       )}
     </div>
@@ -3204,6 +3279,55 @@ function IntroModal({
           <button onClick={onClose} disabled={sending} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#9BB0C4', borderRadius: 4, padding: '8px 16px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
           <button onClick={onSend} disabled={sending} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '8px 18px', fontSize: 11, fontWeight: 700, cursor: sending ? 'wait' : 'pointer', opacity: sending ? 0.6 : 1 }}>
             {sending ? 'Sending...' : 'Send the intro'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Small modal for "Schedule FTA from a contact." Single date input;
+// the contact's existing name/phone/notes carry over server-side so
+// the agent doesn't have to retype everything they already classified.
+function ScheduleFtaModal({
+  partner, date, setDate, onSchedule, onClose, saving, error,
+}: {
+  partner: Partner
+  date: string
+  setDate: (v: string) => void
+  onSchedule: () => void
+  onClose: () => void
+  saving: boolean
+  error: string | null
+}) {
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#0F1E33', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 8, width: '100%', maxWidth: 460 }}>
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(245,158,11,0.18)' }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>Schedule FTA with {partner.name}</div>
+          <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>
+            Pick a date and time. We&apos;ll move {partner.name.split(/\s+/)[0]} from your contacts list into your FTA tab.
+          </div>
+        </div>
+        <div style={{ padding: '20px 24px' }}>
+          <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#F59E0B', display: 'block', marginBottom: 6 }}>
+            Appointment date &amp; time
+          </label>
+          <input
+            type="datetime-local"
+            value={date}
+            onChange={e => setDate(e.target.value)}
+            style={{ width: '100%', background: '#0A1628', border: '1px solid rgba(245,158,11,0.3)', color: '#d1d9e2', borderRadius: 4, padding: '10px 12px', fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit' }}
+          />
+          <div style={{ fontSize: 10, color: '#6B8299', marginTop: 8, lineHeight: 1.55 }}>
+            Their contact details ({partner.phone ?? 'no phone'}) carry over automatically. You can edit the FTA further from the FTA tab.
+          </div>
+        </div>
+        {error && <div style={{ padding: '0 24px 12px', fontSize: 11, color: '#f87171' }}>{error}</div>}
+        <div style={{ padding: '14px 24px', borderTop: '1px solid rgba(245,158,11,0.18)', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} disabled={saving} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#9BB0C4', borderRadius: 4, padding: '8px 16px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
+          <button onClick={onSchedule} disabled={saving || !date} style={{ background: '#F59E0B', color: '#0A1628', border: 'none', borderRadius: 4, padding: '8px 18px', fontSize: 11, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', opacity: saving || !date ? 0.6 : 1 }}>
+            {saving ? 'Scheduling...' : 'Schedule FTA'}
           </button>
         </div>
       </div>

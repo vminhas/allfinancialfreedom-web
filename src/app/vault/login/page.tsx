@@ -1,8 +1,16 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
-import { signIn } from 'next-auth/react'
+import { signIn, signOut } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
+
+interface SessionInfo {
+  user?: {
+    email?: string
+    name?: string
+    role?: string
+  }
+}
 
 // Wrap useSearchParams in Suspense per Next.js 15 build requirements.
 export default function VaultLoginPage() {
@@ -23,12 +31,25 @@ function VaultLoginInner() {
   // Server-side check that Google is actually registered. Hides the
   // button if GOOGLE_CLIENT_ID isn't set so we don't show a dead button.
   const [googleAvailable, setGoogleAvailable] = useState(false)
+  // Existing session, if any. We surface this at the top of the login
+  // page because the most common stuck-loop scenario is "user signed
+  // in via Google as an agent, middleware bounces them back here, but
+  // the cookie is still set so credentials login won't fix it." Showing
+  // the current identity + a Sign out button breaks the loop in one
+  // click.
+  const [existingSession, setExistingSession] = useState<SessionInfo | null>(null)
 
   useEffect(() => {
     fetch('/api/auth/providers')
       .then(r => r.ok ? r.json() : null)
       .then((d: Record<string, { id: string }> | null) => {
         if (d && 'google' in d) setGoogleAvailable(true)
+      })
+      .catch(() => {})
+    fetch('/api/auth/session')
+      .then(r => r.ok ? r.json() : null)
+      .then((d: SessionInfo | null) => {
+        if (d?.user?.email) setExistingSession(d)
       })
       .catch(() => {})
   }, [])
@@ -119,6 +140,41 @@ function VaultLoginInner() {
         </div>
 
         <form onSubmit={handleSubmit} style={{ background: '#142D48', borderRadius: 6, padding: '36px 32px' }}>
+          {/* Existing-session banner. If you're signed in but the */}
+          {/* middleware bounced you back here (most likely because */}
+          {/* your role isn't admin/LC), show who you're signed in as */}
+          {/* and offer a one-click sign out so the loop breaks. */}
+          {existingSession?.user && (
+            <div style={{
+              fontSize: 12, color: '#9BB0C4',
+              padding: '12px 14px', marginBottom: 18,
+              background: 'rgba(245,158,11,0.06)',
+              borderRadius: 4, border: '1px solid rgba(245,158,11,0.25)',
+              lineHeight: 1.5,
+            }}>
+              <div style={{ marginBottom: 8 }}>
+                You&apos;re currently signed in as <strong style={{ color: '#fff' }}>{existingSession.user.email}</strong>
+                {existingSession.user.role ? <> (role: <strong style={{ color: '#fff' }}>{existingSession.user.role}</strong>)</> : null}.
+                {existingSession.user.role !== 'admin' && existingSession.user.role !== 'licensing_coordinator' && (
+                  <> The vault requires an admin or licensing-coordinator account; sign out and try a different one.</>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => signOut({ callbackUrl: '/vault/login' })}
+                style={{
+                  background: 'transparent', color: '#F59E0B',
+                  border: '1px solid rgba(245,158,11,0.5)', borderRadius: 3,
+                  padding: '6px 12px', fontSize: 11, fontWeight: 700,
+                  letterSpacing: '0.08em', textTransform: 'uppercase',
+                  cursor: 'pointer',
+                }}
+              >
+                Sign out and start over
+              </button>
+            </div>
+          )}
+
           {/* Inline error banner for both Google and credentials failures. */}
           {/* Sits above the Google button so login-flow errors land here */}
           {/* regardless of which path the user tried. */}
