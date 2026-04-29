@@ -40,11 +40,11 @@ export default function AgentGuidePage() {
           <GuideTip>Your portal auto-saves everything. You never need to click a &quot;save&quot; button on the checklist, PFR, or partner forms.</GuideTip>
         </GuideSection>
 
-        <GuideSection title="System Checklist — Your Roadmap" icon={CheckCircle}>
+        <GuideSection title="System Checklist: Your Roadmap" icon={CheckCircle}>
           <p style={{ marginBottom: 12 }}>The checklist is your home base. It shows everything you need to complete in your current phase and tracks your progress across all 5 phases.</p>
 
           <GuideStep number={1} title="Understanding Phases">
-            <strong style={{ color: '#ffffff' }}>Phase 1</strong> (Getting Started) — Onboarding, licensing, and training prep. <strong style={{ color: '#ffffff' }}>Phase 2</strong> (Field Training) — 10 FTAs, first clients, first $1,000. <strong style={{ color: '#ffffff' }}>Phase 3</strong> (Becoming a CFT) — Sign-offs, independent skills, product mastery. <strong style={{ color: '#ffffff' }}>Phase 4</strong> (MD Focus) — 45K points, team of 5. <strong style={{ color: '#ffffff' }}>Phase 5</strong> (EMD Focus) — 150K points, 20 licensed agents.
+            <strong style={{ color: '#ffffff' }}>Phase 1</strong> (Getting Started): Onboarding, licensing, and training prep. <strong style={{ color: '#ffffff' }}>Phase 2</strong> (Field Training): 10 FTAs, first clients, first $1,000. <strong style={{ color: '#ffffff' }}>Phase 3</strong> (Becoming a CFT): Sign-offs, independent skills, product mastery. <strong style={{ color: '#ffffff' }}>Phase 4</strong> (MD Focus): 45K points, team of 5. <strong style={{ color: '#ffffff' }}>Phase 5</strong> (EMD Focus): 150K points, 20 licensed agents.
           </GuideStep>
 
           <GuideStep number={2} title="Groups & Collapsing">

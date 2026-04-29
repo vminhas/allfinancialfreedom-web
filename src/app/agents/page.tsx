@@ -376,7 +376,7 @@ function AgentDashboardInner() {
           padding: '8px 20px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           fontSize: 12, color: '#9B6DFF', fontWeight: 600,
         }}>
-          Viewing as {data.firstName} {data.lastName} ({data.agentCode}) — read-only preview
+          Viewing as {data.firstName} {data.lastName} ({data.agentCode}) &middot; read-only preview
           <button onClick={() => window.close()} style={{ background: 'rgba(155,109,255,0.15)', border: '1px solid rgba(155,109,255,0.3)', color: '#9B6DFF', borderRadius: 4, padding: '4px 10px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>Close</button>
         </div>
       )}
@@ -865,7 +865,7 @@ function AgentDashboardInner() {
             <div style={{ marginBottom: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                 <div>
-                  <div style={sectionLabel}>Phase {activeChecklistPhase} — {PHASE_LABELS[activeChecklistPhase].title}</div>
+                  <div style={sectionLabel}>Phase {activeChecklistPhase}: {PHASE_LABELS[activeChecklistPhase].title}</div>
                   <div style={{ fontSize: 11, color: '#6B8299', marginBottom: 2 }}>{PHASE_LABELS[activeChecklistPhase].standard} · Goal: {PHASE_LABELS[activeChecklistPhase].goal}</div>
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 16 }}>
@@ -1593,7 +1593,7 @@ function LicensingTab({
       </div>
 
       <p style={{ fontSize: 12, color: '#6B8299', marginBottom: 20, lineHeight: 1.6 }}>
-        Complete these steps once to get fully licensed and appointed. Some items overlap with your Phase 1 checklist — checking them here updates both.
+        Complete these steps once to get fully licensed and appointed. Some items overlap with your Phase 1 checklist; checking them here updates both.
       </p>
 
       {/* Progress bar */}
@@ -1715,7 +1715,7 @@ function CarriersTab({
                 fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase',
                 color: isLocked ? '#4B5563' : '#C9A96E',
               }}>
-                Phase {unlockPhase} — {phaseLabel}
+                Phase {unlockPhase}: {phaseLabel}
               </div>
               {isLocked && (
                 <span style={{
@@ -2112,7 +2112,7 @@ function ProfileTab({ data, onSaved, discordParam, discordUsername, isMobile }: 
             <span style={{ color: '#C9A96E', fontSize: 14, lineHeight: 1, flexShrink: 0, marginTop: 1 }}>⚑</span>
             <p style={{ margin: 0, fontSize: 11, color: '#9BB0C4', lineHeight: 1.6 }}>
               Your SSN is collected solely for employment verification, carrier appointment processing, and E&O insurance purposes as required by All Financial Freedom.
-              It is encrypted and stored securely — only authorized AFF staff can access it, and it is never shared with third parties outside of these licensing requirements.
+              It is encrypted and stored securely. Only authorized AFF staff can access it, and it is never shared with third parties outside of these licensing requirements.
             </p>
           </div>
 
@@ -2720,7 +2720,7 @@ function ImportModal({
             <div style={{ padding: '12px 24px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 11, color: '#9BB0C4' }}>Bulk classify all rows as</span>
               <select value={bulkCategory} onChange={e => setBulkCategory(e.target.value)} style={{ background: '#0A1628', border: '1px solid rgba(201,169,110,0.2)', color: '#9BB0C4', borderRadius: 4, padding: '6px 10px', fontSize: 11 }}>
-                <option value="">— Pick a category —</option>
+                <option value="">Pick a category...</option>
                 {PARTNER_CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
               </select>
               <button onClick={applyBulkCategory} disabled={!bulkCategory} style={{ background: 'rgba(201,169,110,0.12)', border: '1px solid rgba(201,169,110,0.3)', color: '#C9A96E', fontSize: 10, fontWeight: 700, padding: '5px 12px', borderRadius: 3, cursor: bulkCategory ? 'pointer' : 'not-allowed' }}>
