@@ -3393,6 +3393,15 @@ const RESOURCE_GROUPS: { key: string; label: string; icon: string }[] = [
 
 type MemberStatus = 'ACTIVE' | 'INVITED' | 'PENDING'
 
+interface TeamProgress {
+  phase: number
+  daysInPhase: number | null
+  currentPhaseCompleted: number
+  currentPhaseTotal: number
+  perPhase: Array<{ phase: number; completed: number; total: number }>
+  lastActivityAt: string | null
+}
+
 interface TeamNode {
   id: string
   agentUserId: string | null
@@ -3405,6 +3414,7 @@ interface TeamNode {
   state: string | null
   avatarUrl: string | null
   memberStatus: MemberStatus
+  progress: TeamProgress | null
   children: TeamNode[]
 }
 
@@ -3418,8 +3428,30 @@ const TEAM_PHASE_COLORS: Record<number, string> = {
   1: '#C9A96E', 2: '#60a5fa', 3: '#f59e0b', 4: '#9B6DFF', 5: '#4ade80',
 }
 
+function formatRelativeDays(iso: string): string {
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)
+  if (days <= 0) return 'today'
+  if (days === 1) return 'yesterday'
+  if (days < 7) return `${days}d ago`
+  if (days < 30) return `${Math.floor(days / 7)}w ago`
+  if (days < 365) return `${Math.floor(days / 30)}mo ago`
+  return `${Math.floor(days / 365)}y ago`
+}
+
+function ProgressStat({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div style={{ minWidth: 90 }}>
+      <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6B8299', marginBottom: 2 }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 13, fontWeight: 600, color }}>{value}</div>
+    </div>
+  )
+}
+
 function TeamMemberNode({ node, depth, isMobile }: { node: TeamNode; depth: number; isMobile: boolean }) {
   const [expanded, setExpanded] = useState(depth < 2)
+  const [showProgress, setShowProgress] = useState(false)
   const [resending, setResending] = useState(false)
   const [resendMsg, setResendMsg] = useState<string | null>(null)
   const color = TEAM_PHASE_COLORS[node.phase] ?? '#C9A96E'
@@ -3428,6 +3460,15 @@ function TeamMemberNode({ node, depth, isMobile }: { node: TeamNode; depth: numb
   let descendants = 0
   function count(n: TeamNode) { for (const c of n.children) { descendants++; count(c) } }
   count(node)
+
+  const lastActivityLabel = node.progress?.lastActivityAt
+    ? formatRelativeDays(node.progress.lastActivityAt)
+    : null
+  // Stalled = no activity in 14+ days while in an active phase. Useful
+  // visual cue for an upline scanning a long roster for who needs a nudge.
+  const stalled = node.progress?.lastActivityAt
+    ? (Date.now() - new Date(node.progress.lastActivityAt).getTime()) / 86_400_000 > 14
+    : false
 
   const handleResend = async (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -3494,6 +3535,20 @@ function TeamMemberNode({ node, depth, isMobile }: { node: TeamNode; depth: numb
               </span>
             )}
             {node.state && <span style={{ fontSize: 9, color: '#6B8299' }}>{node.state}</span>}
+            {/* Inline progress summary for ACTIVE members. Lets the upline */}
+            {/* scan a long team and spot stalled agents at a glance. */}
+            {node.progress && (
+              <>
+                <span style={{ fontSize: 9, color: '#6B8299' }}>
+                  P{node.progress.phase} · {node.progress.currentPhaseCompleted}/{node.progress.currentPhaseTotal}
+                </span>
+                {lastActivityLabel && (
+                  <span style={{ fontSize: 9, color: stalled ? '#f59e0b' : '#6B8299', fontWeight: stalled ? 700 : 400 }}>
+                    {stalled ? '⚠ ' : ''}Active {lastActivityLabel}
+                  </span>
+                )}
+              </>
+            )}
           </div>
         </div>
         {node.memberStatus === 'INVITED' && node.agentUserId && (
@@ -3516,6 +3571,22 @@ function TeamMemberNode({ node, depth, isMobile }: { node: TeamNode; depth: numb
             Awaiting admin approval
           </span>
         )}
+        {/* Progress toggle — separate from children expand. Stops click */}
+        {/* propagation so it doesn't also collapse/expand the children. */}
+        {node.progress && (
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowProgress(s => !s) }}
+            style={{
+              padding: '4px 10px', borderRadius: 4,
+              background: showProgress ? `${color}20` : 'transparent',
+              border: `1px solid ${color}40`, color,
+              fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+              cursor: 'pointer', flexShrink: 0,
+            }}
+          >
+            {showProgress ? 'Hide' : 'View'} progress
+          </button>
+        )}
         {node.children.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
             <span style={{ fontSize: 9, color: '#6B8299', fontWeight: 600 }}>{descendants}</span>
@@ -3523,6 +3594,54 @@ function TeamMemberNode({ node, depth, isMobile }: { node: TeamNode; depth: numb
           </div>
         )}
       </div>
+      {showProgress && node.progress && (
+        <div style={{
+          marginLeft: isMobile ? depth * 16 + 14 : depth * 32 + 14,
+          marginTop: 6,
+          padding: '12px 14px',
+          background: 'rgba(255,255,255,0.02)',
+          border: '1px solid rgba(255,255,255,0.05)',
+          borderRadius: 6,
+        }}>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
+            <ProgressStat label="Current Phase" value={`Phase ${node.progress.phase}`} color={color} />
+            <ProgressStat label="Days in Phase" value={node.progress.daysInPhase != null ? `${node.progress.daysInPhase}d` : '—'} color="#9BB0C4" />
+            <ProgressStat
+              label="Phase Progress"
+              value={`${node.progress.currentPhaseCompleted}/${node.progress.currentPhaseTotal}`}
+              color="#C9A96E"
+            />
+            <ProgressStat
+              label="Last Activity"
+              value={lastActivityLabel ?? 'Never'}
+              color={stalled ? '#f59e0b' : '#9BB0C4'}
+            />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {node.progress.perPhase.map(p => {
+              const pct = p.total > 0 ? Math.round((p.completed / p.total) * 100) : 0
+              const phaseColor = TEAM_PHASE_COLORS[p.phase] ?? '#C9A96E'
+              const isCurrent = p.phase === node.progress!.phase
+              return (
+                <div key={p.phase} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', color: isCurrent ? phaseColor : '#6B8299', width: 56, flexShrink: 0 }}>
+                    PHASE {p.phase}
+                  </span>
+                  <div style={{ flex: 1, height: 6, background: 'rgba(255,255,255,0.05)', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ width: `${pct}%`, height: '100%', background: phaseColor, transition: 'width 0.3s' }} />
+                  </div>
+                  <span style={{ fontSize: 10, color: '#6B8299', fontWeight: 600, width: 48, textAlign: 'right', flexShrink: 0 }}>
+                    {p.completed}/{p.total}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+          <div style={{ marginTop: 10, fontSize: 10, color: '#4B5563', fontStyle: 'italic' }}>
+            Read-only view. Reach out to {node.firstName} on Discord if they're stuck on a step.
+          </div>
+        </div>
+      )}
       {expanded && node.children.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
           {node.children.map(c => (
