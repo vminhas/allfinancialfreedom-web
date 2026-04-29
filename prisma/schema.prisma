@@ -431,6 +431,12 @@ model BusinessPartner {
   notes           String?
   phaseItemKey    String?
   bookedAppt      Boolean      @default(false)
+  // CEO intro email — when the agent has Vick send a "thought you'd be a great
+  // fit" intro. Tracked so the row can show "Intro sent <date>" and the button
+  // can disable itself; nullable because most rows never get an intro.
+  introSentAt     DateTime?
+  introMessageId  String?      // GHL message id for the audit trail
+  source          String?      // 'manual' | 'csv_import' — for analytics
   createdAt       DateTime     @default(now())
 
   @@map("business_partners")

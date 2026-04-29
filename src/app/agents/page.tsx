@@ -2261,6 +2261,21 @@ interface Partner {
   category: string | null; appointmentDate: string | null; icaDate: string | null
   firstCallDate: string | null; secondCallDate: string | null; bookedAppt: boolean
   notes: string | null; phaseItemKey: string | null
+  introSentAt: string | null
+  source: string | null
+}
+
+interface ImportPreviewRow {
+  name: string
+  email: string | null
+  phone: string | null
+  occupation: string | null
+  notes: string | null
+  suggestedCategory: string | null
+  // UI-side: the agent's chosen category (defaults to suggested)
+  category: string
+  // UI-side: agent can deselect rows they don't want to import
+  selected: boolean
 }
 
 interface Referral {
@@ -2296,6 +2311,17 @@ function BusinessPartnersTab({ isMobile }: { isMobile: boolean }) {
   const [referForm, setReferForm] = useState({ firstName: '', lastName: '', email: '', phone: '', state: '', notes: '' })
   const [saving, setSaving] = useState(false)
   const [referError, setReferError] = useState<string | null>(null)
+  // Import flow: open modal → upload CSV → preview state → classify each row → commit.
+  const [importOpen, setImportOpen] = useState(false)
+  const [importPreview, setImportPreview] = useState<ImportPreviewRow[] | null>(null)
+  const [importBulkCategory, setImportBulkCategory] = useState<string>('')
+  const [importError, setImportError] = useState<string | null>(null)
+  const [importBusy, setImportBusy] = useState(false)
+  // CEO intro flow
+  const [introModalPartner, setIntroModalPartner] = useState<Partner | null>(null)
+  const [introNote, setIntroNote] = useState('')
+  const [introSending, setIntroSending] = useState(false)
+  const [introError, setIntroError] = useState<string | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -2358,6 +2384,71 @@ function BusinessPartnersTab({ isMobile }: { isMobile: boolean }) {
     } finally { setSaving(false) }
   }
 
+  const handleImportFile = async (file: File) => {
+    setImportError(null)
+    setImportBusy(true)
+    try {
+      const csv = await file.text()
+      const res = await fetch('/api/agents/partners/import', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'preview', csv }),
+      })
+      const data = await res.json() as { rows?: Omit<ImportPreviewRow, 'category' | 'selected'>[]; error?: string }
+      if (!res.ok || !data.rows) { setImportError(data.error ?? 'Could not read CSV'); return }
+      if (data.rows.length === 0) { setImportError('No usable contacts found in this CSV'); return }
+      setImportPreview(data.rows.map(r => ({
+        ...r,
+        category: r.suggestedCategory ?? '',
+        selected: true,
+      })))
+    } catch {
+      setImportError('Failed to read file')
+    } finally { setImportBusy(false) }
+  }
+
+  const handleImportCommit = async () => {
+    if (!importPreview) return
+    const toSend = importPreview.filter(r => r.selected && r.name.trim())
+    if (toSend.length === 0) { setImportError('Pick at least one row to import'); return }
+    setImportBusy(true)
+    setImportError(null)
+    try {
+      const res = await fetch('/api/agents/partners/import', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'commit',
+          rows: toSend.map(r => ({
+            name: r.name, email: r.email, phone: r.phone,
+            occupation: r.occupation, notes: r.notes,
+            category: r.category || null,
+          })),
+        }),
+      })
+      const data = await res.json() as { partners?: Partner[]; error?: string }
+      if (!res.ok || !data.partners) { setImportError(data.error ?? 'Import failed'); return }
+      setPartners(prev => [...data.partners!, ...prev])
+      setImportPreview(null)
+      setImportOpen(false)
+    } finally { setImportBusy(false) }
+  }
+
+  const handleSendIntro = async () => {
+    if (!introModalPartner) return
+    setIntroSending(true)
+    setIntroError(null)
+    try {
+      const res = await fetch(`/api/agents/partners/${introModalPartner.id}/send-intro`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ personalNote: introNote.trim() || undefined }),
+      })
+      const data = await res.json() as { partner?: Partner; error?: string }
+      if (!res.ok || !data.partner) { setIntroError(data.error ?? 'Failed to send'); return }
+      setPartners(prev => prev.map(p => p.id === data.partner!.id ? data.partner! : p))
+      setIntroModalPartner(null)
+      setIntroNote('')
+    } finally { setIntroSending(false) }
+  }
+
   const filtered = activeCategory
     ? partners.filter(p => p.category === activeCategory)
     : partners
@@ -2412,9 +2503,17 @@ function BusinessPartnersTab({ isMobile }: { isMobile: boolean }) {
 
       {/* Contacts & Prospects — full spreadsheet parity */}
       <div style={{ ...card, padding: '20px 24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <div style={sectionLabel}>Contacts & Prospects ({partners.length})</div>
-          <button onClick={() => { resetForm(); setShowForm(!showForm) }} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>+ Add</button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
+          <div>
+            <div style={sectionLabel}>Contacts & Prospects ({partners.length})</div>
+            <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>
+              Import contacts from your phone, classify each as an FTA contact or business partner prospect, and send a CEO intro to anyone you'd like to recruit.
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => { setImportOpen(true); setImportPreview(null); setImportError(null) }} style={{ background: 'transparent', color: '#C9A96E', border: '1px solid rgba(201,169,110,0.4)', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>↑ Import CSV</button>
+            <button onClick={() => { resetForm(); setShowForm(!showForm) }} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>+ Add</button>
+          </div>
         </div>
 
         {/* Category filter tabs */}
@@ -2503,7 +2602,25 @@ function BusinessPartnersTab({ isMobile }: { isMobile: boolean }) {
                   <td style={tdStyle}>{p.firstCallDate ? new Date(p.firstCallDate).toLocaleDateString() : ''}</td>
                   <td style={tdStyle}>{p.secondCallDate ? new Date(p.secondCallDate).toLocaleDateString() : ''}</td>
                   <td style={checkStyle}>{p.bookedAppt ? '✓' : ''}</td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}>
+                  <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    {/* "Send CEO intro" only makes sense for recruit-style categories — */}
+                    {/* an FTA contact is a client lead, not someone we'd recruit. */}
+                    {(p.category === 'business_partner' || p.category === 'recruit') && (
+                      p.introSentAt ? (
+                        <span style={{ fontSize: 9, color: '#4ade80', marginRight: 8, fontWeight: 700 }} title={`Sent ${new Date(p.introSentAt).toLocaleDateString()}`}>
+                          ✓ INTRO SENT
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => { setIntroModalPartner(p); setIntroNote(''); setIntroError(null) }}
+                          disabled={!p.email}
+                          title={p.email ? 'Have Vick send a warm intro' : 'Add an email first'}
+                          style={{ background: 'rgba(201,169,110,0.12)', border: '1px solid rgba(201,169,110,0.3)', color: p.email ? '#C9A96E' : '#4B5563', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: p.email ? 'pointer' : 'not-allowed', marginRight: 8 }}
+                        >
+                          CEO INTRO
+                        </button>
+                      )
+                    )}
                     <button onClick={() => startEdit(p)} style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 10, cursor: 'pointer' }}>Edit</button>
                   </td>
                 </tr>
@@ -2511,6 +2628,189 @@ function BusinessPartnersTab({ isMobile }: { isMobile: boolean }) {
             </table>
           </div>
         }
+      </div>
+
+      {importOpen && (
+        <ImportModal
+          preview={importPreview}
+          bulkCategory={importBulkCategory}
+          setBulkCategory={setImportBulkCategory}
+          onPickFile={handleImportFile}
+          onCommit={handleImportCommit}
+          onClose={() => { setImportOpen(false); setImportPreview(null); setImportError(null) }}
+          onChangeRow={(idx, patch) => setImportPreview(prev => prev ? prev.map((r, i) => i === idx ? { ...r, ...patch } : r) : prev)}
+          busy={importBusy}
+          error={importError}
+          isMobile={isMobile}
+        />
+      )}
+
+      {introModalPartner && (
+        <IntroModal
+          partner={introModalPartner}
+          note={introNote}
+          setNote={setIntroNote}
+          onSend={handleSendIntro}
+          onClose={() => { setIntroModalPartner(null); setIntroNote('') }}
+          sending={introSending}
+          error={introError}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─── Import + Intro Modals ─────────────────────────────────────────────────────
+
+function ImportModal({
+  preview, bulkCategory, setBulkCategory,
+  onPickFile, onCommit, onClose, onChangeRow,
+  busy, error, isMobile,
+}: {
+  preview: ImportPreviewRow[] | null
+  bulkCategory: string
+  setBulkCategory: (v: string) => void
+  onPickFile: (f: File) => void
+  onCommit: () => void
+  onClose: () => void
+  onChangeRow: (idx: number, patch: Partial<ImportPreviewRow>) => void
+  busy: boolean
+  error: string | null
+  isMobile: boolean
+}) {
+  const selectedCount = preview?.filter(r => r.selected).length ?? 0
+
+  const applyBulkCategory = () => {
+    if (!preview || !bulkCategory) return
+    preview.forEach((_, i) => onChangeRow(i, { category: bulkCategory }))
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#0F1E33', border: '1px solid rgba(201,169,110,0.2)', borderRadius: 8, width: '100%', maxWidth: 920, maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(201,169,110,0.12)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>Import Contacts</div>
+            <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>
+              {preview ? `${selectedCount} of ${preview.length} selected — classify each contact and confirm` : 'Export your phone contacts as CSV (Google Contacts, Apple Numbers, Outlook all work)'}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#9BB0C4', fontSize: 18, cursor: 'pointer' }}>✕</button>
+        </div>
+
+        {!preview && (
+          <div style={{ padding: '40px 24px', textAlign: 'center' }}>
+            <label style={{ display: 'inline-block', cursor: busy ? 'wait' : 'pointer', background: '#C9A96E', color: '#142D48', padding: '12px 28px', borderRadius: 4, fontSize: 13, fontWeight: 700 }}>
+              {busy ? 'Reading...' : 'Choose CSV file'}
+              <input
+                type="file" accept=".csv,text/csv" hidden
+                onChange={e => { const f = e.target.files?.[0]; if (f) onPickFile(f) }}
+                disabled={busy}
+              />
+            </label>
+            <div style={{ fontSize: 11, color: '#6B8299', marginTop: 16, lineHeight: 1.6 }}>
+              On iPhone: open the Contacts app → select contacts → Share → Save to Files as a vCard, then convert to CSV with any free converter.<br />
+              On Google Contacts: Export → Google CSV.
+            </div>
+          </div>
+        )}
+
+        {preview && (
+          <>
+            <div style={{ padding: '12px 24px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 11, color: '#9BB0C4' }}>Bulk classify all rows as</span>
+              <select value={bulkCategory} onChange={e => setBulkCategory(e.target.value)} style={{ background: '#0A1628', border: '1px solid rgba(201,169,110,0.2)', color: '#9BB0C4', borderRadius: 4, padding: '6px 10px', fontSize: 11 }}>
+                <option value="">— Pick a category —</option>
+                {PARTNER_CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+              </select>
+              <button onClick={applyBulkCategory} disabled={!bulkCategory} style={{ background: 'rgba(201,169,110,0.12)', border: '1px solid rgba(201,169,110,0.3)', color: '#C9A96E', fontSize: 10, fontWeight: 700, padding: '5px 12px', borderRadius: 3, cursor: bulkCategory ? 'pointer' : 'not-allowed' }}>
+                Apply to all
+              </button>
+            </div>
+            <div style={{ overflowY: 'auto', flex: 1, padding: '8px 0' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', position: 'sticky', top: 0, background: '#0F1E33' }}>
+                  {['', 'Name', 'Email', 'Phone', isMobile ? null : 'Occupation', 'Classify as'].filter(Boolean).map(h => (
+                    <th key={String(h)} style={{ padding: '8px 10px', textAlign: 'left', fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#C9A96E' }}>{h}</th>
+                  ))}
+                </tr></thead>
+                <tbody>
+                  {preview.map((r, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', opacity: r.selected ? 1 : 0.45 }}>
+                      <td style={{ padding: '6px 10px' }}>
+                        <input type="checkbox" checked={r.selected} onChange={e => onChangeRow(i, { selected: e.target.checked })} />
+                      </td>
+                      <td style={{ padding: '6px 10px', fontSize: 12, color: '#fff' }}>{r.name}</td>
+                      <td style={{ padding: '6px 10px', fontSize: 11, color: '#9BB0C4' }}>{r.email ?? '—'}</td>
+                      <td style={{ padding: '6px 10px', fontSize: 11, color: '#9BB0C4' }}>{r.phone ?? '—'}</td>
+                      {!isMobile && <td style={{ padding: '6px 10px', fontSize: 11, color: '#9BB0C4' }}>{r.occupation ?? '—'}</td>}
+                      <td style={{ padding: '6px 10px' }}>
+                        <select value={r.category} onChange={e => onChangeRow(i, { category: e.target.value })} style={{ background: '#0A1628', border: '1px solid rgba(201,169,110,0.2)', color: '#9BB0C4', borderRadius: 4, padding: '4px 8px', fontSize: 11 }}>
+                          <option value="">Unclassified</option>
+                          {PARTNER_CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+                        </select>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+
+        {error && <div style={{ padding: '8px 24px', fontSize: 11, color: '#f87171' }}>{error}</div>}
+        {preview && (
+          <div style={{ padding: '14px 24px', borderTop: '1px solid rgba(201,169,110,0.12)', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button onClick={onClose} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#9BB0C4', borderRadius: 4, padding: '8px 16px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
+            <button onClick={onCommit} disabled={busy || selectedCount === 0} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '8px 18px', fontSize: 11, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', opacity: busy || selectedCount === 0 ? 0.6 : 1 }}>
+              {busy ? 'Importing...' : `Import ${selectedCount} contact${selectedCount === 1 ? '' : 's'}`}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function IntroModal({
+  partner, note, setNote, onSend, onClose, sending, error,
+}: {
+  partner: Partner
+  note: string
+  setNote: (v: string) => void
+  onSend: () => void
+  onClose: () => void
+  sending: boolean
+  error: string | null
+}) {
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#0F1E33', border: '1px solid rgba(201,169,110,0.2)', borderRadius: 8, width: '100%', maxWidth: 520 }}>
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(201,169,110,0.12)' }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>Send a CEO intro to {partner.name}</div>
+          <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>
+            Vick will email <span style={{ color: '#9BB0C4' }}>{partner.email ?? '—'}</span> from his address. The note below is quoted in the email above his signature.
+          </div>
+        </div>
+        <div style={{ padding: '20px 24px' }}>
+          <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#C9A96E', display: 'block', marginBottom: 6 }}>
+            Personal note (optional)
+          </label>
+          <textarea
+            value={note} onChange={e => setNote(e.target.value)}
+            rows={4} maxLength={500}
+            placeholder="e.g. We grabbed coffee last month and I really think you'd love what we're building."
+            style={{ width: '100%', background: '#0A1628', border: '1px solid rgba(201,169,110,0.2)', color: '#9BB0C4', borderRadius: 4, padding: '10px 12px', fontSize: 12, resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit' }}
+          />
+          <div style={{ fontSize: 10, color: '#4B5563', marginTop: 4 }}>{note.length} / 500</div>
+        </div>
+        {error && <div style={{ padding: '0 24px 12px', fontSize: 11, color: '#f87171' }}>{error}</div>}
+        <div style={{ padding: '14px 24px', borderTop: '1px solid rgba(201,169,110,0.12)', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} disabled={sending} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#9BB0C4', borderRadius: 4, padding: '8px 16px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
+          <button onClick={onSend} disabled={sending} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '8px 18px', fontSize: 11, fontWeight: 700, cursor: sending ? 'wait' : 'pointer', opacity: sending ? 0.6 : 1 }}>
+            {sending ? 'Sending...' : 'Send the intro'}
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -3093,6 +3393,15 @@ const RESOURCE_GROUPS: { key: string; label: string; icon: string }[] = [
 
 type MemberStatus = 'ACTIVE' | 'INVITED' | 'PENDING'
 
+interface TeamProgress {
+  phase: number
+  daysInPhase: number | null
+  currentPhaseCompleted: number
+  currentPhaseTotal: number
+  perPhase: Array<{ phase: number; completed: number; total: number }>
+  lastActivityAt: string | null
+}
+
 interface TeamNode {
   id: string
   agentUserId: string | null
@@ -3105,6 +3414,7 @@ interface TeamNode {
   state: string | null
   avatarUrl: string | null
   memberStatus: MemberStatus
+  progress: TeamProgress | null
   children: TeamNode[]
 }
 
@@ -3118,8 +3428,30 @@ const TEAM_PHASE_COLORS: Record<number, string> = {
   1: '#C9A96E', 2: '#60a5fa', 3: '#f59e0b', 4: '#9B6DFF', 5: '#4ade80',
 }
 
+function formatRelativeDays(iso: string): string {
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)
+  if (days <= 0) return 'today'
+  if (days === 1) return 'yesterday'
+  if (days < 7) return `${days}d ago`
+  if (days < 30) return `${Math.floor(days / 7)}w ago`
+  if (days < 365) return `${Math.floor(days / 30)}mo ago`
+  return `${Math.floor(days / 365)}y ago`
+}
+
+function ProgressStat({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div style={{ minWidth: 90 }}>
+      <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6B8299', marginBottom: 2 }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 13, fontWeight: 600, color }}>{value}</div>
+    </div>
+  )
+}
+
 function TeamMemberNode({ node, depth, isMobile }: { node: TeamNode; depth: number; isMobile: boolean }) {
   const [expanded, setExpanded] = useState(depth < 2)
+  const [showProgress, setShowProgress] = useState(false)
   const [resending, setResending] = useState(false)
   const [resendMsg, setResendMsg] = useState<string | null>(null)
   const color = TEAM_PHASE_COLORS[node.phase] ?? '#C9A96E'
@@ -3128,6 +3460,15 @@ function TeamMemberNode({ node, depth, isMobile }: { node: TeamNode; depth: numb
   let descendants = 0
   function count(n: TeamNode) { for (const c of n.children) { descendants++; count(c) } }
   count(node)
+
+  const lastActivityLabel = node.progress?.lastActivityAt
+    ? formatRelativeDays(node.progress.lastActivityAt)
+    : null
+  // Stalled = no activity in 14+ days while in an active phase. Useful
+  // visual cue for an upline scanning a long roster for who needs a nudge.
+  const stalled = node.progress?.lastActivityAt
+    ? (Date.now() - new Date(node.progress.lastActivityAt).getTime()) / 86_400_000 > 14
+    : false
 
   const handleResend = async (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -3194,6 +3535,20 @@ function TeamMemberNode({ node, depth, isMobile }: { node: TeamNode; depth: numb
               </span>
             )}
             {node.state && <span style={{ fontSize: 9, color: '#6B8299' }}>{node.state}</span>}
+            {/* Inline progress summary for ACTIVE members. Lets the upline */}
+            {/* scan a long team and spot stalled agents at a glance. */}
+            {node.progress && (
+              <>
+                <span style={{ fontSize: 9, color: '#6B8299' }}>
+                  P{node.progress.phase} · {node.progress.currentPhaseCompleted}/{node.progress.currentPhaseTotal}
+                </span>
+                {lastActivityLabel && (
+                  <span style={{ fontSize: 9, color: stalled ? '#f59e0b' : '#6B8299', fontWeight: stalled ? 700 : 400 }}>
+                    {stalled ? '⚠ ' : ''}Active {lastActivityLabel}
+                  </span>
+                )}
+              </>
+            )}
           </div>
         </div>
         {node.memberStatus === 'INVITED' && node.agentUserId && (
@@ -3216,6 +3571,22 @@ function TeamMemberNode({ node, depth, isMobile }: { node: TeamNode; depth: numb
             Awaiting admin approval
           </span>
         )}
+        {/* Progress toggle — separate from children expand. Stops click */}
+        {/* propagation so it doesn't also collapse/expand the children. */}
+        {node.progress && (
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowProgress(s => !s) }}
+            style={{
+              padding: '4px 10px', borderRadius: 4,
+              background: showProgress ? `${color}20` : 'transparent',
+              border: `1px solid ${color}40`, color,
+              fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+              cursor: 'pointer', flexShrink: 0,
+            }}
+          >
+            {showProgress ? 'Hide' : 'View'} progress
+          </button>
+        )}
         {node.children.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
             <span style={{ fontSize: 9, color: '#6B8299', fontWeight: 600 }}>{descendants}</span>
@@ -3223,6 +3594,54 @@ function TeamMemberNode({ node, depth, isMobile }: { node: TeamNode; depth: numb
           </div>
         )}
       </div>
+      {showProgress && node.progress && (
+        <div style={{
+          marginLeft: isMobile ? depth * 16 + 14 : depth * 32 + 14,
+          marginTop: 6,
+          padding: '12px 14px',
+          background: 'rgba(255,255,255,0.02)',
+          border: '1px solid rgba(255,255,255,0.05)',
+          borderRadius: 6,
+        }}>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
+            <ProgressStat label="Current Phase" value={`Phase ${node.progress.phase}`} color={color} />
+            <ProgressStat label="Days in Phase" value={node.progress.daysInPhase != null ? `${node.progress.daysInPhase}d` : '—'} color="#9BB0C4" />
+            <ProgressStat
+              label="Phase Progress"
+              value={`${node.progress.currentPhaseCompleted}/${node.progress.currentPhaseTotal}`}
+              color="#C9A96E"
+            />
+            <ProgressStat
+              label="Last Activity"
+              value={lastActivityLabel ?? 'Never'}
+              color={stalled ? '#f59e0b' : '#9BB0C4'}
+            />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {node.progress.perPhase.map(p => {
+              const pct = p.total > 0 ? Math.round((p.completed / p.total) * 100) : 0
+              const phaseColor = TEAM_PHASE_COLORS[p.phase] ?? '#C9A96E'
+              const isCurrent = p.phase === node.progress!.phase
+              return (
+                <div key={p.phase} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', color: isCurrent ? phaseColor : '#6B8299', width: 56, flexShrink: 0 }}>
+                    PHASE {p.phase}
+                  </span>
+                  <div style={{ flex: 1, height: 6, background: 'rgba(255,255,255,0.05)', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ width: `${pct}%`, height: '100%', background: phaseColor, transition: 'width 0.3s' }} />
+                  </div>
+                  <span style={{ fontSize: 10, color: '#6B8299', fontWeight: 600, width: 48, textAlign: 'right', flexShrink: 0 }}>
+                    {p.completed}/{p.total}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+          <div style={{ marginTop: 10, fontSize: 10, color: '#4B5563', fontStyle: 'italic' }}>
+            Read-only view. Reach out to {node.firstName} on Discord if they're stuck on a step.
+          </div>
+        </div>
+      )}
       {expanded && node.children.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
           {node.children.map(c => (

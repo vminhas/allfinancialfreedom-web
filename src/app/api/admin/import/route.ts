@@ -58,10 +58,20 @@ export async function POST(req: NextRequest) {
   const pipelineId = await getSetting('GHL_PIPELINE_ID')
   const stageId = await getSetting('GHL_STAGE_APPLICATION_RECEIVED')
 
-  // Get contacts pending import for this job
+  // Pending = anything not yet handed off to GHL AND not previously
+  // marked as a permanent skip ('duplicate', 'opted-out', 'failed_permanent').
+  // We deliberately do NOT use `skip: lastRowIndex` here — that combined
+  // with this filter is what was orphaning rows: as the first batch
+  // succeeds, the filtered list shrinks but `skip` keeps indexing
+  // against the original size, so middle rows are jumped over and never
+  // tried again.
   const pending = await db.contact.findMany({
-    where: { importJobId: jobId, ghlContactId: null },
-    skip: job.lastRowIndex,
+    where: {
+      importJobId: jobId,
+      ghlContactId: null,
+      NOT: { outreachStatus: { in: ['duplicate', 'opted-out', 'failed_permanent'] } },
+    },
+    orderBy: { createdAt: 'asc' },
   })
 
   if (pending.length === 0) {
@@ -114,13 +124,51 @@ export async function POST(req: NextRequest) {
 
         if (!contactRes.ok) {
           const errText = await contactRes.text()
-          // 409 = duplicate, treat as skip
+          // 409 = duplicate. We mark `outreachStatus = 'duplicate'` AND
+          // try to attach the existing GHL id by searching for the
+          // email — without that, the row stays ghlContactId=null and
+          // re-enters the pending queue on every subsequent run, eating
+          // through the daily cap and never advancing.
           if (contactRes.status === 409) {
-            await db.contact.update({ where: { id: contact.id }, data: { outreachStatus: 'duplicate' } })
+            let existingGhlId: string | null = null
+            try {
+              const lookupRes = await fetch(
+                `https://services.leadconnectorhq.com/contacts/search/duplicate?locationId=${config.locationId}&email=${encodeURIComponent(contact.email)}`,
+                { headers: { Authorization: `Bearer ${config.apiKey}`, Version: '2021-07-28' } },
+              )
+              if (lookupRes.ok) {
+                const data = await lookupRes.json() as { contact?: { id: string } }
+                existingGhlId = data.contact?.id ?? null
+              }
+            } catch { /* fall back to status-only mark */ }
+            await db.contact.update({
+              where: { id: contact.id },
+              data: {
+                outreachStatus: 'duplicate',
+                ghlContactId: existingGhlId, // unique constraint may collide; caught below
+              },
+            }).catch(async () => {
+              // Either GHL lookup failed or another contact row already
+              // owns that ghlContactId. Either way, mark it so we stop
+              // retrying — duplicates don't need to keep banging GHL.
+              await db.contact.update({
+                where: { id: contact.id },
+                data: { outreachStatus: 'duplicate' },
+              })
+            })
             skipped++
             return
           }
-          errors.push(`${contact.email}: ${errText}`)
+          // Permanent failure markers keep these rows out of the next
+          // pending pull. Treat 4xx (other than rate-limit) as permanent.
+          const isPermanent = contactRes.status >= 400 && contactRes.status < 500 && contactRes.status !== 429
+          if (isPermanent) {
+            await db.contact.update({
+              where: { id: contact.id },
+              data: { outreachStatus: 'failed_permanent' },
+            })
+          }
+          errors.push(`${contact.email}: ${contactRes.status} ${errText.slice(0, 200)}`)
           return
         }
 
@@ -152,33 +200,34 @@ export async function POST(req: NextRequest) {
       }
     }))
 
-    // Update job progress
-    await db.importJob.update({
-      where: { id: jobId },
-      data: {
-        importedCount: { increment: batch.filter((_, bi) => {
-          const batchStart = i
-          return bi < Math.min(BATCH_SIZE, toProcess.length - batchStart)
-        }).length },
-        lastRowIndex: { increment: batch.length },
-      },
-    })
-
     if (i + BATCH_SIZE < toProcess.length) {
       await sleep(BATCH_DELAY_MS)
     }
   }
 
-  // Update job counters accurately
+  // Status is derived from the actual queue: if anything is still in
+  // `pending` (ghlContactId null AND not marked permanent), we're not
+  // done. Don't infer completion from row counters — those got us into
+  // this mess in the first place.
+  const stillPending = await db.contact.count({
+    where: {
+      importJobId: jobId,
+      ghlContactId: null,
+      NOT: { outreachStatus: { in: ['duplicate', 'opted-out', 'failed_permanent'] } },
+    },
+  })
+
   await db.importJob.update({
     where: { id: jobId },
     data: {
-      importedCount: job.importedCount + imported,
-      skippedCount: job.skippedCount + skipped,
-      errorCount: job.errorCount + errors.length,
-      lastRowIndex: job.lastRowIndex + toProcess.length,
-      status: job.lastRowIndex + toProcess.length >= job.totalRows ? 'COMPLETE' : 'PAUSED',
-      completedAt: job.lastRowIndex + toProcess.length >= job.totalRows ? new Date() : null,
+      importedCount: { increment: imported },
+      skippedCount: { increment: skipped },
+      errorCount: { increment: errors.length },
+      // lastRowIndex is now informational only (kept for the dashboard
+      // progress bar). The fixed pending query doesn't use it.
+      lastRowIndex: { increment: toProcess.length },
+      status: stillPending === 0 ? 'COMPLETE' : 'PAUSED',
+      completedAt: stillPending === 0 ? new Date() : null,
     },
   })
 

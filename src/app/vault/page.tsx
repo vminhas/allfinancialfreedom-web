@@ -6,6 +6,7 @@ import GhlStatusWidget from '@/components/vault/GhlStatusWidget'
 import ClaudeCostWidget from '@/components/vault/ClaudeCostWidget'
 import AutoSendWidget from '@/components/vault/AutoSendWidget'
 import ResumeButton from '@/components/vault/ResumeButton'
+import DiagnoseButton from '@/components/vault/DiagnoseButton'
 
 export default async function VaultDashboard() {
   const session = await getServerSession(authOptions)
@@ -141,10 +142,11 @@ export default async function VaultDashboard() {
                   <td style={{ padding: '14px 28px', color: '#6B8299', fontSize: 12 }}>
                     {new Date(job.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </td>
-                  <td style={{ padding: '14px 28px' }}>
-                    {job.status === 'PAUSED' && (
-                      <ResumeButton jobId={job.id} />
-                    )}
+                  <td style={{ padding: '14px 28px', whiteSpace: 'nowrap' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      {job.status === 'PAUSED' && <ResumeButton jobId={job.id} />}
+                      <DiagnoseButton jobId={job.id} />
+                    </div>
                   </td>
                 </tr>
               ))}
