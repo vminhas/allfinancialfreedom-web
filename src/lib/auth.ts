@@ -128,26 +128,30 @@ export const authOptions: NextAuthOptions = {
     },
   },
   callbacks: {
-    // Google sign-in is allowed only if there's already an AgentUser row
-    // for that email and the linked AgentProfile is ACTIVE. We don't
-    // auto-provision agents from a Google identity (that flow stays
-    // gated behind admin/LC referral approval).
+    // Google sign-in is allowed only if the email already exists in our
+    // DB - either as an AdminUser (admin / LC) OR an active AgentUser.
+    // We don't auto-provision either flow from a Google identity.
     async signIn({ user, account }) {
       if (account?.provider !== 'google') return true
       const email = user.email
       if (typeof email !== 'string' || email.length === 0) return false
-      const dbUser = await db.agentUser.findFirst({
+
+      // AdminUser table first (admin + licensing coordinator).
+      const adminUser = await db.adminUser.findFirst({
+        where: { email: { equals: email, mode: 'insensitive' } },
+        select: { id: true },
+      })
+      if (adminUser) return true
+
+      // Then AgentUser. Reject if the linked profile is INACTIVE.
+      const agentUser = await db.agentUser.findFirst({
         where: { email: { equals: email, mode: 'insensitive' } },
         include: { profile: { select: { status: true } } },
       })
-      if (!dbUser) {
-        // Caller sees /agents/login?error=AccessDenied. The login page
-        // surfaces a friendly "we couldn't find an agent account..."
-        // message in response.
-        return false
-      }
-      if (dbUser.profile?.status === 'INACTIVE') return false
-      return true
+      if (agentUser && agentUser.profile?.status !== 'INACTIVE') return true
+
+      // No matching row - the login page handles ?error=AccessDenied.
+      return false
     },
 
     async jwt({ token, user, account }) {
@@ -161,30 +165,47 @@ export const authOptions: NextAuthOptions = {
         return token
       }
 
-      // Google provider: signIn() already validated the user exists. Look
-      // up the AgentUser to populate the same fields the credentials path
-      // populates, so every downstream consumer (session callback +
-      // role-checking endpoints) sees identical token shape.
+      // Google provider: signIn() already validated the user exists in
+      // one of our two user tables. Look them up again here to populate
+      // the token with the same shape the credentials providers produce.
+      // AdminUser wins if both rows happen to share an email (rare, but
+      // a Vick-the-CEO situation could plausibly have both).
       if (user && account?.provider === 'google' && user.email) {
-        const dbUser = await db.agentUser.findFirst({
+        const adminUser = await db.adminUser.findFirst({
+          where: { email: { equals: user.email, mode: 'insensitive' } },
+        })
+        if (adminUser) {
+          await db.adminUser.update({
+            where: { id: adminUser.id },
+            data: { lastLoginAt: new Date() },
+          })
+          token.id = adminUser.id
+          token.role = adminUser.role === 'LICENSING_COORDINATOR' ? 'licensing_coordinator' : 'admin'
+          token.profileId = null
+          token.agentCode = null
+          token.email = adminUser.email
+          token.name = adminUser.name
+          return token
+        }
+
+        const agentUser = await db.agentUser.findFirst({
           where: { email: { equals: user.email, mode: 'insensitive' } },
           include: { profile: { select: { id: true, agentCode: true, firstName: true, lastName: true } } },
         })
-        if (dbUser) {
+        if (agentUser) {
           await db.agentUser.update({
-            where: { id: dbUser.id },
+            where: { id: agentUser.id },
             data: { lastLoginAt: new Date() },
           })
-          token.id = dbUser.id
+          token.id = agentUser.id
           token.role = 'agent'
-          token.profileId = dbUser.profile?.id ?? null
-          token.agentCode = dbUser.profile?.agentCode ?? null
-          // Use the canonical email and name from our DB rather than
-          // whatever Google returned, so display text matches what the
-          // rest of the app already shows (referral name, profile, etc).
-          token.email = dbUser.email
-          if (dbUser.profile) {
-            token.name = `${dbUser.profile.firstName} ${dbUser.profile.lastName}`
+          token.profileId = agentUser.profile?.id ?? null
+          token.agentCode = agentUser.profile?.agentCode ?? null
+          // Canonical email/name from our DB rather than whatever Google
+          // returned, so display text matches the rest of the app.
+          token.email = agentUser.email
+          if (agentUser.profile) {
+            token.name = `${agentUser.profile.firstName} ${agentUser.profile.lastName}`
           }
         }
       }
