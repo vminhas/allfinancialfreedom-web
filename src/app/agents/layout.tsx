@@ -12,6 +12,20 @@ export const metadata: Metadata = {
     title: 'AFF Agent',
     statusBarStyle: 'black-translucent',
   },
+  // Explicit icon links so iOS Safari's "Add to Home Screen" finds them
+  // reliably. Leaving Next.js's apple-icon.tsx file convention to work
+  // alone wasn't enough — Safari was falling back to its auto-generated
+  // first-letter icon because the link tag wasn't reaching the HTML.
+  // The ?v=2 cache-buster forces Safari to re-fetch even if it cached
+  // the page metadata pre-fix.
+  icons: {
+    apple: [
+      { url: '/agents/apple-icon?v=2', sizes: '180x180', type: 'image/png' },
+    ],
+    icon: [
+      { url: '/agents/apple-icon?v=2', sizes: '180x180', type: 'image/png' },
+    ],
+  },
 }
 
 export const viewport: Viewport = {

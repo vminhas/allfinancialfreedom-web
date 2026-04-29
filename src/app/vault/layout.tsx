@@ -16,6 +16,17 @@ export const metadata: Metadata = {
     title: 'AFF Vault',
     statusBarStyle: 'black-translucent',
   },
+  // See agents/layout.tsx for the rationale — explicit icon link plus a
+  // ?v=2 cache-buster so iOS picks up the new phoenix instead of its
+  // first-letter fallback.
+  icons: {
+    apple: [
+      { url: '/vault/apple-icon?v=2', sizes: '180x180', type: 'image/png' },
+    ],
+    icon: [
+      { url: '/vault/apple-icon?v=2', sizes: '180x180', type: 'image/png' },
+    ],
+  },
 }
 
 export const viewport: Viewport = {
