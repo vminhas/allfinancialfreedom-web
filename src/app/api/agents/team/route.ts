@@ -45,6 +45,10 @@ interface TeamProgress {
   // Per-phase completion across the whole tracker, so the upline can
   // see (e.g.) "Phase 1 done, halfway through Phase 2."
   perPhase: Array<{ phase: number; completed: number; total: number }>
+  // The specific items in the current phase, with their completion
+  // state. Lets the upline see exactly where the recruit is stuck so
+  // they can DM them with targeted help.
+  currentPhaseChecklist: Array<{ key: string; label: string; completed: boolean }>
   lastActivityAt: string | null   // ISO of most recent checklist completion
 }
 
@@ -131,23 +135,36 @@ export async function GET(req: NextRequest) {
   // Bulk-fetch completed phase items for everyone in one query. This is
   // a small table per agent (~30 items × team size) so this scales
   // comfortably to a few hundred agents before we'd want to paginate.
+  // We pull itemKey too so we can build a per-item completion map for
+  // the upline detail panel ("which of these 9 items has Doug
+  // actually finished?").
   const allCompleted = await db.phaseItem.findMany({
     where: {
       agentProfileId: { in: allAgents.map(a => a.id) },
       completed: true,
     },
-    select: { agentProfileId: true, phase: true, completedAt: true },
+    select: { agentProfileId: true, phase: true, itemKey: true, completedAt: true },
   })
 
-  // agentProfileId → { phase → completedCount, lastActivityAt }
-  const progressByAgent = new Map<string, { perPhase: Map<number, number>; lastActivityAt: Date | null }>()
+  // agentProfileId → { perPhase counts, completedKeys per phase, lastActivityAt }
+  const progressByAgent = new Map<string, {
+    perPhase: Map<number, number>
+    completedKeysByPhase: Map<number, Set<string>>
+    lastActivityAt: Date | null
+  }>()
   for (const item of allCompleted) {
     let entry = progressByAgent.get(item.agentProfileId)
     if (!entry) {
-      entry = { perPhase: new Map(), lastActivityAt: null }
+      entry = { perPhase: new Map(), completedKeysByPhase: new Map(), lastActivityAt: null }
       progressByAgent.set(item.agentProfileId, entry)
     }
     entry.perPhase.set(item.phase, (entry.perPhase.get(item.phase) ?? 0) + 1)
+    let keySet = entry.completedKeysByPhase.get(item.phase)
+    if (!keySet) {
+      keySet = new Set()
+      entry.completedKeysByPhase.set(item.phase, keySet)
+    }
+    keySet.add(item.itemKey)
     if (item.completedAt && (!entry.lastActivityAt || item.completedAt > entry.lastActivityAt)) {
       entry.lastActivityAt = item.completedAt
     }
@@ -173,12 +190,25 @@ export async function GET(req: NextRequest) {
     const daysInPhase = a.phaseStartedAt
       ? Math.max(0, Math.floor((Date.now() - a.phaseStartedAt.getTime()) / 86_400_000))
       : null
+
+    // Build the current-phase checklist with completion state. Order
+    // follows PHASE_ITEMS so the upline sees the same sequence the
+    // recruit sees in their portal.
+    const completedKeys = entry?.completedKeysByPhase.get(a.phase) ?? new Set<string>()
+    const items = PHASE_ITEMS[a.phase] ?? []
+    const currentPhaseChecklist = items.map(item => ({
+      key: item.key,
+      label: item.label,
+      completed: completedKeys.has(item.key),
+    }))
+
     return {
       phase: a.phase,
       daysInPhase,
       currentPhaseCompleted: current.completed,
       currentPhaseTotal: current.total,
       perPhase,
+      currentPhaseChecklist,
       lastActivityAt: entry?.lastActivityAt?.toISOString() ?? null,
     }
   }

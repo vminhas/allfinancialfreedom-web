@@ -3768,6 +3768,7 @@ interface TeamProgress {
   currentPhaseCompleted: number
   currentPhaseTotal: number
   perPhase: Array<{ phase: number; completed: number; total: number }>
+  currentPhaseChecklist: Array<{ key: string; label: string; completed: boolean }>
   lastActivityAt: string | null
 }
 
@@ -3982,15 +3983,15 @@ function TeamMemberNode({ node, depth, isMobile }: { node: TeamNode; depth: numb
             Hasn&apos;t activated yet
           </div>
           <div style={{ fontSize: 11, color: '#9BB0C4', lineHeight: 1.6 }}>
-            {node.firstName} got the welcome email but hasn&apos;t set their password yet.
+            {`${node.firstName} hasn't set their password yet. If they didn't get the welcome email (or never received one), tap Resend invite to send it now.`}
             {node.inviteEmail && <><br /><strong style={{ color: '#fff' }}>Email:</strong> {node.inviteEmail}</>}
-            {node.inviteSentAt && <><br /><strong style={{ color: '#fff' }}>Invited:</strong> {new Date(node.inviteSentAt).toLocaleDateString()}</>}
+            {node.inviteSentAt && <><br /><strong style={{ color: '#fff' }}>Approved:</strong> {new Date(node.inviteSentAt).toLocaleDateString()}</>}
             {node.inviteExpiresAt && (
-              <><br /><strong style={{ color: '#fff' }}>Link expires:</strong> {new Date(node.inviteExpiresAt).toLocaleString()}{new Date(node.inviteExpiresAt).getTime() < Date.now() ? ' (expired)' : ''}</>
+              <><br /><strong style={{ color: '#fff' }}>Invite link expires:</strong> {new Date(node.inviteExpiresAt).toLocaleString()}{new Date(node.inviteExpiresAt).getTime() < Date.now() ? ' (expired)' : ''}</>
             )}
           </div>
           <div style={{ marginTop: 10, fontSize: 10, color: '#4B5563', fontStyle: 'italic' }}>
-            Tap &quot;Resend invite&quot; on the row above if the link expired or they lost the email.
+            Tap &quot;Resend invite&quot; on the row above to send (or re-send) the welcome email.
           </div>
         </div>
       )}
@@ -4056,8 +4057,51 @@ function TeamMemberNode({ node, depth, isMobile }: { node: TeamNode; depth: numb
               )
             })}
           </div>
+
+          {/* Per-item checklist for the current phase. Lets the upline */}
+          {/* see exactly which steps are done vs outstanding so they */}
+          {/* can DM with targeted help on the items still pending. */}
+          {node.progress.currentPhaseChecklist.length > 0 && (() => {
+            const phaseColor = TEAM_PHASE_COLORS[node.progress!.phase] ?? '#C9A96E'
+            const pending = node.progress!.currentPhaseChecklist.filter(c => !c.completed)
+            return (
+              <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#C9A96E' }}>
+                    Phase {node.progress!.phase} Checklist
+                  </span>
+                  <span style={{ fontSize: 9, color: '#6B8299' }}>
+                    {pending.length === 0 ? 'all done' : `${pending.length} remaining`}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {node.progress!.currentPhaseChecklist.map(item => (
+                    <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, lineHeight: 1.4 }}>
+                      <span style={{
+                        width: 14, height: 14, flexShrink: 0,
+                        borderRadius: 3,
+                        border: `1px solid ${item.completed ? phaseColor : 'rgba(255,255,255,0.18)'}`,
+                        background: item.completed ? phaseColor : 'transparent',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 9, fontWeight: 900, color: '#0A1628',
+                      }}>
+                        {item.completed ? '✓' : ''}
+                      </span>
+                      <span style={{
+                        color: item.completed ? '#4B5563' : '#9BB0C4',
+                        textDecoration: item.completed ? 'line-through' : 'none',
+                      }}>
+                        {item.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
+
           <div style={{ marginTop: 10, fontSize: 10, color: '#4B5563', fontStyle: 'italic' }}>
-            Read-only view. Reach out to {node.firstName} on Discord if they're stuck on a step.
+            Read-only view. Reach out to {node.firstName} on Discord if they&apos;re stuck on a step.
           </div>
         </div>
       )}
