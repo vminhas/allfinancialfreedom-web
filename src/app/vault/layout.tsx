@@ -1,13 +1,26 @@
 import type { ReactNode } from 'react'
+import type { Metadata, Viewport } from 'next'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import VaultSidebar from '@/components/vault/VaultSidebar'
 import VaultSessionProvider from './VaultSessionProvider'
+import PullToRefresh from '@/components/PullToRefresh'
 import { LC_ALLOWED_PREFIXES } from '@/lib/permissions'
 
-export const metadata = { title: 'Vault — AFF' }
+export const metadata: Metadata = {
+  title: 'Vault — AFF',
+  appleWebApp: {
+    capable: true,
+    title: 'AFF Vault',
+    statusBarStyle: 'black-translucent',
+  },
+}
+
+export const viewport: Viewport = {
+  themeColor: '#0A1628',
+}
 
 export default async function VaultLayout({ children }: { children: ReactNode }) {
   const headersList = await headers()
@@ -40,6 +53,7 @@ export default async function VaultLayout({ children }: { children: ReactNode })
   return (
     <VaultSessionProvider>
       <div className="vault-shell">
+        <PullToRefresh />
         <VaultSidebar />
         <main className="vault-main">
           {children}
