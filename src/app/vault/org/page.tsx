@@ -544,23 +544,26 @@ function EditPanel({ node, allAgents, onSave, onClose, onDeactivate, onAddRecrui
 
       {/* Quick action: add a recruit under this agent. Pre-fills the */}
       {/* recruiter so the admin doesn't have to scroll-find them in the */}
-      {/* full agent dropdown on the next screen. */}
-      {!isLeadership && (
-        <div style={{ padding: '0 24px 8px' }}>
-          <button
-            onClick={() => onAddRecruitUnder(node.agentCode, `${node.firstName} ${node.lastName}`)}
-            style={{
-              background: 'rgba(201,169,110,0.08)',
-              border: '1px solid rgba(201,169,110,0.3)',
-              color: '#C9A96E', borderRadius: 4, padding: '10px 14px', fontSize: 11,
-              fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
-              cursor: 'pointer', width: '100%',
-            }}
-          >
-            + Add Recruit Under {node.firstName}
-          </button>
-        </div>
-      )}
+      {/* full agent dropdown on the next screen. Works on the leadership */}
+      {/* node too: passes empty agentCode, which the form treats as */}
+      {/* "directly under leadership" (no recruiter set). */}
+      <div style={{ padding: '0 24px 8px' }}>
+        <button
+          onClick={() => onAddRecruitUnder(
+            isLeadership ? '' : node.agentCode,
+            isLeadership ? 'Leadership' : `${node.firstName} ${node.lastName}`,
+          )}
+          style={{
+            background: 'rgba(201,169,110,0.08)',
+            border: '1px solid rgba(201,169,110,0.3)',
+            color: '#C9A96E', borderRadius: 4, padding: '10px 14px', fontSize: 11,
+            fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+            cursor: 'pointer', width: '100%',
+          }}
+        >
+          + Add Recruit Under {isLeadership ? 'Leadership' : node.firstName}
+        </button>
+      </div>
 
       {/* Deactivate */}
       {!isLeadership && (
