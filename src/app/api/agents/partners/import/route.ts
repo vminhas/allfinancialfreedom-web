@@ -10,11 +10,10 @@
 //     the existing list without a refetch.
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { parseCsv } from '@/lib/csv-parse'
 import { extractContactRow } from '@/lib/contact-csv'
+import { resolveAgentIdentity } from '@/lib/agent-identity'
 
 const ALLOWED_CATEGORIES = new Set([
   'business_partner', 'life_market', 'rollover_market', 'fta_contact', 'recruit',
@@ -29,22 +28,10 @@ interface ImportRow {
   category?: string | null
 }
 
-async function getProfileId(email: string) {
-  const u = await db.agentUser.findUnique({
-    where: { email },
-    include: { profile: { select: { id: true } } },
-  })
-  return u?.profile?.id ?? null
-}
-
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const profileId = await getProfileId(session.user!.email!)
-  if (!profileId) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+  const id = await resolveAgentIdentity(req)
+  if ('error' in id) return id.error
+  const profileId = id.profileId
 
   const body = await req.json() as
     | { mode: 'preview'; csv: string }

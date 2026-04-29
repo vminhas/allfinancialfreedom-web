@@ -1355,7 +1355,7 @@ function AgentDashboardInner() {
         )}
 
         {/* ── PARTNERS / POLICIES / CALLS / PROFILE TABS ── */}
-        {activeTab === 'partners' && <BusinessPartnersTab isMobile={isMobile} />}
+        {activeTab === 'partners' && <BusinessPartnersTab isMobile={isMobile} previewToken={previewToken} />}
         {activeTab === 'policies' && <PoliciesTab isMobile={isMobile} />}
         {activeTab === 'new-business' && <NewBusinessTab isMobile={isMobile} phase={data.phase} />}
         {activeTab === 'fta' && <FtaTab isMobile={isMobile} />}
@@ -2298,7 +2298,13 @@ const PARTNER_CATEGORIES = [
 
 const TIMEZONES = ['EST', 'CST', 'MST', 'PST', 'HST', 'AKST'] as const
 
-function BusinessPartnersTab({ isMobile }: { isMobile: boolean }) {
+function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; previewToken?: string | null }) {
+  // Append ?preview=<token> to any agent endpoint when an admin / LC is
+  // viewing-as-agent. Without it, the API can't tell which agent's data
+  // to read or attribute writes to, and returns Unauthorized.
+  const withPreview = (path: string) => previewToken
+    ? `${path}${path.includes('?') ? '&' : '?'}preview=${previewToken}`
+    : path
   const [partners, setPartners] = useState<Partner[]>([])
   const [referrals, setReferrals] = useState<Referral[]>([])
   const [loading, setLoading] = useState(true)
@@ -2325,8 +2331,8 @@ function BusinessPartnersTab({ isMobile }: { isMobile: boolean }) {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/agents/partners').then(r => r.json()),
-      fetch('/api/agents/referrals').then(r => r.json()),
+      fetch(withPreview('/api/agents/partners')).then(r => r.json()),
+      fetch(withPreview('/api/agents/referrals')).then(r => r.json()),
     ]).then(([pd, rd]: [{ partners: Partner[] }, { referrals: Referral[] }]) => {
       setPartners(pd.partners ?? [])
       setReferrals(rd.referrals ?? [])
@@ -2375,7 +2381,7 @@ function BusinessPartnersTab({ isMobile }: { isMobile: boolean }) {
     setSaving(true)
     setReferError(null)
     try {
-      const res = await fetch('/api/agents/referrals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(referForm) })
+      const res = await fetch(withPreview('/api/agents/referrals'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(referForm) })
       if (!res.ok) { const d = await res.json() as { error?: string }; setReferError(d.error ?? 'Failed to submit'); return }
       const r = await res.json() as Referral
       setReferrals(prev => [r, ...prev])

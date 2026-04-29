@@ -15,11 +15,10 @@
 // that gets quoted in the email above Vick's signature.
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { getGhlConfig, ghlPost, sendGhlEmail } from '@/lib/ghl'
 import { buildCeoIntroHtml } from '@/lib/ceo-intro-email'
+import { resolveAgentIdentity } from '@/lib/agent-identity'
 
 interface SendIntroBody {
   personalNote?: string
@@ -34,21 +33,19 @@ const PHASE_ROLE_LABEL: Record<number, string> = {
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const identity = await resolveAgentIdentity(req)
+  if ('error' in identity) return identity.error
 
   const { id } = await ctx.params
 
-  const agentUser = await db.agentUser.findUnique({
-    where: { email: session.user!.email! },
-    include: { profile: { select: { id: true, firstName: true, lastName: true, phase: true } } },
+  const profile = await db.agentProfile.findUnique({
+    where: { id: identity.profileId },
+    select: { id: true, firstName: true, lastName: true, phase: true },
   })
-  if (!agentUser?.profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+  if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
 
   const partner = await db.businessPartner.findUnique({ where: { id } })
-  if (!partner || partner.agentProfileId !== agentUser.profile.id) {
+  if (!partner || partner.agentProfileId !== profile.id) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
   if (!partner.email) {
@@ -63,7 +60,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     ? body.personalNote.trim().slice(0, 500)
     : null
 
-  const agentFullName = `${agentUser.profile.firstName} ${agentUser.profile.lastName}`.trim()
+  const agentFullName = `${profile.firstName} ${profile.lastName}`.trim()
   const prospectFirstName = partner.name.split(/\s+/)[0]
 
   // Build the email body before any GHL work — surfaces template errors
@@ -71,7 +68,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { subject, html } = await buildCeoIntroHtml({
     prospectFirstName,
     agentFullName,
-    agentRoleLabel: PHASE_ROLE_LABEL[agentUser.profile.phase] ?? 'an agent on our team',
+    agentRoleLabel: PHASE_ROLE_LABEL[profile.phase] ?? 'an agent on our team',
     agentPersonalNote: personalNote,
   })
 

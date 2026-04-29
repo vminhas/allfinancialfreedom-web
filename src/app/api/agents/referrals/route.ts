@@ -1,27 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
-
-async function getProfileId(email: string) {
-  const u = await db.agentUser.findUnique({
-    where: { email },
-    include: { profile: { select: { id: true } } },
-  })
-  return u?.profile?.id ?? null
-}
+import { resolveAgentIdentity } from '@/lib/agent-identity'
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const profileId = await getProfileId(session.user!.email!)
-  if (!profileId) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+  const id = await resolveAgentIdentity(req)
+  if ('error' in id) return id.error
 
   const referrals = await db.agentReferral.findMany({
-    where: { referringAgentId: profileId },
+    where: { referringAgentId: id.profileId },
     orderBy: { createdAt: 'desc' },
   })
 
@@ -29,13 +15,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const profileId = await getProfileId(session.user!.email!)
-  if (!profileId) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+  const id = await resolveAgentIdentity(req)
+  if ('error' in id) return id.error
+  const profileId = id.profileId
 
   // Pull the referrer's name for the Discord ping below.
   const referrer = await db.agentProfile.findUnique({
