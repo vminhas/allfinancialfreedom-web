@@ -99,5 +99,20 @@ export async function POST(req: NextRequest) {
     } catch { /* non-fatal */ }
   }
 
+  // Public-facing celebration in #announcements: matches the promotion
+  // pattern (single-line content, no embed) so the team sees the recruit
+  // pipeline grow in real time. Fires alongside the admin ping above so
+  // the LC can still triage in their own channel.
+  if (process.env.DISCORD_BOT_TOKEN && referrer) {
+    try {
+      const { sendChannelMessage } = await import('@/lib/discord')
+      const announcementsChannel = process.env.DISCORD_ANNOUNCEMENTS_CHANNEL_ID ?? '1295044213590982724'
+      const refName = `${referrer.firstName} ${referrer.lastName}`
+      sendChannelMessage(announcementsChannel, {
+        content: `**${refName}** is bringing new business partners to the team! Welcome **${body.firstName} ${body.lastName}** to the AFF family. Let's go!`,
+      }).catch(() => {})
+    } catch { /* non-fatal */ }
+  }
+
   return NextResponse.json(referral)
 }
