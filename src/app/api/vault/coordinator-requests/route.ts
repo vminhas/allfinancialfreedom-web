@@ -58,6 +58,7 @@ export async function GET(req: NextRequest) {
       assignedTo: {
         select: { id: true, name: true, email: true, role: true },
       },
+      messages: { orderBy: { createdAt: 'asc' } },
     },
   })
 

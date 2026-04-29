@@ -573,10 +573,41 @@ model CoordinatorRequest {
   createdAt      DateTime               @default(now())
   updatedAt      DateTime               @updatedAt
   resolvedAt     DateTime?
+  // Threaded back-and-forth between the agent and the LC. The original
+  // request body lives in `message` (one-shot from the agent at submit
+  // time); subsequent replies in either direction land here so the LC
+  // can send an interim "here's the link, schedule when you can" reply
+  // without having to mark the request resolved.
+  messages       CoordinatorMessage[]
 
   @@index([agentProfileId, status])
   @@index([status, assignedToId])
   @@map("coordinator_requests")
+}
+
+// One message in a coordinator-request thread. Separate from the parent
+// request's `message` field (which is the original ask) so we have a
+// clean append-only log of replies on both sides.
+model CoordinatorMessage {
+  id           String              @id @default(cuid())
+  requestId    String
+  request      CoordinatorRequest  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  // 'agent' | 'admin' | 'licensing_coordinator' - matches the role names
+  // we use on the session.user.role. Stored as a string instead of an
+  // enum so adding new sender types later doesn't require a migration.
+  fromRole     String
+  // FK to whichever user table the sender lives in. We don't add a
+  // relation here because the sender could be either AgentProfile or
+  // AdminUser; the role+id pair is enough to render attribution.
+  fromUserId   String
+  // Display name at send time so the thread renders without a join
+  // even if the user's name later changes (or they're deactivated).
+  fromName     String
+  body         String
+  createdAt    DateTime            @default(now())
+
+  @@index([requestId, createdAt])
+  @@map("coordinator_messages")
 }
 
 enum NoteScope {

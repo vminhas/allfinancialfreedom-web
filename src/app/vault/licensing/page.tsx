@@ -17,6 +17,15 @@ interface AdminUserRef {
   role: 'ADMIN' | 'LICENSING_COORDINATOR'
 }
 
+interface ThreadMessage {
+  id: string
+  fromRole: 'agent' | 'admin' | 'licensing_coordinator' | string
+  fromUserId: string
+  fromName: string
+  body: string
+  createdAt: string
+}
+
 interface Request {
   id: string
   phaseItemKey: string | null
@@ -24,6 +33,7 @@ interface Request {
   message: string
   status: Status
   resolutionNote: string | null
+  messages: ThreadMessage[]
   createdAt: string
   updatedAt: string
   resolvedAt: string | null
@@ -165,7 +175,10 @@ function InboxTab({ viewerId, isLC }: { viewerId: string | null; isLC: boolean }
     isLC ? 'mine' : 'open'
   )
   const [selected, setSelected] = useState<Request | null>(null)
-  const [resolutionNote, setResolutionNote] = useState('')
+  // Single textarea drives both "Send reply" (writes a thread message
+  // without changing status) and "Mark resolved" (uses it as the final
+  // resolution note). Two buttons, one input.
+  const [replyBody, setReplyBody] = useState('')
   const [saving, setSaving] = useState(false)
 
   const load = useCallback(async () => {
@@ -185,9 +198,10 @@ function InboxTab({ viewerId, isLC }: { viewerId: string | null; isLC: boolean }
 
   useEffect(() => { load() }, [load])
 
-  useEffect(() => {
-    if (selected) setResolutionNote(selected.resolutionNote ?? '')
-  }, [selected])
+  // Don't carry the resolutionNote across requests as a default - it
+  // would prefill an already-resolved note into the reply box on the
+  // next ticket. Reset to empty when switching selections.
+  useEffect(() => { setReplyBody('') }, [selected?.id])
 
   const patch = async (body: Record<string, unknown>) => {
     if (!selected) return
@@ -205,8 +219,35 @@ function InboxTab({ viewerId, isLC }: { viewerId: string | null; isLC: boolean }
     setSaving(false)
   }
 
+  // Reply to the agent without changing resolution status. Server-side
+  // bumps OPEN to IN_PROGRESS automatically on first reply.
+  const sendReply = async () => {
+    if (!selected) return
+    const body = replyBody.trim()
+    if (body.length === 0) return
+    setSaving(true)
+    const res = await fetch(`/api/vault/coordinator-requests/${selected.id}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body }),
+    })
+    if (res.ok) {
+      const d = await res.json() as { request: Request }
+      setSelected(d.request)
+      setRequests(prev => prev.map(r => r.id === d.request.id ? d.request : r))
+      setReplyBody('')
+    }
+    setSaving(false)
+  }
+
   const assignToMe = () => patch({ assignedToId: viewerId, status: 'IN_PROGRESS' })
-  const markResolved = () => patch({ status: 'RESOLVED', resolutionNote: resolutionNote || null })
+  // When marking resolved, send any unsent reply text as the final
+  // resolution note + as a thread message so the agent sees it both
+  // places.
+  const markResolved = async () => {
+    if (replyBody.trim().length > 0) await sendReply()
+    return patch({ status: 'RESOLVED', resolutionNote: replyBody.trim() || null })
+  }
   const markInProgress = () => patch({ status: 'IN_PROGRESS' })
   const reopen = () => patch({ status: 'OPEN' })
 
@@ -278,13 +319,14 @@ function InboxTab({ viewerId, isLC }: { viewerId: string | null; isLC: boolean }
             <RequestDetail
               request={selected}
               isLC={isLC}
-              resolutionNote={resolutionNote}
-              setResolutionNote={setResolutionNote}
+              replyBody={replyBody}
+              setReplyBody={setReplyBody}
               saving={saving}
               viewerId={viewerId}
               onClose={() => setSelected(null)}
               onAssignToMe={assignToMe}
               onMarkInProgress={markInProgress}
+              onSendReply={sendReply}
               onMarkResolved={markResolved}
               onReopen={reopen}
             />
@@ -336,18 +378,19 @@ function RequestRow({ request, selected, onClick }: { request: Request; selected
 }
 
 function RequestDetail({
-  request, isLC, resolutionNote, setResolutionNote, saving, viewerId,
-  onClose, onAssignToMe, onMarkInProgress, onMarkResolved, onReopen,
+  request, isLC, replyBody, setReplyBody, saving, viewerId,
+  onClose, onAssignToMe, onMarkInProgress, onSendReply, onMarkResolved, onReopen,
 }: {
   request: Request
   isLC: boolean
-  resolutionNote: string
-  setResolutionNote: (v: string) => void
+  replyBody: string
+  setReplyBody: (v: string) => void
   saving: boolean
   viewerId: string | null
   onClose: () => void
   onAssignToMe: () => void
   onMarkInProgress: () => void
+  onSendReply: () => void
   onMarkResolved: () => void
   onReopen: () => void
 }) {
@@ -426,17 +469,53 @@ function RequestDetail({
         )}
       </div>
 
-      {/* Resolution note */}
+      {/* Conversation thread between agent and LC. Original request body */}
+      {/* (request.message above) is the first turn; everything below is */}
+      {/* a back-and-forth that doesn't touch resolution status. */}
+      {request.messages.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 8 }}>
+            Conversation
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {request.messages.map(m => {
+              const isAgent = m.fromRole === 'agent'
+              return (
+                <div key={m.id} style={{
+                  padding: '10px 12px',
+                  borderRadius: 6,
+                  background: isAgent ? 'rgba(155,109,255,0.08)' : 'rgba(201,169,110,0.06)',
+                  border: `1px solid ${isAgent ? 'rgba(155,109,255,0.2)' : 'rgba(201,169,110,0.18)'}`,
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+                    <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: isAgent ? '#9B6DFF' : '#C9A96E' }}>
+                      {isAgent ? `${m.fromName} (agent)` : m.fromName}
+                    </span>
+                    <span style={{ fontSize: 9, color: '#6B8299' }}>
+                      {new Date(m.createdAt).toLocaleString()}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 12, color: '#d1d9e2', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{m.body}</div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Reply box. Drives both "Send reply" (no status change, just */}
+      {/* posts a thread message) and "Mark resolved" (uses the same */}
+      {/* body as the final resolution note + a thread message). */}
       {(canResolve || request.status === 'RESOLVED') && (
         <div style={{ marginBottom: 14 }}>
           <label style={{ display: 'block', fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#6B8299', marginBottom: 6 }}>
-            Resolution note (visible to the agent)
+            Reply (visible to the agent)
           </label>
           <textarea
-            value={resolutionNote}
-            onChange={e => setResolutionNote(e.target.value)}
+            value={replyBody}
+            onChange={e => setReplyBody(e.target.value)}
             rows={3}
-            placeholder="What did you help them with? Next steps?"
+            placeholder="Send a quick update or, when the step is done on their end, mark it resolved."
             disabled={request.status === 'RESOLVED' || request.status === 'CLOSED'}
             style={{
               width: '100%', boxSizing: 'border-box',
@@ -447,6 +526,26 @@ function RequestDetail({
               fontFamily: 'inherit', resize: 'vertical',
             }}
           />
+          <div style={{ fontSize: 10, color: '#6B8299', marginTop: 6, lineHeight: 1.5 }}>
+            <strong style={{ color: '#9BB0C4' }}>Send reply</strong> keeps the request open so you can come back to it after the agent acts.{' '}
+            <strong style={{ color: '#9BB0C4' }}>Mark resolved</strong> closes it once the step is actually done.
+          </div>
+        </div>
+      )}
+
+      {/* Show prior resolution note (read-only) on already-resolved requests */}
+      {request.status === 'RESOLVED' && request.resolutionNote && (
+        <div style={{
+          marginBottom: 14,
+          padding: '10px 12px',
+          background: 'rgba(74,222,128,0.06)',
+          border: '1px solid rgba(74,222,128,0.2)',
+          borderRadius: 6,
+        }}>
+          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#4ade80', marginBottom: 4 }}>
+            Resolution
+          </div>
+          <div style={{ fontSize: 12, color: '#d1d9e2', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{request.resolutionNote}</div>
         </div>
       )}
 
@@ -480,6 +579,23 @@ function RequestDetail({
             }}
           >
             Mark in progress
+          </button>
+        )}
+        {canResolve && (
+          <button
+            onClick={onSendReply}
+            disabled={saving || replyBody.trim().length === 0}
+            style={{
+              background: '#C9A96E', color: '#142D48',
+              border: 'none', borderRadius: 4,
+              padding: '10px 16px', fontSize: 10, fontWeight: 700,
+              letterSpacing: '0.1em', textTransform: 'uppercase',
+              cursor: saving || replyBody.trim().length === 0 ? 'not-allowed' : 'pointer',
+              opacity: saving || replyBody.trim().length === 0 ? 0.5 : 1,
+              minHeight: 40, flex: 1, minWidth: 140,
+            }}
+          >
+            Send reply
           </button>
         )}
         {canResolve && (
