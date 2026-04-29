@@ -20,6 +20,18 @@ function VaultLoginInner() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
+  // Server-side check that Google is actually registered. Hides the
+  // button if GOOGLE_CLIENT_ID isn't set so we don't show a dead button.
+  const [googleAvailable, setGoogleAvailable] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/auth/providers')
+      .then(r => r.ok ? r.json() : null)
+      .then((d: Record<string, { id: string }> | null) => {
+        if (d && 'google' in d) setGoogleAvailable(true)
+      })
+      .catch(() => {})
+  }, [])
 
   // NextAuth posts an ?error= back to the login page when an OAuth
   // sign-in fails. Most likely cause is "Google identity isn't in the
@@ -29,6 +41,12 @@ function VaultLoginInner() {
     if (!err) return
     if (err === 'AccessDenied' || err === 'OAuthAccountNotLinked') {
       setError("That Google account isn't on the AFF roster. Sign in with the email/password you were given, or contact support.")
+    } else if (err === 'OAuthSignin' || err === 'OAuthCallback' || err === 'Callback') {
+      setError(`Google sign-in failed (${err}). Make sure the redirect URI in Google Cloud Console matches this domain exactly, including https://.`)
+    } else if (err === 'Configuration') {
+      setError("Google sign-in isn't configured on the server. Reach out to support.")
+    } else {
+      setError(`Sign-in error: ${err}`)
     }
   }, [searchParams])
 
@@ -58,7 +76,32 @@ function VaultLoginInner() {
   async function signInWithGoogle() {
     setError('')
     setGoogleLoading(true)
-    await signIn('google', { callbackUrl: '/vault' })
+    // redirect:false lets us inspect the response. If init succeeded
+    // NextAuth returns a `url` to navigate to (Google's consent
+    // screen). Failures get surfaced inline instead of leaving the
+    // user on a stuck page.
+    try {
+      const res = await signIn('google', { redirect: false, callbackUrl: '/vault' })
+      if (!res) {
+        setError('Google sign-in did not respond. Make sure GOOGLE_CLIENT_ID is set in the environment and the deployment was rebuilt.')
+        setGoogleLoading(false)
+        return
+      }
+      if (res.error) {
+        setError(`Google sign-in failed: ${res.error}`)
+        setGoogleLoading(false)
+        return
+      }
+      if (res.url) {
+        window.location.href = res.url
+        return
+      }
+      setError('Unexpected response from Google sign-in. Try again or use email/password.')
+      setGoogleLoading(false)
+    } catch (e) {
+      setError(`Google sign-in error: ${e instanceof Error ? e.message : String(e)}`)
+      setGoogleLoading(false)
+    }
   }
 
   return (
@@ -76,11 +119,19 @@ function VaultLoginInner() {
         </div>
 
         <form onSubmit={handleSubmit} style={{ background: '#142D48', borderRadius: 6, padding: '36px 32px' }}>
-          {/* Google sign-in. Only renders if GOOGLE_CLIENT_ID is set on */}
-          {/* the server (the provider is conditionally registered there); */}
-          {/* clicking it when there's no Google provider takes the user */}
-          {/* to a NextAuth error page, but that's a non-issue once the env */}
-          {/* vars are configured in Vercel. */}
+          {/* Inline error banner for both Google and credentials failures. */}
+          {/* Sits above the Google button so login-flow errors land here */}
+          {/* regardless of which path the user tried. */}
+          {error && (
+            <div style={{ fontSize: 12, color: '#f87171', padding: '10px 12px', marginBottom: 18, background: 'rgba(248,113,113,0.08)', borderRadius: 4, border: '1px solid rgba(248,113,113,0.2)', lineHeight: 1.5 }}>
+              {error}
+            </div>
+          )}
+
+          {/* Google sign-in. Hidden when the provider isn't registered */}
+          {/* server-side (e.g. GOOGLE_CLIENT_ID env var missing) so we */}
+          {/* never show a dead button. */}
+          {googleAvailable && (<>
           <button
             type="button"
             onClick={signInWithGoogle}
@@ -113,6 +164,7 @@ function VaultLoginInner() {
             <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#6B8299' }}>or</span>
             <div style={{ flex: 1, height: 1, background: 'rgba(201,169,110,0.15)' }} />
           </div>
+          </>)}
 
           <div style={{ marginBottom: 20 }}>
             <label style={{ display: 'block', color: '#C9A96E', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 8 }}>
@@ -150,9 +202,8 @@ function VaultLoginInner() {
             />
           </div>
 
-          {error && (
-            <p style={{ color: '#f87171', fontSize: 13, marginBottom: 16, textAlign: 'center' }}>{error}</p>
-          )}
+          {/* Error banner is rendered above the Google button (top of */}
+          {/* form) so credentials AND Google failures both surface. */}
 
           <button
             type="submit"
