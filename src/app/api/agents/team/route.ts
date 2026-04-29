@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { agentAuthOptions } from '@/lib/agent-auth'
+import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { getSetting, setSetting } from '@/lib/settings'
 import { PHASE_ITEMS } from '@/lib/agent-constants'
@@ -94,10 +94,12 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Fall back to agent session
+  // Fall back to agent session. Uses the same authOptions instance the
+  // rest of the agent API uses (so credentials AND google sign-ins work)
+  // and gates on role === 'agent'.
   if (!myAgentCode) {
-    const session = await getServerSession(agentAuthOptions)
-    if (!session?.user) {
+    const session = await getServerSession(authOptions)
+    if (!session?.user || (session.user as { role?: string }).role !== 'agent') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     // Bug we hit in prod: a stale/odd session can have session.user.email
