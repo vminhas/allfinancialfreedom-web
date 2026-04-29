@@ -238,6 +238,11 @@ model PhaseItemDefinition {
   actionJson  String?
   coordinatorTopic String?
   linkedProgression String?
+  // Optional walkthrough video. Accepts a Loom share URL (preferred — embeds
+  // via iframe) or any direct video URL (Vercel Blob upload, mp4, etc.).
+  // The agent-side checklist renderer detects which to use.
+  videoUrl    String?
+  videoTitle  String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

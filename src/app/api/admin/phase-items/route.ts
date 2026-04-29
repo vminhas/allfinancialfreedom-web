@@ -55,6 +55,8 @@ export async function POST(req: NextRequest) {
     adminOnly?: boolean
     coordinatorTopic?: string
     linkedProgression?: string
+    videoUrl?: string
+    videoTitle?: string
   }
 
   if (!body.phase || !body.itemKey || !body.label || !body.description) {
@@ -80,6 +82,8 @@ export async function POST(req: NextRequest) {
         adminOnly: body.adminOnly ?? false,
         coordinatorTopic: body.coordinatorTopic,
         linkedProgression: body.linkedProgression,
+        videoUrl: body.videoUrl || null,
+        videoTitle: body.videoTitle || null,
       },
     })
     return NextResponse.json(item)
@@ -107,6 +111,8 @@ export async function PUT(req: NextRequest) {
     adminOnly?: boolean
     coordinatorTopic?: string | null
     actionJson?: string | null
+    videoUrl?: string | null
+    videoTitle?: string | null
   }
 
   if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 })
@@ -120,6 +126,8 @@ export async function PUT(req: NextRequest) {
   if (body.adminOnly !== undefined) data.adminOnly = body.adminOnly
   if (body.coordinatorTopic !== undefined) data.coordinatorTopic = body.coordinatorTopic
   if (body.actionJson !== undefined) data.actionJson = body.actionJson
+  if (body.videoUrl !== undefined) data.videoUrl = body.videoUrl || null
+  if (body.videoTitle !== undefined) data.videoTitle = body.videoTitle || null
   if ((body as Record<string, unknown>).linkedProgression !== undefined) data.linkedProgression = (body as Record<string, unknown>).linkedProgression
 
   const item = await db.phaseItemDefinition.update({ where: { id: body.id }, data })

@@ -19,6 +19,8 @@ interface PhaseItemDef {
   actionJson: string | null
   coordinatorTopic: string | null
   linkedProgression: string | null
+  videoUrl: string | null
+  videoTitle: string | null
 }
 
 const PROGRESSION_OPTIONS = SYSTEM_PROGRESSIONS.map(p => ({ key: p.key, label: p.label }))
@@ -48,7 +50,10 @@ export default function ChecklistEditorPage() {
   const [form, setForm] = useState({
     itemKey: '', label: '', description: '', duration: '',
     groupKey: '', adminOnly: false, coordinatorTopic: '', linkedProgression: '',
+    videoUrl: '', videoTitle: '',
   })
+  const [uploadingVideo, setUploadingVideo] = useState(false)
+  const [videoUploadError, setVideoUploadError] = useState<string | null>(null)
 
   const fetchItems = useCallback(async () => {
     const [itemsRes, groupsRes, progsRes] = await Promise.all([
@@ -68,9 +73,10 @@ export default function ChecklistEditorPage() {
   const groups = PHASE_GROUPS[activePhase] ?? []
 
   const resetForm = () => {
-    setForm({ itemKey: '', label: '', description: '', duration: '', groupKey: '', adminOnly: false, coordinatorTopic: '', linkedProgression: '' })
+    setForm({ itemKey: '', label: '', description: '', duration: '', groupKey: '', adminOnly: false, coordinatorTopic: '', linkedProgression: '', videoUrl: '', videoTitle: '' })
     setEditingId(null)
     setShowAdd(false)
+    setVideoUploadError(null)
   }
 
   const startEdit = (item: PhaseItemDef) => {
@@ -83,9 +89,12 @@ export default function ChecklistEditorPage() {
       adminOnly: item.adminOnly,
       coordinatorTopic: item.coordinatorTopic ?? '',
       linkedProgression: item.linkedProgression ?? '',
+      videoUrl: item.videoUrl ?? '',
+      videoTitle: item.videoTitle ?? '',
     })
     setEditingId(item.id)
     setShowAdd(true)
+    setVideoUploadError(null)
   }
 
   const handleSave = async () => {
@@ -104,6 +113,8 @@ export default function ChecklistEditorPage() {
             adminOnly: form.adminOnly,
             coordinatorTopic: form.coordinatorTopic || null,
             linkedProgression: form.linkedProgression || null,
+            videoUrl: form.videoUrl || null,
+            videoTitle: form.videoTitle || null,
           }),
         })
       } else {
@@ -121,6 +132,8 @@ export default function ChecklistEditorPage() {
             adminOnly: form.adminOnly,
             coordinatorTopic: form.coordinatorTopic || undefined,
             linkedProgression: form.linkedProgression || undefined,
+            videoUrl: form.videoUrl || undefined,
+            videoTitle: form.videoTitle || undefined,
           }),
         })
       }
@@ -310,6 +323,88 @@ export default function ChecklistEditorPage() {
               </label>
             </div>
           </div>
+
+          {/* Walkthrough video — paste a Loom share URL or upload a file. */}
+          <div style={{ marginTop: 18, padding: '14px 16px', background: 'rgba(201,169,110,0.04)', border: '1px solid rgba(201,169,110,0.15)', borderRadius: 6 }}>
+            <div style={{ ...lbl, marginBottom: 10 }}>Walkthrough video (optional)</div>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
+              <div>
+                <div style={{ fontSize: 10, color: '#6B8299', marginBottom: 4 }}>Loom share URL or direct video URL</div>
+                <input
+                  value={form.videoUrl}
+                  onChange={e => setForm(f => ({ ...f, videoUrl: e.target.value }))}
+                  placeholder="https://www.loom.com/share/..."
+                  style={inp}
+                />
+              </div>
+              <div>
+                <div style={{ fontSize: 10, color: '#6B8299', marginBottom: 4 }}>Button label (defaults to &quot;Watch the walkthrough&quot;)</div>
+                <input
+                  value={form.videoTitle}
+                  onChange={e => setForm(f => ({ ...f, videoTitle: e.target.value }))}
+                  placeholder="e.g. How to schedule your exam"
+                  style={inp}
+                />
+              </div>
+            </div>
+            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <label style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '6px 12px', borderRadius: 4,
+                background: 'rgba(201,169,110,0.1)', border: '1px solid rgba(201,169,110,0.3)',
+                color: '#C9A96E', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+                cursor: uploadingVideo ? 'wait' : 'pointer',
+                opacity: uploadingVideo ? 0.6 : 1,
+              }}>
+                {uploadingVideo ? 'Uploading...' : '↑ Upload video file'}
+                <input
+                  type="file"
+                  accept="video/mp4,video/webm,video/quicktime,video/x-matroska"
+                  disabled={uploadingVideo}
+                  onChange={async e => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    setUploadingVideo(true)
+                    setVideoUploadError(null)
+                    try {
+                      const fd = new FormData()
+                      fd.append('file', file)
+                      if (form.itemKey) fd.append('itemKey', form.itemKey)
+                      const res = await fetch('/api/admin/phase-items/upload-video', { method: 'POST', body: fd })
+                      const d = await res.json().catch(() => ({})) as { url?: string; error?: string }
+                      if (!res.ok || !d.url) {
+                        setVideoUploadError(d.error ?? 'Upload failed')
+                      } else {
+                        setForm(f => ({ ...f, videoUrl: d.url! }))
+                      }
+                    } catch {
+                      setVideoUploadError('Network error')
+                    } finally {
+                      setUploadingVideo(false)
+                      e.target.value = ''
+                    }
+                  }}
+                  style={{ display: 'none' }}
+                />
+              </label>
+              {form.videoUrl && (
+                <button
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, videoUrl: '' }))}
+                  style={{ padding: '6px 12px', borderRadius: 4, fontSize: 11, background: 'transparent', border: '1px solid rgba(239,68,68,0.3)', color: '#EF4444', cursor: 'pointer' }}
+                >
+                  Remove
+                </button>
+              )}
+              <span style={{ fontSize: 10, color: '#6B8299' }}>
+                Loom URLs embed inline. Uploaded files are stored on Vercel Blob (max 500MB, MP4/WebM/MOV/MKV).
+              </span>
+            </div>
+            {videoUploadError && (
+              <div style={{ marginTop: 8, fontSize: 11, color: '#EF4444' }}>{videoUploadError}</div>
+            )}
+          </div>
+
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
             <button onClick={resetForm} style={{ padding: '8px 16px', borderRadius: 4, fontSize: 12, background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#9BB0C4', cursor: 'pointer' }}>Cancel</button>
             <button onClick={handleSave} disabled={saving || !form.label || !form.description} style={{
