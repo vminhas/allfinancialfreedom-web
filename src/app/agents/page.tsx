@@ -3784,6 +3784,9 @@ interface TeamNode {
   avatarUrl: string | null
   memberStatus: MemberStatus
   progress: TeamProgress | null
+  inviteEmail: string | null
+  inviteSentAt: string | null
+  inviteExpiresAt: string | null
   children: TeamNode[]
 }
 
@@ -3940,22 +3943,22 @@ function TeamMemberNode({ node, depth, isMobile }: { node: TeamNode; depth: numb
             Awaiting admin approval
           </span>
         )}
-        {/* Progress toggle — separate from children expand. Stops click */}
+        {/* Details toggle. Always available so the upline can see SOMETHING */}
+        {/* useful regardless of member status: progress for ACTIVE, invite */}
+        {/* status for INVITED, referral status for PENDING. Stops click */}
         {/* propagation so it doesn't also collapse/expand the children. */}
-        {node.progress && (
-          <button
-            onClick={(e) => { e.stopPropagation(); setShowProgress(s => !s) }}
-            style={{
-              padding: '4px 10px', borderRadius: 4,
-              background: showProgress ? `${color}20` : 'transparent',
-              border: `1px solid ${color}40`, color,
-              fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
-              cursor: 'pointer', flexShrink: 0,
-            }}
-          >
-            {showProgress ? 'Hide' : 'View'} progress
-          </button>
-        )}
+        <button
+          onClick={(e) => { e.stopPropagation(); setShowProgress(s => !s) }}
+          style={{
+            padding: '4px 10px', borderRadius: 4,
+            background: showProgress ? `${color}20` : 'transparent',
+            border: `1px solid ${color}40`, color,
+            fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+            cursor: 'pointer', flexShrink: 0,
+          }}
+        >
+          {showProgress ? 'Hide' : 'View'} {node.memberStatus === 'ACTIVE' ? 'progress' : 'details'}
+        </button>
         {node.children.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
             <span style={{ fontSize: 9, color: '#6B8299', fontWeight: 600 }}>{descendants}</span>
@@ -3963,6 +3966,53 @@ function TeamMemberNode({ node, depth, isMobile }: { node: TeamNode; depth: numb
           </div>
         )}
       </div>
+      {/* INVITED detail panel: invite email + sent date + expiration. */}
+      {/* Mirrors the layout of the active progress panel so the upline */}
+      {/* always gets a useful expansion regardless of who they click. */}
+      {showProgress && node.memberStatus === 'INVITED' && (
+        <div style={{
+          marginLeft: isMobile ? depth * 16 + 14 : depth * 32 + 14,
+          marginTop: 6,
+          padding: '12px 14px',
+          background: 'rgba(96,165,250,0.04)',
+          border: '1px solid rgba(96,165,250,0.15)',
+          borderRadius: 6,
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#60A5FA', marginBottom: 6 }}>
+            Hasn&apos;t activated yet
+          </div>
+          <div style={{ fontSize: 11, color: '#9BB0C4', lineHeight: 1.6 }}>
+            {node.firstName} got the welcome email but hasn&apos;t set their password yet.
+            {node.inviteEmail && <><br /><strong style={{ color: '#fff' }}>Email:</strong> {node.inviteEmail}</>}
+            {node.inviteSentAt && <><br /><strong style={{ color: '#fff' }}>Invited:</strong> {new Date(node.inviteSentAt).toLocaleDateString()}</>}
+            {node.inviteExpiresAt && (
+              <><br /><strong style={{ color: '#fff' }}>Link expires:</strong> {new Date(node.inviteExpiresAt).toLocaleString()}{new Date(node.inviteExpiresAt).getTime() < Date.now() ? ' (expired)' : ''}</>
+            )}
+          </div>
+          <div style={{ marginTop: 10, fontSize: 10, color: '#4B5563', fontStyle: 'italic' }}>
+            Tap &quot;Resend invite&quot; on the row above if the link expired or they lost the email.
+          </div>
+        </div>
+      )}
+      {/* PENDING detail panel: just confirms what's happening. */}
+      {showProgress && node.memberStatus === 'PENDING' && (
+        <div style={{
+          marginLeft: isMobile ? depth * 16 + 14 : depth * 32 + 14,
+          marginTop: 6,
+          padding: '12px 14px',
+          background: 'rgba(245,158,11,0.04)',
+          border: '1px solid rgba(245,158,11,0.15)',
+          borderRadius: 6,
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#F59E0B', marginBottom: 6 }}>
+            Awaiting admin approval
+          </div>
+          <div style={{ fontSize: 11, color: '#9BB0C4', lineHeight: 1.6 }}>
+            You referred {node.firstName} {node.lastName} on {node.inviteSentAt ? new Date(node.inviteSentAt).toLocaleDateString() : 'recently'}.
+            An admin or licensing coordinator will review the referral and send the welcome email.
+          </div>
+        </div>
+      )}
       {showProgress && node.progress && (
         <div style={{
           marginLeft: isMobile ? depth * 16 + 14 : depth * 32 + 14,

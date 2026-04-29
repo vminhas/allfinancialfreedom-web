@@ -1,7 +1,7 @@
 import { db } from './db'
 import { randomUUID } from 'crypto'
 import { PHASE_ITEMS, CARRIERS } from './agent-constants'
-import { getGhlConfig, sendGhlEmail, ghlPost } from './ghl'
+import { getGhlConfig, sendGhlEmail, ghlPost, OPS_MAILBOX } from './ghl'
 import { buildWelcomeEmailHtml } from './welcome-email'
 
 // Shared approval flow used by both the vault PATCH endpoint and the Discord
@@ -149,6 +149,9 @@ export async function approveReferral(input: ApprovalInput): Promise<ApprovalRes
           subject: 'Welcome to the All Financial Freedom family',
           html,
           config,
+          // Welcome emails come from operations@, not the CEO mailbox.
+          emailFrom: OPS_MAILBOX.email,
+          emailFromName: OPS_MAILBOX.name,
         })
         emailSent = msgRes.ok
       }
