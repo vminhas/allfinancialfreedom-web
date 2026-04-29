@@ -1,9 +1,8 @@
 import { ImageResponse } from 'next/og'
 import { PhoenixMark } from '@/components/PhoenixMark'
 
-// Root-level apple-touch-icon. Acts as the fallback for any page outside
-// the /agents and /vault segments — public marketing site, login pages,
-// 404s, etc. Same phoenix mark, no segment label.
+// Root-level apple-touch-icon. Fallback for any page outside /agents and
+// /vault — public marketing site, login pages, 404s. Same phoenix mark.
 
 export const size = { width: 180, height: 180 }
 export const contentType = 'image/png'
@@ -22,7 +21,7 @@ export default function AppleIcon() {
         }}
       >
         <div style={{ display: 'flex' }}>
-          <PhoenixMark size={120} fill="#C9A96E" />
+          <PhoenixMark size={150} fill="#C9A96E" />
         </div>
       </div>
     ),
