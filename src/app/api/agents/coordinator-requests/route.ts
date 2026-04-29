@@ -38,15 +38,8 @@ export async function GET(req: NextRequest) {
       ...(phaseItemKey ? { phaseItemKey } : {}),
     },
     orderBy: { createdAt: 'desc' },
-    select: {
-      id: true,
-      phaseItemKey: true,
-      topic: true,
-      message: true,
-      status: true,
-      resolutionNote: true,
-      createdAt: true,
-      resolvedAt: true,
+    include: {
+      messages: { orderBy: { createdAt: 'asc' } },
     },
   })
 

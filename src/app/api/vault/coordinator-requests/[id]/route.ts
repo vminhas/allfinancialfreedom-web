@@ -33,6 +33,7 @@ export async function GET(
         },
       },
       assignedTo: { select: { id: true, name: true, email: true, role: true } },
+      messages: { orderBy: { createdAt: 'asc' } },
     },
   })
   if (!request) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -116,6 +117,7 @@ export async function PATCH(
         },
       },
       assignedTo: { select: { id: true, name: true, email: true, role: true } },
+      messages: { orderBy: { createdAt: 'asc' } },
     },
   })
 

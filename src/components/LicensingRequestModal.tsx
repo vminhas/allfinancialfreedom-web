@@ -27,6 +27,14 @@ export const TOPIC_LABELS: Record<LicensingRequestTopic, string> = {
   GENERAL: 'Something else',
 }
 
+interface ThreadMessage {
+  id: string
+  fromRole: string
+  fromName: string
+  body: string
+  createdAt: string
+}
+
 interface CallItem {
   id: string
   phaseItemKey?: string | null
@@ -34,6 +42,7 @@ interface CallItem {
   message: string
   status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED'
   resolutionNote: string | null
+  messages?: ThreadMessage[]
   createdAt: string
   resolvedAt: string | null
 }
@@ -213,24 +222,11 @@ export default function LicensingRequestModal({
               border: '1px solid rgba(155,109,255,0.18)',
               borderRadius: 6,
             }}>
-              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#9B6DFF', marginBottom: 8 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#9B6DFF', marginBottom: 10 }}>
                 Your previous requests for this item
               </div>
               {existingRequests.map(r => (
-                <div key={r.id} style={{ fontSize: 11, color: '#9BB0C4', marginBottom: 6, lineHeight: 1.5 }}>
-                  <span style={{ color: statusColor(r.status), fontWeight: 700 }}>
-                    {statusLabel(r.status)}
-                  </span>
-                  {' · '}
-                  <span style={{ color: '#6B8299' }}>
-                    sent {new Date(r.createdAt).toLocaleDateString()}
-                  </span>
-                  {r.resolutionNote && (
-                    <div style={{ marginTop: 3, color: '#d1d9e2', fontStyle: 'italic' }}>
-                      &ldquo;{r.resolutionNote}&rdquo;
-                    </div>
-                  )}
-                </div>
+                <ExistingRequestCard key={r.id} req={r} />
               ))}
             </div>
           )}
@@ -365,4 +361,117 @@ function statusColor(s: string) {
     case 'CLOSED': return '#6B8299'
     default: return '#9BB0C4'
   }
+}
+
+// Renders one existing coordinator-request with its thread and an
+// inline reply input so the agent can keep the conversation going
+// without opening a separate ticket. Posts to
+// /api/agents/coordinator-requests/[id]/messages (no status change).
+function ExistingRequestCard({ req }: { req: CallItem }) {
+  const [messages, setMessages] = useState<ThreadMessage[]>(req.messages ?? [])
+  const [replyBody, setReplyBody] = useState('')
+  const [sending, setSending] = useState(false)
+  const isOpen = req.status === 'OPEN' || req.status === 'IN_PROGRESS'
+
+  const sendReply = async () => {
+    const body = replyBody.trim()
+    if (body.length === 0) return
+    setSending(true)
+    try {
+      const res = await fetch(`/api/agents/coordinator-requests/${req.id}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body }),
+      })
+      if (res.ok) {
+        const d = await res.json() as { request: { messages: ThreadMessage[] } }
+        setMessages(d.request.messages ?? [])
+        setReplyBody('')
+      }
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid rgba(155,109,255,0.12)' }}>
+      <div style={{ fontSize: 11, color: '#9BB0C4', marginBottom: 6, lineHeight: 1.5 }}>
+        <span style={{ color: statusColor(req.status), fontWeight: 700 }}>{statusLabel(req.status)}</span>
+        {' · '}
+        <span style={{ color: '#6B8299' }}>sent {new Date(req.createdAt).toLocaleDateString()}</span>
+      </div>
+
+      {messages.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: replyBody || isOpen ? 10 : 0 }}>
+          {messages.map(m => {
+            const fromAgent = m.fromRole === 'agent'
+            return (
+              <div key={m.id} style={{
+                padding: '8px 10px',
+                borderRadius: 5,
+                background: fromAgent ? 'rgba(155,109,255,0.05)' : 'rgba(201,169,110,0.05)',
+                border: `1px solid ${fromAgent ? 'rgba(155,109,255,0.18)' : 'rgba(201,169,110,0.18)'}`,
+              }}>
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: fromAgent ? '#9B6DFF' : '#C9A96E', marginBottom: 3 }}>
+                  {fromAgent ? 'You' : m.fromName}
+                  <span style={{ color: '#6B8299', marginLeft: 6, fontSize: 9, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
+                    {new Date(m.createdAt).toLocaleString()}
+                  </span>
+                </div>
+                <div style={{ fontSize: 11, color: '#d1d9e2', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{m.body}</div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {req.resolutionNote && req.status === 'RESOLVED' && (
+        <div style={{
+          marginTop: messages.length > 0 ? 0 : 6,
+          padding: '8px 10px', borderRadius: 5,
+          background: 'rgba(74,222,128,0.06)', border: '1px solid rgba(74,222,128,0.2)',
+        }}>
+          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#4ade80', marginBottom: 3 }}>
+            Resolved
+          </div>
+          <div style={{ fontSize: 11, color: '#d1d9e2', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{req.resolutionNote}</div>
+        </div>
+      )}
+
+      {isOpen && (
+        <div style={{ display: 'flex', gap: 6, marginTop: 8, alignItems: 'flex-start' }}>
+          <textarea
+            value={replyBody}
+            onChange={e => setReplyBody(e.target.value)}
+            placeholder="Reply..."
+            rows={2}
+            style={{
+              flex: 1, boxSizing: 'border-box',
+              background: '#0A1628',
+              border: '1px solid rgba(155,109,255,0.25)',
+              borderRadius: 4, color: '#d1d9e2',
+              padding: '8px 10px', fontSize: 11,
+              fontFamily: 'inherit', resize: 'vertical',
+            }}
+          />
+          <button
+            type="button"
+            onClick={sendReply}
+            disabled={sending || replyBody.trim().length === 0}
+            style={{
+              background: '#9B6DFF', color: '#ffffff',
+              border: 'none', borderRadius: 4,
+              padding: '8px 12px', fontSize: 10, fontWeight: 700,
+              letterSpacing: '0.08em', textTransform: 'uppercase',
+              cursor: sending || replyBody.trim().length === 0 ? 'not-allowed' : 'pointer',
+              opacity: sending || replyBody.trim().length === 0 ? 0.5 : 1,
+              flexShrink: 0, alignSelf: 'flex-start',
+            }}
+          >
+            {sending ? '...' : 'Send'}
+          </button>
+        </div>
+      )}
+    </div>
+  )
 }
