@@ -148,7 +148,7 @@ function AgentDashboardInner() {
 
   const [data, setData] = useState<AgentData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'checklist' | 'licensing' | 'carriers' | 'partners' | 'fta' | 'new-business' | 'calls' | 'team' | 'resources' | 'profile'>(
+  const [activeTab, setActiveTab] = useState<'checklist' | 'licensing' | 'carriers' | 'partners' | 'fta' | 'new-business' | 'calls' | 'team' | 'profile'>(
     discordParam ? 'profile' : 'checklist'
   )
   // Use this for programmatic tab switches triggered from outside the tab
@@ -402,7 +402,6 @@ function AgentDashboardInner() {
     { key: 'new-business', label: 'New Business' },
     { key: 'calls', label: 'Calls' },
     { key: 'team', label: 'My Team' },
-    { key: 'resources', label: 'Resources' },
     { key: 'profile', label: 'Profile' },
   ] as const
 
@@ -453,17 +452,23 @@ function AgentDashboardInner() {
             </div>
             <span style={{ fontSize: 12, color: '#6B8299' }}>{data.firstName} {data.lastName} · {data.agentCode}</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <a href="/agents/guide" style={{ color: '#C9A96E', fontSize: 12, textDecoration: 'none', cursor: 'pointer' }}>
-              Guide
-            </a>
+          <nav
+            aria-label="Quick links"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              flexWrap: 'wrap',
+            }}
+          >
+            <NavbarLink href="/agents/guide" icon="?" label="Guide" />
+            <NavbarLink href="/agents/resources" icon="◈" label="Resources" />
+            <NavbarLink href="/agents/book" icon="✦" label="Book" />
             <button
               onClick={() => signOut({ callbackUrl: '/agents/login' })}
-              style={{ background: 'none', border: 'none', color: '#6B8299', fontSize: 12, cursor: 'pointer' }}
+              style={{ background: 'none', border: 'none', color: '#6B8299', fontSize: 12, cursor: 'pointer', padding: '6px 8px', marginLeft: 4 }}
             >
               Sign out
             </button>
-          </div>
+          </nav>
         </div>
       </div>
 
@@ -1437,7 +1442,6 @@ function AgentDashboardInner() {
         {activeTab === 'new-business' && <NewBusinessTab isMobile={isMobile} phase={data.phase} />}
         {activeTab === 'calls' && <CallLogsTab />}
         {activeTab === 'team' && <MyTeamTab isMobile={isMobile} previewToken={previewToken} />}
-        {activeTab === 'resources' && <TrainingResourcesTab resources={setupResources} />}
         {activeTab === 'profile' && (
           <ProfileTab
             data={data}
@@ -4329,6 +4333,29 @@ const TEAM_PHASE_COLORS: Record<number, string> = {
   1: '#C9A96E', 2: '#60a5fa', 3: '#f59e0b', 4: '#9B6DFF', 5: '#4ade80',
 }
 
+// Top-nav link styled to read as a real navigation item rather than
+// the original tiny gold link. Mobile-friendly: tappable target,
+// wraps cleanly when the row gets tight.
+function NavbarLink({ href, icon, label }: { href: string; icon: string; label: string }) {
+  return (
+    <a
+      href={href}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6,
+        padding: '6px 10px', borderRadius: 4,
+        fontSize: 12, fontWeight: 600, letterSpacing: '0.04em',
+        color: '#C9A96E', textDecoration: 'none',
+        border: '1px solid rgba(201,169,110,0.18)',
+        background: 'rgba(201,169,110,0.04)',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      <span aria-hidden="true" style={{ fontSize: 11, opacity: 0.85 }}>{icon}</span>
+      <span>{label}</span>
+    </a>
+  )
+}
+
 function formatRelativeDays(iso: string): string {
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)
   if (days <= 0) return 'today'
@@ -4735,99 +4762,3 @@ function MyTeamTab({ isMobile, previewToken }: { isMobile: boolean; previewToken
   )
 }
 
-function TrainingResourcesTab({ resources }: { resources: Record<string, string> }) {
-  const [allResources, setAllResources] = useState<{ key: string; label: string; url: string; category: string }[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    fetch('/api/agents/setup-resources')
-      .then(r => r.json())
-      .then((d: { resources: Record<string, string> }) => {
-        // We need full resource data, not just key->url map. Fetch from a different shape.
-        // For now, convert the map + use stored labels from the seeded data
-        setLoading(false)
-      })
-  }, [])
-
-  // Fetch full resource objects
-  useEffect(() => {
-    fetch('/api/agents/setup-resources?full=1')
-      .then(r => r.json())
-      .then((d: { resources: Record<string, string> | { key: string; label: string; url: string; category: string }[] }) => {
-        if (Array.isArray(d.resources)) {
-          setAllResources(d.resources)
-        } else {
-          // Fallback: convert map to array
-          setAllResources(Object.entries(d.resources).map(([key, url]) => ({
-            key, url: url as string, label: key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), category: 'general',
-          })))
-        }
-        setLoading(false)
-      })
-      .catch(() => setLoading(false))
-  }, [])
-
-  const grouped = RESOURCE_GROUPS.map(g => ({
-    ...g,
-    items: allResources.filter(r => r.category === g.key),
-  })).filter(g => g.items.length > 0)
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {loading ? <div style={{ color: '#6B8299', fontSize: 13 }}>Loading resources...</div> :
-        grouped.length === 0 ? <div style={{ color: '#4B5563', fontSize: 13 }}>No training resources available yet.</div> :
-        grouped.map(g => (
-          <div key={g.key} style={{ ...card, padding: '20px 24px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-              <span style={{ fontSize: 14, color: '#C9A96E' }}>{g.icon}</span>
-              <div style={sectionLabel}>{g.label}</div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 8 }}>
-              {g.items.map(r => (
-                <a
-                  key={r.key}
-                  href={r.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '12px 16px', borderRadius: 6,
-                    background: 'rgba(255,255,255,0.02)',
-                    border: '1px solid rgba(255,255,255,0.05)',
-                    textDecoration: 'none', cursor: 'pointer',
-                    transition: 'all 0.15s',
-                  }}
-                  onMouseEnter={e => {
-                    (e.currentTarget as HTMLElement).style.background = 'rgba(201,169,110,0.06)'
-                    ;(e.currentTarget as HTMLElement).style.borderColor = 'rgba(201,169,110,0.15)'
-                  }}
-                  onMouseLeave={e => {
-                    (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.02)'
-                    ;(e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.05)'
-                  }}
-                >
-                  <div style={{
-                    width: 32, height: 32, borderRadius: 6, flexShrink: 0,
-                    background: g.key === 'videos' ? 'rgba(239,68,68,0.1)' : g.key === 'books' ? 'rgba(201,169,110,0.1)' : 'rgba(96,165,250,0.1)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 12, color: g.key === 'videos' ? '#ef4444' : g.key === 'books' ? '#C9A96E' : '#60a5fa',
-                  }}>
-                    {g.key === 'videos' ? '▶' : g.key === 'books' ? '◈' : '↗'}
-                  </div>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontSize: 12, color: '#ffffff', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {r.label}
-                    </div>
-                    <div style={{ fontSize: 9, color: '#4B5563', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {r.url.replace(/^https?:\/\//, '').split('/')[0]}
-                    </div>
-                  </div>
-                </a>
-              ))}
-            </div>
-          </div>
-        ))
-      }
-    </div>
-  )
-}
