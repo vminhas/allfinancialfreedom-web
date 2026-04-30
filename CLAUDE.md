@@ -25,11 +25,14 @@
 - Next.js 16 App Router, Prisma 7.7 with PrismaPg adapter, Neon Postgres.
 - `db.prisma` operations from `@/lib/db`. Prisma client is generated to
   `src/generated/prisma`.
-- Auth: NextAuth.js with two providers. Admin sessions use `authOptions`
-  from `@/lib/auth`; agent sessions use `agentAuthOptions` from
-  `@/lib/agent-auth`. Many endpoints check `session.user.role === 'agent'`
-  but are mounted under `authOptions` and break for agents. Always pick
-  the auth options that match the caller.
+- Auth: NextAuth.js. A single `authOptions` config in `@/lib/auth`
+  issues sessions for all three roles (admin, licensing_coordinator,
+  agent) via separate CredentialsProviders + Google OAuth. Both
+  `/api/auth/[...nextauth]` and `/api/agent-auth/[...nextauth]` mount
+  the same `authOptions`. Server-side: `getServerSession(authOptions)`
+  and gate on `session.user.role`. There is no separate
+  `agentAuthOptions` — that legacy config existed but was never wired
+  up and was deleted; do not reintroduce it.
 
 ## Data model rules
 
