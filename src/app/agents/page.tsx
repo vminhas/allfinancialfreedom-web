@@ -1976,7 +1976,10 @@ function ProfileTab({ data, onSaved, discordParam, discordUsername, isMobile }: 
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 20, padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid rgba(255,255,255,0.05)' }}>
         <div>
           <div style={{ fontSize: 10, color: '#4B5563', marginBottom: 3, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Email</div>
-          <div style={{ fontSize: 13, color: '#6B8299' }}>{data.email}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 13, color: '#6B8299' }}>{data.email}</div>
+            <EmailChangeControl currentEmail={data.email} />
+          </div>
         </div>
         <div>
           <div style={{ fontSize: 10, color: '#4B5563', marginBottom: 3, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Agent Code</div>
@@ -2364,6 +2367,135 @@ const PARTNER_CATEGORIES = [
 ] as const
 
 const TIMEZONES = ['EST', 'CST', 'MST', 'PST', 'HST', 'AKST'] as const
+
+// Self-serve email change with verification. Renders an inline
+// "Change" button next to the agent's current email. Clicking opens a
+// new-email input + Send link; the server emails BOTH the new address
+// (verify) and the old address (cancel). Email isn't actually swapped
+// until the agent clicks the link in their new mailbox.
+function EmailChangeControl({ currentEmail }: { currentEmail: string }) {
+  const [open, setOpen] = useState(false)
+  const [newEmail, setNewEmail] = useState('')
+  const [sending, setSending] = useState(false)
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const submit = async () => {
+    setError(null)
+    const trimmed = newEmail.trim().toLowerCase()
+    if (!trimmed || trimmed === currentEmail.toLowerCase()) return
+    setSending(true)
+    try {
+      const res = await fetch('/api/agents/profile/email-change-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newEmail: trimmed }),
+      })
+      const data = await res.json().catch(() => ({})) as { ok?: boolean; pendingEmail?: string; error?: string }
+      if (!res.ok || !data.ok) {
+        setError(data.error ?? 'Failed to start email change. Try again.')
+      } else {
+        setPendingEmail(data.pendingEmail ?? trimmed)
+        setNewEmail('')
+      }
+    } finally {
+      setSending(false)
+    }
+  }
+
+  if (pendingEmail) {
+    return (
+      <div style={{
+        flex: '1 1 100%',
+        marginTop: 6, padding: '10px 12px',
+        background: 'rgba(245,158,11,0.06)',
+        border: '1px solid rgba(245,158,11,0.25)',
+        borderRadius: 4,
+      }}>
+        <div style={{ fontSize: 11, color: '#F59E0B', fontWeight: 700, marginBottom: 4 }}>
+          Verification sent
+        </div>
+        <div style={{ fontSize: 11, color: '#9BB0C4', lineHeight: 1.5 }}>
+          We sent a confirmation link to <strong style={{ color: '#fff' }}>{pendingEmail}</strong>. Click it to finish the change.
+          Until then, keep using <strong style={{ color: '#fff' }}>{currentEmail}</strong>.
+        </div>
+        <div style={{ fontSize: 10, color: '#6B8299', marginTop: 6 }}>
+          We also sent your current address a security alert with a Cancel link in case this wasn&apos;t you.
+        </div>
+      </div>
+    )
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        style={{
+          background: 'transparent', border: '1px solid rgba(201,169,110,0.3)',
+          color: '#C9A96E', borderRadius: 4,
+          padding: '4px 10px', fontSize: 10, fontWeight: 700,
+          letterSpacing: '0.08em', textTransform: 'uppercase',
+          cursor: 'pointer',
+        }}
+      >
+        Change
+      </button>
+    )
+  }
+
+  return (
+    <div style={{ flex: '1 1 100%', marginTop: 6 }}>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+        <input
+          type="email"
+          autoFocus
+          value={newEmail}
+          onChange={e => setNewEmail(e.target.value)}
+          placeholder="new@example.com"
+          style={{
+            flex: '1 1 220px', minWidth: 0, boxSizing: 'border-box',
+            background: '#0A1628', border: '1px solid rgba(201,169,110,0.25)',
+            borderRadius: 4, color: '#d1d9e2',
+            padding: '7px 10px', fontSize: 12, fontFamily: 'inherit',
+          }}
+        />
+        <button
+          type="button"
+          onClick={submit}
+          disabled={sending || !newEmail.trim()}
+          style={{
+            background: '#C9A96E', color: '#142D48',
+            border: 'none', borderRadius: 4,
+            padding: '7px 14px', fontSize: 10, fontWeight: 700,
+            letterSpacing: '0.08em', textTransform: 'uppercase',
+            cursor: sending || !newEmail.trim() ? 'not-allowed' : 'pointer',
+            opacity: sending || !newEmail.trim() ? 0.6 : 1,
+          }}
+        >
+          {sending ? 'Sending...' : 'Send link'}
+        </button>
+        <button
+          type="button"
+          onClick={() => { setOpen(false); setNewEmail(''); setError(null) }}
+          style={{
+            background: 'transparent', color: '#9BB0C4',
+            border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4,
+            padding: '7px 10px', fontSize: 10, fontWeight: 700,
+            letterSpacing: '0.08em', textTransform: 'uppercase',
+            cursor: 'pointer',
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+      <div style={{ fontSize: 10, color: '#6B8299', marginTop: 6, lineHeight: 1.5 }}>
+        We&apos;ll email a verification link to the new address. Until you click it, your current email stays in effect.
+      </div>
+      {error && <div style={{ fontSize: 11, color: '#F87171', marginTop: 6 }}>{error}</div>}
+    </div>
+  )
+}
 
 function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; previewToken?: string | null }) {
   // Append ?preview=<token> to any agent endpoint when an admin / LC is

@@ -147,6 +147,17 @@ model AgentUser {
   passwordHash  String?      // null until agent accepts invite
   inviteToken   String?      @unique
   inviteExpires DateTime?
+  // Pending self-serve email change. Agent enters a new email; we send
+  // a verification token to that new address and a security alert to
+  // the current address. Email isn't actually swapped until the agent
+  // clicks the link in the new mailbox.
+  pendingEmail        String?
+  pendingEmailToken   String?    @unique
+  pendingEmailExpires DateTime?
+  // Last successful email swap. Used for audit display and to enforce
+  // a cooldown so a compromised account can't be repeatedly bounced
+  // through new addresses.
+  lastEmailChangeAt   DateTime?
   createdAt     DateTime     @default(now())
   lastLoginAt   DateTime?
   profile       AgentProfile?
