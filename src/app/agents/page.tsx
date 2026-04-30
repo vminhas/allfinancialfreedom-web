@@ -2007,7 +2007,7 @@ function ProfileTab({ data, onSaved, discordParam, discordUsername, isMobile }: 
               inputMode="numeric"
               value={form.phone}
               onChange={e => setForm(f => ({ ...f, phone: formatPhoneAsTyped(e.target.value) }))}
-              placeholder="(555) 555-5555"
+              placeholder="e.g. (555) 555-5555"
               style={inputStyle}
             />
           </div>
@@ -2080,7 +2080,7 @@ function ProfileTab({ data, onSaved, discordParam, discordUsername, isMobile }: 
               <input
                 value={form.addressLine1}
                 onChange={e => setForm(f => ({ ...f, addressLine1: e.target.value }))}
-                placeholder="123 Main St"
+                placeholder="e.g. 123 Main St"
                 style={inputStyle}
               />
             </div>
@@ -2099,7 +2099,7 @@ function ProfileTab({ data, onSaved, discordParam, discordUsername, isMobile }: 
                 <input
                   value={form.city}
                   onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
-                  placeholder="Chicago"
+                  placeholder="e.g. Chicago"
                   style={inputStyle}
                 />
               </div>
@@ -2115,7 +2115,7 @@ function ProfileTab({ data, onSaved, discordParam, discordUsername, isMobile }: 
                 <input
                   value={form.zip}
                   onChange={e => setForm(f => ({ ...f, zip: e.target.value }))}
-                  placeholder="60601"
+                  placeholder="e.g. 60601"
                   style={inputStyle}
                 />
               </div>
@@ -2883,7 +2883,7 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
             <div><label style={fieldLabel}>First Name *</label><input required style={inputStyle} value={referForm.firstName} onChange={e => setReferForm(f => ({ ...f, firstName: e.target.value }))} /></div>
             <div><label style={fieldLabel}>Last Name *</label><input required style={inputStyle} value={referForm.lastName} onChange={e => setReferForm(f => ({ ...f, lastName: e.target.value }))} /></div>
             <div><label style={fieldLabel}>Email *</label><input required type="email" style={inputStyle} value={referForm.email} onChange={e => setReferForm(f => ({ ...f, email: e.target.value }))} /></div>
-            <div><label style={fieldLabel}>Phone</label><input type="tel" inputMode="numeric" placeholder="(555) 123-4567" style={inputStyle} value={referForm.phone} onChange={e => setReferForm(f => ({ ...f, phone: formatPhoneAsTyped(e.target.value) }))} /></div>
+            <div><label style={fieldLabel}>Phone</label><input type="tel" inputMode="numeric" placeholder="e.g. (555) 123-4567" style={inputStyle} value={referForm.phone} onChange={e => setReferForm(f => ({ ...f, phone: formatPhoneAsTyped(e.target.value) }))} /></div>
             <div><label style={fieldLabel}>State</label>
               <select style={{ ...inputStyle, cursor: 'pointer', appearance: 'auto' }} value={referForm.state} onChange={e => setReferForm(f => ({ ...f, state: e.target.value }))}>
                 <option value="">Select a state</option>
@@ -3016,7 +3016,7 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
         {showForm && (
           <form onSubmit={handleSubmit} style={{ marginBottom: 16, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 10, padding: 16, background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)' }}>
             <div><label style={fieldLabel}>Name *</label><input required style={inputStyle} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
-            <div><label style={fieldLabel}>Phone</label><input type="tel" inputMode="numeric" placeholder="(555) 123-4567" style={inputStyle} value={form.phone} onChange={e => setForm(f => ({ ...f, phone: formatPhoneAsTyped(e.target.value) }))} /></div>
+            <div><label style={fieldLabel}>Phone</label><input type="tel" inputMode="numeric" placeholder="e.g. (555) 123-4567" style={inputStyle} value={form.phone} onChange={e => setForm(f => ({ ...f, phone: formatPhoneAsTyped(e.target.value) }))} /></div>
             <div><label style={fieldLabel}>Email</label><input type="email" style={inputStyle} value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} /></div>
             <div><label style={fieldLabel}>Time Zone</label>
               <select style={{ ...inputStyle, cursor: 'pointer' }} value={form.timeZone} onChange={e => setForm(f => ({ ...f, timeZone: e.target.value }))}>

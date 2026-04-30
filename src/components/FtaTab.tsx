@@ -144,7 +144,7 @@ function FtaForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: () => void
         <div><label style={fieldLabel}>Appointment Date *</label>
           <DateTimePicker value={form.appointmentDate} onChange={v => setForm(f => ({ ...f, appointmentDate: v }))} required />
         </div>
-        <div><label style={fieldLabel}>Phone</label><input type="tel" inputMode="numeric" placeholder="(555) 123-4567" style={inputStyle} value={form.phone} onChange={e => setForm(f => ({ ...f, phone: formatPhoneAsTyped(e.target.value) }))} /></div>
+        <div><label style={fieldLabel}>Phone</label><input type="tel" inputMode="numeric" placeholder="e.g. (555) 123-4567" style={inputStyle} value={form.phone} onChange={e => setForm(f => ({ ...f, phone: formatPhoneAsTyped(e.target.value) }))} /></div>
         <div><label style={fieldLabel}>Time Zone</label><input style={inputStyle} value={form.timeZone} onChange={e => setForm(f => ({ ...f, timeZone: e.target.value }))} placeholder="EST / CST / MST / PST" /></div>
         <div><label style={fieldLabel}>Age</label><input type="number" style={inputStyle} value={form.age} onChange={e => setForm(f => ({ ...f, age: e.target.value }))} /></div>
         <div><label style={fieldLabel}>Married</label>{yesNoSelect('married')}</div>

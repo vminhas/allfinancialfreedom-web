@@ -306,7 +306,7 @@ function NewBusinessForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: ()
             type="tel"
             pattern="^\s*\+?1?\s*\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\s*$"
             title="10-digit US phone, e.g. (555) 123-4567"
-            placeholder="(555) 123-4567"
+            placeholder="e.g. (555) 123-4567"
             style={inputStyle}
             value={form.clientPhone}
             onChange={e => setForm(f => ({ ...f, clientPhone: formatPhoneAsTyped(e.target.value) }))}
