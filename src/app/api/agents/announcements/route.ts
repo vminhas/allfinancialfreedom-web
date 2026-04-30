@@ -24,12 +24,18 @@ export async function GET() {
   const profile = await getProfileId(session.user!.email!)
   if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
 
+  // Three time gates rolled into one query:
+  //   1. expiresAt > now (or null) - has not aged out
+  //   2. scheduledFor <= now (or null) - has actually started
+  //   3. targetPhase matches the agent's phase (or null = everyone)
+  // Plus active flag, plus the agent hasn't already read it.
   const now = new Date()
   const announcements = await db.announcement.findMany({
     where: {
       active: true,
-      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
       AND: [
+        { OR: [{ expiresAt: null },   { expiresAt: { gt: now } }] },
+        { OR: [{ scheduledFor: null }, { scheduledFor: { lte: now } }] },
         { OR: [{ targetPhase: null }, { targetPhase: profile.phase }] },
       ],
       reads: { none: { agentProfileId: profile.id } },

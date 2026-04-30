@@ -23,7 +23,11 @@ export async function POST(req: NextRequest) {
   if (denied) return denied
 
   const body = await req.json() as {
-    title: string; message: string; targetPhase?: number; expiresAt?: string
+    title: string
+    message: string
+    targetPhase?: number
+    expiresAt?: string
+    scheduledFor?: string
   }
   if (!body.title || !body.message) return NextResponse.json({ error: 'title and message required' }, { status: 400 })
 
@@ -32,6 +36,7 @@ export async function POST(req: NextRequest) {
       title: body.title,
       message: body.message,
       targetPhase: body.targetPhase ?? null,
+      scheduledFor: body.scheduledFor ? new Date(body.scheduledFor) : null,
       expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
       createdBy: session!.user!.email,
     },
@@ -45,7 +50,14 @@ export async function PUT(req: NextRequest) {
   const denied = requireRole(session, 'admin')
   if (denied) return denied
 
-  const body = await req.json() as { id: string; active?: boolean; title?: string; message?: string; expiresAt?: string | null }
+  const body = await req.json() as {
+    id: string
+    active?: boolean
+    title?: string
+    message?: string
+    expiresAt?: string | null
+    scheduledFor?: string | null
+  }
   if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
   const data: Record<string, unknown> = {}
@@ -53,6 +65,7 @@ export async function PUT(req: NextRequest) {
   if (body.title !== undefined) data.title = body.title
   if (body.message !== undefined) data.message = body.message
   if (body.expiresAt !== undefined) data.expiresAt = body.expiresAt ? new Date(body.expiresAt) : null
+  if (body.scheduledFor !== undefined) data.scheduledFor = body.scheduledFor ? new Date(body.scheduledFor) : null
 
   const announcement = await db.announcement.update({ where: { id: body.id }, data })
   return NextResponse.json(announcement)
