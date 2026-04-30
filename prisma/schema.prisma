@@ -349,9 +349,22 @@ model AgentFeedback {
   agentProfile    AgentProfile @relation(fields: [agentProfileId], references: [id])
   category        String       @default("general")
   message         String
+  // Legacy read-flag, kept around so existing list filters keep working.
+  // Auto-set to true the moment status moves off OPEN.
   read            Boolean      @default(false)
+  // Workflow status. String (not enum) so future statuses don't need a
+  // migration. Allowed values: OPEN | ACKNOWLEDGED | IN_PROGRESS | CLOSED.
+  status          String       @default("OPEN")
+  // Response visible to the agent. Required (in the UI) when moving an
+  // item to CLOSED so the agent never sees a "closed without comment"
+  // and feels ignored.
+  responseToAgent String?
+  // Admin-only notes - kept for back-compat / internal context.
   adminNotes      String?
+  reviewedAt      DateTime?    // first time status moved off OPEN
+  closedAt        DateTime?
   createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt @default(now())
 
   @@map("agent_feedback")
 }
