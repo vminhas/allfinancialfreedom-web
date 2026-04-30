@@ -61,6 +61,7 @@ export async function GET(req: NextRequest) {
                 name: true,
                 appointmentDate: true,
                 completedAt: true,
+                notes: true,
                 businessPartner: { select: { id: true, name: true } },
               },
             },

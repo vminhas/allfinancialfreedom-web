@@ -77,6 +77,7 @@ interface AgentData {
     name: string
     appointmentDate: string
     completedAt: string | null
+    notes: string | null
     businessPartner: { id: string; name: string } | null
   }[]
   counts: { businessPartners: number; callLogs: number }
@@ -165,6 +166,13 @@ function AgentDashboardInner() {
   }, [])
   const [togglingKey, setTogglingKey] = useState<string | null>(null)
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
+  // Inline editor for the FTA appointment linked to a fta_N item.
+  // Tracks the FTA id currently being edited + a working draft so the
+  // agent can update notes / change status without leaving the
+  // checklist. null = no editor open.
+  const [ftaEditId, setFtaEditId] = useState<string | null>(null)
+  const [ftaEditDraft, setFtaEditDraft] = useState<{ status: string; notes: string }>({ status: 'COMPLETED', notes: '' })
+  const [ftaEditSaving, setFtaEditSaving] = useState(false)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [setupResources, setSetupResources] = useState<Record<string, string>>({})
   const [ftaModalKey, setFtaModalKey] = useState<string | null>(null)
@@ -1185,9 +1193,22 @@ function AgentDashboardInner() {
                           const display = fta.businessPartner?.name ?? fta.name
                           if (!display) return null
                           return (
-                            <span style={{ marginLeft: 8, fontSize: 11, color: '#9B6DFF', fontWeight: 500 }}>
-                              · {display}
-                            </span>
+                            <>
+                              <span style={{ marginLeft: 8, fontSize: 11, color: '#9B6DFF', fontWeight: 500 }}>
+                                &middot; {display}
+                              </span>
+                              <button
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  setFtaEditId(prev => prev === fta.id ? null : fta.id)
+                                  setFtaEditDraft({ status: 'COMPLETED', notes: fta.notes ?? '' })
+                                }}
+                                title="Reopen this appointment, change its status, or update the notes"
+                                style={{ marginLeft: 6, background: 'transparent', border: '1px solid rgba(155,109,255,0.3)', color: '#9B6DFF', borderRadius: 3, padding: '1px 7px', fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}
+                              >
+                                {ftaEditId === fta.id ? 'Close' : 'Update'}
+                              </button>
+                            </>
                           )
                         })()}
                       </span>
@@ -1275,6 +1296,86 @@ function AgentDashboardInner() {
                         )
                       })()}
                     </div>
+                    {/* Inline FTA editor — opens when "Update" is tapped
+                        on a fta_N item. Lets the agent change status
+                        (re-open, mark cancelled, etc.) and edit notes
+                        without going to the FTA Tracker tab. */}
+                    {(() => {
+                      const m = item.key.match(/^fta_(\d+)$/)
+                      if (!m) return null
+                      const idx = parseInt(m[1], 10) - 1
+                      const fta = data.completedFtas[idx]
+                      if (!fta || ftaEditId !== fta.id) return null
+                      const saveFta = async () => {
+                        setFtaEditSaving(true)
+                        try {
+                          const res = await fetch(`/api/agents/fta/${fta.id}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              status: ftaEditDraft.status,
+                              notes: ftaEditDraft.notes.trim() || null,
+                            }),
+                          })
+                          if (res.ok) {
+                            setFtaEditId(null)
+                            await fetchData()
+                          }
+                        } finally { setFtaEditSaving(false) }
+                      }
+                      return (
+                        <div style={{
+                          margin: '8px 0 4px 46px',
+                          padding: '10px 12px',
+                          background: 'rgba(155,109,255,0.05)',
+                          border: '1px solid rgba(155,109,255,0.25)',
+                          borderRadius: 4,
+                        }}>
+                          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#9B6DFF', marginBottom: 6 }}>
+                            Update appointment &middot; {fta.businessPartner?.name ?? fta.name}
+                          </div>
+                          <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                            <div style={{ flex: '1 1 140px' }}>
+                              <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#9BB0C4', display: 'block', marginBottom: 3 }}>Status</label>
+                              <select
+                                value={ftaEditDraft.status}
+                                onChange={e => setFtaEditDraft(d => ({ ...d, status: e.target.value }))}
+                                style={{ width: '100%', boxSizing: 'border-box', background: '#0A1628', border: '1px solid rgba(201,169,110,0.2)', color: '#d1d9e2', borderRadius: 4, padding: '6px 8px', fontSize: 11 }}
+                              >
+                                <option value="COMPLETED">Completed</option>
+                                <option value="SCHEDULED">Re-open · Scheduled</option>
+                                <option value="RESCHEDULED">Rescheduled</option>
+                                <option value="CANCELLED">Cancelled</option>
+                                <option value="NO_SHOW">No-show</option>
+                              </select>
+                            </div>
+                          </div>
+                          <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#9BB0C4', display: 'block', marginBottom: 3 }}>Notes</label>
+                          <textarea
+                            value={ftaEditDraft.notes}
+                            onChange={e => setFtaEditDraft(d => ({ ...d, notes: e.target.value }))}
+                            rows={3}
+                            placeholder="Append a follow-up note, recap of the call, next steps..."
+                            style={{ width: '100%', boxSizing: 'border-box', background: '#0A1628', border: '1px solid rgba(201,169,110,0.2)', color: '#d1d9e2', borderRadius: 4, padding: '6px 8px', fontSize: 11, fontFamily: 'inherit', resize: 'vertical' }}
+                          />
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 6 }}>
+                            <button
+                              onClick={() => setFtaEditId(null)}
+                              disabled={ftaEditSaving}
+                              style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#9BB0C4', borderRadius: 4, padding: '4px 10px', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
+                            >Cancel</button>
+                            <button
+                              onClick={saveFta}
+                              disabled={ftaEditSaving}
+                              style={{ background: '#9B6DFF', color: '#0A1628', border: 'none', borderRadius: 4, padding: '4px 12px', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: ftaEditSaving ? 'wait' : 'pointer' }}
+                            >{ftaEditSaving ? 'Saving...' : 'Save'}</button>
+                          </div>
+                          <div style={{ fontSize: 9, color: '#6B8299', marginTop: 6, fontStyle: 'italic' }}>
+                            Changing the status away from Completed will untick this item from your checklist count.
+                          </div>
+                        </div>
+                      )
+                    })()}
                     {/* Expanded description */}
                     {isExpanded && (() => {
                       return (
