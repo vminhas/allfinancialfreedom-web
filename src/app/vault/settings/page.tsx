@@ -2,6 +2,49 @@
 
 import { useState, useEffect } from 'react'
 
+// Lightweight helpers used by the Booking Links card. Inline so we
+// don't have to thread a separate component file.
+const bookingInput: React.CSSProperties = {
+  width: '100%', boxSizing: 'border-box',
+  padding: '8px 10px', background: '#0A1628',
+  border: '1px solid rgba(201,169,110,0.18)', borderRadius: 4,
+  color: '#d1d9e2', fontSize: 12, outline: 'none', fontFamily: 'inherit',
+}
+
+function BookingLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <label style={{ display: 'block', fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 4 }}>
+      {children}
+    </label>
+  )
+}
+
+function BookingField({ label, value, onChange, placeholder, mono }: {
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string; mono?: boolean
+}) {
+  return (
+    <div>
+      <BookingLabel>{label}</BookingLabel>
+      <input
+        type="text"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={{ ...bookingInput, fontFamily: mono ? 'monospace' : 'inherit' }}
+      />
+    </div>
+  )
+}
+
+function smallBtn(disabled: boolean): React.CSSProperties {
+  return {
+    background: 'transparent', border: '1px solid rgba(255,255,255,0.1)',
+    color: disabled ? '#374151' : '#9BB0C4', borderRadius: 4,
+    padding: '5px 10px', fontSize: 11, fontWeight: 700,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+  }
+}
+
 function Field({ label, name, value, onChange, placeholder }: {
   label: string; name: string; value: string; onChange: (v: string) => void; placeholder?: string
 }) {
@@ -168,6 +211,24 @@ export default function SettingsPage() {
   const [opsSaving, setOpsSaving] = useState(false)
   const [opsSaved, setOpsSaved] = useState(false)
 
+  // ── Booking Links (Trainers / Leadership / Support) ──────────────
+  // Curated list shown on /agents/book. Edit-on-add pattern: we keep
+  // the working array in state and replace the whole list on save.
+  type BookingGroup = 'leadership' | 'trainers' | 'support'
+  interface BookingLink {
+    id: string
+    name: string
+    role: string
+    group: BookingGroup
+    calendlyUrl: string
+    description?: string
+    icon?: string
+  }
+  const [bookings, setBookings] = useState<BookingLink[]>([])
+  const [bookingsSaving, setBookingsSaving] = useState(false)
+  const [bookingsSaved, setBookingsSaved] = useState(false)
+  const [bookingsLoaded, setBookingsLoaded] = useState(false)
+
   useEffect(() => {
     fetch('/api/admin/settings').then(r => r.json()).then(d => {
       if (d.settings) setFields(f => ({ ...f, ...d.settings }))
@@ -175,10 +236,56 @@ export default function SettingsPage() {
     fetch('/api/admin/operations-contact').then(r => r.json()).then(d => {
       if (d.settings) setOpsFields(f => ({ ...f, ...d.settings }))
     })
+    fetch('/api/admin/booking-links').then(r => r.json()).then(d => {
+      if (Array.isArray(d.links)) setBookings(d.links as BookingLink[])
+      setBookingsLoaded(true)
+    }).catch(() => setBookingsLoaded(true))
   }, [])
 
   const setOps = (key: keyof typeof opsFields) => (v: string) =>
     setOpsFields(f => ({ ...f, [key]: v }))
+
+  const addBooking = () => {
+    setBookings(prev => [...prev, {
+      id: `bl_${Math.random().toString(36).slice(2, 12)}`,
+      name: '', role: '', group: 'trainers', calendlyUrl: '', description: '', icon: '',
+    }])
+  }
+  const updateBooking = (id: string, patch: Partial<BookingLink>) => {
+    setBookings(prev => prev.map(b => b.id === id ? { ...b, ...patch } : b))
+  }
+  const removeBooking = (id: string) => {
+    setBookings(prev => prev.filter(b => b.id !== id))
+  }
+  const moveBooking = (id: string, dir: -1 | 1) => {
+    setBookings(prev => {
+      const idx = prev.findIndex(b => b.id === id)
+      if (idx < 0) return prev
+      const next = idx + dir
+      if (next < 0 || next >= prev.length) return prev
+      const copy = [...prev]
+      ;[copy[idx], copy[next]] = [copy[next], copy[idx]]
+      return copy
+    })
+  }
+  async function handleSaveBookings() {
+    setBookingsSaving(true)
+    setBookingsSaved(false)
+    try {
+      const res = await fetch('/api/admin/booking-links', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ links: bookings }),
+      })
+      if (res.ok) {
+        const d = await res.json() as { links: BookingLink[] }
+        // Server cleans/validates the list (drops blanks, fills missing
+        // ids), so reflect what it persisted instead of what we sent.
+        setBookings(d.links)
+        setBookingsSaved(true)
+        setTimeout(() => setBookingsSaved(false), 2000)
+      }
+    } finally { setBookingsSaving(false) }
+  }
 
   async function handleSaveOps() {
     setOpsSaving(true)
@@ -358,6 +465,95 @@ export default function SettingsPage() {
             }}>
               {opsSaving ? 'Saving...' : opsSaved ? 'Saved ✓' : 'Save'}
             </button>
+          </div>
+        </>
+      )}
+
+      {/* Booking links — agents see these on /agents/book */}
+      {card(
+        <>
+          {cardHeader('Trainer & Leadership Booking Links')}
+          <div style={{ padding: '28px' }}>
+            <p style={{ color: '#6B8299', fontSize: 12, margin: '0 0 20px', lineHeight: 1.6 }}>
+              Curate the list agents see on <strong style={{ color: '#9BB0C4' }}>/agents/book</strong>. Add anyone with a Calendly (or other scheduling) link who agents should be able to book directly: leadership, CFTs, the licensing coordinator. Agents will see them grouped by category.
+            </p>
+
+            {!bookingsLoaded ? (
+              <div style={{ color: '#6B8299', fontSize: 12 }}>Loading...</div>
+            ) : bookings.length === 0 ? (
+              <div style={{ color: '#4B5563', fontSize: 12, padding: '20px 0', textAlign: 'center', border: '1px dashed rgba(201,169,110,0.18)', borderRadius: 6 }}>
+                No booking links yet. Tap &ldquo;+ Add link&rdquo; below to add the first.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {bookings.map((b, i) => (
+                  <div key={b.id} style={{ border: '1px solid rgba(201,169,110,0.15)', borderRadius: 6, padding: '14px 16px', background: 'rgba(255,255,255,0.02)' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+                      <BookingField label="Name" value={b.name} placeholder="e.g. Vick Minhas" onChange={v => updateBooking(b.id, { name: v })} />
+                      <BookingField label="Role" value={b.role} placeholder="e.g. CEO" onChange={v => updateBooking(b.id, { role: v })} />
+                      <div>
+                        <BookingLabel>Group</BookingLabel>
+                        <select
+                          value={b.group}
+                          onChange={e => updateBooking(b.id, { group: e.target.value as BookingGroup })}
+                          style={bookingInput}
+                        >
+                          <option value="leadership">Leadership</option>
+                          <option value="trainers">Trainers</option>
+                          <option value="support">Licensing &amp; Support</option>
+                        </select>
+                      </div>
+                      <BookingField label="Icon (emoji, optional)" value={b.icon ?? ''} placeholder="✦ / 🎯 / etc" onChange={v => updateBooking(b.id, { icon: v })} />
+                    </div>
+                    <div style={{ marginTop: 10 }}>
+                      <BookingField label="Calendly / Booking URL" value={b.calendlyUrl} placeholder="https://calendly.com/..." onChange={v => updateBooking(b.id, { calendlyUrl: v })} mono />
+                    </div>
+                    <div style={{ marginTop: 10 }}>
+                      <BookingField label="Short description (optional)" value={b.description ?? ''} placeholder="One-liner shown beneath the role" onChange={v => updateBooking(b.id, { description: v })} />
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
+                      <button
+                        type="button"
+                        disabled={i === 0}
+                        onClick={() => moveBooking(b.id, -1)}
+                        style={smallBtn(i === 0)}
+                      >↑</button>
+                      <button
+                        type="button"
+                        disabled={i === bookings.length - 1}
+                        onClick={() => moveBooking(b.id, 1)}
+                        style={smallBtn(i === bookings.length - 1)}
+                      >↓</button>
+                      <button
+                        type="button"
+                        onClick={() => removeBooking(b.id)}
+                        style={{ background: 'transparent', border: '1px solid rgba(239,68,68,0.4)', color: '#EF4444', borderRadius: 4, padding: '5px 12px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={addBooking}
+                style={{ background: 'transparent', border: '1px solid rgba(201,169,110,0.35)', color: '#C9A96E', borderRadius: 4, padding: '8px 14px', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}
+              >
+                + Add link
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveBookings}
+                disabled={bookingsSaving}
+                style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '10px 24px', fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: bookingsSaving ? 'not-allowed' : 'pointer' }}
+              >
+                {bookingsSaving ? 'Saving...' : bookingsSaved ? 'Saved ✓' : 'Save'}
+              </button>
+            </div>
           </div>
         </>
       )}

@@ -160,6 +160,9 @@ export default function VaultNewBusinessPage() {
           label="Pending (now)"
           value={stats.pending}
           accent="#F59E0B"
+          hint={stats.pending === 0
+            ? 'No PENDING submissions. You\'re caught up.'
+            : `${stats.pending} submission${stats.pending === 1 ? '' : 's'} still in PENDING. Tap to filter and work them.`}
           active={statusFilter === 'PENDING' && assignment === ''}
           onClick={() => {
             const wasActive = statusFilter === 'PENDING' && assignment === ''
@@ -171,6 +174,9 @@ export default function VaultNewBusinessPage() {
           label="Assigned to me"
           value={stats.assignedToMe}
           accent="#9B6DFF"
+          hint={stats.assignedToMe === 0
+            ? 'Nothing on your plate yet.'
+            : 'PENDING submissions you claimed. Update the status as you work them.'}
           active={assignment === 'me'}
           onClick={() => setAssignment(assignment === 'me' ? '' : 'me')}
         />
@@ -178,6 +184,9 @@ export default function VaultNewBusinessPage() {
           label="Unassigned"
           value={stats.unassigned}
           accent="#6B8299"
+          hint={stats.unassigned === 0
+            ? 'Every PENDING submission has someone on it.'
+            : `${stats.unassigned} PENDING submission${stats.unassigned === 1 ? ' is' : 's are'} waiting for an LC to claim. Tap to filter, then claim with "Assign to me".`}
           active={assignment === 'unassigned'}
           onClick={() => setAssignment(assignment === 'unassigned' ? '' : 'unassigned')}
         />
@@ -185,6 +194,7 @@ export default function VaultNewBusinessPage() {
           label={`Issued · ${rangeLabel}`}
           value={stats.issued}
           accent="#4ADE80"
+          hint={`Submissions marked ISSUED in the ${rangeLabel.toLowerCase()}. Reference, no action needed.`}
           active={statusFilter === 'ISSUED'}
           onClick={() => setStatusFilter(statusFilter === 'ISSUED' ? '' : 'ISSUED')}
         />
@@ -192,10 +202,16 @@ export default function VaultNewBusinessPage() {
           label={`Declined · ${rangeLabel}`}
           value={stats.declined}
           accent="#EF4444"
+          hint={`Submissions DECLINED by the carrier. Note the reason on the row so the agent has context.`}
           active={statusFilter === 'DECLINED'}
           onClick={() => setStatusFilter(statusFilter === 'DECLINED' ? '' : 'DECLINED')}
         />
-        <KpiCard label={`Points · ${rangeLabel}`} value={stats.points.toLocaleString()} accent="#C9A96E" />
+        <KpiCard
+          label={`Points · ${rangeLabel}`}
+          value={stats.points.toLocaleString()}
+          accent="#C9A96E"
+          hint="Total target premium across ISSUED submissions in this range."
+        />
       </div>
 
       {(statusFilter || assignment || agentFilter || search.trim()) && (
@@ -301,13 +317,17 @@ export default function VaultNewBusinessPage() {
 }
 
 function KpiCard({
-  label, value, accent, active, onClick,
+  label, value, accent, active, onClick, hint,
 }: {
   label: string
   value: number | string
   accent: string
   active?: boolean
   onClick?: () => void
+  // One-liner that explains what the count actually represents and
+  // what action it implies. Visible by default beneath the value so
+  // the LC never sees a number without knowing what to do about it.
+  hint?: string
 }) {
   const interactive = !!onClick
   return (
@@ -330,6 +350,11 @@ function KpiCard({
     >
       <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: active ? accent : '#6B8299', marginBottom: 8 }}>{label}</div>
       <div style={{ fontSize: 28, fontWeight: 300, color: accent, letterSpacing: '-0.02em' }}>{value}</div>
+      {hint && (
+        <div style={{ fontSize: 10, color: '#6B8299', marginTop: 6, lineHeight: 1.4 }}>
+          {hint}
+        </div>
+      )}
     </button>
   )
 }

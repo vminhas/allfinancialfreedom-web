@@ -71,6 +71,7 @@ interface LicensingAgent {
   carriersAppointed: number
   carriersTotal: number
   openRequestCount: number
+  openRequests: { id: string; topic: LicensingRequestTopic; status: string; createdAt: string }[]
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -84,6 +85,26 @@ export default function LicensingWorkspacePage() {
   const [tab, setTab] = useState<'inbox' | 'agents' | 'referrals' | 'profile'>('inbox')
   const [showAddAgentModal, setShowAddAgentModal] = useState(false)
   const [agentsRefreshNonce, setAgentsRefreshNonce] = useState(0)
+
+  // Pull the same sidebar badge counts so we can split them across the
+  // sub-tabs. The sidebar shows one number on Licensing Inbox, but the
+  // LC then has to guess which sub-tab the work is in. Putting a badge
+  // on Inbox / Referrals / Agents resolves that.
+  const [tabCounts, setTabCounts] = useState({ inbox: 0, agents: 0, referrals: 0 })
+  useEffect(() => {
+    const load = () => {
+      fetch('/api/vault/sidebar-counts').then(r => r.ok ? r.json() : null).then(d => {
+        if (!d) return
+        setTabCounts(c => ({ ...c, inbox: d.licensingOpen ?? 0, referrals: d.referralsPending ?? 0 }))
+      }).catch(() => {})
+      // Agents-tab badge: agents currently flagged as needing attention.
+      fetch('/api/vault/licensing-agents?needsAttention=1').then(r => r.ok ? r.json() : null).then(d => {
+        if (!d) return
+        setTabCounts(c => ({ ...c, agents: Array.isArray(d.agents) ? d.agents.length : 0 }))
+      }).catch(() => {})
+    }
+    load()
+  }, [agentsRefreshNonce])
 
   return (
     <div>
@@ -140,22 +161,44 @@ export default function LicensingWorkspacePage() {
         borderBottom: '1px solid rgba(255,255,255,0.06)',
         overflowX: 'auto', WebkitOverflowScrolling: 'touch',
       }}>
-        {(['inbox', 'agents', 'referrals', 'profile'] as const).map(t => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            style={{
-              background: 'none', border: 'none', whiteSpace: 'nowrap',
-              padding: '12px 18px', cursor: 'pointer',
-              fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase',
-              color: tab === t ? '#C9A96E' : '#6B8299',
-              borderBottom: tab === t ? '2px solid #C9A96E' : '2px solid transparent',
-              marginBottom: -1,
-            }}
-          >
-            {t === 'inbox' ? 'Inbox' : t === 'agents' ? 'Agents' : t === 'referrals' ? 'Referrals' : 'Profile'}
-          </button>
-        ))}
+        {(['inbox', 'agents', 'referrals', 'profile'] as const).map(t => {
+          const count = t === 'inbox' ? tabCounts.inbox
+            : t === 'agents' ? tabCounts.agents
+            : t === 'referrals' ? tabCounts.referrals
+            : 0
+          const tooltip = t === 'inbox' ? `${count} open coordinator request${count === 1 ? '' : 's'} waiting for action`
+            : t === 'agents' ? `${count} agent${count === 1 ? '' : 's'} flagged with open requests`
+            : t === 'referrals' ? `${count} pending referral${count === 1 ? '' : 's'} waiting for approval`
+            : undefined
+          return (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              title={tooltip}
+              style={{
+                background: 'none', border: 'none', whiteSpace: 'nowrap',
+                padding: '12px 18px', cursor: 'pointer',
+                fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase',
+                color: tab === t ? '#C9A96E' : '#6B8299',
+                borderBottom: tab === t ? '2px solid #C9A96E' : '2px solid transparent',
+                marginBottom: -1,
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+              }}
+            >
+              <span>{t === 'inbox' ? 'Inbox' : t === 'agents' ? 'Agents' : t === 'referrals' ? 'Referrals' : 'Profile'}</span>
+              {count > 0 && (
+                <span style={{
+                  background: 'rgba(248,113,113,0.15)', color: '#f87171',
+                  fontSize: 9, fontWeight: 700, padding: '1px 7px',
+                  borderRadius: 999, border: '1px solid rgba(248,113,113,0.3)',
+                  letterSpacing: 0,
+                }}>
+                  {count}
+                </span>
+              )}
+            </button>
+          )
+        })}
       </div>
 
       {tab === 'inbox' && <InboxTab viewerId={viewerId} isLC={isLC} />}
@@ -753,6 +796,28 @@ function AgentRow({
           <div style={{ fontSize: 10, color: '#6B8299' }}>
             {agent.agentCode} · {agent.state ?? '—'} · Phase {agent.phase}
           </div>
+          {/* Surface WHY this agent is flagged. Without this the LC sees
+              "needs attention" with no signal of what to do. Show up to
+              two topic labels inline; rest land in the expanded view. */}
+          {agent.openRequestCount > 0 && (
+            <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              {agent.openRequests.slice(0, 2).map(r => (
+                <span key={r.id} style={{
+                  fontSize: 9, fontWeight: 600, letterSpacing: '0.04em',
+                  padding: '2px 7px', borderRadius: 999,
+                  background: 'rgba(248,113,113,0.08)', color: '#f87171',
+                  border: '1px solid rgba(248,113,113,0.25)',
+                }}>
+                  {TOPIC_LABELS[r.topic] ?? r.topic}
+                </span>
+              ))}
+              {agent.openRequests.length > 2 && (
+                <span style={{ fontSize: 9, color: '#9BB0C4', alignSelf: 'center' }}>
+                  +{agent.openRequests.length - 2} more
+                </span>
+              )}
+            </div>
+          )}
         </div>
         <div style={{ fontSize: 11, color: '#9BB0C4' }}>
           License: <span style={{ color: agent.licenseNumber ? '#ffffff' : '#4B5563' }}>{agent.licenseNumber ?? '—'}</span>
@@ -762,12 +827,15 @@ function AgentRow({
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {agent.openRequestCount > 0 && (
-            <span style={{
-              background: 'rgba(248,113,113,0.12)',
-              color: '#f87171', fontSize: 10, fontWeight: 700,
-              padding: '3px 8px', borderRadius: 999,
-              border: '1px solid rgba(248,113,113,0.3)',
-            }}>
+            <span
+              title={agent.openRequests.map(r => TOPIC_LABELS[r.topic] ?? r.topic).join(' · ')}
+              style={{
+                background: 'rgba(248,113,113,0.12)',
+                color: '#f87171', fontSize: 10, fontWeight: 700,
+                padding: '3px 8px', borderRadius: 999,
+                border: '1px solid rgba(248,113,113,0.3)',
+              }}
+            >
               {agent.openRequestCount} ⚑
             </span>
           )}
