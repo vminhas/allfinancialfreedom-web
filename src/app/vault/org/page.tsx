@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef, type RefObject } from 'react'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { US_STATES } from '@/lib/agent-constants'
+import { AgentTradingCardModal } from '@/components/AgentTradingCard'
 
 interface OrgNode {
   id: string
@@ -323,13 +324,14 @@ function TreeNode({ node, depth, onSelect, showTrainers, expandedSet, onAvatarUp
 
 // ─── Edit Panel ───────────────────────────────────────────────────────────────
 
-function EditPanel({ node, allAgents, onSave, onClose, onDeactivate, onAddRecruitUnder }: {
+function EditPanel({ node, allAgents, onSave, onClose, onDeactivate, onAddRecruitUnder, onOpenCard }: {
   node: OrgNode
   allAgents: FlatAgent[]
   onSave: () => void
   onClose: () => void
   onDeactivate: (id: string) => void
   onAddRecruitUnder: (recruiterId: string, recruiterName: string) => void
+  onOpenCard: (code: string) => void
 }) {
   const isMobile = useIsMobile()
   const isLeadership = node.id.startsWith('_')
@@ -459,11 +461,27 @@ function EditPanel({ node, allAgents, onSave, onClose, onDeactivate, onAddRecrui
             <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2 }}>{isLeadership ? node.title : node.agentCode}</div>
           </div>
         </div>
-        <button onClick={onClose} style={{
-          background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(201,169,110,0.25)',
-          borderRadius: 6, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          cursor: 'pointer', color: '#C9A96E', fontSize: 14,
-        }}>✕</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          {!isLeadership && (
+            <button
+              onClick={() => onOpenCard(node.agentCode)}
+              title="Open the agent's trading card with stats + downloadable PNG"
+              style={{
+                background: 'rgba(201,169,110,0.10)', border: '1px solid rgba(201,169,110,0.35)',
+                color: '#C9A96E', fontSize: 9, fontWeight: 700, letterSpacing: '0.08em',
+                textTransform: 'uppercase', cursor: 'pointer', borderRadius: 4,
+                padding: '6px 10px', whiteSpace: 'nowrap',
+              }}
+            >
+              Trading Card
+            </button>
+          )}
+          <button onClick={onClose} style={{
+            background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(201,169,110,0.25)',
+            borderRadius: 6, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', color: '#C9A96E', fontSize: 14,
+          }}>✕</button>
+        </div>
       </div>
 
       {/* Form */}
@@ -731,6 +749,8 @@ export default function OrgPage() {
   const [data, setData] = useState<OrgData | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedNode, setSelectedNode] = useState<OrgNode | null>(null)
+  // Trading-card modal: opened from the EditPanel's Trading Card button.
+  const [cardCode, setCardCode] = useState<string | null>(null)
   const [showAddAgent, setShowAddAgent] = useState(false)
   // When opened from "Add recruit under X," pre-populate the recruiter
   // so the admin doesn't have to scroll-find them in a long dropdown.
@@ -857,6 +877,7 @@ export default function OrgPage() {
             setAddAgentDefault({ recruiterId, recruiterName })
             setShowAddAgent(true)
           }}
+          onOpenCard={setCardCode}
         />
       )}
 
@@ -868,6 +889,10 @@ export default function OrgPage() {
           onCreated={() => { load(); setShowAddAgent(false); setAddAgentDefault(null) }}
           onClose={() => { setShowAddAgent(false); setAddAgentDefault(null) }}
         />
+      )}
+
+      {cardCode && (
+        <AgentTradingCardModal agentCode={cardCode} onClose={() => setCardCode(null)} />
       )}
     </div>
   )

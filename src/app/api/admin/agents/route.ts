@@ -96,6 +96,7 @@ export async function GET(req: NextRequest) {
       agentCode: p.agentCode,
       firstName: p.firstName,
       lastName: p.lastName,
+      avatarUrl: p.avatarUrl,
       state: p.state,
       phase: p.phase,
       phaseStartedAt: p.phaseStartedAt,

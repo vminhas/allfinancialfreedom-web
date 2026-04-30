@@ -17,6 +17,7 @@ interface Agent {
   agentCode: string
   firstName: string
   lastName: string
+  avatarUrl: string | null
   state: string | null
   phase: number
   phaseStartedAt: string | null
@@ -859,10 +860,19 @@ export default function TrackerPage() {
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                   >
                     <td style={{ padding: '13px 16px' }}>
-                      <div style={{ fontSize: 13, color: '#ffffff', fontWeight: 500 }}>
-                        {agent.firstName} {agent.lastName}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <AgentAvatar
+                          avatarUrl={agent.avatarUrl}
+                          firstName={agent.firstName}
+                          lastName={agent.lastName}
+                        />
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 13, color: '#ffffff', fontWeight: 500 }}>
+                            {agent.firstName} {agent.lastName}
+                          </div>
+                          <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2, letterSpacing: '0.05em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{agent.agentCode}{agent.email ? ` · ${agent.email}` : ''}</div>
+                        </div>
                       </div>
-                      <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2, letterSpacing: '0.05em' }}>{agent.agentCode}{agent.email ? ` · ${agent.email}` : ''}</div>
                     </td>
                     <td style={{ padding: '13px 16px', fontSize: 12, color: '#9BB0C4' }}>{agent.state ?? '—'}</td>
                     <td style={{ padding: '13px 16px' }}>
@@ -1031,6 +1041,23 @@ export default function TrackerPage() {
           onClose={() => setCardCode(null)}
         />
       )}
+    </div>
+  )
+}
+
+// Tiny avatar used in the agent list rows. Falls back to initials in
+// a gold-tinted circle when the agent hasn't uploaded a headshot yet.
+function AgentAvatar({ avatarUrl, firstName, lastName, size = 32 }: { avatarUrl: string | null; firstName: string; lastName: string; size?: number }) {
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%', flexShrink: 0,
+      background: avatarUrl ? `url(${avatarUrl}) center/cover` : 'rgba(201,169,110,0.12)',
+      border: '1px solid rgba(201,169,110,0.25)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: Math.round(size * 0.32), fontWeight: 700, color: '#C9A96E',
+      letterSpacing: '0.04em',
+    }}>
+      {!avatarUrl && `${firstName?.[0] ?? ''}${lastName?.[0] ?? ''}`.toUpperCase()}
     </div>
   )
 }

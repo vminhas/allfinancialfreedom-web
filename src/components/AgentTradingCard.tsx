@@ -107,6 +107,36 @@ export function AgentTradingCardModal({
     } finally { setDownloading(false) }
   }
 
+  // Save the headshot itself, no card chrome — useful when the team
+  // wants the raw image for a flyer, slide, or birthday graphic.
+  // Falls back to a same-origin proxy if we can't fetch directly
+  // (Vercel Blob URLs are CORS-friendly so this usually just works).
+  const downloadHeadshot = async () => {
+    if (!data?.avatarUrl) return
+    setDownloading(true)
+    try {
+      const res = await fetch(data.avatarUrl, { mode: 'cors' })
+      if (!res.ok) throw new Error('Fetch failed')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      // Try to keep the original extension; default to .jpg.
+      const ext = (() => {
+        const m = data.avatarUrl.match(/\.([a-zA-Z0-9]{3,4})(?:\?|#|$)/)
+        return m ? m[1].toLowerCase() : 'jpg'
+      })()
+      a.download = `${data.firstName}-${data.lastName}-${data.agentCode}-headshot.${ext}`.toLowerCase().replace(/\s+/g, '-')
+      a.click()
+      // Revoke the object URL on next tick so the click has time to fire.
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch {
+      // Fallback: open the avatar in a new tab so the user can right-
+      // click save. Better than failing silently.
+      window.open(data.avatarUrl, '_blank', 'noopener,noreferrer')
+    } finally { setDownloading(false) }
+  }
+
   return (
     <div
       onClick={onClose}
@@ -162,7 +192,7 @@ export function AgentTradingCardModal({
                   All Financial Freedom
                 </div>
                 <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#9BB0C4', fontWeight: 700 }}>
-                  {variant === 'profile' && `Class of ${formatJoined(data.joinedAt).split(' ').pop() ?? ''}`}
+                  {variant === 'profile' && 'Trading Card'}
                   {variant === 'birthday' && 'Happy Birthday'}
                   {variant === 'milestone' && 'Recognition'}
                 </div>
@@ -236,28 +266,36 @@ export function AgentTradingCardModal({
                 </div>
               )}
 
-              {/* Drafted stamp — small footnote in the corner */}
-              <div style={{ position: 'absolute', right: 12, bottom: 6, fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(201,169,110,0.45)', fontWeight: 700 }}>
-                Drafted {formatJoined(data.joinedAt)}
-              </div>
             </div>
 
             {/* Footer actions sit OUTSIDE the captured card so they
                 don't show up in the downloaded PNG. */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <button
                 onClick={onClose}
                 style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', color: '#9BB0C4', borderRadius: 4, padding: '7px 14px', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}
               >
                 Close
               </button>
-              <button
-                onClick={downloadPng}
-                disabled={downloading}
-                style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '7px 16px', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: downloading ? 'wait' : 'pointer', opacity: downloading ? 0.7 : 1 }}
-              >
-                {downloading ? 'Saving...' : '↓ Download'}
-              </button>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {data.avatarUrl && (
+                  <button
+                    onClick={downloadHeadshot}
+                    disabled={downloading}
+                    title="Download just the headshot, no card frame"
+                    style={{ background: 'transparent', color: '#C9A96E', border: '1px solid rgba(201,169,110,0.4)', borderRadius: 4, padding: '7px 14px', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: downloading ? 'wait' : 'pointer', opacity: downloading ? 0.7 : 1 }}
+                  >
+                    ↓ Headshot
+                  </button>
+                )}
+                <button
+                  onClick={downloadPng}
+                  disabled={downloading}
+                  style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '7px 16px', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: downloading ? 'wait' : 'pointer', opacity: downloading ? 0.7 : 1 }}
+                >
+                  {downloading ? 'Saving...' : '↓ Card'}
+                </button>
+              </div>
             </div>
           </>
         )}
