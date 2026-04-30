@@ -329,11 +329,11 @@ export default function ChecklistEditorPage() {
             <div style={{ ...lbl, marginBottom: 10 }}>Walkthrough video (optional)</div>
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
               <div>
-                <div style={{ fontSize: 10, color: '#6B8299', marginBottom: 4 }}>Loom share URL or direct video URL</div>
+                <div style={{ fontSize: 10, color: '#6B8299', marginBottom: 4 }}>Loom share URL, Google Drive share URL, or direct video URL</div>
                 <input
                   value={form.videoUrl}
                   onChange={e => setForm(f => ({ ...f, videoUrl: e.target.value }))}
-                  placeholder="https://www.loom.com/share/..."
+                  placeholder="https://www.loom.com/share/... or https://drive.google.com/file/d/..."
                   style={inp}
                 />
               </div>
@@ -396,8 +396,8 @@ export default function ChecklistEditorPage() {
                   Remove
                 </button>
               )}
-              <span style={{ fontSize: 10, color: '#6B8299' }}>
-                Loom URLs embed inline. Uploaded files are stored on Vercel Blob (max 500MB, MP4/WebM/MOV/MKV).
+              <span style={{ fontSize: 10, color: '#6B8299', lineHeight: 1.5 }}>
+                Loom and Google Drive URLs embed inline. <strong style={{ color: '#9BB0C4' }}>Both must be set to &quot;Anyone with the link can view&quot;</strong> in their share settings or the iframe shows a sign-in prompt instead of the player. Uploaded files are stored on Vercel Blob (max 500MB, MP4/WebM/MOV/MKV).
               </span>
             </div>
             {videoUploadError && (
