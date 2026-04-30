@@ -17,7 +17,6 @@ import FTALogModal from '@/components/FTALogModal'
 import FeedbackButton from '@/components/FeedbackButton'
 import NewBusinessTab from '@/components/NewBusinessTab'
 import { MILESTONE_BY_KEY, isSubmittable } from '@/lib/milestones'
-import FtaTab from '@/components/FtaTab'
 import MarkdownDescription from '@/components/MarkdownDescription'
 import ChecklistItemVideo from '@/components/ChecklistItemVideo'
 import AnnouncementBanner from '@/components/AnnouncementBanner'
@@ -140,7 +139,7 @@ function AgentDashboardInner() {
 
   const [data, setData] = useState<AgentData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'checklist' | 'licensing' | 'carriers' | 'partners' | 'new-business' | 'fta' | 'calls' | 'team' | 'resources' | 'profile'>(
+  const [activeTab, setActiveTab] = useState<'checklist' | 'licensing' | 'carriers' | 'partners' | 'new-business' | 'calls' | 'team' | 'resources' | 'profile'>(
     discordParam ? 'profile' : 'checklist'
   )
   // Use this for programmatic tab switches triggered from outside the tab
@@ -389,9 +388,8 @@ function AgentDashboardInner() {
     { key: 'checklist', label: 'Checklist' },
     { key: 'licensing', label: 'Licensing' },
     { key: 'carriers', label: 'Carriers' },
-    { key: 'partners', label: 'Partners' },
+    { key: 'partners', label: 'Partners / FTA' },
     { key: 'new-business', label: 'New Business' },
-    { key: 'fta', label: 'FTA' },
     { key: 'calls', label: 'Calls' },
     { key: 'team', label: 'My Team' },
     { key: 'resources', label: 'Resources' },
@@ -1402,7 +1400,6 @@ function AgentDashboardInner() {
         {/* ── PARTNERS / CALLS / PROFILE TABS ── */}
         {activeTab === 'partners' && <BusinessPartnersTab isMobile={isMobile} previewToken={previewToken} />}
         {activeTab === 'new-business' && <NewBusinessTab isMobile={isMobile} phase={data.phase} />}
-        {activeTab === 'fta' && <FtaTab isMobile={isMobile} />}
         {activeTab === 'calls' && <CallLogsTab />}
         {activeTab === 'team' && <MyTeamTab isMobile={isMobile} previewToken={previewToken} />}
         {activeTab === 'resources' && <TrainingResourcesTab resources={setupResources} />}
@@ -3314,48 +3311,88 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
             </div>
           ) :
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+              <colgroup>
+                <col style={{ width: 28 }} />
+                <col style={{ width: '22%' }} />
+                <col style={{ width: '24%' }} />
+                <col style={{ width: '14%' }} />
+                {view !== 'queue' && <col style={{ width: 110 }} />}
+                {!isMobile && <col style={{ width: '14%' }} />}
+                {!isMobile && <col style={{ width: 100 }} />}
+                <col style={{ width: 120 }} />
+              </colgroup>
               <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                <th style={{ ...thStyle, width: 24 }}>
+                <th style={{ ...thStyle, padding: '8px 6px' }}>
                   <input type="checkbox" checked={allSelected} onChange={e => selectAll(e.target.checked)} />
                 </th>
                 <th style={thStyle}>Name</th>
                 <th style={thStyle}>Email</th>
                 <th style={thStyle}>Phone</th>
                 {view !== 'queue' && <th style={thStyle}>Stage</th>}
-                <th style={thStyle}>Occupation</th>
+                {!isMobile && <th style={thStyle}>Occupation</th>}
                 {!isMobile && <th style={thStyle}>Last Contact</th>}
                 <th style={{ ...thStyle, textAlign: 'right' }}>Actions</th>
               </tr></thead>
               <tbody>{sorted.map(p => {
                 const isSelected = effectiveSelection.has(p.id)
                 const isStale = (p.lastContactAt ?? p.createdAt) ? new Date(p.lastContactAt ?? p.createdAt!).getTime() < staleThreshold : true
+                const truncStyle: React.CSSProperties = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
                 return (
                   <tr key={p.id} style={{
                     borderBottom: '1px solid rgba(255,255,255,0.03)',
                     background: isSelected ? 'rgba(201,169,110,0.06)' : 'transparent',
                   }}>
-                    <td style={{ ...tdStyle, width: 24 }}>
+                    <td style={{ ...tdStyle, padding: '8px 6px' }}>
                       <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(p.id)} />
                     </td>
-                    <td style={{ ...tdStyle, color: '#ffffff', fontWeight: 500 }}>{p.name}</td>
-                    <td style={tdStyle}>{p.email ?? ''}</td>
-                    <td style={tdStyle}>{p.phone ?? ''}</td>
+                    <td
+                      onClick={() => startEdit(p)}
+                      title="Click to edit"
+                      style={{ ...tdStyle, ...truncStyle, color: '#ffffff', fontWeight: 500, cursor: 'pointer' }}
+                    >
+                      {p.name}
+                    </td>
+                    <td style={{ ...tdStyle, ...truncStyle }} title={p.email ?? ''}>{p.email ?? ''}</td>
+                    <td style={{ ...tdStyle, ...truncStyle }}>{p.phone ?? ''}</td>
                     {view !== 'queue' && (
                       <td style={tdStyle}>
-                        <span style={{
-                          fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
-                          padding: '2px 7px', borderRadius: 3,
-                          background: `${STATUS_COLOR[p.status] ?? '#6B8299'}15`,
-                          border: `1px solid ${STATUS_COLOR[p.status] ?? '#6B8299'}40`,
-                          color: STATUS_COLOR[p.status] ?? '#6B8299',
-                        }}>{STATUS_LABEL[p.status] ?? p.status}</span>
+                        <select
+                          value={p.status}
+                          onChange={e => advanceOne(p.id, e.target.value)}
+                          title="Change stage"
+                          style={{
+                            appearance: 'none',
+                            WebkitAppearance: 'none',
+                            fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                            padding: '3px 8px', borderRadius: 3,
+                            background: `${STATUS_COLOR[p.status] ?? '#6B8299'}15`,
+                            border: `1px solid ${STATUS_COLOR[p.status] ?? '#6B8299'}40`,
+                            color: STATUS_COLOR[p.status] ?? '#6B8299',
+                            cursor: 'pointer',
+                            fontFamily: 'inherit',
+                            maxWidth: '100%',
+                          }}
+                        >
+                          {(view === 'business_partners'
+                            ? ['NEW', 'CONTACTED', 'INTRO_SENT', 'BOOKED', 'CONVERTED']
+                            : view === 'fta'
+                              ? ['NEW', 'CONTACTED', 'BOOKED', 'CONVERTED']
+                              : ['PENDING', 'NEW', 'CONTACTED', 'BOOKED', 'CONVERTED', 'SKIPPED']
+                          ).map(s => (
+                            <option key={s} value={s} style={{ background: '#0F1E33', color: '#fff' }}>
+                              {STATUS_LABEL[s] ?? s}
+                            </option>
+                          ))}
+                        </select>
                       </td>
                     )}
-                    <td style={{ ...tdStyle, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.occupation ?? ''}</td>
                     {!isMobile && (
-                      <td style={{ ...tdStyle, color: isStale ? '#f59e0b' : '#9BB0C4' }}>
-                        {p.lastContactAt ? new Date(p.lastContactAt).toLocaleDateString() : (p.createdAt ? `imported ${new Date(p.createdAt).toLocaleDateString()}` : '')}
+                      <td style={{ ...tdStyle, ...truncStyle }} title={p.occupation ?? ''}>{p.occupation ?? ''}</td>
+                    )}
+                    {!isMobile && (
+                      <td style={{ ...tdStyle, ...truncStyle, color: isStale ? '#f59e0b' : '#9BB0C4' }}>
+                        {p.lastContactAt ? new Date(p.lastContactAt).toLocaleDateString() : (p.createdAt ? `imp ${new Date(p.createdAt).toLocaleDateString()}` : '')}
                       </td>
                     )}
                     <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }}>
@@ -3419,8 +3456,7 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
                       {view === 'skipped' && (
                         <button onClick={() => advanceOne(p.id, p.category ? 'NEW' : 'PENDING')} title="Move back to active" style={{ background: 'rgba(96,165,250,0.15)', border: '1px solid rgba(96,165,250,0.4)', color: '#60A5FA', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: 'pointer', marginRight: 6 }}>UNSKIP</button>
                       )}
-                      <button onClick={() => startEdit(p)} style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 10, cursor: 'pointer', marginRight: 6 }}>Edit</button>
-                      <button onClick={() => deleteOne(p.id)} title="Delete permanently" style={{ background: 'none', border: 'none', color: '#f87171', fontSize: 10, cursor: 'pointer' }}>&times;</button>
+                      <button onClick={() => deleteOne(p.id)} title="Delete permanently" style={{ background: 'none', border: 'none', color: '#f87171', fontSize: 12, cursor: 'pointer', padding: '0 4px' }}>&times;</button>
                     </td>
                   </tr>
                 )
@@ -3687,7 +3723,7 @@ function ScheduleFtaModal({
         <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(245,158,11,0.18)' }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>Schedule FTA with {partner.name}</div>
           <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>
-            Pick a date and time. We&apos;ll move {partner.name.split(/\s+/)[0]} from your contacts list into your FTA tab.
+            Pick a date and time. We&apos;ll mark {partner.name.split(/\s+/)[0]} as Booked under the FTA Contacts lane.
           </div>
         </div>
         <div style={{ padding: '20px 24px' }}>
@@ -3701,7 +3737,7 @@ function ScheduleFtaModal({
             style={{ width: '100%', background: '#0A1628', border: '1px solid rgba(245,158,11,0.3)', color: '#d1d9e2', borderRadius: 4, padding: '10px 12px', fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit' }}
           />
           <div style={{ fontSize: 10, color: '#6B8299', marginTop: 8, lineHeight: 1.55 }}>
-            Their contact details ({partner.phone ?? 'no phone'}) carry over automatically. You can edit the FTA further from the FTA tab.
+            Their contact details ({partner.phone ?? 'no phone'}) carry over automatically. You can update them anytime from the FTA Contacts lane.
           </div>
         </div>
         {error && <div style={{ padding: '0 24px 12px', fontSize: 11, color: '#f87171' }}>{error}</div>}
