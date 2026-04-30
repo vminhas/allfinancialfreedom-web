@@ -9,6 +9,7 @@ import {
 import { PHASE_LABELS, CARRIERS, getAtRiskStatus, PHASE_ITEMS, PHASE_GROUPS } from '@/lib/agent-constants'
 import { GROUP_ICONS, ChevronDown } from '@/lib/checklist-icons'
 import CallReviewModal, { CallReviewData } from '@/components/CallReviewModal'
+import { AgentTradingCardModal } from '@/components/AgentTradingCard'
 
 interface Agent {
   id: string
@@ -116,6 +117,8 @@ export default function TrackerPage() {
   const [atRiskOnly, setAtRiskOnly] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
   const [selectedAgent, setSelectedAgent] = useState<DetailedAgent | null>(null)
+  // Trading-card modal: opened from the drawer's "Trading Card" button.
+  const [cardCode, setCardCode] = useState<string | null>(null)
   const [drawerLoading, setDrawerLoading] = useState(false)
   const [inviteLoading, setInviteLoading] = useState(false)
   const [inviteMsg, setInviteMsg] = useState('')
@@ -1010,6 +1013,7 @@ export default function TrackerPage() {
                 inviteMsg={inviteMsg}
                 trainers={trainers}
                 onClose={() => { setSelectedAgent(null); setInviteMsg(''); setDeleteConfirm(false) }}
+                onOpenCard={setCardCode}
               />
             ) : null}
           </div>
@@ -1022,6 +1026,14 @@ export default function TrackerPage() {
           onClose={() => setShowAddModal(false)}
           onCreated={() => { setShowAddModal(false); fetchAgents(); fetchStats(); fetchTrainers() }}
           trainers={trainers}
+        />
+      )}
+
+      {/* ── Trading card modal ── */}
+      {cardCode && (
+        <AgentTradingCardModal
+          agentCode={cardCode}
+          onClose={() => setCardCode(null)}
         />
       )}
     </div>
@@ -1043,6 +1055,7 @@ function AgentDrawer({
   inviteMsg,
   trainers,
   onClose,
+  onOpenCard,
 }: {
   agent: DetailedAgent
   onAdvancePhase: () => void
@@ -1055,6 +1068,7 @@ function AgentDrawer({
   inviteLoading: boolean
   inviteMsg: string
   trainers: string[]
+  onOpenCard: (code: string) => void
   onClose: () => void
 }) {
   const [activeTab, setActiveTab] = useState<'progress' | 'carriers' | 'calls' | 'info' | 'edit'>('progress')
@@ -1240,6 +1254,18 @@ function AgentDrawer({
             }}
           >
             View Portal
+          </button>
+          <button
+            onClick={() => onOpenCard(agent.agentCode)}
+            title="Open the agent's trading card with stats + downloadable PNG"
+            style={{
+              background: 'rgba(201,169,110,0.10)', border: '1px solid rgba(201,169,110,0.35)',
+              color: '#C9A96E', fontSize: 9, fontWeight: 700, letterSpacing: '0.08em',
+              textTransform: 'uppercase', cursor: 'pointer', borderRadius: 4,
+              padding: '6px 10px', whiteSpace: 'nowrap',
+            }}
+          >
+            Trading Card
           </button>
           <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#9BB0C4', fontSize: 14, cursor: 'pointer', width: 28, height: 28, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             ✕
