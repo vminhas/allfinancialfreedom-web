@@ -1,11 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { detectEmbedKind, loomEmbedUrl } from '@/lib/video-embed'
+import { detectEmbedKind, loomEmbedUrl, driveEmbedUrl } from '@/lib/video-embed'
 
 // Collapsible walkthrough player rendered inside an expanded checklist item.
-// Detects Loom URLs and embeds via iframe; otherwise renders a native
-// <video> tag that handles uploaded mp4/webm/mov from Vercel Blob.
+// Detects Loom and Google Drive URLs and embeds via iframe; otherwise
+// renders a native <video> tag that handles uploaded mp4/webm/mov from
+// Vercel Blob.
 
 interface Props {
   videoUrl: string
@@ -48,6 +49,8 @@ export default function ChecklistItemVideo({ videoUrl, videoTitle }: Props) {
         <div onClick={e => e.stopPropagation()} style={{ marginTop: 10 }}>
           {kind === 'loom' ? (
             <LoomFrame url={videoUrl} />
+          ) : kind === 'drive' ? (
+            <DriveFrame url={videoUrl} />
           ) : (
             <NativeVideo url={videoUrl} />
           )}
@@ -65,6 +68,21 @@ function LoomFrame({ url }: { url: string }) {
       <iframe
         src={embedUrl}
         allow="autoplay; fullscreen; picture-in-picture"
+        allowFullScreen
+        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 0 }}
+      />
+    </div>
+  )
+}
+
+function DriveFrame({ url }: { url: string }) {
+  const embedUrl = driveEmbedUrl(url)
+  if (!embedUrl) return <FallbackLink url={url} />
+  return (
+    <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden', borderRadius: 6, background: '#000' }}>
+      <iframe
+        src={embedUrl}
+        allow="autoplay; fullscreen"
         allowFullScreen
         style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 0 }}
       />
