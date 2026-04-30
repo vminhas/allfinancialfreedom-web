@@ -49,6 +49,21 @@ export async function GET(req: NextRequest) {
             carrierAppointments: { orderBy: { carrier: 'asc' } },
             milestones: { orderBy: { completedAt: 'desc' } },
             _count: { select: { businessPartners: true, callLogs: true } },
+            // Completed FTAs in chronological order so the agent
+            // dashboard can zip them onto the fta_N checklist items
+            // ("Field Training 2 with David Kubicka" instead of just
+            // "Field Training 2").
+            ftas: {
+              where: { status: 'COMPLETED' },
+              orderBy: { completedAt: 'asc' },
+              select: {
+                id: true,
+                name: true,
+                appointmentDate: true,
+                completedAt: true,
+                businessPartner: { select: { id: true, name: true } },
+              },
+            },
           },
         },
       },
@@ -125,6 +140,7 @@ export async function GET(req: NextRequest) {
     carrierAppointments: p.carrierAppointments,
     selectedCarriers: p.selectedCarriers,
     milestones: p.milestones,
+    completedFtas: p.ftas,
     counts: p._count,
     justPromoted,
   })
@@ -139,7 +155,18 @@ function findAgentUser(agentUserId: string) {
           phaseItems: true,
           carrierAppointments: { orderBy: { carrier: 'asc' } },
           milestones: { orderBy: { completedAt: 'desc' } },
-          _count: { select: { businessPartners: true, policies: true, callLogs: true } },
+          _count: { select: { businessPartners: true, callLogs: true } },
+          ftas: {
+            where: { status: 'COMPLETED' },
+            orderBy: { completedAt: 'asc' },
+            select: {
+              id: true,
+              name: true,
+              appointmentDate: true,
+              completedAt: true,
+              businessPartner: { select: { id: true, name: true } },
+            },
+          },
         },
       },
     },

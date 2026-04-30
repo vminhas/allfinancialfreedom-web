@@ -70,6 +70,13 @@ interface AgentData {
   carrierAppointments: CarrierAppointment[]
   selectedCarriers: string[]
   milestones: Milestone[]
+  completedFtas: {
+    id: string
+    name: string
+    appointmentDate: string
+    completedAt: string | null
+    businessPartner: { id: string; name: string } | null
+  }[]
   counts: { businessPartners: number; callLogs: number }
 }
 
@@ -1157,6 +1164,25 @@ function AgentDashboardInner() {
                       </button>
                       <span style={{ fontSize: 13, color: done ? '#9BB0C4' : '#ffffff', flex: 1 }}>
                         {item.label}
+                        {(() => {
+                          // For fta_1..fta_10 items, show the linked FTA
+                          // contact name once an appointment has been
+                          // marked completed. Nth completed FTA fills
+                          // the Nth fta_N slot in chronological order.
+                          if (!done) return null
+                          const m = item.key.match(/^fta_(\d+)$/)
+                          if (!m) return null
+                          const idx = parseInt(m[1], 10) - 1
+                          const fta = data.completedFtas[idx]
+                          if (!fta) return null
+                          const display = fta.businessPartner?.name ?? fta.name
+                          if (!display) return null
+                          return (
+                            <span style={{ marginLeft: 8, fontSize: 11, color: '#9B6DFF', fontWeight: 500 }}>
+                              · {display}
+                            </span>
+                          )
+                        })()}
                       </span>
                       {item.duration && (
                         <span style={{ fontSize: 9, color: '#6B8299', flexShrink: 0, padding: '2px 6px', background: 'rgba(255,255,255,0.04)', borderRadius: 3 }}>

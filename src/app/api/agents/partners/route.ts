@@ -10,15 +10,24 @@ export async function GET(req: NextRequest) {
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1'))
   const limit = 100
   const skip = (page - 1) * limit
+  // Optional category filter so callers like the FTA appointment
+  // picker can scope to ?category=fta_contact without paging through
+  // every partner.
+  const categoryFilter = searchParams.get('category')
+
+  const where = {
+    agentProfileId: id.profileId,
+    ...(categoryFilter ? { category: categoryFilter } : {}),
+  }
 
   const [partners, total] = await Promise.all([
     db.businessPartner.findMany({
-      where: { agentProfileId: id.profileId },
+      where,
       orderBy: { createdAt: 'asc' },
       skip,
       take: limit,
     }),
-    db.businessPartner.count({ where: { agentProfileId: id.profileId } }),
+    db.businessPartner.count({ where }),
   ])
 
   return NextResponse.json({ partners, total, page })
