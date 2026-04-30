@@ -916,9 +916,32 @@ model FieldTrainingAppointment {
   notes             String?
   category          FtaCategory?
 
+  // Lifecycle of the appointment. Only COMPLETED appointments count
+  // toward the agent's "Field Training N" Phase 2 checklist items;
+  // RESCHEDULED bumps appointmentDate forward but stays in-flight;
+  // CANCELLED and NO_SHOW are terminal failures and don't count.
+  status            FtaStatus    @default(SCHEDULED)
+  outcomeNotes      String?
+  // First date this appointment was originally booked for, preserved
+  // through reschedules so the agent can see how many times it's been
+  // pushed.
+  originalDate      DateTime?
+  // Stamps for the lifecycle transitions
+  completedAt       DateTime?
+  cancelledAt       DateTime?
+
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
   @@index([agentProfileId, appointmentDate])
+  @@index([agentProfileId, status])
   @@map("field_training_appointments")
+}
+
+enum FtaStatus {
+  SCHEDULED
+  COMPLETED
+  RESCHEDULED
+  CANCELLED
+  NO_SHOW
 }

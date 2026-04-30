@@ -17,6 +17,16 @@ export default function AnnouncementsPage() {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ title: '', message: '', targetPhase: '', scheduledFor: '', expiresAt: '' })
   const [saving, setSaving] = useState(false)
+  // Inline edit state. editingId points at the row currently in edit mode;
+  // editForm holds the in-flight values until the admin clicks Save.
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState({ title: '', message: '', scheduledFor: '', expiresAt: '' })
+
+  const refresh = async () => {
+    const res = await fetch('/api/admin/announcements')
+    const d = await res.json() as { announcements: Announcement[] }
+    setAnnouncements(d.announcements ?? [])
+  }
 
   useEffect(() => {
     fetch('/api/admin/announcements').then(r => r.json())
@@ -38,9 +48,45 @@ export default function AnnouncementsPage() {
     setForm({ title: '', message: '', targetPhase: '', scheduledFor: '', expiresAt: '' })
     setShowForm(false)
     setSaving(false)
-    const res = await fetch('/api/admin/announcements')
-    const d = await res.json() as { announcements: Announcement[] }
-    setAnnouncements(d.announcements ?? [])
+    await refresh()
+  }
+
+  // Convert an ISO timestamp to the format <input type="datetime-local"> expects
+  // (YYYY-MM-DDTHH:mm), in the user's local timezone, so the picker shows the
+  // same wall-clock time the admin originally set.
+  const toLocalInput = (iso: string | null): string => {
+    if (!iso) return ''
+    const d = new Date(iso)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  }
+
+  const startEdit = (a: Announcement) => {
+    setEditingId(a.id)
+    setEditForm({
+      title: a.title,
+      message: a.message,
+      scheduledFor: toLocalInput(a.scheduledFor),
+      expiresAt: toLocalInput(a.expiresAt),
+    })
+  }
+
+  const handleUpdate = async () => {
+    if (!editingId) return
+    setSaving(true)
+    await fetch('/api/admin/announcements', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: editingId,
+        title: editForm.title,
+        message: editForm.message,
+        scheduledFor: editForm.scheduledFor || null,
+        expiresAt: editForm.expiresAt || null,
+      }),
+    })
+    setEditingId(null)
+    setSaving(false)
+    await refresh()
   }
 
   const toggleActive = async (id: string, active: boolean) => {
@@ -134,33 +180,63 @@ export default function AnnouncementsPage() {
               <div key={a.id} style={{
                 padding: '14px 18px', borderRadius: 6,
                 background: '#132238', border: `1px solid ${pillBorder}`,
-                opacity: isLive || isScheduled ? 1 : 0.6,
+                opacity: isLive || isScheduled || editingId === a.id ? 1 : 0.6,
               }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: '#ffffff' }}>{a.title}</div>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
-                    {isLive && <span style={{ fontSize: 8, fontWeight: 700, color: '#4ade80', padding: '2px 8px', background: 'rgba(74,222,128,0.1)', borderRadius: 10, textTransform: 'uppercase' }}>Live</span>}
-                    {isScheduled && <span style={{ fontSize: 8, fontWeight: 700, color: '#9B6DFF', padding: '2px 8px', background: 'rgba(155,109,255,0.1)', borderRadius: 10, textTransform: 'uppercase' }}>Scheduled</span>}
-                    {isExpired && <span style={{ fontSize: 8, fontWeight: 700, color: '#f87171', padding: '2px 8px', background: 'rgba(248,113,113,0.1)', borderRadius: 10, textTransform: 'uppercase' }}>Expired</span>}
-                    {!a.active && !isExpired && !isScheduled && <span style={{ fontSize: 8, fontWeight: 700, color: '#6B8299', padding: '2px 8px', background: 'rgba(255,255,255,0.04)', borderRadius: 10, textTransform: 'uppercase' }}>Paused</span>}
+                {editingId === a.id ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
+                    <div style={{ gridColumn: isMobile ? undefined : 'span 2' }}>
+                      <div style={lbl}>Title</div>
+                      <input value={editForm.title} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))} style={inp} />
+                    </div>
+                    <div style={{ gridColumn: isMobile ? undefined : 'span 2' }}>
+                      <div style={lbl}>Message</div>
+                      <textarea value={editForm.message} onChange={e => setEditForm(f => ({ ...f, message: e.target.value }))} rows={3} style={{ ...inp, resize: 'vertical', fontFamily: 'inherit' }} />
+                    </div>
+                    <div>
+                      <div style={lbl}>Schedule for (optional)</div>
+                      <input type="datetime-local" value={editForm.scheduledFor} onChange={e => setEditForm(f => ({ ...f, scheduledFor: e.target.value }))} style={inp} />
+                    </div>
+                    <div>
+                      <div style={lbl}>Expires (optional)</div>
+                      <input type="datetime-local" value={editForm.expiresAt} onChange={e => setEditForm(f => ({ ...f, expiresAt: e.target.value }))} style={inp} />
+                    </div>
+                    <div style={{ gridColumn: isMobile ? undefined : 'span 2', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                      <button onClick={() => setEditingId(null)} disabled={saving} style={{ padding: '6px 14px', borderRadius: 4, fontSize: 11, background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#9BB0C4', cursor: 'pointer' }}>Cancel</button>
+                      <button onClick={handleUpdate} disabled={saving || !editForm.title || !editForm.message} style={{ padding: '6px 16px', borderRadius: 4, fontSize: 11, fontWeight: 700, background: '#C9A96E', border: 'none', color: '#142D48', cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+                        {saving ? 'Saving...' : 'Save changes'}
+                      </button>
+                    </div>
                   </div>
-                </div>
-                <div style={{ fontSize: 12, color: '#9BB0C4', lineHeight: 1.6, marginBottom: 8 }}>{a.message}</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: '#4B5563', gap: 12, flexWrap: 'wrap' }}>
-                  <div>
-                    {a.targetPhase ? `Phase ${a.targetPhase} only` : 'All agents'} · {a._count.reads} read · {new Date(a.createdAt).toLocaleDateString()}
-                    {a.scheduledFor && (
-                      <> · <span style={{ color: isScheduled ? '#9B6DFF' : '#6B8299' }}>
-                        {isScheduled ? 'Goes live' : 'Started'} {new Date(a.scheduledFor).toLocaleString()}
-                      </span></>
-                    )}
-                    {a.expiresAt && ` · Expires ${new Date(a.expiresAt).toLocaleDateString()}`}
-                  </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => toggleActive(a.id, !a.active)} style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 10, cursor: 'pointer' }}>{a.active ? 'Pause' : 'Resume'}</button>
-                    <button onClick={() => handleDelete(a.id)} style={{ background: 'none', border: 'none', color: '#f87171', fontSize: 10, cursor: 'pointer' }}>Delete</button>
-                  </div>
-                </div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: '#ffffff' }}>{a.title}</div>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+                        {isLive && <span style={{ fontSize: 8, fontWeight: 700, color: '#4ade80', padding: '2px 8px', background: 'rgba(74,222,128,0.1)', borderRadius: 10, textTransform: 'uppercase' }}>Live</span>}
+                        {isScheduled && <span style={{ fontSize: 8, fontWeight: 700, color: '#9B6DFF', padding: '2px 8px', background: 'rgba(155,109,255,0.1)', borderRadius: 10, textTransform: 'uppercase' }}>Scheduled</span>}
+                        {isExpired && <span style={{ fontSize: 8, fontWeight: 700, color: '#f87171', padding: '2px 8px', background: 'rgba(248,113,113,0.1)', borderRadius: 10, textTransform: 'uppercase' }}>Expired</span>}
+                        {!a.active && !isExpired && !isScheduled && <span style={{ fontSize: 8, fontWeight: 700, color: '#6B8299', padding: '2px 8px', background: 'rgba(255,255,255,0.04)', borderRadius: 10, textTransform: 'uppercase' }}>Paused</span>}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 12, color: '#9BB0C4', lineHeight: 1.6, marginBottom: 8 }}>{a.message}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: '#4B5563', gap: 12, flexWrap: 'wrap' }}>
+                      <div>
+                        {a.targetPhase ? `Phase ${a.targetPhase} only` : 'All agents'} · {a._count.reads} read · {new Date(a.createdAt).toLocaleDateString()}
+                        {a.scheduledFor && (
+                          <> · <span style={{ color: isScheduled ? '#9B6DFF' : '#6B8299' }}>
+                            {isScheduled ? 'Goes live' : 'Started'} {new Date(a.scheduledFor).toLocaleString()}
+                          </span></>
+                        )}
+                        {a.expiresAt && ` · Expires ${new Date(a.expiresAt).toLocaleDateString()}`}
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button onClick={() => startEdit(a)} style={{ background: 'none', border: 'none', color: '#9BB0C4', fontSize: 10, cursor: 'pointer' }}>Edit</button>
+                        <button onClick={() => toggleActive(a.id, !a.active)} style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 10, cursor: 'pointer' }}>{a.active ? 'Pause' : 'Resume'}</button>
+                        <button onClick={() => handleDelete(a.id)} style={{ background: 'none', border: 'none', color: '#f87171', fontSize: 10, cursor: 'pointer' }}>Delete</button>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             )
           })}
