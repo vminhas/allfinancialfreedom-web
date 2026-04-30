@@ -63,8 +63,8 @@ export default function VaultGuidePage() {
           <GuideTip>Respond to licensing requests within 24 hours. Agents see &quot;Pending&quot; or &quot;In Progress&quot; in their coordinator panel, so timely updates build trust.</GuideTip>
         </GuideSection>
 
-        <GuideSection title="Setup Dashboard" icon={Link2}>
-          <p style={{ marginBottom: 12 }}>The Setup Dashboard manages resource links that appear throughout the agent portal (scripts, training materials, tools).</p>
+        <GuideSection title="Resource Center" icon={Link2}>
+          <p style={{ marginBottom: 12 }}>The Resource Center manages resource links that appear throughout the agent portal (scripts, training materials, tools).</p>
 
           <GuideStep number={1} title="Adding Resources">
             Click &quot;+ Add Resource&quot; and fill in the key (unique identifier), label, URL, and category. Suggested resources appear as quick-add buttons if they haven&apos;t been configured yet.
@@ -121,7 +121,7 @@ export default function VaultGuidePage() {
           </GuideStep>
 
           <GuideStep number={2} title="Team Management">
-            Add admin and licensing coordinator accounts. Licensing coordinators only see the Licensing Inbox and Setup Dashboard. Admins see everything.
+            Add admin and licensing coordinator accounts. Licensing coordinators only see the Licensing Inbox and Resource Center. Admins see everything.
           </GuideStep>
         </GuideSection>
 
