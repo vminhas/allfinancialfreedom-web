@@ -318,6 +318,11 @@ model Announcement {
   message     String
   targetPhase Int?
   active      Boolean  @default(true)
+  // When the announcement should start being visible to agents.
+  // Null means "live as soon as it's created" (legacy behavior).
+  // Set to a future date to schedule it ahead of time; the agent
+  // GET endpoint filters out announcements where scheduledFor > now.
+  scheduledFor DateTime?
   createdBy   String?
   expiresAt   DateTime?
   createdAt   DateTime @default(now())
