@@ -68,6 +68,21 @@ export default function VaultMilestonesPage() {
     } finally { setBusyId(null) }
   }
 
+  const revoke = async (row: Row) => {
+    const def = MILESTONE_BY_KEY[row.milestone]
+    const label = def?.label ?? row.milestone
+    const ok = window.confirm(
+      `Revoke "${label}" from ${row.agentProfile.firstName} ${row.agentProfile.lastName}?\n\n` +
+      `Their badge disappears immediately. They'll need to be re-awarded if they qualify again later.`,
+    )
+    if (!ok) return
+    setBusyId(row.id)
+    try {
+      const res = await fetch(`/api/vault/milestones/${row.id}`, { method: 'DELETE' })
+      if (res.ok) refresh()
+    } finally { setBusyId(null) }
+  }
+
   const pending = rows.filter(r => r.status === 'PENDING_REVIEW')
   const awarded = rows.filter(r => r.status === 'AWARDED')
   const rejected = rows.filter(r => r.status === 'REJECTED')
@@ -125,7 +140,7 @@ export default function VaultMilestonesPage() {
             ) : (
               <div style={{ ...card, padding: '14px 18px' }}>
                 {awarded.slice(0, 30).map(row => (
-                  <SimpleRow key={row.id} row={row} accent="#4ADE80" timestampLabel="Awarded" />
+                  <SimpleRow key={row.id} row={row} accent="#4ADE80" timestampLabel="Awarded" onRevoke={revoke} />
                 ))}
               </div>
             )}
@@ -204,7 +219,7 @@ function PendingRow({
   )
 }
 
-function SimpleRow({ row, accent, timestampLabel }: { row: Row; accent: string; timestampLabel: string }) {
+function SimpleRow({ row, accent, timestampLabel, onRevoke }: { row: Row; accent: string; timestampLabel: string; onRevoke?: (row: Row) => void }) {
   const def = MILESTONE_BY_KEY[row.milestone]
   const ts = row.reviewedAt ?? row.completedAt
   return (
@@ -213,11 +228,27 @@ function SimpleRow({ row, accent, timestampLabel }: { row: Row; accent: string; 
         <span style={{ color: '#fff', fontWeight: 500 }}>
           {row.agentProfile.firstName} {row.agentProfile.lastName}
         </span>
-        <span style={{ color: '#9BB0C4', marginLeft: 8 }}>· {def?.label ?? row.milestone}</span>
+        <span style={{ color: '#9BB0C4', marginLeft: 8 }}>&middot; {def?.label ?? row.milestone}</span>
       </div>
-      <div style={{ color: accent, fontSize: 11 }}>
-        {timestampLabel} {new Date(ts).toLocaleDateString()}
-        {row.reviewer && <span style={{ color: '#6B8299', marginLeft: 6 }}>· {row.reviewer.name}</span>}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ color: accent, fontSize: 11 }}>
+          {timestampLabel} {new Date(ts).toLocaleDateString()}
+          {row.reviewer && <span style={{ color: '#6B8299', marginLeft: 6 }}>&middot; {row.reviewer.name}</span>}
+        </div>
+        {onRevoke && (
+          <button
+            onClick={() => onRevoke(row)}
+            title="Remove this award. They'll need to re-qualify and be awarded again to get the badge back."
+            style={{
+              background: 'transparent', border: '1px solid rgba(239,68,68,0.4)',
+              color: '#EF4444', borderRadius: 4, padding: '3px 10px',
+              fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+              cursor: 'pointer',
+            }}
+          >
+            Revoke
+          </button>
+        )}
       </div>
     </div>
   )
