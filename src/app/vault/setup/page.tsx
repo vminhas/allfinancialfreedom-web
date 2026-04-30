@@ -135,7 +135,7 @@ export default function SetupDashboard() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
           <h1 style={{ fontSize: 18, fontWeight: 700, color: '#ffffff', margin: 0, letterSpacing: '0.05em' }}>
-            Setup Dashboard
+            Resource Center
           </h1>
           <p style={{ fontSize: 12, color: '#6B8299', marginTop: 4 }}>
             Manage resource links that appear in agent checklist items.
