@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useSession } from 'next-auth/react'
 import DatePicker from '@/components/DatePicker'
 import { TIME_RANGE_OPTIONS, rangeForKey, type TimeRangeKey } from '@/lib/time-range'
 
@@ -74,9 +75,15 @@ const DEFAULT_RANGE: TimeRangeKey = 'last30'
 const EMPTY_STATS: Stats = { pending: 0, assignedToMe: 0, unassigned: 0, issued: 0, declined: 0, points: 0 }
 
 export default function VaultNewBusinessPage() {
+  // Self id is needed to claim a row ("Assign to me" sends our own id
+  // to the assignedToId column). Pulled from the NextAuth session.
+  const { data: session } = useSession()
+  const selfId = (session?.user as { id?: string } | undefined)?.id ?? null
+
   const [list, setList] = useState<SubmissionListItem[]>([])
   const [stats, setStats] = useState<Stats>(EMPTY_STATS)
   const [loading, setLoading] = useState(true)
+  const [busyAssignId, setBusyAssignId] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [assignment, setAssignment] = useState<string>('') // '' | 'me' | 'unassigned'
   const [agentFilter, setAgentFilter] = useState<string>('')   // '' or agentProfileId
@@ -138,6 +145,23 @@ export default function VaultNewBusinessPage() {
   }, [statusFilter, assignment, agentFilter, search, activeRange])
 
   useEffect(() => { refresh() }, [refresh])
+
+  // Claim a row to the current LC / admin (or any other staff if we
+  // ever add a "reassign to..." menu). Sends a PATCH with the new
+  // assignedToId; null means unclaim. Stops row click propagation
+  // so we don't open the drawer at the same time.
+  const setAssignee = async (e: React.MouseEvent, id: string, newAssigneeId: string | null) => {
+    e.stopPropagation()
+    setBusyAssignId(id)
+    try {
+      const res = await fetch(`/api/vault/new-business/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignedToId: newAssigneeId }),
+      })
+      if (res.ok) refresh()
+    } finally { setBusyAssignId(null) }
+  }
 
   return (
     <div style={{ padding: '24px 28px' }}>
@@ -289,23 +313,70 @@ export default function VaultNewBusinessPage() {
           list.length === 0 ? <div style={{ color: '#4B5563', fontSize: 13 }}>No submissions match.</div> :
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-              {['Agent', 'Client', 'Carrier', 'Type', 'Points', 'Status', 'Submitted', 'Notes'].map(h => (
+              {['Agent', 'Client', 'Carrier', 'Type', 'Points', 'Status', 'Assigned', 'Submitted', 'Notes'].map(h => (
                 <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#C9A96E' }}>{h}</th>
               ))}
             </tr></thead>
             <tbody>
-              {list.map(s => (
-                <tr key={s.id} onClick={() => setOpenId(s.id)} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', cursor: 'pointer' }}>
-                  <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{s.agentProfile.firstName} {s.agentProfile.lastName}</td>
-                  <td style={{ padding: '10px 12px', fontSize: 12, color: '#fff' }}>{s.clientFirstName} {s.clientLastName}</td>
-                  <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{s.carrier}</td>
-                  <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{POLICY_LABEL[s.policyType] ?? s.policyType}</td>
-                  <td style={{ padding: '10px 12px', fontSize: 12, color: '#C9A96E' }}>{s.points ?? '—'}</td>
-                  <td style={{ padding: '10px 12px', fontSize: 11 }}><StatusPill status={s.status} /></td>
-                  <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{new Date(s.createdAt).toLocaleDateString()}</td>
-                  <td style={{ padding: '10px 12px', fontSize: 12, color: '#6B8299' }}>{s._count.notes}</td>
-                </tr>
-              ))}
+              {list.map(s => {
+                const isMine = !!selfId && s.assignedTo?.id === selfId
+                const busy = busyAssignId === s.id
+                // Claim is only meaningful while the submission is still
+                // PENDING. Once it's ISSUED/DECLINED/etc the work is
+                // done; show the historical assignee for reference but
+                // hide the buttons.
+                const canClaim = s.status === 'PENDING'
+                return (
+                  <tr key={s.id} onClick={() => setOpenId(s.id)} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', cursor: 'pointer' }}>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{s.agentProfile.firstName} {s.agentProfile.lastName}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#fff' }}>{s.clientFirstName} {s.clientLastName}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{s.carrier}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{POLICY_LABEL[s.policyType] ?? s.policyType}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#C9A96E' }}>{s.points ?? '—'}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 11 }}><StatusPill status={s.status} /></td>
+                    <td style={{ padding: '10px 12px', fontSize: 11 }}>
+                      {s.assignedTo ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <span style={{
+                            display: 'inline-block', padding: '2px 8px', borderRadius: 999,
+                            background: isMine ? 'rgba(155,109,255,0.15)' : 'rgba(201,169,110,0.10)',
+                            border: `1px solid ${isMine ? 'rgba(155,109,255,0.35)' : 'rgba(201,169,110,0.25)'}`,
+                            color: isMine ? '#9B6DFF' : '#C9A96E',
+                            fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
+                          }}>
+                            {isMine ? 'You' : s.assignedTo.name}
+                          </span>
+                          {canClaim && (
+                            <button
+                              onClick={e => setAssignee(e, s.id, null)}
+                              disabled={busy}
+                              title="Unassign"
+                              style={{ background: 'transparent', border: 'none', color: '#6B8299', cursor: 'pointer', fontSize: 12, padding: '0 4px' }}
+                            >×</button>
+                          )}
+                        </div>
+                      ) : canClaim ? (
+                        <button
+                          onClick={e => selfId ? setAssignee(e, s.id, selfId) : null}
+                          disabled={busy || !selfId}
+                          style={{
+                            background: 'rgba(201,169,110,0.10)', border: '1px solid rgba(201,169,110,0.35)',
+                            color: '#C9A96E', borderRadius: 4, padding: '4px 10px',
+                            fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                            cursor: busy || !selfId ? 'wait' : 'pointer',
+                          }}
+                        >
+                          {busy ? '...' : 'Assign to me'}
+                        </button>
+                      ) : (
+                        <span style={{ color: '#4B5563' }}>&mdash;</span>
+                      )}
+                    </td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{new Date(s.createdAt).toLocaleDateString()}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#6B8299' }}>{s._count.notes}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         }
