@@ -50,12 +50,13 @@ export async function GET(req: NextRequest) {
       dateSubmittedToGfi: true,
       agentUser: { select: { email: true } },
       carrierAppointments: { select: { status: true } },
-      _count: {
-        select: {
-          coordinatorRequests: {
-            where: { status: { in: ['OPEN', 'IN_PROGRESS'] } },
-          },
-        },
+      // Pull the actual open requests (not just the count) so the
+      // agent card can answer "what does this person need?" without
+      // forcing the LC to expand the row first.
+      coordinatorRequests: {
+        where: { status: { in: ['OPEN', 'IN_PROGRESS'] } },
+        select: { id: true, topic: true, status: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
       },
     },
   })
@@ -76,7 +77,8 @@ export async function GET(req: NextRequest) {
     dateSubmittedToGfi: p.dateSubmittedToGfi,
     carriersAppointed: p.carrierAppointments.filter(c => c.status === 'APPOINTED').length,
     carriersTotal: p.carrierAppointments.length,
-    openRequestCount: p._count.coordinatorRequests,
+    openRequestCount: p.coordinatorRequests.length,
+    openRequests: p.coordinatorRequests,
   }))
 
   const filtered = needsAttention
