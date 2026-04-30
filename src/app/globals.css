@@ -14,6 +14,18 @@
     font-weight: 300;
     overflow-x: hidden;
   }
+
+  /* Make form placeholders unmistakably placeholders (dimmer + italic).
+     Without this, on the dark agent / vault theme the default browser
+     placeholder color is close enough to actual input text that agents
+     have read example values like "Apt 4B" as their real address.
+     Reported by Heather Cullum (E5677). */
+  input::placeholder,
+  textarea::placeholder {
+    color: #4B5563;
+    font-style: italic;
+    opacity: 1;
+  }
 }
 
 @keyframes kenBurns {

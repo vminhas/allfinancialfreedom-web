@@ -2089,7 +2089,7 @@ function ProfileTab({ data, onSaved, discordParam, discordUsername, isMobile }: 
               <input
                 value={form.addressLine2}
                 onChange={e => setForm(f => ({ ...f, addressLine2: e.target.value }))}
-                placeholder="Apt 4B"
+                placeholder="e.g. Apt 4B (skip if not applicable)"
                 style={inputStyle}
               />
             </div>
