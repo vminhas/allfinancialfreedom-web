@@ -42,7 +42,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     key: 'system', label: 'System', defaultOpen: true,
     items: [
-      { href: '/vault/setup', label: 'Setup', icon: '⊞' },
+      { href: '/vault/setup', label: 'Resource Center', icon: '⊞' },
       { href: '/vault/checklist-editor', label: 'Checklist Editor', icon: '◇' },
       { href: '/vault/email-templates', label: 'Email Templates', icon: '✉' },
       { href: '/vault/audit', label: 'Auth Audit', icon: '⚠' },
@@ -59,7 +59,7 @@ const NAV_LC_GROUPS: NavGroup[] = [
       { href: '/vault/licensing', label: 'Licensing Inbox', icon: '◎' },
       { href: '/vault/new-business', label: 'New Business', icon: '◆' },
       { href: '/vault/renewals', label: 'Renewals', icon: '↻' },
-      { href: '/vault/setup', label: 'Setup', icon: '⊞' },
+      { href: '/vault/setup', label: 'Resource Center', icon: '⊞' },
       { href: '/vault/guide', label: 'Guide', icon: '?' },
     ],
   },
