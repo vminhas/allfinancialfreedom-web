@@ -4,6 +4,7 @@ const {
   ModalBuilder, TextInputBuilder, TextInputStyle,
 } = require('discord.js');
 const { GUILD_ID, CHANNELS, ROLES, COLORS, EDITORS } = require('./config');
+const { maybeReactToMessage } = require('./reactions');
 
 const client = new Client({
   intents: [
@@ -347,6 +348,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
     await interaction.reply({ content: `✅ Assigned Phase ${phaseNumber} to ${target}.`, ephemeral: true });
     // The GuildMemberUpdate event will fire and send the DM automatically
   }
+});
+
+// ─── Auto-react to celebration-worthy messages ──────────────────────────────
+// Pattern-matches on shoutouts, big wins, morning greetings, action pings,
+// and meeting links - reacts with a small emoji set so the team feels
+// celebrated even when not everyone is online to react manually.
+// Throttled per author + opt-out via DISCORD_REACT_DISABLED env var.
+client.on(Events.MessageCreate, (message) => {
+  // Fire-and-forget so a slow react doesn't delay the flyer parser.
+  maybeReactToMessage(message).catch(() => {});
 });
 
 // ─── Training flyer parser — send an image to auto-create events ────────────
