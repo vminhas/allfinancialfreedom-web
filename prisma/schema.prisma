@@ -30,6 +30,7 @@ model AdminUser {
   assignedSubmissions NewBusinessSubmission[] @relation("AssignedSubmissions")
   authoredSubmissionNotes NewBusinessNote[] @relation("SubmissionNoteAdmin")
   renewalRemindersSent RenewalReminder[] @relation("RenewalRemindersSent")
+  reviewedMilestones   RecognitionMilestone[] @relation("MilestoneReviewer")
 
   @@map("admin_users")
 }
@@ -456,11 +457,32 @@ model RecognitionMilestone {
   agentProfileId String
   agentProfile   AgentProfile @relation(fields: [agentProfileId], references: [id])
   milestone      String
+  // PENDING_REVIEW: agent submitted, awaiting admin
+  // AWARDED:        admin approved (or auto-awarded via backfill)
+  // REJECTED:       admin rejected; agent can resubmit (the row is re-used)
+  status         MilestoneStatus @default(AWARDED)
+  // requestedAt is null for admin-initiated awards (no submission flow).
+  requestedAt    DateTime?
+  // Optional proof / context the agent provided when submitting.
+  requestNote    String?
+  // When the admin acted. completedAt is the ceremonial "you've earned this"
+  // timestamp; reviewedAt is the audit timestamp for who clicked the button.
+  reviewedAt     DateTime?
+  reviewerAdminId String?
+  reviewer       AdminUser?   @relation("MilestoneReviewer", fields: [reviewerAdminId], references: [id])
+  reviewNote     String?
   completedAt    DateTime     @default(now())
   notes          String?
 
   @@unique([agentProfileId, milestone])
+  @@index([status])
   @@map("recognition_milestones")
+}
+
+enum MilestoneStatus {
+  PENDING_REVIEW
+  AWARDED
+  REJECTED
 }
 
 model BusinessPartner {

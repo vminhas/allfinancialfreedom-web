@@ -16,7 +16,7 @@ import LicensingCoordinatorPanel from '@/components/LicensingCoordinatorPanel'
 import FTALogModal from '@/components/FTALogModal'
 import FeedbackButton from '@/components/FeedbackButton'
 import NewBusinessTab from '@/components/NewBusinessTab'
-import FtaTab from '@/components/FtaTab'
+import { MILESTONE_BY_KEY, isSubmittable } from '@/lib/milestones'
 import MarkdownDescription from '@/components/MarkdownDescription'
 import ChecklistItemVideo from '@/components/ChecklistItemVideo'
 import AnnouncementBanner from '@/components/AnnouncementBanner'
@@ -25,7 +25,15 @@ import { useIsMobile } from '@/lib/useIsMobile'
 interface PhaseProgress { phase: number; total: number; completed: number; pct: number }
 interface PhaseItem { phase: number; itemKey: string; completed: boolean; completedAt: string | null }
 interface CarrierAppointment { carrier: string; status: string; producerNumber: string | null }
-interface Milestone { milestone: string; completedAt: string }
+interface Milestone {
+  milestone: string
+  status: 'PENDING_REVIEW' | 'AWARDED' | 'REJECTED'
+  requestedAt: string | null
+  requestNote: string | null
+  reviewedAt: string | null
+  reviewNote: string | null
+  completedAt: string
+}
 
 interface AgentData {
   id: string
@@ -67,7 +75,10 @@ interface AgentData {
 function computeProgressions(data: AgentData): Record<string, boolean> {
   const has = (key: string, phase: number) =>
     data.phaseItems.some(i => i.itemKey === key && i.phase === phase && i.completed)
-  const hasMilestone = (m: string) => data.milestones.some(mi => mi.milestone === m)
+  // Only AWARDED milestones count toward the badge. PENDING_REVIEW and
+  // REJECTED rows exist but don't unlock the progression.
+  const hasMilestone = (m: string) =>
+    data.milestones.some(mi => mi.milestone === m && mi.status === 'AWARDED')
   const hasAppointed = data.carrierAppointments.some(c => c.status === 'APPOINTED')
 
   return {
@@ -81,11 +92,14 @@ function computeProgressions(data: AgentData): Record<string, boolean> {
     net_license: has('first_1000', 2),
     cft_in_progress: has('cft_classes', 3),
     certified_field_trainer: has('cft_coordinator_signoff', 3),
-    elite_trainer: data.phase >= 4,
+    // Submission-typed milestones now require an AWARDED RecognitionMilestone
+    // row. Backfill migration auto-awarded elite_trainer for everyone already
+    // at phase >= 4 so existing badges don't disappear.
+    elite_trainer: hasMilestone('elite_trainer'),
     marketing_director: has('45k_points', 4),
     '50k_watch': hasMilestone('50k_watch'),
     '100k_ring': hasMilestone('100k_ring'),
-    emd: has('150k_net_6mo', 5),
+    emd: hasMilestone('emd'),
   }
 }
 
@@ -125,7 +139,7 @@ function AgentDashboardInner() {
 
   const [data, setData] = useState<AgentData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'checklist' | 'licensing' | 'carriers' | 'partners' | 'new-business' | 'fta' | 'calls' | 'team' | 'resources' | 'profile'>(
+  const [activeTab, setActiveTab] = useState<'checklist' | 'licensing' | 'carriers' | 'partners' | 'new-business' | 'calls' | 'team' | 'resources' | 'profile'>(
     discordParam ? 'profile' : 'checklist'
   )
   // Use this for programmatic tab switches triggered from outside the tab
@@ -374,9 +388,8 @@ function AgentDashboardInner() {
     { key: 'checklist', label: 'Checklist' },
     { key: 'licensing', label: 'Licensing' },
     { key: 'carriers', label: 'Carriers' },
-    { key: 'partners', label: 'Partners' },
+    { key: 'partners', label: 'Partners / FTA' },
     { key: 'new-business', label: 'New Business' },
-    { key: 'fta', label: 'FTA' },
     { key: 'calls', label: 'Calls' },
     { key: 'team', label: 'My Team' },
     { key: 'resources', label: 'Resources' },
@@ -736,27 +749,13 @@ function AgentDashboardInner() {
                     {prog.description}
                   </div>
                   <div style={{ marginTop: 6, fontSize: 10, color: achieved ? '#4ade80' : '#4B5563', fontStyle: 'italic' }}>
-                    {achieved ? 'Achieved' : (() => {
-                      const hints: Record<string, string> = {
-                        code_number: 'Automatically earned when you join AFF.',
-                        client: 'Complete "Help Your 1st Client" in Phase 2 or log a policy.',
-                        pass_license: 'Complete "Pass Life License Test" in Phase 1.',
-                        business_partner_plan: 'Complete "Business Marketing Plan" in Phase 1.',
-                        licensed_appointed: 'Earn your Net License and get appointed with at least one carrier.',
-                        '10_field_trainings': 'Complete all 10 Field Training Appointments in Phase 2.',
-                        associate_promotion: 'Complete all Phase 2 items and request your promotion.',
-                        net_license: 'Earn your first $1,000 in commission (Net License milestone).',
-                        cft_in_progress: 'Attend CFT In Progress classes in Phase 3.',
-                        certified_field_trainer: 'Get CFT Coordinator Sign Off in Phase 3.',
-                        elite_trainer: 'Reach Phase 4.',
-                        marketing_director: 'Accumulate 45,000 production points in Phase 4.',
-                        '50k_watch': 'Earn $50,000 in total production.',
-                        '100k_ring': 'Earn $100,000 in total production.',
-                        emd: 'Maintain 150,000 net points over 6 months in Phase 5.',
-                      }
-                      return hints[prog.key] ?? 'Complete the required milestones to unlock.'
-                    })()}
+                    {achieved ? 'Achieved' : (MILESTONE_BY_KEY[prog.key]?.criteria ?? 'Complete the required milestones to unlock.')}
                   </div>
+                  <MilestoneSubmitControl
+                    milestoneKey={prog.key}
+                    milestones={data.milestones}
+                    onSubmitted={fetchData}
+                  />
                 </div>
                 <button
                   onClick={() => setSelectedProgression(null)}
@@ -1401,7 +1400,6 @@ function AgentDashboardInner() {
         {/* ── PARTNERS / CALLS / PROFILE TABS ── */}
         {activeTab === 'partners' && <BusinessPartnersTab isMobile={isMobile} previewToken={previewToken} />}
         {activeTab === 'new-business' && <NewBusinessTab isMobile={isMobile} phase={data.phase} />}
-        {activeTab === 'fta' && <FtaTab isMobile={isMobile} />}
         {activeTab === 'calls' && <CallLogsTab />}
         {activeTab === 'team' && <MyTeamTab isMobile={isMobile} previewToken={previewToken} />}
         {activeTab === 'resources' && <TrainingResourcesTab resources={setupResources} />}
@@ -1601,6 +1599,120 @@ export default function AgentDashboard() {
     <Suspense fallback={null}>
       <AgentDashboardInner />
     </Suspense>
+  )
+}
+
+// ─── Milestone submission control ──────────────────────────────────────────────
+// Renders nothing for auto-typed milestones. For submission-typed milestones:
+//   - Not yet submitted: shows a small "Submit for review" affordance with an
+//     optional note textarea.
+//   - PENDING_REVIEW: shows a pending badge with submitted timestamp.
+//   - REJECTED: shows the reviewer's note (if any) and a "Resubmit" button.
+//   - AWARDED: nothing (the achieved-state copy above already handles it).
+
+function MilestoneSubmitControl({
+  milestoneKey,
+  milestones,
+  onSubmitted,
+}: {
+  milestoneKey: string
+  milestones: Milestone[]
+  onSubmitted: () => void
+}) {
+  const [showForm, setShowForm] = useState(false)
+  const [note, setNote] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  if (!isSubmittable(milestoneKey)) return null
+
+  const existing = milestones.find(m => m.milestone === milestoneKey)
+  if (existing?.status === 'AWARDED') return null
+
+  const submit = async () => {
+    setSaving(true); setError(null)
+    try {
+      const res = await fetch('/api/agents/milestones', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ milestone: milestoneKey, note: note.trim() || undefined }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({})) as { error?: string }
+        setError(d.error ?? 'Submit failed')
+        return
+      }
+      setShowForm(false); setNote('')
+      onSubmitted()
+    } finally { setSaving(false) }
+  }
+
+  if (existing?.status === 'PENDING_REVIEW') {
+    return (
+      <div style={{ marginTop: 10, padding: '8px 12px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 4, fontSize: 11, color: '#F59E0B' }}>
+        Pending review &middot; submitted {existing.requestedAt ? new Date(existing.requestedAt).toLocaleDateString() : ''}
+      </div>
+    )
+  }
+
+  if (existing?.status === 'REJECTED') {
+    return (
+      <div style={{ marginTop: 10 }}>
+        <div style={{ padding: '8px 12px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 4, fontSize: 11, color: '#EF4444' }}>
+          Submission rejected.
+          {existing.reviewNote && <div style={{ color: '#9BB0C4', marginTop: 4, fontStyle: 'italic' }}>&ldquo;{existing.reviewNote}&rdquo;</div>}
+        </div>
+        {!showForm ? (
+          <button
+            onClick={() => setShowForm(true)}
+            style={{ marginTop: 8, background: 'transparent', border: '1px solid rgba(201,169,110,0.3)', color: '#C9A96E', borderRadius: 4, padding: '5px 12px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}
+          >Resubmit</button>
+        ) : (
+          <SubmitForm note={note} setNote={setNote} saving={saving} error={error} onSubmit={submit} onCancel={() => { setShowForm(false); setError(null) }} />
+        )}
+      </div>
+    )
+  }
+
+  // No prior submission
+  return (
+    <div style={{ marginTop: 10 }}>
+      {!showForm ? (
+        <button
+          onClick={() => setShowForm(true)}
+          style={{ background: 'transparent', border: '1px solid rgba(201,169,110,0.3)', color: '#C9A96E', borderRadius: 4, padding: '5px 12px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}
+        >Submit for review</button>
+      ) : (
+        <SubmitForm note={note} setNote={setNote} saving={saving} error={error} onSubmit={submit} onCancel={() => { setShowForm(false); setError(null) }} />
+      )}
+    </div>
+  )
+}
+
+function SubmitForm({
+  note, setNote, saving, error, onSubmit, onCancel,
+}: {
+  note: string
+  setNote: (v: string) => void
+  saving: boolean
+  error: string | null
+  onSubmit: () => void
+  onCancel: () => void
+}) {
+  return (
+    <div style={{ marginTop: 4 }}>
+      <textarea
+        value={note}
+        onChange={e => setNote(e.target.value)}
+        placeholder="Optional: add proof or context for the reviewer (e.g. AP report link, names of certified trainees)..."
+        style={{ width: '100%', boxSizing: 'border-box', background: '#0A1628', border: '1px solid rgba(201,169,110,0.2)', color: '#d1d9e2', borderRadius: 4, padding: '8px 10px', fontSize: 11, fontFamily: 'inherit', minHeight: 60, resize: 'vertical' }}
+      />
+      {error && <div style={{ marginTop: 4, fontSize: 10, color: '#EF4444' }}>{error}</div>}
+      <div style={{ display: 'flex', gap: 6, marginTop: 6, justifyContent: 'flex-end' }}>
+        <button onClick={onCancel} disabled={saving} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#9BB0C4', borderRadius: 4, padding: '5px 12px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
+        <button onClick={onSubmit} disabled={saving} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '5px 14px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>{saving ? 'Submitting...' : 'Send for review'}</button>
+      </div>
+    </div>
   )
 }
 
@@ -3199,48 +3311,88 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
             </div>
           ) :
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+              <colgroup>
+                <col style={{ width: 28 }} />
+                <col style={{ width: '22%' }} />
+                <col style={{ width: '24%' }} />
+                <col style={{ width: '14%' }} />
+                {view !== 'queue' && <col style={{ width: 110 }} />}
+                {!isMobile && <col style={{ width: '14%' }} />}
+                {!isMobile && <col style={{ width: 100 }} />}
+                <col style={{ width: 120 }} />
+              </colgroup>
               <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                <th style={{ ...thStyle, width: 24 }}>
+                <th style={{ ...thStyle, padding: '8px 6px' }}>
                   <input type="checkbox" checked={allSelected} onChange={e => selectAll(e.target.checked)} />
                 </th>
                 <th style={thStyle}>Name</th>
                 <th style={thStyle}>Email</th>
                 <th style={thStyle}>Phone</th>
                 {view !== 'queue' && <th style={thStyle}>Stage</th>}
-                <th style={thStyle}>Occupation</th>
+                {!isMobile && <th style={thStyle}>Occupation</th>}
                 {!isMobile && <th style={thStyle}>Last Contact</th>}
                 <th style={{ ...thStyle, textAlign: 'right' }}>Actions</th>
               </tr></thead>
               <tbody>{sorted.map(p => {
                 const isSelected = effectiveSelection.has(p.id)
                 const isStale = (p.lastContactAt ?? p.createdAt) ? new Date(p.lastContactAt ?? p.createdAt!).getTime() < staleThreshold : true
+                const truncStyle: React.CSSProperties = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
                 return (
                   <tr key={p.id} style={{
                     borderBottom: '1px solid rgba(255,255,255,0.03)',
                     background: isSelected ? 'rgba(201,169,110,0.06)' : 'transparent',
                   }}>
-                    <td style={{ ...tdStyle, width: 24 }}>
+                    <td style={{ ...tdStyle, padding: '8px 6px' }}>
                       <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(p.id)} />
                     </td>
-                    <td style={{ ...tdStyle, color: '#ffffff', fontWeight: 500 }}>{p.name}</td>
-                    <td style={tdStyle}>{p.email ?? ''}</td>
-                    <td style={tdStyle}>{p.phone ?? ''}</td>
+                    <td
+                      onClick={() => startEdit(p)}
+                      title="Click to edit"
+                      style={{ ...tdStyle, ...truncStyle, color: '#ffffff', fontWeight: 500, cursor: 'pointer' }}
+                    >
+                      {p.name}
+                    </td>
+                    <td style={{ ...tdStyle, ...truncStyle }} title={p.email ?? ''}>{p.email ?? ''}</td>
+                    <td style={{ ...tdStyle, ...truncStyle }}>{p.phone ?? ''}</td>
                     {view !== 'queue' && (
                       <td style={tdStyle}>
-                        <span style={{
-                          fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
-                          padding: '2px 7px', borderRadius: 3,
-                          background: `${STATUS_COLOR[p.status] ?? '#6B8299'}15`,
-                          border: `1px solid ${STATUS_COLOR[p.status] ?? '#6B8299'}40`,
-                          color: STATUS_COLOR[p.status] ?? '#6B8299',
-                        }}>{STATUS_LABEL[p.status] ?? p.status}</span>
+                        <select
+                          value={p.status}
+                          onChange={e => advanceOne(p.id, e.target.value)}
+                          title="Change stage"
+                          style={{
+                            appearance: 'none',
+                            WebkitAppearance: 'none',
+                            fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                            padding: '3px 8px', borderRadius: 3,
+                            background: `${STATUS_COLOR[p.status] ?? '#6B8299'}15`,
+                            border: `1px solid ${STATUS_COLOR[p.status] ?? '#6B8299'}40`,
+                            color: STATUS_COLOR[p.status] ?? '#6B8299',
+                            cursor: 'pointer',
+                            fontFamily: 'inherit',
+                            maxWidth: '100%',
+                          }}
+                        >
+                          {(view === 'business_partners'
+                            ? ['NEW', 'CONTACTED', 'INTRO_SENT', 'BOOKED', 'CONVERTED']
+                            : view === 'fta'
+                              ? ['NEW', 'CONTACTED', 'BOOKED', 'CONVERTED']
+                              : ['PENDING', 'NEW', 'CONTACTED', 'BOOKED', 'CONVERTED', 'SKIPPED']
+                          ).map(s => (
+                            <option key={s} value={s} style={{ background: '#0F1E33', color: '#fff' }}>
+                              {STATUS_LABEL[s] ?? s}
+                            </option>
+                          ))}
+                        </select>
                       </td>
                     )}
-                    <td style={{ ...tdStyle, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.occupation ?? ''}</td>
                     {!isMobile && (
-                      <td style={{ ...tdStyle, color: isStale ? '#f59e0b' : '#9BB0C4' }}>
-                        {p.lastContactAt ? new Date(p.lastContactAt).toLocaleDateString() : (p.createdAt ? `imported ${new Date(p.createdAt).toLocaleDateString()}` : '')}
+                      <td style={{ ...tdStyle, ...truncStyle }} title={p.occupation ?? ''}>{p.occupation ?? ''}</td>
+                    )}
+                    {!isMobile && (
+                      <td style={{ ...tdStyle, ...truncStyle, color: isStale ? '#f59e0b' : '#9BB0C4' }}>
+                        {p.lastContactAt ? new Date(p.lastContactAt).toLocaleDateString() : (p.createdAt ? `imp ${new Date(p.createdAt).toLocaleDateString()}` : '')}
                       </td>
                     )}
                     <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }}>
@@ -3304,8 +3456,7 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
                       {view === 'skipped' && (
                         <button onClick={() => advanceOne(p.id, p.category ? 'NEW' : 'PENDING')} title="Move back to active" style={{ background: 'rgba(96,165,250,0.15)', border: '1px solid rgba(96,165,250,0.4)', color: '#60A5FA', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: 'pointer', marginRight: 6 }}>UNSKIP</button>
                       )}
-                      <button onClick={() => startEdit(p)} style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 10, cursor: 'pointer', marginRight: 6 }}>Edit</button>
-                      <button onClick={() => deleteOne(p.id)} title="Delete permanently" style={{ background: 'none', border: 'none', color: '#f87171', fontSize: 10, cursor: 'pointer' }}>&times;</button>
+                      <button onClick={() => deleteOne(p.id)} title="Delete permanently" style={{ background: 'none', border: 'none', color: '#f87171', fontSize: 12, cursor: 'pointer', padding: '0 4px' }}>&times;</button>
                     </td>
                   </tr>
                 )
@@ -3572,7 +3723,7 @@ function ScheduleFtaModal({
         <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(245,158,11,0.18)' }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>Schedule FTA with {partner.name}</div>
           <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>
-            Pick a date and time. We&apos;ll move {partner.name.split(/\s+/)[0]} from your contacts list into your FTA tab.
+            Pick a date and time. We&apos;ll mark {partner.name.split(/\s+/)[0]} as Booked under the FTA Contacts lane.
           </div>
         </div>
         <div style={{ padding: '20px 24px' }}>
@@ -3586,7 +3737,7 @@ function ScheduleFtaModal({
             style={{ width: '100%', background: '#0A1628', border: '1px solid rgba(245,158,11,0.3)', color: '#d1d9e2', borderRadius: 4, padding: '10px 12px', fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit' }}
           />
           <div style={{ fontSize: 10, color: '#6B8299', marginTop: 8, lineHeight: 1.55 }}>
-            Their contact details ({partner.phone ?? 'no phone'}) carry over automatically. You can edit the FTA further from the FTA tab.
+            Their contact details ({partner.phone ?? 'no phone'}) carry over automatically. You can update them anytime from the FTA Contacts lane.
           </div>
         </div>
         {error && <div style={{ padding: '0 24px 12px', fontSize: 11, color: '#f87171' }}>{error}</div>}

@@ -49,6 +49,7 @@ export const LC_ALLOWED_PREFIXES = [
   '/vault/licensing',
   '/vault/new-business',
   '/vault/renewals',
+  '/vault/milestones',
   '/vault/setup',
   '/vault/guide',
 ]
