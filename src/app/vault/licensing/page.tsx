@@ -694,7 +694,11 @@ function AgentsTab({ refreshNonce }: { refreshNonce: number }) {
     const res = await fetch(`/api/vault/licensing-agents?${params}`)
     if (res.ok) {
       const d = await res.json() as { agents: LicensingAgent[] }
-      setAgents(d.agents ?? [])
+      // Sort needs-attention agents to the top so the LC opens the
+      // Agents tab and immediately sees who needs them. Higher request
+      // count wins; ties fall back to the API's createdAt-desc order.
+      const sorted = [...(d.agents ?? [])].sort((a, b) => b.openRequestCount - a.openRequestCount)
+      setAgents(sorted)
     }
     setLoading(false)
   }, [needsAttention, query])
