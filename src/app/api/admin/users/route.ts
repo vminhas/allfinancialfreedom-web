@@ -68,5 +68,29 @@ export async function POST(req: NextRequest) {
     select: { id: true, email: true, name: true, role: true, createdAt: true, lastLoginAt: true },
   })
 
+  // Discord ping so the team has visibility on every new vault account.
+  // Admin-side accounts can sign in immediately (no invite step) so we
+  // ping on creation rather than on activation.
+  if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_ADMIN_CHANNEL_ID) {
+    try {
+      const { sendChannelMessage } = await import('@/lib/discord')
+      const creatorEmail = (session.user as { email?: string }).email ?? 'admin'
+      await sendChannelMessage(process.env.DISCORD_ADMIN_CHANNEL_ID, {
+        embeds: [{
+          title: 'New Vault Account Created',
+          description: [
+            `**${user.name}** was added to the vault as a **${user.role === 'LICENSING_COORDINATOR' ? 'Licensing Coordinator' : 'Admin'}**.`,
+            '',
+            `Email: ${user.email}`,
+            `Created by: ${creatorEmail}`,
+          ].join('\n'),
+          color: 0xC9A96E,
+          footer: { text: 'AFF Concierge · Account audit' },
+          timestamp: new Date().toISOString(),
+        }],
+      }).catch(() => {})
+    } catch { /* non-fatal */ }
+  }
+
   return NextResponse.json({ user })
 }

@@ -1,42 +1,91 @@
 // /vault/audit
 //
-// Browser-friendly view of the SignInAttempt log. Today this only logs
-// REJECTED Google sign-ins (the audit-trail use case the team asked
-// for: "did anyone try to get in who shouldn't have?"). Successful
-// sign-ins live on AdminUser/AgentUser.lastLoginAt and aren't
-// duplicated here to keep the page focused on actionable noise.
+// Two views in one page:
+//   1. Sign-in attempts: rejected Google sign-ins, grouped by email.
+//      Same data as before — answers "did anyone try to get in who
+//      shouldn't have?"
+//   2. Account activity: recent agent + admin account creations and
+//      activations, sorted by most recent. Answers "who was added to
+//      the system, and have they activated yet?"
 //
-// Admin-only. LC role does not see this.
+// Successful sign-ins live on AdminUser/AgentUser.lastLoginAt and
+// aren't duplicated here. Real-time visibility for both views also
+// goes to the admin Discord channel.
+//
+// Admin-only. LC role does not see this page.
 
 import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { isAdmin } from '@/lib/permissions'
+import AuditTabs from './AuditTabs'
 
 export const dynamic = 'force-dynamic'
-
-const OUTCOME_LABEL: Record<string, { label: string; color: string }> = {
-  rejected_unknown_email:    { label: 'Unknown email',       color: '#F59E0B' },
-  rejected_inactive_agent:   { label: 'Inactive agent',      color: '#9B6DFF' },
-}
 
 export default async function AuditPage() {
   const session = await getServerSession(authOptions)
   if (!isAdmin(session)) redirect('/vault')
 
-  const attempts = await db.signInAttempt.findMany({
-    orderBy: { createdAt: 'desc' },
-    take: 200,
-  })
+  const [attempts, recentAgents, recentAdmins] = await Promise.all([
+    db.signInAttempt.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    }),
+    // Agent accounts created in the last 90 days. Includes activation
+    // signal: passwordHash !== null means they've accepted the invite.
+    db.agentUser.findMany({
+      where: { createdAt: { gte: new Date(Date.now() - 90 * 86400000) } },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true, email: true, createdAt: true, lastLoginAt: true,
+        passwordHash: true,
+        profile: { select: { firstName: true, lastName: true, agentCode: true, recruiterId: true } },
+      },
+      take: 100,
+    }),
+    db.adminUser.findMany({
+      where: { createdAt: { gte: new Date(Date.now() - 90 * 86400000) } },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, email: true, name: true, role: true, createdAt: true, lastLoginAt: true },
+      take: 100,
+    }),
+  ])
 
-  // Group by email to show "X attempts from Y address" at a glance.
-  const byEmail = new Map<string, typeof attempts>()
-  for (const a of attempts) {
-    const list = byEmail.get(a.email) ?? []
-    list.push(a)
-    byEmail.set(a.email, list)
-  }
+  // Project to plain JSON so the client component can take it as-is.
+  // Strip passwordHash to a boolean indicator.
+  const accountActivity = [
+    ...recentAgents.map(a => ({
+      kind: 'agent' as const,
+      id: a.id,
+      email: a.email,
+      name: a.profile ? `${a.profile.firstName} ${a.profile.lastName}` : a.email,
+      agentCode: a.profile?.agentCode ?? null,
+      role: 'agent',
+      createdAt: a.createdAt.toISOString(),
+      activated: a.passwordHash != null,
+      lastLoginAt: a.lastLoginAt?.toISOString() ?? null,
+    })),
+    ...recentAdmins.map(a => ({
+      kind: 'admin' as const,
+      id: a.id,
+      email: a.email,
+      name: a.name,
+      agentCode: null,
+      role: a.role === 'LICENSING_COORDINATOR' ? 'licensing_coordinator' : 'admin',
+      createdAt: a.createdAt.toISOString(),
+      activated: true, // admin accounts are usable immediately on create
+      lastLoginAt: a.lastLoginAt?.toISOString() ?? null,
+    })),
+  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
+  const attemptsJson = attempts.map(a => ({
+    id: a.id,
+    email: a.email,
+    provider: a.provider,
+    outcome: a.outcome,
+    createdAt: a.createdAt.toISOString(),
+  }))
 
   return (
     <div style={{ maxWidth: 960, padding: '0 8px' }}>
@@ -45,64 +94,15 @@ export default async function AuditPage() {
           Auth audit
         </p>
         <h1 style={{ color: '#fff', fontSize: 22, fontWeight: 300, margin: '4px 0 6px' }}>
-          Rejected sign-in attempts
+          Sign-in attempts &amp; account activity
         </h1>
         <p style={{ color: '#9BB0C4', fontSize: 13, margin: 0, lineHeight: 1.55 }}>
-          Every Google sign-in that didn&apos;t match an authorized AdminUser or active AgentUser
-          is logged here (and pinged to the admin Discord channel in real time).
-          Successful sign-ins are tracked separately on each user&apos;s last-login timestamp.
+          Rejected Google sign-ins and recent account creations are logged here.
+          Both also ping the admin Discord channel in real time.
         </p>
       </header>
 
-      {attempts.length === 0 ? (
-        <div style={{
-          padding: '40px 20px', textAlign: 'center',
-          background: 'rgba(74,222,128,0.04)',
-          border: '1px dashed rgba(74,222,128,0.25)',
-          borderRadius: 8,
-        }}>
-          <div style={{ fontSize: 14, color: '#4ade80', marginBottom: 4 }}>No rejected attempts on record</div>
-          <div style={{ fontSize: 12, color: '#6B8299' }}>
-            Nobody outside the AFF roster has tried to sign in. We&apos;ll log it here the moment they do.
-          </div>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {Array.from(byEmail.entries()).map(([email, list]) => {
-            const newest = list[0]
-            const outcome = OUTCOME_LABEL[newest.outcome] ?? { label: newest.outcome, color: '#9BB0C4' }
-            return (
-              <div key={email} style={{
-                background: '#142D48',
-                border: '1px solid rgba(201,169,110,0.12)',
-                borderRadius: 8,
-                padding: '14px 18px',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>{email}</div>
-                    <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>
-                      {list.length} attempt{list.length === 1 ? '' : 's'}
-                      {' · '}
-                      most recent {new Date(newest.createdAt).toLocaleString()}
-                    </div>
-                  </div>
-                  <span style={{
-                    fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
-                    padding: '4px 10px', borderRadius: 999,
-                    background: `${outcome.color}15`,
-                    border: `1px solid ${outcome.color}40`,
-                    color: outcome.color,
-                    flexShrink: 0,
-                  }}>
-                    {outcome.label}
-                  </span>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
+      <AuditTabs attempts={attemptsJson} accountActivity={accountActivity} />
     </div>
   )
 }
