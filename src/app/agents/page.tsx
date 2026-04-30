@@ -11,6 +11,8 @@ import {
 import { GROUP_ICONS, PROGRESSION_ICONS, Mail, ChevronDown, ArrowRight, ExternalLink, UserCheck } from '@/lib/checklist-icons'
 import { formatPhoneAsTyped } from '@/lib/contact-validation'
 import CallReviewModal, { CallReviewData } from '@/components/CallReviewModal'
+import DatePicker from '@/components/DatePicker'
+import DateTimePicker from '@/components/DateTimePicker'
 import LicensingRequestModal, { type LicensingRequestTopic } from '@/components/LicensingRequestModal'
 import LicensingCoordinatorPanel from '@/components/LicensingCoordinatorPanel'
 import FTALogModal from '@/components/FTALogModal'
@@ -2303,11 +2305,10 @@ function ProfileTab({ data, onSaved, discordParam, discordUsername, isMobile }: 
           </div>
           <div>
             <label style={fieldLabel}>Date of Birth <span style={{ color: '#4B5563', fontWeight: 400 }}>(optional)</span></label>
-            <input
-              type="date"
+            <DatePicker
               value={form.dateOfBirth}
-              onChange={e => setForm(f => ({ ...f, dateOfBirth: e.target.value }))}
-              style={inputStyle}
+              onChange={v => setForm(f => ({ ...f, dateOfBirth: v }))}
+              max={new Date().toISOString().slice(0, 10)}
             />
           </div>
           <div>
@@ -3318,7 +3319,7 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
               </select>
             </div>
             <div><label style={fieldLabel}>Character Traits</label><input style={inputStyle} value={form.characterTraits} onChange={e => setForm(f => ({ ...f, characterTraits: e.target.value }))} placeholder="e.g., Hard worker, Disciplined" /></div>
-            <div><label style={fieldLabel}>Appt Date</label><input type="date" style={inputStyle} value={form.appointmentDate} onChange={e => setForm(f => ({ ...f, appointmentDate: e.target.value }))} /></div>
+            <div><label style={fieldLabel}>Appt Date</label><DatePicker value={form.appointmentDate} onChange={v => setForm(f => ({ ...f, appointmentDate: v }))} /></div>
             <div style={{ display: 'flex', gap: 16, alignItems: 'center', paddingTop: 18 }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#9BB0C4', cursor: 'pointer' }}>
                 <input type="checkbox" checked={form.married} onChange={e => setForm(f => ({ ...f, married: e.target.checked }))} /> Married
@@ -3330,8 +3331,8 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
                 <input type="checkbox" checked={form.homeowner} onChange={e => setForm(f => ({ ...f, homeowner: e.target.checked }))} /> Homeowner
               </label>
             </div>
-            <div><label style={fieldLabel}>1st Call</label><input type="date" style={inputStyle} value={form.firstCallDate} onChange={e => setForm(f => ({ ...f, firstCallDate: e.target.value }))} /></div>
-            <div><label style={fieldLabel}>2nd Call</label><input type="date" style={inputStyle} value={form.secondCallDate} onChange={e => setForm(f => ({ ...f, secondCallDate: e.target.value }))} /></div>
+            <div><label style={fieldLabel}>1st Call</label><DatePicker value={form.firstCallDate} onChange={v => setForm(f => ({ ...f, firstCallDate: v }))} /></div>
+            <div><label style={fieldLabel}>2nd Call</label><DatePicker value={form.secondCallDate} onChange={v => setForm(f => ({ ...f, secondCallDate: v }))} /></div>
             <div style={{ gridColumn: isMobile ? undefined : 'span 3' }}><label style={fieldLabel}>Notes</label><input style={inputStyle} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
             <div style={{ gridColumn: isMobile ? undefined : 'span 3', display: 'flex', gap: 8 }}>
               <button type="submit" disabled={saving} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>{saving ? 'Saving...' : editingId ? 'Update' : 'Save'}</button>
@@ -3769,12 +3770,7 @@ function ScheduleFtaModal({
           <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#F59E0B', display: 'block', marginBottom: 6 }}>
             Appointment date &amp; time
           </label>
-          <input
-            type="datetime-local"
-            value={date}
-            onChange={e => setDate(e.target.value)}
-            style={{ width: '100%', background: '#0A1628', border: '1px solid rgba(245,158,11,0.3)', color: '#d1d9e2', borderRadius: 4, padding: '10px 12px', fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit' }}
-          />
+          <DateTimePicker value={date} onChange={setDate} />
           <div style={{ fontSize: 10, color: '#6B8299', marginTop: 8, lineHeight: 1.55 }}>
             Their contact details ({partner.phone ?? 'no phone'}) carry over automatically. You can update them anytime from the FTA Contacts lane.
           </div>
@@ -4001,10 +3997,10 @@ function CallLogsTab() {
             <div style={formRow}>
               <div>
                 <label style={fieldLabel}>Date *</label>
-                <input
-                  required type="date" style={inputStyle}
+                <DatePicker
+                  required
                   value={form.callDate}
-                  onChange={e => setForm(f => ({ ...f, callDate: e.target.value }))}
+                  onChange={v => setForm(f => ({ ...f, callDate: v }))}
                 />
               </div>
               <div>

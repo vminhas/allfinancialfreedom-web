@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { X, UserCheck, Calendar } from 'lucide-react'
+import DateTimePicker from './DateTimePicker'
 
 const TIMEZONES = ['EST', 'CST', 'MST', 'PST', 'HST', 'AKST'] as const
 
@@ -134,7 +135,7 @@ export default function FTALogModal({ ftaKey, ftaLabel, trainerName, defaultName
             <label style={{ ...lbl, display: 'flex', alignItems: 'center', gap: 4 }}>
               <Calendar size={10} color="#9BB0C4" /> Appt Date
             </label>
-            <input type="datetime-local" value={form.appointmentDate} onChange={e => set('appointmentDate', e.target.value)} style={inp} />
+            <DateTimePicker value={form.appointmentDate} onChange={v => set('appointmentDate', v)} />
           </div>
           <div style={{ gridColumn: 'span 2', display: 'flex', gap: 16, paddingTop: 4 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#9BB0C4', cursor: 'pointer' }}>

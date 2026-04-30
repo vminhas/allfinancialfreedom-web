@@ -9,6 +9,7 @@ import {
 import { PHASE_LABELS, CARRIERS, getAtRiskStatus, PHASE_ITEMS, PHASE_GROUPS } from '@/lib/agent-constants'
 import { GROUP_ICONS, ChevronDown } from '@/lib/checklist-icons'
 import CallReviewModal, { CallReviewData } from '@/components/CallReviewModal'
+import DatePicker from '@/components/DatePicker'
 import { AgentTradingCardModal } from '@/components/AgentTradingCard'
 
 interface Agent {
@@ -602,20 +603,14 @@ export default function TrackerPage() {
 
               {/* Custom date inputs */}
               {preset === 'custom' && (
-                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                  <input
-                    type="date"
-                    value={customStart}
-                    onChange={e => setCustomStart(e.target.value)}
-                    style={{ background: '#0C1E30', border: '1px solid rgba(201,169,110,0.2)', borderRadius: 4, color: '#9BB0C4', padding: '5px 10px', fontSize: 12 }}
-                  />
-                  <span style={{ color: '#4B5563', alignSelf: 'center', fontSize: 12 }}>→</span>
-                  <input
-                    type="date"
-                    value={customEnd}
-                    onChange={e => setCustomEnd(e.target.value)}
-                    style={{ background: '#0C1E30', border: '1px solid rgba(201,169,110,0.2)', borderRadius: 4, color: '#9BB0C4', padding: '5px 10px', fontSize: 12 }}
-                  />
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ width: 160 }}>
+                    <DatePicker value={customStart} onChange={setCustomStart} placeholder="Start" />
+                  </div>
+                  <span style={{ color: '#4B5563', fontSize: 12 }}>→</span>
+                  <div style={{ width: 160 }}>
+                    <DatePicker value={customEnd} onChange={setCustomEnd} placeholder="End" />
+                  </div>
                 </div>
               )}
 
@@ -1814,11 +1809,11 @@ function AgentDrawer({
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <div>
                 <label style={lStyle}>ICA Date</label>
-                <input type="date" value={editForm.icaDate} onChange={set('icaDate')} style={iStyle} />
+                <DatePicker value={editForm.icaDate} onChange={v => setEditForm(f => ({ ...f, icaDate: v }))} />
               </div>
               <div>
                 <label style={lStyle}>Date of Birth</label>
-                <input type="date" value={editForm.dateOfBirth} onChange={set('dateOfBirth')} style={iStyle} />
+                <DatePicker value={editForm.dateOfBirth} onChange={v => setEditForm(f => ({ ...f, dateOfBirth: v }))} max={new Date().toISOString().slice(0, 10)} />
               </div>
             </div>
 
@@ -2127,7 +2122,7 @@ function AddAgentModal({ onClose, onCreated, trainers }: { onClose: () => void; 
               </select>
             </div>
             <div><label style={fieldLabel}>Phone</label><input style={inputStyle} value={form.phone} onChange={set('phone')} /></div>
-            <div><label style={fieldLabel}>ICA Date</label><input type="date" style={inputStyle} value={form.icaDate} onChange={set('icaDate')} /></div>
+            <div><label style={fieldLabel}>ICA Date</label><DatePicker value={form.icaDate} onChange={v => setForm(f => ({ ...f, icaDate: v }))} /></div>
             <div><label style={fieldLabel}>Recruiter Code</label><input style={inputStyle} value={form.recruiterId} onChange={set('recruiterId')} placeholder="e.g. B3570" /></div>
             <div><label style={fieldLabel}>Trainer (CFT)</label>
               <select style={{ ...inputStyle, appearance: 'auto' }} value={form.cft} onChange={set('cft')}>
