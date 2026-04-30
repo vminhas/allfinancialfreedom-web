@@ -366,7 +366,11 @@ function SubmissionDrawer({ submission, onClose, onChanged }: { submission: Subm
     clientPhone: submission.clientPhone ?? '',
     clientEmail: submission.clientEmail ?? '',
   })
-  const canEdit = submission.status === 'PENDING'
+  // DECLINED is terminal so the agent can't edit; everything else is fair
+  // game so they can fix typos even after the policy was issued. Server
+  // mirrors this rule and pings the admin channel when a non-PENDING row
+  // is edited, so the LC isn't surprised.
+  const canEdit = submission.status !== 'DECLINED'
 
   const addNote = async () => {
     if (!noteText.trim()) return
@@ -428,8 +432,8 @@ function SubmissionDrawer({ submission, onClose, onChanged }: { submission: Subm
             </button>
           )}
           {!canEdit && (
-            <span style={{ fontSize: 10, color: '#6B8299' }} title="Once a submission moves out of PENDING the agent can't edit it. Reach out to the licensing coordinator if something needs to change.">
-              Locked &middot; out of PENDING
+            <span style={{ fontSize: 10, color: '#6B8299' }} title="Declined submissions are frozen. Reach out to your licensing coordinator if something needs to change.">
+              Locked &middot; declined
             </span>
           )}
         </div>
