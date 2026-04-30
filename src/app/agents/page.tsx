@@ -1727,12 +1727,19 @@ function CarriersTab({
         <span style={{ fontSize: 11, color: '#6B8299' }}>{appointedCount} / {CARRIERS.length} appointed</span>
       </div>
       <p style={{ fontSize: 12, color: '#6B8299', marginBottom: 24, lineHeight: 1.5 }}>
-        Carrier appointment statuses are managed by your admin. Carriers unlock as you advance through phases.
+        Carrier appointments are managed by the licensing coordinator. Phase tags below are
+        a guide to what tends to come online when, but anything you&apos;re actually appointed
+        with shows the real status regardless of phase.
       </p>
 
       {[2, 3, 4, 5].map(unlockPhase => {
         const carriers = phaseGroups[unlockPhase] ?? []
-        const isLocked = agentPhase < unlockPhase
+        // "Future" phase = the agent hasn't reached the recommended unlock
+        // phase yet. We DON'T hide future-phase carriers anymore: if the
+        // LC has the agent appointed (or in flight) with one of them, the
+        // agent should see that. The phase tag becomes informational, not
+        // a wall.
+        const isFuture = agentPhase < unlockPhase
         const phaseLabel = PHASE_LABELS[unlockPhase]?.title ?? `Phase ${unlockPhase}`
 
         return (
@@ -1740,17 +1747,20 @@ function CarriersTab({
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
               <div style={{
                 fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase',
-                color: isLocked ? '#4B5563' : '#C9A96E',
+                color: isFuture ? '#6B8299' : '#C9A96E',
               }}>
                 Phase {unlockPhase}: {phaseLabel}
               </div>
-              {isLocked && (
-                <span style={{
-                  fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
-                  color: '#4B5563', background: 'rgba(255,255,255,0.04)', borderRadius: 4,
-                  padding: '2px 7px', border: '1px solid rgba(255,255,255,0.05)',
-                }}>
-                  Unlocks at Phase {unlockPhase}
+              {isFuture && (
+                <span
+                  style={{
+                    fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                    color: '#9BB0C4', background: 'rgba(155,109,255,0.06)', borderRadius: 4,
+                    padding: '2px 7px', border: '1px solid rgba(155,109,255,0.2)',
+                  }}
+                  title="Carriers in this group typically come online at this phase. If you've already been appointed, you'll still see the live status."
+                >
+                  Comes online at Phase {unlockPhase}
                 </span>
               )}
             </div>
@@ -1759,32 +1769,21 @@ function CarriersTab({
                 const appt = carrierAppointments.find(c => c.carrier === carrier)
                 const status = appt?.status ?? 'NOT_STARTED'
 
-                if (isLocked) {
-                  return (
-                    <div key={carrier} style={{
-                      padding: '12px 16px', borderRadius: 4,
-                      background: 'rgba(255,255,255,0.01)',
-                      border: '1px solid rgba(255,255,255,0.04)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      opacity: 0.5,
-                    }}>
-                      <div style={{ fontSize: 12, color: '#4B5563' }}>{carrier}</div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 11, color: '#4B5563' }}>Locked</span>
-                        <span style={{ fontSize: 10, color: '#4B5563', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                          Phase {unlockPhase}
-                        </span>
-                      </div>
-                    </div>
-                  )
-                }
+                // Soft-future styling: NOT_STARTED carriers in a future
+                // phase are dimmed (they're informational, "you'll get
+                // these later"). Anything else - even in a future phase -
+                // shows the real status because the LC has them moving.
+                const isInformationalFuture = isFuture && status === 'NOT_STARTED'
 
                 return (
                   <div key={carrier} style={{
                     padding: '12px 16px', borderRadius: 4,
-                    background: status === 'APPOINTED' ? 'rgba(74,222,128,0.05)' : 'rgba(255,255,255,0.02)',
+                    background: status === 'APPOINTED'
+                      ? 'rgba(74,222,128,0.05)'
+                      : isInformationalFuture ? 'rgba(255,255,255,0.01)' : 'rgba(255,255,255,0.02)',
                     border: `1px solid ${status === 'APPOINTED' ? 'rgba(74,222,128,0.2)' : 'rgba(255,255,255,0.05)'}`,
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    opacity: isInformationalFuture ? 0.55 : 1,
                   }}>
                     <div>
                       <div style={{ fontSize: 12, color: '#9BB0C4' }}>{carrier}</div>
