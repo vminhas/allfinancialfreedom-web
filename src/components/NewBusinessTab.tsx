@@ -103,9 +103,9 @@ export default function NewBusinessTab({ isMobile, phase }: { isMobile: boolean;
   if (locked || phase < 4) {
     return (
       <div style={{ ...card, padding: '40px 28px', textAlign: 'center' }}>
-        <div style={{ ...sectionLabel, marginBottom: 8 }}>New Business — Locked</div>
+        <div style={{ ...sectionLabel, marginBottom: 8 }}>New Business &middot; Locked</div>
         <div style={{ color: '#9BB0C4', fontSize: 13, marginBottom: 4 }}>
-          Unlocks at Phase 4 — Marketing Director track.
+          Unlocks at Phase 4 (Marketing Director track).
         </div>
         <div style={{ color: '#6B8299', fontSize: 12 }}>
           Once you reach Phase 4 you can submit new business and your issued policies will appear here as clients with anniversary reminders.
@@ -186,7 +186,7 @@ export default function NewBusinessTab({ isMobile, phase }: { isMobile: boolean;
             </div>
           ))}
           <div style={{ fontSize: 11, color: '#6B8299', marginTop: 8, fontStyle: 'italic' }}>
-            Renewal reminders are sent by your licensing coordinator — but you can call your client anytime.
+            Renewal reminders are sent by your licensing coordinator. You can call your client anytime.
           </div>
         </div>
       )}

@@ -88,7 +88,7 @@ export default function VaultRenewalsPage() {
         refresh()
       }
     } catch {
-      setErrorById(prev => ({ ...prev, [row.id]: 'Network error — try again' }))
+      setErrorById(prev => ({ ...prev, [row.id]: 'Network error. Try again.' }))
     } finally {
       setBusyId(null)
     }

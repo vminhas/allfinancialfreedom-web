@@ -30,7 +30,7 @@ async function dmAgentRenewal(discordUserId: string, body: {
       description: [
         `**${body.clientName}**'s ${body.carrier} policy anniversary is in ${body.daysUntil} day${body.daysUntil === 1 ? '' : 's'}.`,
         '',
-        'Schedule a check-in call — review their coverage, ask about life changes, and explore next-step products.',
+        'Schedule a check-in call: review their coverage, ask about life changes, and explore next-step products.',
       ].join('\n'),
       color: 0xC9A96E,
       footer: { text: `AFF Concierge · ${STAGE_LABELS[body.stage]} reminder` },
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const w = computeRenewalWindow(submission.issuedDate, todayInEt())
   if (w.currentStage !== requestedStage) {
     return NextResponse.json({
-      error: `Stage drift — server sees ${w.currentStage ?? 'no active stage'}, you sent ${requestedStage}. Refresh and try again.`,
+      error: `Stage drift: server sees ${w.currentStage ?? 'no active stage'}, you sent ${requestedStage}. Refresh and try again.`,
     }, { status: 409 })
   }
 
