@@ -27,13 +27,24 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (!profileId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await ctx.params
 
-  const submission = await db.newBusinessSubmission.findUnique({ where: { id }, select: { agentProfileId: true, status: true } })
+  const submission = await db.newBusinessSubmission.findUnique({
+    where: { id },
+    select: {
+      agentProfileId: true, status: true, carrier: true, policyType: true, points: true,
+      clientFirstName: true, clientLastName: true,
+      agentProfile: { select: { firstName: true, lastName: true } },
+    },
+  })
   if (!submission || submission.agentProfileId !== profileId) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
-  // Agents can only edit while PENDING — once issued/declined, the record is frozen for them.
-  if (submission.status !== 'PENDING') {
-    return NextResponse.json({ error: 'Cannot edit a submission once it has left PENDING status' }, { status: 403 })
+  // DECLINED is terminal: re-opening it would muddy reporting. Anything
+  // else (PENDING, ISSUED, LAPSED, NOT_TAKEN) can be edited so an agent
+  // can fix a typo on a real client even after the policy was issued.
+  // Edits on non-PENDING records get an audit ping to the admin channel
+  // so the LC isn't surprised by silent changes.
+  if (submission.status === 'DECLINED') {
+    return NextResponse.json({ error: 'Declined submissions are frozen. Reach out to your licensing coordinator.' }, { status: 403 })
   }
 
   const body = await req.json() as Record<string, unknown>
@@ -64,5 +75,18 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   }
 
   const updated = await db.newBusinessSubmission.update({ where: { id }, data })
+
+  // Audit the LC when an issued (or otherwise post-PENDING) record is edited
+  // by the agent. Quiet for the normal PENDING case so we don't spam.
+  if (submission.status !== 'PENDING' && process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_ADMIN_CHANNEL_ID) {
+    const { sendChannelMessage } = await import('@/lib/discord')
+    const agentName = `${submission.agentProfile.firstName} ${submission.agentProfile.lastName}`
+    const clientName = `${submission.clientFirstName} ${submission.clientLastName}`
+    const changedFields = Object.keys(data)
+    sendChannelMessage(process.env.DISCORD_ADMIN_CHANNEL_ID, {
+      content: `✏️ ${agentName} edited a ${submission.status} submission for **${clientName}** (${submission.carrier} ${submission.policyType}). Fields: ${changedFields.join(', ')}`,
+    }).catch(() => {})
+  }
+
   return NextResponse.json({ submission: updated })
 }

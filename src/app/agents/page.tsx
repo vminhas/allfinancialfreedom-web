@@ -128,6 +128,16 @@ function AgentDashboardInner() {
   const [activeTab, setActiveTab] = useState<'checklist' | 'licensing' | 'carriers' | 'partners' | 'new-business' | 'fta' | 'calls' | 'team' | 'resources' | 'profile'>(
     discordParam ? 'profile' : 'checklist'
   )
+  // Use this for programmatic tab switches triggered from outside the tab
+  // nav (e.g. "Complete your profile" link, checklist item actions). It
+  // scrolls the tab strip into view so the agent actually sees the new
+  // content instead of the page just silently re-rendering below the fold.
+  const goToTab = useCallback((next: typeof activeTab) => {
+    setActiveTab(next)
+    requestAnimationFrame(() => {
+      document.getElementById('agent-tab-nav')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [])
   const [togglingKey, setTogglingKey] = useState<string | null>(null)
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
@@ -348,11 +358,16 @@ function AgentDashboardInner() {
   const progressions = computeProgressions(data)
   const achievedCount = Object.values(progressions).filter(Boolean).length
 
-  // Licensing progress
+  // Licensing progress. The 'carriers' derived item auto-checks once the
+  // agent has at least one APPOINTED carrier, but it's also manually
+  // toggleable (phaseItemKey backs it) for the case where the appointment
+  // letter beats the LC updating their tracker.
+  const someAppointed = data.carrierAppointments.some(c => c.status === 'APPOINTED')
   const licensingCompleted = LICENSING_CHECKLIST.filter(item => {
-    if (item.derived === 'carriers') return data.carrierAppointments.every(c => c.status === 'APPOINTED')
     const phaseItem = data.phaseItems.find(pi => pi.phase === 1 && pi.itemKey === item.phaseItemKey)
-    return phaseItem?.completed ?? false
+    const manuallyDone = phaseItem?.completed ?? false
+    if (item.derived === 'carriers') return manuallyDone || someAppointed
+    return manuallyDone
   }).length
 
   const TABS = [
@@ -450,7 +465,7 @@ function AgentDashboardInner() {
             {data.icaDate && `Started: ${new Date(data.icaDate).toLocaleDateString()}`}
             {!data.phone && (
               <button
-                onClick={() => setActiveTab('profile')}
+                onClick={() => goToTab('profile')}
                 style={{ marginLeft: 12, background: 'none', border: 'none', color: '#f59e0b', fontSize: 11, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
               >
                 Complete your profile →
@@ -587,7 +602,7 @@ function AgentDashboardInner() {
                   <button
                     onClick={() => {
                       if (nextPhase !== activeChecklistPhase) setChecklistPhase(nextPhase)
-                      setActiveTab('checklist')
+                      goToTab('checklist')
                       const groupKey = nextItem!.group
                       if (groupKey) {
                         setCollapsedGroups(prev => { const n = new Set(prev); n.delete(groupKey); return n })
@@ -800,7 +815,7 @@ function AgentDashboardInner() {
         </div>
 
         {/* ── Tab navigation ── */}
-        <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid rgba(255,255,255,0.06)', overflowX: 'auto' }}>
+        <div id="agent-tab-nav" style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid rgba(255,255,255,0.06)', overflowX: 'auto', scrollMarginTop: 80 }}>
           {TABS.map(tab => (
             <button
               key={tab.key}
@@ -1166,7 +1181,7 @@ function AgentDashboardInner() {
                           onClick={e => {
                             e.stopPropagation()
                             if (item.action!.tab === 'pfr') { window.location.href = '/agents/pfr'; return }
-                            setActiveTab(item.action!.tab as typeof activeTab)
+                            goToTab(item.action!.tab as typeof activeTab)
                           }}
                           style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 10, cursor: 'pointer', padding: '0 4px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 3 }}
                           title={item.action.label ?? `Go to ${item.action.tab}`}
@@ -1602,14 +1617,16 @@ function LicensingTab({
   onToggle: (key: string, phase: number, current: boolean) => void
   togglingKey: string | null
 }) {
-  const allAppointed = carrierAppointments.length > 0 &&
-    carrierAppointments.every(c => c.status === 'APPOINTED')
+  const someAppointed = carrierAppointments.some(c => c.status === 'APPOINTED')
 
-  const completed = LICENSING_CHECKLIST.filter(item => {
-    if (item.derived === 'carriers') return allAppointed
+  const isItemDone = (item: typeof LICENSING_CHECKLIST[number]) => {
     const pi = phaseItems.find(pi => pi.phase === 1 && pi.itemKey === item.phaseItemKey)
-    return pi?.completed ?? false
-  }).length
+    const manuallyDone = pi?.completed ?? false
+    if (item.derived === 'carriers') return manuallyDone || someAppointed
+    return manuallyDone
+  }
+
+  const completed = LICENSING_CHECKLIST.filter(isItemDone).length
 
   return (
     <div style={{ ...card, padding: '24px 28px' }}>
@@ -1636,20 +1653,15 @@ function LicensingTab({
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {LICENSING_CHECKLIST.map(item => {
-          let isDone = false
-          let phaseItemKey: string | undefined
-          let phase = 1
-
-          if (item.derived === 'carriers') {
-            isDone = allAppointed
-          } else {
-            phaseItemKey = item.phaseItemKey
-            const pi = phaseItems.find(pi => pi.phase === 1 && pi.itemKey === item.phaseItemKey)
-            isDone = pi?.completed ?? false
-          }
-
-          const isToggling = togglingKey === item.phaseItemKey
-          const isReadOnly = item.derived === 'carriers'
+          const isDone = isItemDone(item)
+          const phaseItemKey = item.phaseItemKey
+          const phase = 1
+          const isToggling = togglingKey === phaseItemKey
+          // Auto-checked from carrier data: still clickable so the agent can
+          // pin the manual flag, but they don't NEED to. Show a small hint.
+          const autoChecked = item.derived === 'carriers' && someAppointed
+          const pi = phaseItems.find(pi => pi.phase === 1 && pi.itemKey === phaseItemKey)
+          const manuallyDone = pi?.completed ?? false
 
           return (
             <div
@@ -1659,21 +1671,19 @@ function LicensingTab({
                 padding: '14px 16px', borderRadius: 6,
                 background: isDone ? 'rgba(74,222,128,0.05)' : 'rgba(255,255,255,0.02)',
                 border: `1px solid ${isDone ? 'rgba(74,222,128,0.2)' : 'rgba(255,255,255,0.05)'}`,
-                cursor: isReadOnly ? 'default' : 'pointer',
+                cursor: phaseItemKey ? 'pointer' : 'default',
                 opacity: isToggling ? 0.6 : 1,
                 transition: 'all 0.15s',
               }}
               onClick={() => {
-                if (!isReadOnly && phaseItemKey) {
-                  onToggle(phaseItemKey, phase, isDone)
-                }
+                if (phaseItemKey) onToggle(phaseItemKey, phase, manuallyDone)
               }}
             >
               {/* Checkbox */}
               <div style={{
                 width: 18, height: 18, borderRadius: 4, flexShrink: 0, marginTop: 1,
                 background: isDone ? '#4ade80' : 'transparent',
-                border: `2px solid ${isDone ? '#4ade80' : isReadOnly ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.2)'}`,
+                border: `2px solid ${isDone ? '#4ade80' : 'rgba(255,255,255,0.2)'}`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 10, color: '#0A1628', fontWeight: 700,
               }}>
@@ -1682,9 +1692,9 @@ function LicensingTab({
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, color: isDone ? '#9BB0C4' : '#ffffff', marginBottom: 4, fontWeight: 500 }}>
                   {item.label}
-                  {isReadOnly && (
-                    <span style={{ marginLeft: 8, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#4B5563', fontWeight: 700 }}>
-                      Admin managed
+                  {autoChecked && !manuallyDone && (
+                    <span style={{ marginLeft: 8, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#4ADE80', fontWeight: 700 }}>
+                      Auto · carrier appointed
                     </span>
                   )}
                 </div>
@@ -2328,6 +2338,12 @@ function ProfileTab({ data, onSaved, discordParam, discordUsername, isMobile }: 
         </div>
         <p style={{ fontSize: 12, color: '#6B8299', marginBottom: 16, lineHeight: 1.6 }}>
           Link your Discord account so the AFF bot automatically assigns your phase role in the server.
+          {' '}
+          <strong style={{ color: '#9BB0C4' }}>Install the Discord app on your phone</strong> (
+          <a href="https://apps.apple.com/app/discord/id985746746" target="_blank" rel="noopener noreferrer" style={{ color: '#C9A96E', textDecoration: 'underline' }}>iOS</a>
+          {' '}or{' '}
+          <a href="https://play.google.com/store/apps/details?id=com.discord" target="_blank" rel="noopener noreferrer" style={{ color: '#C9A96E', textDecoration: 'underline' }}>Android</a>
+          ) so you actually get pings for renewal reminders, training nudges, and shoutouts. Without the mobile app turned on for notifications, the team&apos;s messages just sit in the channel.
         </p>
 
         {/* OAuth result banner */}

@@ -106,6 +106,9 @@ export const PHASE_ITEMS: Record<number, PhaseItemDef[]> = {
     { key: 'errors_and_omissions', label: 'Errors & Omissions Insurance', group: 'step2', duration: '10 mins',
       description: 'Apply for your Errors & Omissions (E&O) insurance policy. The licensing coordinator walks you through the application.',
       coordinatorTopic: 'EO_INSURANCE' },
+    { key: 'fully_appointed', label: 'Appointed With a Carrier', group: 'step2', duration: '5 mins',
+      description: 'Mark this off once you receive your first carrier appointment. Auto-checks the moment your licensing coordinator marks any carrier as Appointed; you (or your LC) can also check it manually here.',
+      coordinatorTopic: 'GFI_APPOINTMENTS' },
     { key: 'direct_deposit', label: 'Set Up Direct Deposit', group: 'step2', duration: '5 mins',
       description: 'Set up direct deposit so your commissions land in your account automatically. The licensing coordinator will help you finish this.',
       coordinatorTopic: 'DIRECT_DEPOSIT' },
@@ -427,8 +430,9 @@ export const LICENSING_CHECKLIST: {
   },
   {
     key: 'fully_appointed',
-    label: 'Fully Appointed with All Carriers',
-    description: 'Receive appointed status with all AFF carriers. This completes your licensing journey and authorizes you to sell products from each carrier.',
+    label: 'Appointed With a Carrier',
+    description: 'Get appointed with at least one AFF carrier so you can start writing business. Auto-checks the moment your licensing coordinator marks any carrier as Appointed; you can also check it manually if your appointment came through before the LC updated their tracker.',
+    phaseItemKey: 'fully_appointed',
     derived: 'carriers',
   },
   {
