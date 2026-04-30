@@ -17,6 +17,8 @@ export async function GET(req: NextRequest) {
 
   // Pull issued submissions with their reminder history. We compute the
   // window in JS rather than SQL because anniversaries don't store cleanly.
+  // Pulling birthday + city/state too so the All Policies view can surface
+  // client context (birthday cards for VIPs, location for territory work).
   const rows = await db.newBusinessSubmission.findMany({
     where: { status: 'ISSUED', issuedDate: { not: null } },
     include: {
@@ -35,6 +37,11 @@ export async function GET(req: NextRequest) {
       id: s.id,
       clientFirstName: s.clientFirstName,
       clientLastName: s.clientLastName,
+      clientBirthday: s.clientBirthday,
+      clientCity: s.clientCity,
+      clientState: s.clientState,
+      clientEmail: s.clientEmail,
+      clientPhone: s.clientPhone,
       carrier: s.carrier,
       policyType: s.policyType,
       policyNumber: s.policyNumber,
