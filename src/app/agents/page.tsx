@@ -17,6 +17,7 @@ import FTALogModal from '@/components/FTALogModal'
 import FeedbackButton from '@/components/FeedbackButton'
 import NewBusinessTab from '@/components/NewBusinessTab'
 import FtaTab from '@/components/FtaTab'
+import { AgentTradingCardModal } from '@/components/AgentTradingCard'
 import { MILESTONE_BY_KEY, isSubmittable } from '@/lib/milestones'
 import MarkdownDescription from '@/components/MarkdownDescription'
 import ChecklistItemVideo from '@/components/ChecklistItemVideo'
@@ -4323,7 +4324,7 @@ function ProgressStat({ label, value, color }: { label: string; value: string; c
   )
 }
 
-function TeamMemberNode({ node, depth, isMobile }: { node: TeamNode; depth: number; isMobile: boolean }) {
+function TeamMemberNode({ node, depth, isMobile, onOpenCard }: { node: TeamNode; depth: number; isMobile: boolean; onOpenCard: (code: string) => void }) {
   const [expanded, setExpanded] = useState(depth < 2)
   const [showProgress, setShowProgress] = useState(false)
   const [resending, setResending] = useState(false)
@@ -4378,17 +4379,26 @@ function TeamMemberNode({ node, depth, isMobile }: { node: TeamNode; depth: numb
         }}
         onClick={() => node.children.length > 0 && setExpanded(!expanded)}
       >
-        <div style={{
-          width: 36, height: 36, borderRadius: '50%',
-          background: node.avatarUrl ? `url(${node.avatarUrl}) center/cover` : `${color}20`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 12, fontWeight: 700, color, flexShrink: 0,
-          border: `2px solid ${isInactive ? statusStyle.border : `${color}35`}`,
-        }}>
+        <div
+          onClick={e => { e.stopPropagation(); onOpenCard(node.agentCode) }}
+          title="Open trading card"
+          style={{
+            width: 36, height: 36, borderRadius: '50%',
+            background: node.avatarUrl ? `url(${node.avatarUrl}) center/cover` : `${color}20`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 12, fontWeight: 700, color, flexShrink: 0,
+            border: `2px solid ${isInactive ? statusStyle.border : `${color}35`}`,
+            cursor: 'pointer',
+          }}
+        >
           {!node.avatarUrl && `${node.firstName?.[0] ?? ''}${node.lastName?.[0] ?? ''}`.toUpperCase()}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>
+          <div
+            onClick={e => { e.stopPropagation(); onOpenCard(node.agentCode) }}
+            title="Open trading card"
+            style={{ fontSize: 13, fontWeight: 600, color: '#fff', cursor: 'pointer', display: 'inline-block' }}
+          >
             {node.firstName} {node.lastName}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
@@ -4609,7 +4619,7 @@ function TeamMemberNode({ node, depth, isMobile }: { node: TeamNode; depth: numb
       {expanded && node.children.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
           {node.children.map(c => (
-            <TeamMemberNode key={c.id} node={c} depth={depth + 1} isMobile={isMobile} />
+            <TeamMemberNode key={c.id} node={c} depth={depth + 1} isMobile={isMobile} onOpenCard={onOpenCard} />
           ))}
         </div>
       )}
@@ -4622,6 +4632,10 @@ function MyTeamTab({ isMobile, previewToken }: { isMobile: boolean; previewToken
   const [totalSize, setTotalSize] = useState(0)
   const [activeSize, setActiveSize] = useState(0)
   const [loading, setLoading] = useState(true)
+  // Trading-card modal: opened by clicking a team member's avatar/name.
+  // Lifted to the tab so a single modal renders no matter which depth
+  // of TeamMemberNode the click came from.
+  const [cardCode, setCardCode] = useState<string | null>(null)
 
   useEffect(() => {
     const url = previewToken ? `/api/agents/team?preview=${previewToken}` : '/api/agents/team'
@@ -4687,9 +4701,10 @@ function MyTeamTab({ isMobile, previewToken }: { isMobile: boolean; previewToken
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {team.map(node => (
-          <TeamMemberNode key={node.id} node={node} depth={0} isMobile={isMobile} />
+          <TeamMemberNode key={node.id} node={node} depth={0} isMobile={isMobile} onOpenCard={setCardCode} />
         ))}
       </div>
+      {cardCode && <AgentTradingCardModal agentCode={cardCode} onClose={() => setCardCode(null)} />}
     </div>
   )
 }
