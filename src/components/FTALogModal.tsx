@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { X, UserCheck, Calendar } from 'lucide-react'
 import DateTimePicker from './DateTimePicker'
 
@@ -15,7 +15,26 @@ interface Props {
   onSaved: () => void
 }
 
-export default function FTALogModal({ ftaKey, ftaLabel, trainerName, defaultName, onClose, onSaved }: Props) {
+interface FtaContactOption {
+  id: string
+  name: string
+  phone: string | null
+  occupation: string | null
+}
+
+// Records a Field Training Appointment that already happened. Two
+// modes: pick an existing FTA contact (BusinessPartner where
+// category='fta_contact') or add a new one inline. Either way the
+// final write is a FieldTrainingAppointment in COMPLETED status,
+// which auto-ticks the next fta_N item in the agent's Phase 2
+// checklist via the existing PATCH side-effect.
+export default function FTALogModal({ ftaLabel, trainerName, defaultName, onClose, onSaved }: Props) {
+  const [contacts, setContacts] = useState<FtaContactOption[]>([])
+  const [contactsLoaded, setContactsLoaded] = useState(false)
+  const [mode, setMode] = useState<'pick' | 'new'>('pick')
+  const [pickedContactId, setPickedContactId] = useState('')
+
+  // New-contact form fields. Only used when mode === 'new'.
   const [form, setForm] = useState({
     name: defaultName ?? '',
     phone: '',
@@ -25,36 +44,93 @@ export default function FTALogModal({ ftaKey, ftaLabel, trainerName, defaultName
     children: false,
     homeowner: false,
     occupation: '',
-    appointmentDate: '',
-    notes: '',
   })
+  const [appointmentDate, setAppointmentDate] = useState('')
+  const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Pull the agent's classified FTA contacts so the picker has data.
+  // If none exist yet we flip the form into "new contact" mode by
+  // default so the agent isn't stuck staring at an empty dropdown.
+  useEffect(() => {
+    fetch('/api/agents/partners?category=fta_contact')
+      .then(r => r.ok ? r.json() : { partners: [] })
+      .then((d: { partners?: FtaContactOption[] }) => {
+        const list = d.partners ?? []
+        setContacts(list)
+        if (list.length === 0) setMode('new')
+      })
+      .catch(() => setContacts([]))
+      .finally(() => setContactsLoaded(true))
+  }, [])
 
   const set = <K extends keyof typeof form>(k: K, v: typeof form[K]) => setForm(f => ({ ...f, [k]: v }))
 
   const handleSave = async () => {
-    if (!form.name.trim()) { setError('Name is required'); return }
+    if (!appointmentDate) { setError('Pick an appointment date / time'); return }
+    if (mode === 'pick' && !pickedContactId) { setError('Pick an FTA contact'); return }
+    if (mode === 'new' && !form.name.trim()) { setError('Name is required'); return }
+
     setSaving(true)
     setError(null)
     try {
-      const res = await fetch('/api/agents/partners', {
+      let businessPartnerId = pickedContactId
+
+      // Create a BusinessPartner first if the agent is adding a new
+      // contact. Stamp it as fta_contact so it shows up in the picker
+      // for next time.
+      if (mode === 'new') {
+        const bpRes = await fetch('/api/agents/partners', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: form.name.trim(),
+            phone: form.phone || undefined,
+            timeZone: form.timeZone || undefined,
+            age: form.age || undefined,
+            married: form.married,
+            children: form.children,
+            homeowner: form.homeowner,
+            occupation: form.occupation || undefined,
+            category: 'fta_contact',
+          }),
+        })
+        if (!bpRes.ok) {
+          const d = await bpRes.json().catch(() => ({})) as { error?: string }
+          setError(d.error ?? 'Failed to add contact')
+          return
+        }
+        const bp = await bpRes.json() as { id: string }
+        businessPartnerId = bp.id
+      }
+
+      // Create the FTA itself (initially SCHEDULED).
+      const ftaRes = await fetch('/api/agents/fta', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...form,
-          name: form.name.trim(),
-          appointmentDate: form.appointmentDate || undefined,
-          notes: form.notes.trim() || undefined,
-          phaseItemKey: ftaKey,
-          category: 'fta_contact',
+          businessPartnerId,
+          appointmentDate,
+          notes: notes.trim() || undefined,
         }),
       })
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({})) as { error?: string }
-        setError(d.error ?? 'Failed to save')
+      if (!ftaRes.ok) {
+        const d = await ftaRes.json().catch(() => ({})) as { error?: string }
+        setError(d.error ?? 'Failed to log FTA')
         return
       }
+      const { fta } = await ftaRes.json() as { fta: { id: string } }
+
+      // Flip to COMPLETED. PATCH triggers the auto-tick that fills the
+      // lowest unchecked fta_N Phase 2 item, so the agent's checklist
+      // reflects this appointment without a second manual click.
+      await fetch(`/api/agents/fta/${fta.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'COMPLETED' }),
+      })
+
       onSaved()
       onClose()
     } catch {
@@ -68,11 +144,22 @@ export default function FTALogModal({ ftaKey, ftaLabel, trainerName, defaultName
     marginTop: 4, width: '100%', padding: '8px 10px',
     background: '#0A1628', border: '1px solid rgba(201,169,110,0.2)',
     borderRadius: 4, color: '#ffffff', fontSize: 12, outline: 'none',
+    boxSizing: 'border-box', fontFamily: 'inherit',
   }
   const lbl: React.CSSProperties = {
     fontSize: 9, fontWeight: 600, color: '#9BB0C4',
     textTransform: 'uppercase' as const, letterSpacing: '0.1em',
   }
+
+  const tabBtn = (active: boolean): React.CSSProperties => ({
+    flex: 1,
+    padding: '8px 10px', borderRadius: 4,
+    background: active ? 'rgba(201,169,110,0.15)' : 'transparent',
+    border: `1px solid ${active ? 'rgba(201,169,110,0.4)' : 'rgba(255,255,255,0.08)'}`,
+    color: active ? '#C9A96E' : '#9BB0C4',
+    fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+    cursor: 'pointer',
+  })
 
   return (
     <div style={{
@@ -107,50 +194,95 @@ export default function FTALogModal({ ftaKey, ftaLabel, trainerName, defaultName
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <div>
-            <label style={lbl}>Name *</label>
-            <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g., John Smith" style={inp} />
+        {/* Mode tabs: pick existing FTA contact, or add a new one */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+          <button
+            type="button"
+            onClick={() => setMode('pick')}
+            disabled={contacts.length === 0}
+            style={{ ...tabBtn(mode === 'pick'), opacity: contacts.length === 0 ? 0.5 : 1 }}
+          >
+            Pick from your contacts {contactsLoaded && contacts.length > 0 && `(${contacts.length})`}
+          </button>
+          <button type="button" onClick={() => setMode('new')} style={tabBtn(mode === 'new')}>
+            + New contact
+          </button>
+        </div>
+
+        {mode === 'pick' && (
+          <div style={{ marginBottom: 12 }}>
+            <label style={lbl}>FTA Contact *</label>
+            {contactsLoaded && contacts.length === 0 ? (
+              <div style={{ fontSize: 11, color: '#6B8299', marginTop: 6, lineHeight: 1.5 }}>
+                No FTA contacts yet. Switch to <strong style={{ color: '#C9A96E' }}>+ New contact</strong> above to add one inline; it&apos;ll be saved to your book for next time.
+              </div>
+            ) : (
+              <select
+                value={pickedContactId}
+                onChange={e => setPickedContactId(e.target.value)}
+                style={{ ...inp, cursor: 'pointer' }}
+              >
+                <option value="">Choose...</option>
+                {contacts.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}{c.occupation ? ` · ${c.occupation}` : ''}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
-          <div>
-            <label style={lbl}>Phone</label>
-            <input value={form.phone} onChange={e => set('phone', e.target.value)} style={inp} />
+        )}
+
+        {mode === 'new' && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+            <div>
+              <label style={lbl}>Name *</label>
+              <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. John Smith" style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>Phone</label>
+              <input value={form.phone} onChange={e => set('phone', e.target.value)} style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>Time Zone</label>
+              <select value={form.timeZone} onChange={e => set('timeZone', e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
+                <option value="">Select</option>
+                {TIMEZONES.map(tz => <option key={tz} value={tz}>{tz}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={lbl}>Age</label>
+              <input value={form.age} onChange={e => set('age', e.target.value)} placeholder="e.g. 30s" style={inp} />
+            </div>
+            <div style={{ gridColumn: 'span 2' }}>
+              <label style={lbl}>Occupation</label>
+              <input value={form.occupation} onChange={e => set('occupation', e.target.value)} style={inp} />
+            </div>
+            <div style={{ gridColumn: 'span 2', display: 'flex', gap: 16, paddingTop: 4 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#9BB0C4', cursor: 'pointer' }}>
+                <input type="checkbox" checked={form.married} onChange={e => set('married', e.target.checked)} /> Married
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#9BB0C4', cursor: 'pointer' }}>
+                <input type="checkbox" checked={form.children} onChange={e => set('children', e.target.checked)} /> Children
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#9BB0C4', cursor: 'pointer' }}>
+                <input type="checkbox" checked={form.homeowner} onChange={e => set('homeowner', e.target.checked)} /> Homeowner
+              </label>
+            </div>
           </div>
-          <div>
-            <label style={lbl}>Time Zone</label>
-            <select value={form.timeZone} onChange={e => set('timeZone', e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
-              <option value="">Select</option>
-              {TIMEZONES.map(tz => <option key={tz} value={tz}>{tz}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={lbl}>Age</label>
-            <input value={form.age} onChange={e => set('age', e.target.value)} placeholder="e.g., 30s" style={inp} />
-          </div>
-          <div>
-            <label style={lbl}>Occupation</label>
-            <input value={form.occupation} onChange={e => set('occupation', e.target.value)} style={inp} />
-          </div>
+        )}
+
+        {/* Common appointment fields shared by both modes */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
           <div>
             <label style={{ ...lbl, display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Calendar size={10} color="#9BB0C4" /> Appt Date
+              <Calendar size={10} color="#9BB0C4" /> Appt Date *
             </label>
-            <DateTimePicker value={form.appointmentDate} onChange={v => set('appointmentDate', v)} />
+            <DateTimePicker value={appointmentDate} onChange={setAppointmentDate} required />
           </div>
-          <div style={{ gridColumn: 'span 2', display: 'flex', gap: 16, paddingTop: 4 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#9BB0C4', cursor: 'pointer' }}>
-              <input type="checkbox" checked={form.married} onChange={e => set('married', e.target.checked)} /> Married
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#9BB0C4', cursor: 'pointer' }}>
-              <input type="checkbox" checked={form.children} onChange={e => set('children', e.target.checked)} /> Children
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#9BB0C4', cursor: 'pointer' }}>
-              <input type="checkbox" checked={form.homeowner} onChange={e => set('homeowner', e.target.checked)} /> Homeowner
-            </label>
-          </div>
-          <div style={{ gridColumn: 'span 2' }}>
+          <div>
             <label style={lbl}>Notes</label>
-            <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2} placeholder="How did the appointment go?" style={{ ...inp, resize: 'vertical', fontFamily: 'inherit' }} />
+            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="How did the appointment go?" style={{ ...inp, resize: 'vertical' }} />
           </div>
         </div>
 
