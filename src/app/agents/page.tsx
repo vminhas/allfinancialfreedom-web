@@ -16,6 +16,7 @@ import LicensingCoordinatorPanel from '@/components/LicensingCoordinatorPanel'
 import FTALogModal from '@/components/FTALogModal'
 import FeedbackButton from '@/components/FeedbackButton'
 import NewBusinessTab from '@/components/NewBusinessTab'
+import FtaTab from '@/components/FtaTab'
 import { MILESTONE_BY_KEY, isSubmittable } from '@/lib/milestones'
 import MarkdownDescription from '@/components/MarkdownDescription'
 import ChecklistItemVideo from '@/components/ChecklistItemVideo'
@@ -139,7 +140,7 @@ function AgentDashboardInner() {
 
   const [data, setData] = useState<AgentData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'checklist' | 'licensing' | 'carriers' | 'partners' | 'new-business' | 'calls' | 'team' | 'resources' | 'profile'>(
+  const [activeTab, setActiveTab] = useState<'checklist' | 'licensing' | 'carriers' | 'partners' | 'fta' | 'new-business' | 'calls' | 'team' | 'resources' | 'profile'>(
     discordParam ? 'profile' : 'checklist'
   )
   // Use this for programmatic tab switches triggered from outside the tab
@@ -389,6 +390,7 @@ function AgentDashboardInner() {
     { key: 'licensing', label: 'Licensing' },
     { key: 'carriers', label: 'Carriers' },
     { key: 'partners', label: 'Partners / FTA' },
+    { key: 'fta', label: 'FTA Tracker' },
     { key: 'new-business', label: 'New Business' },
     { key: 'calls', label: 'Calls' },
     { key: 'team', label: 'My Team' },
@@ -1221,7 +1223,12 @@ function AgentDashboardInner() {
                           <button
                             onClick={e => {
                               e.stopPropagation()
-                              if (item.action!.modal === 'fta-log' || item.action!.modal === 'fta-schedule') {
+                              if (item.action!.modal === 'fta-schedule') {
+                                // Schedule action takes the agent into the FTA Tracker tab
+                                // where they can book and track real appointments instead
+                                // of capturing a one-shot record via a modal.
+                                goToTab('fta')
+                              } else if (item.action!.modal === 'fta-log') {
                                 setFtaModalKey(item.key)
                               } else if (item.action!.modal === 'promotion-request') {
                                 setPromotionRequestKey(item.key)
@@ -1399,6 +1406,7 @@ function AgentDashboardInner() {
 
         {/* ── PARTNERS / CALLS / PROFILE TABS ── */}
         {activeTab === 'partners' && <BusinessPartnersTab isMobile={isMobile} previewToken={previewToken} />}
+        {activeTab === 'fta' && <FtaTab isMobile={isMobile} />}
         {activeTab === 'new-business' && <NewBusinessTab isMobile={isMobile} phase={data.phase} />}
         {activeTab === 'calls' && <CallLogsTab />}
         {activeTab === 'team' && <MyTeamTab isMobile={isMobile} previewToken={previewToken} />}

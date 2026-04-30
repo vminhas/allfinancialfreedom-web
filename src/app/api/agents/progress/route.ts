@@ -39,6 +39,22 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid item key for this phase' }, { status: 400 })
   }
 
+  // Read the prior state so we can decide whether the upsert is a real
+  // transition (not-complete -> complete) or a no-op re-check. Without
+  // this guard the "Ready for Promotion" notification fires every time
+  // an already-100% phase has any item re-checked.
+  const prior = await db.phaseItem.findUnique({
+    where: {
+      agentProfileId_phase_itemKey: {
+        agentProfileId: agentUser.profile.id,
+        phase,
+        itemKey,
+      },
+    },
+    select: { completed: true },
+  })
+  const wasCompleted = prior?.completed ?? false
+
   const item = await db.phaseItem.upsert({
     where: {
       agentProfileId_phase_itemKey: {
@@ -60,9 +76,12 @@ export async function PUT(req: NextRequest) {
     },
   })
 
-  // If item was just completed and it's in the agent's current phase,
-  // check if the full phase is now 100% and notify admins
-  if (completed && phase === agentUser.profile.phase && process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_ADMIN_CHANNEL_ID) {
+  // Only fire the "Ready for Promotion" notification on the genuine
+  // transition: this item was previously not-complete, is now complete,
+  // and the phase as a whole just hit 100%. Re-checking an item that was
+  // already complete doesn't post a duplicate.
+  const isRealTransition = completed && !wasCompleted
+  if (isRealTransition && phase === agentUser.profile.phase && process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_ADMIN_CHANNEL_ID) {
     const totalItems = PHASE_ITEMS[phase]?.length ?? 0
     const completedItems = await db.phaseItem.count({
       where: { agentProfileId: agentUser.profile.id, phase, completed: true },
