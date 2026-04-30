@@ -58,8 +58,9 @@ interface AgentData {
   allPhaseProgress: PhaseProgress[]
   phaseItems: PhaseItem[]
   carrierAppointments: CarrierAppointment[]
+  selectedCarriers: string[]
   milestones: Milestone[]
-  counts: { businessPartners: number; policies: number; callLogs: number }
+  counts: { businessPartners: number; callLogs: number }
 }
 
 // Compute which System Progressions are achieved
@@ -71,7 +72,7 @@ function computeProgressions(data: AgentData): Record<string, boolean> {
 
   return {
     code_number: true,
-    client: has('client_1', 2) || data.counts.policies > 0,
+    client: has('client_1', 2),
     pass_license: has('pass_license_test', 1),
     business_partner_plan: has('business_marketing_plan', 1),
     licensed_appointed: has('first_1000', 2) && hasAppointed,
@@ -124,7 +125,7 @@ function AgentDashboardInner() {
 
   const [data, setData] = useState<AgentData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'checklist' | 'licensing' | 'carriers' | 'partners' | 'policies' | 'new-business' | 'fta' | 'calls' | 'team' | 'resources' | 'profile'>(
+  const [activeTab, setActiveTab] = useState<'checklist' | 'licensing' | 'carriers' | 'partners' | 'new-business' | 'fta' | 'calls' | 'team' | 'resources' | 'profile'>(
     discordParam ? 'profile' : 'checklist'
   )
   const [togglingKey, setTogglingKey] = useState<string | null>(null)
@@ -359,7 +360,6 @@ function AgentDashboardInner() {
     { key: 'licensing', label: 'Licensing' },
     { key: 'carriers', label: 'Carriers' },
     { key: 'partners', label: 'Partners' },
-    { key: 'policies', label: 'Policies' },
     { key: 'new-business', label: 'New Business' },
     { key: 'fta', label: 'FTA' },
     { key: 'calls', label: 'Calls' },
@@ -1378,12 +1378,13 @@ function AgentDashboardInner() {
             isMobile={isMobile}
             agentPhase={data.phase}
             carrierAppointments={data.carrierAppointments}
+            selectedCarriers={data.selectedCarriers}
+            onSelectedChanged={fetchData}
           />
         )}
 
-        {/* ── PARTNERS / POLICIES / CALLS / PROFILE TABS ── */}
+        {/* ── PARTNERS / CALLS / PROFILE TABS ── */}
         {activeTab === 'partners' && <BusinessPartnersTab isMobile={isMobile} previewToken={previewToken} />}
-        {activeTab === 'policies' && <PoliciesTab isMobile={isMobile} />}
         {activeTab === 'new-business' && <NewBusinessTab isMobile={isMobile} phase={data.phase} />}
         {activeTab === 'fta' && <FtaTab isMobile={isMobile} />}
         {activeTab === 'calls' && <CallLogsTab />}
@@ -1704,106 +1705,224 @@ function LicensingTab({
 function CarriersTab({
   agentPhase,
   carrierAppointments,
+  selectedCarriers,
+  onSelectedChanged,
   isMobile,
 }: {
   isMobile: boolean
   agentPhase: number
   carrierAppointments: CarrierAppointment[]
+  selectedCarriers: string[]
+  onSelectedChanged: () => void
 }) {
+  const [picking, setPicking] = useState(false)
+  const [pendingSelection, setPendingSelection] = useState<Set<string>>(new Set(selectedCarriers))
+  const [saving, setSaving] = useState(false)
+
+  // Sync the picker draft when the parent reloads (or when we open it).
+  useEffect(() => {
+    setPendingSelection(new Set(selectedCarriers))
+  }, [selectedCarriers, picking])
+
+  // The agent only sees carriers in their curated list, plus any with an
+  // active LC-managed appointment so they don't lose sight of in-flight work.
+  const activeStatuses = new Set(['APPOINTED', 'PENDING', 'JIT'])
+  const activeCarriers = new Set(
+    carrierAppointments.filter(c => activeStatuses.has(c.status)).map(c => c.carrier)
+  )
+  const visibleSet = new Set<string>([...selectedCarriers, ...activeCarriers])
+  const visibleCarriers = CARRIERS.filter(c => visibleSet.has(c))
   const appointedCount = carrierAppointments.filter(c => c.status === 'APPOINTED').length
 
-  // Group carriers by unlock phase
+  // Group the visible carriers by their typical unlock phase so the order
+  // mirrors the agent's progression. Empty groups are skipped entirely.
   const phaseGroups: Record<number, typeof CARRIERS[number][]> = {}
-  for (const carrier of CARRIERS) {
+  for (const carrier of visibleCarriers) {
     const unlockPhase = CARRIER_UNLOCK_PHASE[carrier] ?? 2
     if (!phaseGroups[unlockPhase]) phaseGroups[unlockPhase] = []
     phaseGroups[unlockPhase].push(carrier)
   }
 
+  const togglePick = (carrier: string) => {
+    setPendingSelection(prev => {
+      const next = new Set(prev)
+      if (next.has(carrier)) next.delete(carrier)
+      else next.add(carrier)
+      return next
+    })
+  }
+
+  const saveSelection = async () => {
+    setSaving(true)
+    try {
+      const res = await fetch('/api/agents/profile/selected-carriers', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ carriers: Array.from(pendingSelection) }),
+      })
+      if (res.ok) {
+        setPicking(false)
+        onSelectedChanged()
+      }
+    } finally { setSaving(false) }
+  }
+
+  // First-run state: no carriers selected and no live appointments either.
+  // Show a friendly opt-in card instead of an empty list.
+  const isFirstRun = visibleCarriers.length === 0
+
   return (
     <div style={{ ...card, padding: '24px 28px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-        <div style={sectionLabel}>Carrier Appointments</div>
-        <span style={{ fontSize: 11, color: '#6B8299' }}>{appointedCount} / {CARRIERS.length} appointed</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+        <div style={sectionLabel}>My Carriers</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 11, color: '#6B8299' }}>
+            {appointedCount} appointed &middot; {visibleCarriers.length} on your list
+          </span>
+          {!picking && (
+            <button
+              onClick={() => setPicking(true)}
+              style={{ background: 'transparent', border: '1px solid rgba(201,169,110,0.3)', color: '#C9A96E', borderRadius: 4, padding: '5px 12px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}
+            >
+              {selectedCarriers.length > 0 ? 'Edit list' : '+ Add carriers'}
+            </button>
+          )}
+        </div>
       </div>
       <p style={{ fontSize: 12, color: '#6B8299', marginBottom: 24, lineHeight: 1.5 }}>
-        Carrier appointments are managed by the licensing coordinator. Phase tags below are
-        a guide to what tends to come online when, but anything you&apos;re actually appointed
-        with shows the real status regardless of phase.
+        Pick the carriers you write with so this list stays focused. Your licensing coordinator manages appointments. Anything you&apos;re actually appointed with (or in flight on) stays visible regardless.
       </p>
 
-      {[2, 3, 4, 5].map(unlockPhase => {
-        const carriers = phaseGroups[unlockPhase] ?? []
-        // "Future" phase = the agent hasn't reached the recommended unlock
-        // phase yet. We DON'T hide future-phase carriers anymore: if the
-        // LC has the agent appointed (or in flight) with one of them, the
-        // agent should see that. The phase tag becomes informational, not
-        // a wall.
-        const isFuture = agentPhase < unlockPhase
-        const phaseLabel = PHASE_LABELS[unlockPhase]?.title ?? `Phase ${unlockPhase}`
-
-        return (
-          <div key={unlockPhase} style={{ marginBottom: 24 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-              <div style={{
-                fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase',
-                color: isFuture ? '#6B8299' : '#C9A96E',
-              }}>
-                Phase {unlockPhase}: {phaseLabel}
-              </div>
-              {isFuture && (
-                <span
+      {picking && (
+        <div style={{ marginBottom: 24, padding: '16px 18px', background: 'rgba(201,169,110,0.04)', border: '1px solid rgba(201,169,110,0.18)', borderRadius: 6 }}>
+          <div style={{ ...sectionLabel, fontSize: 9, marginBottom: 10 }}>Pick your carriers</div>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: 6 }}>
+            {CARRIERS.map(c => {
+              const checked = pendingSelection.has(c)
+              const isActive = activeCarriers.has(c)
+              return (
+                <label
+                  key={c}
                   style={{
-                    fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
-                    color: '#9BB0C4', background: 'rgba(155,109,255,0.06)', borderRadius: 4,
-                    padding: '2px 7px', border: '1px solid rgba(155,109,255,0.2)',
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '7px 10px', borderRadius: 4,
+                    background: checked ? 'rgba(201,169,110,0.08)' : 'rgba(255,255,255,0.02)',
+                    border: `1px solid ${checked ? 'rgba(201,169,110,0.3)' : 'rgba(255,255,255,0.05)'}`,
+                    cursor: isActive ? 'not-allowed' : 'pointer',
                   }}
-                  title="Carriers in this group typically come online at this phase. If you've already been appointed, you'll still see the live status."
+                  title={isActive ? 'You have an active appointment with this carrier, so it stays visible.' : undefined}
                 >
-                  Comes online at Phase {unlockPhase}
-                </span>
-              )}
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8 }}>
-              {carriers.map(carrier => {
-                const appt = carrierAppointments.find(c => c.carrier === carrier)
-                const status = appt?.status ?? 'NOT_STARTED'
-
-                // Soft-future styling: NOT_STARTED carriers in a future
-                // phase are dimmed (they're informational, "you'll get
-                // these later"). Anything else - even in a future phase -
-                // shows the real status because the LC has them moving.
-                const isInformationalFuture = isFuture && status === 'NOT_STARTED'
-
-                return (
-                  <div key={carrier} style={{
-                    padding: '12px 16px', borderRadius: 4,
-                    background: status === 'APPOINTED'
-                      ? 'rgba(74,222,128,0.05)'
-                      : isInformationalFuture ? 'rgba(255,255,255,0.01)' : 'rgba(255,255,255,0.02)',
-                    border: `1px solid ${status === 'APPOINTED' ? 'rgba(74,222,128,0.2)' : 'rgba(255,255,255,0.05)'}`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    opacity: isInformationalFuture ? 0.55 : 1,
-                  }}>
-                    <div>
-                      <div style={{ fontSize: 12, color: '#9BB0C4' }}>{carrier}</div>
-                      {appt?.producerNumber && (
-                        <div style={{ fontSize: 10, color: '#4B5563', marginTop: 2 }}>#{appt.producerNumber}</div>
-                      )}
-                    </div>
-                    <span style={{
-                      fontSize: 10, fontWeight: 700, letterSpacing: '0.06em',
-                      textTransform: 'uppercase', color: APPT_COLORS[status],
-                    }}>
-                      {status.replace('_', ' ')}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
+                  <input
+                    type="checkbox"
+                    checked={checked || isActive}
+                    disabled={isActive}
+                    onChange={() => togglePick(c)}
+                    style={{ accentColor: '#C9A96E' }}
+                  />
+                  <span style={{ fontSize: 12, color: checked || isActive ? '#fff' : '#9BB0C4' }}>{c}</span>
+                  {isActive && (
+                    <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', color: '#4ADE80', marginLeft: 'auto' }}>ACTIVE</span>
+                  )}
+                </label>
+              )
+            })}
           </div>
-        )
-      })}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 14 }}>
+            <button
+              onClick={() => { setPicking(false); setPendingSelection(new Set(selectedCarriers)) }}
+              disabled={saving}
+              style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#9BB0C4', borderRadius: 4, padding: '7px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={saveSelection}
+              disabled={saving}
+              style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '7px 16px', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}
+            >
+              {saving ? 'Saving...' : 'Save list'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isFirstRun && !picking ? (
+        <div style={{ padding: '32px 24px', textAlign: 'center', background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px dashed rgba(201,169,110,0.18)' }}>
+          <div style={{ color: '#9BB0C4', fontSize: 13, marginBottom: 12 }}>
+            You haven&apos;t picked any carriers yet.
+          </div>
+          <button
+            onClick={() => setPicking(true)}
+            style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '8px 18px', fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', cursor: 'pointer' }}
+          >
+            + Pick your carriers
+          </button>
+        </div>
+      ) : (
+        [2, 3, 4, 5].map(unlockPhase => {
+          const carriers = phaseGroups[unlockPhase] ?? []
+          if (carriers.length === 0) return null
+          const isFuture = agentPhase < unlockPhase
+          const phaseLabel = PHASE_LABELS[unlockPhase]?.title ?? `Phase ${unlockPhase}`
+
+          return (
+            <div key={unlockPhase} style={{ marginBottom: 24 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <div style={{
+                  fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase',
+                  color: isFuture ? '#6B8299' : '#C9A96E',
+                }}>
+                  Phase {unlockPhase}: {phaseLabel}
+                </div>
+                {isFuture && (
+                  <span
+                    style={{
+                      fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                      color: '#9BB0C4', background: 'rgba(155,109,255,0.06)', borderRadius: 4,
+                      padding: '2px 7px', border: '1px solid rgba(155,109,255,0.2)',
+                    }}
+                    title="Carriers in this group typically come online at this phase. If you've already been appointed, you'll still see the live status."
+                  >
+                    Comes online at Phase {unlockPhase}
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8 }}>
+                {carriers.map(carrier => {
+                  const appt = carrierAppointments.find(c => c.carrier === carrier)
+                  const status = appt?.status ?? 'NOT_STARTED'
+                  const isInformationalFuture = isFuture && status === 'NOT_STARTED'
+
+                  return (
+                    <div key={carrier} style={{
+                      padding: '12px 16px', borderRadius: 4,
+                      background: status === 'APPOINTED'
+                        ? 'rgba(74,222,128,0.05)'
+                        : isInformationalFuture ? 'rgba(255,255,255,0.01)' : 'rgba(255,255,255,0.02)',
+                      border: `1px solid ${status === 'APPOINTED' ? 'rgba(74,222,128,0.2)' : 'rgba(255,255,255,0.05)'}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      opacity: isInformationalFuture ? 0.55 : 1,
+                    }}>
+                      <div>
+                        <div style={{ fontSize: 12, color: '#9BB0C4' }}>{carrier}</div>
+                        {appt?.producerNumber && (
+                          <div style={{ fontSize: 10, color: '#4B5563', marginTop: 2 }}>#{appt.producerNumber}</div>
+                        )}
+                      </div>
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, letterSpacing: '0.06em',
+                        textTransform: 'uppercase', color: APPT_COLORS[status],
+                      }}>
+                        {status.replace('_', ' ')}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })
+      )}
     </div>
   )
 }
@@ -3462,80 +3581,6 @@ function ScheduleFtaModal({
           </button>
         </div>
       </div>
-    </div>
-  )
-}
-
-// ─── Policies Tab ──────────────────────────────────────────────────────────────
-
-function PoliciesTab({ isMobile }: { isMobile: boolean }) {
-  const [policies, setPolicies] = useState<{ id: string; clientName: string; carrier: string; product: string; targetPremium: number | null; dateSubmitted: string | null }[]>([])
-  const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ clientName: '', carrier: '', product: '', targetPremium: '', dateSubmitted: '' })
-
-  const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    fetch('/api/agents/policies')
-      .then(r => r.ok ? r.json() : [])
-      .then((d: typeof policies) => { setPolicies(d ?? []); setLoading(false) })
-      .catch(() => setLoading(false))
-  }, [])
-
-  const add = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSaving(true)
-    try {
-      const res = await fetch('/api/agents/policies', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, targetPremium: form.targetPremium ? parseFloat(form.targetPremium) : undefined }) })
-      if (!res.ok) { setSaving(false); return }
-      const p = await res.json() as typeof policies[0]
-      setPolicies(prev => [p, ...prev])
-      setForm({ clientName: '', carrier: '', product: '', targetPremium: '', dateSubmitted: '' })
-      setShowForm(false)
-    } finally { setSaving(false) }
-  }
-
-  return (
-    <div style={{ ...card, padding: '24px 28px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div style={sectionLabel}>Policy Tracker ({policies.length})</div>
-        <button onClick={() => setShowForm(!showForm)} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>+ Add</button>
-      </div>
-      {showForm && (
-        <form onSubmit={add} style={{ marginBottom: 20, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10, padding: 16, background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)' }}>
-          <div><label style={fieldLabel}>Client Name *</label><input required style={inputStyle} value={form.clientName} onChange={e => setForm(f => ({ ...f, clientName: e.target.value }))} /></div>
-          <div><label style={fieldLabel}>Carrier *</label><input required style={inputStyle} value={form.carrier} onChange={e => setForm(f => ({ ...f, carrier: e.target.value }))} /></div>
-          <div><label style={fieldLabel}>Product *</label><input required style={inputStyle} value={form.product} onChange={e => setForm(f => ({ ...f, product: e.target.value }))} /></div>
-          <div><label style={fieldLabel}>Target Premium</label><input type="number" style={inputStyle} value={form.targetPremium} onChange={e => setForm(f => ({ ...f, targetPremium: e.target.value }))} /></div>
-          <div><label style={fieldLabel}>Date Submitted</label><input type="date" style={inputStyle} value={form.dateSubmitted} onChange={e => setForm(f => ({ ...f, dateSubmitted: e.target.value }))} /></div>
-          <div style={{ gridColumn: isMobile ? undefined : 'span 2', display: 'flex', gap: 8 }}>
-            <button type="submit" disabled={saving} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>{saving ? 'Saving...' : 'Save'}</button>
-            <button type="button" onClick={() => setShowForm(false)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#6B8299', borderRadius: 4, padding: '6px 14px', fontSize: 11, cursor: 'pointer' }}>Cancel</button>
-          </div>
-        </form>
-      )}
-      {loading ? <div style={{ color: '#6B8299', fontSize: 13 }}>Loading...</div> :
-        policies.length === 0 ? <div style={{ color: '#4B5563', fontSize: 13 }}>No policies yet.</div> :
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-            {['Client', 'Carrier', 'Product', 'Premium', 'Date'].map(h => (
-              <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#C9A96E' }}>{h}</th>
-            ))}
-          </tr></thead>
-          <tbody>
-            {policies.map(p => (
-              <tr key={p.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                <td style={{ padding: '10px 12px', fontSize: 12, color: '#ffffff' }}>{p.clientName}</td>
-                <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{p.carrier}</td>
-                <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{p.product}</td>
-                <td style={{ padding: '10px 12px', fontSize: 12, color: '#C9A96E' }}>{p.targetPremium ? `$${p.targetPremium.toLocaleString()}` : '—'}</td>
-                <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{p.dateSubmitted ? new Date(p.dateSubmitted).toLocaleDateString() : '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      }
     </div>
   )
 }
