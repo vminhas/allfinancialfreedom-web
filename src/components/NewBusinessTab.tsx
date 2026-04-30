@@ -350,6 +350,23 @@ function NewBusinessForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: ()
 function SubmissionDrawer({ submission, onClose, onChanged }: { submission: Submission; onClose: () => void; onChanged: () => void }) {
   const [noteText, setNoteText] = useState('')
   const [posting, setPosting] = useState(false)
+  // Edit mode state. Only available while status === PENDING (server
+  // enforces the same rule). Once issued/declined the submission is
+  // frozen for the agent and we hide the Edit button.
+  const [editing, setEditing] = useState(false)
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+  const [edit, setEdit] = useState({
+    carrier: submission.carrier,
+    policyType: submission.policyType,
+    points: submission.points?.toString() ?? '',
+    applicationDate: submission.applicationDate.slice(0, 10),
+    clientFirstName: submission.clientFirstName,
+    clientLastName: submission.clientLastName,
+    clientPhone: submission.clientPhone ?? '',
+    clientEmail: submission.clientEmail ?? '',
+  })
+  const canEdit = submission.status === 'PENDING'
 
   const addNote = async () => {
     if (!noteText.trim()) return
@@ -364,6 +381,35 @@ function SubmissionDrawer({ submission, onClose, onChanged }: { submission: Subm
     } finally { setPosting(false) }
   }
 
+  const saveEdit = async () => {
+    setEditError(null)
+    setSavingEdit(true)
+    try {
+      const payload: Record<string, unknown> = {
+        carrier: edit.carrier,
+        policyType: edit.policyType,
+        points: edit.points === '' ? null : Number(edit.points),
+        applicationDate: edit.applicationDate || null,
+        clientFirstName: edit.clientFirstName.trim(),
+        clientLastName: edit.clientLastName.trim(),
+        clientPhone: edit.clientPhone.trim(),
+        clientEmail: edit.clientEmail.trim(),
+      }
+      const res = await fetch(`/api/agents/new-business/${submission.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      if (!res.ok) {
+        setEditError(data.error ?? 'Save failed')
+        return
+      }
+      setEditing(false)
+      onChanged()
+    } finally { setSavingEdit(false) }
+  }
+
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 50, display: 'flex', justifyContent: 'flex-end' }}>
       <div onClick={e => e.stopPropagation()} style={{ width: 520, maxWidth: '95vw', height: '100vh', background: '#0F1E33', borderLeft: '1px solid rgba(201,169,110,0.2)', overflowY: 'auto', padding: 24 }}>
@@ -371,18 +417,102 @@ function SubmissionDrawer({ submission, onClose, onChanged }: { submission: Subm
           <h2 style={{ color: '#fff', fontSize: 16, fontWeight: 600, margin: 0 }}>{submission.clientFirstName} {submission.clientLastName}</h2>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#9BB0C4', fontSize: 18, cursor: 'pointer' }}>✕</button>
         </div>
-        <div style={{ marginBottom: 16 }}><StatusPill status={submission.status} /></div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+          <StatusPill status={submission.status} />
+          {canEdit && !editing && (
+            <button
+              onClick={() => setEditing(true)}
+              style={{ background: 'transparent', border: '1px solid rgba(201,169,110,0.3)', color: '#C9A96E', borderRadius: 4, padding: '4px 10px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}
+            >
+              Edit submission
+            </button>
+          )}
+          {!canEdit && (
+            <span style={{ fontSize: 10, color: '#6B8299' }} title="Once a submission moves out of PENDING the agent can't edit it. Reach out to the licensing coordinator if something needs to change.">
+              Locked &middot; out of PENDING
+            </span>
+          )}
+        </div>
 
-        <DetailRow k="Carrier" v={submission.carrier} />
-        <DetailRow k="Policy Type" v={POLICY_TYPES.find(p => p.value === submission.policyType)?.label ?? submission.policyType} />
-        <DetailRow k="Points" v={submission.points?.toString() ?? '—'} />
-        <DetailRow k="Application Date" v={new Date(submission.applicationDate).toLocaleDateString()} />
-        {submission.policyNumber && <DetailRow k="Policy Number" v={submission.policyNumber} />}
-        {submission.issuedDate && <DetailRow k="Issued" v={new Date(submission.issuedDate).toLocaleDateString()} />}
-        {submission.declinedReason && <DetailRow k="Declined Reason" v={submission.declinedReason} />}
-        {submission.splitWithAgent && <DetailRow k="Split With" v={`${submission.splitWithAgent.firstName} ${submission.splitWithAgent.lastName}`} />}
-        <DetailRow k="Client Phone" v={submission.clientPhone ?? '—'} />
-        <DetailRow k="Client Email" v={submission.clientEmail ?? '—'} />
+        {editing ? (
+          <div style={{ marginBottom: 14, padding: '14px 16px', background: 'rgba(201,169,110,0.04)', border: '1px solid rgba(201,169,110,0.18)', borderRadius: 6 }}>
+            <div style={{ ...sectionLabel, fontSize: 9 }}>Editing submission</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div>
+                <label style={fieldLabel}>Carrier</label>
+                <select style={inputStyle} value={edit.carrier} onChange={e => setEdit(p => ({ ...p, carrier: e.target.value }))}>
+                  {CARRIERS.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={fieldLabel}>Policy Type</label>
+                <select style={inputStyle} value={edit.policyType} onChange={e => setEdit(p => ({ ...p, policyType: e.target.value }))}>
+                  {POLICY_TYPES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={fieldLabel}>Points</label>
+                <input style={inputStyle} type="number" value={edit.points} onChange={e => setEdit(p => ({ ...p, points: e.target.value }))} />
+              </div>
+              <div>
+                <label style={fieldLabel}>Application Date</label>
+                <DatePicker value={edit.applicationDate} onChange={v => setEdit(p => ({ ...p, applicationDate: v }))} />
+              </div>
+              <div>
+                <label style={fieldLabel}>Client First Name</label>
+                <input style={inputStyle} value={edit.clientFirstName} onChange={e => setEdit(p => ({ ...p, clientFirstName: e.target.value }))} />
+              </div>
+              <div>
+                <label style={fieldLabel}>Client Last Name</label>
+                <input style={inputStyle} value={edit.clientLastName} onChange={e => setEdit(p => ({ ...p, clientLastName: e.target.value }))} />
+              </div>
+              <div>
+                <label style={fieldLabel}>Client Phone</label>
+                <input
+                  type="tel" inputMode="numeric"
+                  style={inputStyle}
+                  value={edit.clientPhone}
+                  onChange={e => setEdit(p => ({ ...p, clientPhone: formatPhoneAsTyped(e.target.value) }))}
+                  placeholder="e.g. (555) 123-4567"
+                />
+              </div>
+              <div>
+                <label style={fieldLabel}>Client Email</label>
+                <input type="email" style={inputStyle} value={edit.clientEmail} onChange={e => setEdit(p => ({ ...p, clientEmail: e.target.value }))} placeholder="client@example.com" />
+              </div>
+            </div>
+            {editError && <div style={{ marginTop: 8, fontSize: 11, color: '#EF4444' }}>{editError}</div>}
+            <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => { setEditing(false); setEditError(null) }}
+                disabled={savingEdit}
+                style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#9BB0C4', borderRadius: 4, padding: '7px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveEdit}
+                disabled={savingEdit}
+                style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '7px 16px', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', cursor: savingEdit ? 'wait' : 'pointer', opacity: savingEdit ? 0.7 : 1 }}
+              >
+                {savingEdit ? 'Saving...' : 'Save changes'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <DetailRow k="Carrier" v={submission.carrier} />
+            <DetailRow k="Policy Type" v={POLICY_TYPES.find(p => p.value === submission.policyType)?.label ?? submission.policyType} />
+            <DetailRow k="Points" v={submission.points?.toString() ?? '—'} />
+            <DetailRow k="Application Date" v={new Date(submission.applicationDate).toLocaleDateString()} />
+            {submission.policyNumber && <DetailRow k="Policy Number" v={submission.policyNumber} />}
+            {submission.issuedDate && <DetailRow k="Issued" v={new Date(submission.issuedDate).toLocaleDateString()} />}
+            {submission.declinedReason && <DetailRow k="Declined Reason" v={submission.declinedReason} />}
+            {submission.splitWithAgent && <DetailRow k="Split With" v={`${submission.splitWithAgent.firstName} ${submission.splitWithAgent.lastName}`} />}
+            <DetailRow k="Client Phone" v={submission.clientPhone ?? '—'} />
+            <DetailRow k="Client Email" v={submission.clientEmail ?? '—'} />
+          </>
+        )}
 
         {submission.illustrationUrls.length > 0 && (
           <div style={{ marginTop: 14 }}>
