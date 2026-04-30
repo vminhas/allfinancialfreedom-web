@@ -12,7 +12,11 @@ import { computeRenewalWindow, todayInEt } from '@/lib/renewals'
 //
 // Behaviour notes:
 //   - referrals: only counts PENDING (not approved or rejected)
-//   - newBusiness: only counts PENDING submissions awaiting LC review
+//   - newBusiness: only counts PENDING submissions that nobody has
+//     claimed yet (assignedToId IS NULL). Once an LC clicks "Assign
+//     to me" the row is in flight and shouldn't keep firing the
+//     sidebar alert; the assignee can still see total Pending on the
+//     vault/new-business KPI strip.
 //   - renewals: counts issued submissions inside an active stage window
 //     (60/30/7 day) where no reminder for the current anniversary year
 //     has been sent yet
@@ -29,7 +33,7 @@ export async function GET() {
   // Cheap snapshot counts in parallel.
   const [referralsPending, newBusinessPending, licensingOpen, renewalCandidates] = await Promise.all([
     db.agentReferral.count({ where: { status: 'PENDING' } }),
-    db.newBusinessSubmission.count({ where: { status: 'PENDING' } }),
+    db.newBusinessSubmission.count({ where: { status: 'PENDING', assignedToId: null } }),
     db.coordinatorRequest.count({
       where: role === 'licensing_coordinator' && selfId
         ? { status: 'OPEN', OR: [{ assignedToId: selfId }, { assignedToId: null }] }
