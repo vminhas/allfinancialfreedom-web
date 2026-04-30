@@ -1754,7 +1754,7 @@ function AgentDrawer({
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <div>
                 <label style={lStyle}>Phone</label>
-                <input value={editForm.phone} onChange={set('phone')} placeholder="(555) 555-5555" style={iStyle} />
+                <input value={editForm.phone} onChange={set('phone')} placeholder="e.g. (555) 555-5555" style={iStyle} />
               </div>
               <div>
                 <label style={lStyle}>Licensed State</label>

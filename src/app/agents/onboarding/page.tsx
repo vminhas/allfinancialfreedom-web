@@ -196,7 +196,7 @@ export default function OnboardingPage() {
                   required
                   value={form.phone}
                   onChange={e => setForm(f => ({ ...f, phone: formatPhoneAsTyped(e.target.value) }))}
-                  placeholder="(555) 555-5555"
+                  placeholder="e.g. (555) 555-5555"
                   style={inputStyle}
                 />
               </div>

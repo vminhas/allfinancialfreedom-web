@@ -182,7 +182,7 @@ function ApplicationForm() {
       </div>
       <div>
         <label style={labelStyle}>Phone *</label>
-        <input required type="tel" style={inputStyle} value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="(555) 000-0000" />
+        <input required type="tel" style={inputStyle} value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="e.g. (555) 000-0000" />
       </div>
       <div>
         <label style={labelStyle}>Are you currently licensed?</label>
