@@ -197,6 +197,35 @@ export async function POST(req: NextRequest) {
       include: { profile: true },
     })
 
+    // Best-effort admin-channel ping so the team has visibility into
+    // every new agent account, regardless of which path created it.
+    // Activation pings live in /api/agents/set-password; this is the
+    // create-side event.
+    if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_ADMIN_CHANNEL_ID) {
+      try {
+        const { sendChannelMessage } = await import('@/lib/discord')
+        const creatorEmail = (session?.user as { email?: string } | undefined)?.email ?? 'admin'
+        await sendChannelMessage(process.env.DISCORD_ADMIN_CHANNEL_ID, {
+          embeds: [{
+            title: 'New Agent Account Created',
+            description: [
+              `**${body.firstName} ${body.lastName}** was added to the agent roster.`,
+              '',
+              `Agent Code: \`${body.agentCode.toUpperCase()}\``,
+              `Email: ${body.email.toLowerCase()}`,
+              body.state ? `State: ${body.state}` : '',
+              `Created by: ${creatorEmail}`,
+              '',
+              '_Pending invite acceptance. Account activates when they set their password._',
+            ].filter(Boolean).join('\n'),
+            color: 0x60A5FA,
+            footer: { text: 'AFF Concierge · Account audit' },
+            timestamp: new Date().toISOString(),
+          }],
+        }).catch(() => {})
+      } catch { /* non-fatal */ }
+    }
+
     return NextResponse.json({
       ok: true,
       agentUserId: agentUser.id,
