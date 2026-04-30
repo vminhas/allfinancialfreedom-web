@@ -79,11 +79,25 @@ export default function VaultNewBusinessPage() {
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [assignment, setAssignment] = useState<string>('') // '' | 'me' | 'unassigned'
+  const [agentFilter, setAgentFilter] = useState<string>('')   // '' or agentProfileId
   const [search, setSearch] = useState('')
   const [rangeKey, setRangeKey] = useState<TimeRangeKey>(DEFAULT_RANGE)
   const [customFrom, setCustomFrom] = useState<string>('')
   const [customTo, setCustomTo] = useState<string>('')
   const [openId, setOpenId] = useState<string | null>(null)
+  // Agent picker options. Loaded once on mount and not refiltered as the
+  // list narrows so the dropdown always shows every agent that has at
+  // least one submission on file.
+  const [agentOptions, setAgentOptions] = useState<{ id: string; firstName: string; lastName: string; agentCode: string }[]>([])
+
+  useEffect(() => {
+    fetch('/api/vault/new-business/agents')
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { agents: typeof agentOptions } | null) => {
+        if (d?.agents) setAgentOptions(d.agents)
+      })
+      .catch(() => {})
+  }, [])
 
   // Compute the active [from, to) the page is filtering on. For custom we
   // build it from the two date inputs; for presets we let the helper pick.
@@ -109,6 +123,7 @@ export default function VaultNewBusinessPage() {
     const p = new URLSearchParams()
     if (statusFilter) p.set('status', statusFilter)
     if (assignment) p.set('assignment', assignment)
+    if (agentFilter) p.set('agent', agentFilter)
     if (search.trim()) p.set('q', search.trim())
     if (activeRange.from) p.set('from', activeRange.from.toISOString())
     if (activeRange.to) p.set('to', activeRange.to.toISOString())
@@ -120,7 +135,7 @@ export default function VaultNewBusinessPage() {
       if (statsRes) setStats(statsRes)
       setLoading(false)
     }).catch(() => setLoading(false))
-  }, [statusFilter, assignment, search, activeRange])
+  }, [statusFilter, assignment, agentFilter, search, activeRange])
 
   useEffect(() => { refresh() }, [refresh])
 
@@ -183,15 +198,20 @@ export default function VaultNewBusinessPage() {
         <KpiCard label={`Points · ${rangeLabel}`} value={stats.points.toLocaleString()} accent="#C9A96E" />
       </div>
 
-      {(statusFilter || assignment || search.trim()) && (
+      {(statusFilter || assignment || agentFilter || search.trim()) && (
         <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 11, color: '#6B8299' }}>Active filters:</span>
           {statusFilter && <FilterPill label={`Status: ${statusFilter.replace('_', ' ')}`} onClear={() => setStatusFilter('')} />}
           {assignment === 'me' && <FilterPill label="Assigned to me" onClear={() => setAssignment('')} />}
           {assignment === 'unassigned' && <FilterPill label="Unassigned" onClear={() => setAssignment('')} />}
+          {agentFilter && (() => {
+            const a = agentOptions.find(x => x.id === agentFilter)
+            const label = a ? `Agent: ${a.firstName} ${a.lastName}` : 'Agent: (selected)'
+            return <FilterPill label={label} onClear={() => setAgentFilter('')} />
+          })()}
           {search.trim() && <FilterPill label={`Search: "${search.trim()}"`} onClear={() => setSearch('')} />}
           <button
-            onClick={() => { setStatusFilter(''); setAssignment(''); setSearch('') }}
+            onClick={() => { setStatusFilter(''); setAssignment(''); setAgentFilter(''); setSearch('') }}
             style={{ background: 'transparent', border: 'none', color: '#9B6DFF', fontSize: 11, cursor: 'pointer', textDecoration: 'underline' }}
           >Clear all</button>
         </div>
@@ -229,6 +249,17 @@ export default function VaultNewBusinessPage() {
             <option value="">Anyone</option>
             <option value="me">Assigned to me</option>
             <option value="unassigned">Unassigned</option>
+          </select>
+        </div>
+        <div style={{ minWidth: 200 }}>
+          <label style={fieldLabel}>Agent</label>
+          <select style={inputStyle} value={agentFilter} onChange={e => setAgentFilter(e.target.value)}>
+            <option value="">All agents</option>
+            {agentOptions.map(a => (
+              <option key={a.id} value={a.id}>
+                {a.firstName} {a.lastName} ({a.agentCode})
+              </option>
+            ))}
           </select>
         </div>
         <div style={{ flex: 1, minWidth: 220 }}>
