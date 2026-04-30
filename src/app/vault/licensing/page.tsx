@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { TOPIC_LABELS, type LicensingRequestTopic } from '@/components/LicensingRequestModal'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { CARRIERS } from '@/lib/agent-constants'
+import DatePicker from '@/components/DatePicker'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1290,18 +1291,24 @@ function EditableField({
         {label}
       </label>
       <div style={{ display: 'flex', gap: 6 }}>
-        <input
-          type={type}
-          value={draft}
-          onChange={e => setDraft(e.target.value)}
-          style={{
-            flex: 1, minWidth: 0, boxSizing: 'border-box',
-            background: '#0A1628',
-            border: '1px solid rgba(201,169,110,0.15)',
-            borderRadius: 4, color: '#d1d9e2',
-            padding: '8px 10px', fontSize: 12,
-          }}
-        />
+        {type === 'date' ? (
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <DatePicker value={draft} onChange={setDraft} />
+          </div>
+        ) : (
+          <input
+            type={type}
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            style={{
+              flex: 1, minWidth: 0, boxSizing: 'border-box',
+              background: '#0A1628',
+              border: '1px solid rgba(201,169,110,0.15)',
+              borderRadius: 4, color: '#d1d9e2',
+              padding: '8px 10px', fontSize: 12,
+            }}
+          />
+        )}
         {dirty && (
           <button
             onClick={save}
@@ -1770,7 +1777,7 @@ function LicensingAddAgentModal({ onClose, onCreated }: { onClose: () => void; o
               </select>
             </div>
             <div><label style={label}>Phone</label><input style={input} inputMode="tel" value={form.phone} onChange={set('phone')} /></div>
-            <div><label style={label}>ICA Date</label><input type="date" style={input} value={form.icaDate} onChange={set('icaDate')} /></div>
+            <div><label style={label}>ICA Date</label><DatePicker value={form.icaDate} onChange={v => setForm(f => ({ ...f, icaDate: v }))} /></div>
           </div>
 
           {error && (

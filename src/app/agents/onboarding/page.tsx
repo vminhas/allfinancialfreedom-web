@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { formatPhoneAsTyped } from '@/lib/contact-validation'
+import DatePicker from '@/components/DatePicker'
 
 const US_STATES = [
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
@@ -216,11 +217,10 @@ export default function OnboardingPage() {
 
               <div>
                 <label style={labelStyle}>Date of Birth <span style={{ color: '#4B5563', fontWeight: 400 }}>(optional)</span></label>
-                <input
-                  type="date"
+                <DatePicker
                   value={form.dateOfBirth}
-                  onChange={e => setForm(f => ({ ...f, dateOfBirth: e.target.value }))}
-                  style={inputStyle}
+                  onChange={v => setForm(f => ({ ...f, dateOfBirth: v }))}
+                  max={new Date().toISOString().slice(0, 10)}
                 />
               </div>
 

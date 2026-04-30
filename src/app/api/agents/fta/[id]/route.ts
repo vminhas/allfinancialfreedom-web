@@ -24,7 +24,7 @@ const FTA_PHASE_KEYS = [
 const EDITABLE = [
   'name', 'phone', 'timeZone', 'age', 'married', 'children',
   'homeowner', 'occupation60kPlus', 'appointmentDate', 'notes', 'category',
-  'status', 'outcomeNotes',
+  'status', 'outcomeNotes', 'businessPartnerId',
 ] as const
 
 async function getAgentProfileId() {
@@ -75,6 +75,22 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
       }
       data[f] = v
+    } else if (f === 'businessPartnerId') {
+      // Allow clearing or swapping the linked FTA contact. When set,
+      // verify the BP belongs to the agent so they can't link to
+      // someone else's contact by guessing IDs.
+      if (v && typeof v === 'string') {
+        const bp = await db.businessPartner.findUnique({
+          where: { id: v },
+          select: { agentProfileId: true },
+        })
+        if (!bp || bp.agentProfileId !== profileId) {
+          return NextResponse.json({ error: 'Invalid FTA contact' }, { status: 400 })
+        }
+        data[f] = v
+      } else {
+        data[f] = null
+      }
     } else data[f] = v === '' ? null : v
   }
 

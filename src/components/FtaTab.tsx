@@ -46,6 +46,14 @@ interface Fta {
   originalDate: string | null
   completedAt: string | null
   cancelledAt: string | null
+  businessPartner: { id: string; name: string; phone: string | null; occupation: string | null; category: string | null } | null
+}
+
+interface FtaContactOption {
+  id: string
+  name: string
+  phone: string | null
+  occupation: string | null
 }
 
 export default function FtaTab({ isMobile }: { isMobile: boolean }) {
@@ -187,13 +195,20 @@ function Section({
             <div key={f.id} style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 4 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
                 <div style={{ flex: 1, minWidth: 200 }}>
-                  <div style={{ fontSize: 13, color: '#fff', fontWeight: 500 }}>{f.name}</div>
+                  <div style={{ fontSize: 13, color: '#fff', fontWeight: 500 }}>
+                    {f.businessPartner?.name ?? f.name}
+                    {f.businessPartner && (
+                      <span title="Linked to an FTA contact in your book" style={{ marginLeft: 6, fontSize: 8, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#9B6DFF', padding: '1px 6px', borderRadius: 999, background: 'rgba(155,109,255,0.10)', border: '1px solid rgba(155,109,255,0.3)' }}>
+                        Linked
+                      </span>
+                    )}
+                  </div>
                   <div style={{ fontSize: 11, color: '#9BB0C4', marginTop: 2 }}>
                     {dateStr}
                     {origStr && origStr !== dateStr && (
                       <span style={{ color: '#6B8299', marginLeft: 6 }}>(orig {origStr})</span>
                     )}
-                    {f.phone && <span style={{ color: '#6B8299' }}> &middot; {f.phone}</span>}
+                    {(f.businessPartner?.phone ?? f.phone) && <span style={{ color: '#6B8299' }}> &middot; {f.businessPartner?.phone ?? f.phone}</span>}
                   </div>
                   {f.outcomeNotes && (
                     <div style={{ fontSize: 11, color: '#9BB0C4', marginTop: 4, fontStyle: 'italic' }}>&ldquo;{f.outcomeNotes}&rdquo;</div>
@@ -247,18 +262,52 @@ function ActionButton({ children, color, disabled, onClick }: { children: React.
 
 function FtaForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: () => void }) {
   const [form, setForm] = useState({
+    businessPartnerId: '',
     name: '', phone: '', timeZone: '', age: '', married: '', children: '', homeowner: '',
     occupation60kPlus: '', appointmentDate: '', notes: '', category: '',
   })
+  const [contacts, setContacts] = useState<FtaContactOption[]>([])
+  const [contactsLoading, setContactsLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Pull the agent's FTA-classified contacts so the form can offer them
+  // as the first thing to pick. Falls back to manual entry if they
+  // haven't classified anyone yet (or want a one-off).
+  useEffect(() => {
+    fetch('/api/agents/partners?category=fta_contact')
+      .then(r => r.ok ? r.json() : { partners: [] })
+      .then((d: { partners?: FtaContactOption[] }) => setContacts(d.partners ?? []))
+      .catch(() => setContacts([]))
+      .finally(() => setContactsLoading(false))
+  }, [])
+
+  const pickContact = (id: string) => {
+    if (!id) {
+      setForm(f => ({ ...f, businessPartnerId: '', name: '', phone: '' }))
+      return
+    }
+    const c = contacts.find(x => x.id === id)
+    if (!c) return
+    setForm(f => ({
+      ...f,
+      businessPartnerId: id,
+      name: c.name,
+      phone: c.phone ?? '',
+    }))
+  }
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!form.businessPartnerId && !form.name.trim()) {
+      setError('Pick an FTA contact or enter a name.')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
       const body: Record<string, unknown> = { ...form }
+      if (!body.businessPartnerId) delete body.businessPartnerId
       for (const k of ['married', 'homeowner', 'occupation60kPlus']) {
         body[k] = form[k as keyof typeof form] === '' ? null : form[k as keyof typeof form] === 'yes'
       }
@@ -291,8 +340,35 @@ function FtaForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: () => void
 
   return (
     <form onSubmit={submit} style={{ marginBottom: 20, padding: 16, background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)' }}>
+      {/* FTA contact picker. Pulls from the agent's classified
+          fta_contact BPs. Picking one auto-fills name + phone but
+          leaves them editable in case the agent wants to override. */}
+      <div style={{ marginBottom: 12, padding: '10px 12px', background: 'rgba(155,109,255,0.05)', border: '1px solid rgba(155,109,255,0.2)', borderRadius: 6 }}>
+        <label style={fieldLabel}>FTA Contact</label>
+        {contactsLoading ? (
+          <div style={{ color: '#6B8299', fontSize: 11 }}>Loading your contacts...</div>
+        ) : contacts.length === 0 ? (
+          <div style={{ color: '#6B8299', fontSize: 11, lineHeight: 1.5 }}>
+            No FTA contacts yet. Classify someone in the Partners / FTA tab as an FTA contact first, or enter a name below for a one-off.
+          </div>
+        ) : (
+          <select
+            value={form.businessPartnerId}
+            onChange={e => pickContact(e.target.value)}
+            style={inputStyle}
+          >
+            <option value="">Choose from your FTA contacts...</option>
+            {contacts.map(c => (
+              <option key={c.id} value={c.id}>
+                {c.name}{c.occupation ? ` · ${c.occupation}` : ''}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
       <div style={grid}>
-        <div><label style={fieldLabel}>Name *</label><input required style={inputStyle} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
+        <div><label style={fieldLabel}>Name {form.businessPartnerId ? '' : '*'}</label><input required={!form.businessPartnerId} style={inputStyle} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
         <div><label style={fieldLabel}>Appointment Date *</label>
           <DateTimePicker value={form.appointmentDate} onChange={v => setForm(f => ({ ...f, appointmentDate: v }))} required />
         </div>

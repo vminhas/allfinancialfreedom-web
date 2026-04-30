@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useIsMobile } from '@/lib/useIsMobile'
+import DatePicker from '@/components/DatePicker'
 
 interface Presenter { name: string; role: string }
 
@@ -1446,7 +1447,7 @@ function EditEventModal({ event, onClose, onSaved }: {
             </div>
             <div>
               <label style={labelStyle}>Date *</label>
-              <input required type="date" value={form.startsAt} onChange={set('startsAt')} style={inputStyle} />
+              <DatePicker required value={form.startsAt} onChange={v => setForm(f => ({ ...f, startsAt: v }))} />
             </div>
             <div>
               <label style={labelStyle}>Time (ET) *</label>
@@ -1677,7 +1678,7 @@ function AddEventModal({ onClose, onCreated }: { onClose: () => void; onCreated:
             </div>
             <div>
               <label style={labelStyle}>Date *</label>
-              <input required type="date" value={form.startsAt} onChange={set('startsAt')} style={inputStyle} />
+              <DatePicker required value={form.startsAt} onChange={v => setForm(f => ({ ...f, startsAt: v }))} />
             </div>
             <div>
               <label style={labelStyle}>Time (ET) *</label>

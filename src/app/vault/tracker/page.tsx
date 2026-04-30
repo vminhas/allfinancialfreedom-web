@@ -9,6 +9,7 @@ import {
 import { PHASE_LABELS, CARRIERS, getAtRiskStatus, PHASE_ITEMS, PHASE_GROUPS } from '@/lib/agent-constants'
 import { GROUP_ICONS, ChevronDown } from '@/lib/checklist-icons'
 import CallReviewModal, { CallReviewData } from '@/components/CallReviewModal'
+import DatePicker from '@/components/DatePicker'
 import { AgentTradingCardModal } from '@/components/AgentTradingCard'
 
 interface Agent {
@@ -602,20 +603,14 @@ export default function TrackerPage() {
 
               {/* Custom date inputs */}
               {preset === 'custom' && (
-                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                  <input
-                    type="date"
-                    value={customStart}
-                    onChange={e => setCustomStart(e.target.value)}
-                    style={{ background: '#0C1E30', border: '1px solid rgba(201,169,110,0.2)', borderRadius: 4, color: '#9BB0C4', padding: '5px 10px', fontSize: 12 }}
-                  />
-                  <span style={{ color: '#4B5563', alignSelf: 'center', fontSize: 12 }}>→</span>
-                  <input
-                    type="date"
-                    value={customEnd}
-                    onChange={e => setCustomEnd(e.target.value)}
-                    style={{ background: '#0C1E30', border: '1px solid rgba(201,169,110,0.2)', borderRadius: 4, color: '#9BB0C4', padding: '5px 10px', fontSize: 12 }}
-                  />
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ width: 160 }}>
+                    <DatePicker value={customStart} onChange={setCustomStart} placeholder="Start" />
+                  </div>
+                  <span style={{ color: '#4B5563', fontSize: 12 }}>→</span>
+                  <div style={{ width: 160 }}>
+                    <DatePicker value={customEnd} onChange={setCustomEnd} placeholder="End" />
+                  </div>
                 </div>
               )}
 
@@ -1273,6 +1268,12 @@ function AgentDrawer({
         </div>
       </div>
 
+      {/* Internal notes — admin-only conversation log. Pinned to the top
+          so the LC / admin sees recent context the moment they open the
+          drawer (e.g. "called him 4/27, said his wife wants to see the
+          IUL illustration before signing"). */}
+      <InternalNotesSection agentProfileId={agent.id} />
+
       {/* Phase + status + advance */}
       <div style={{
         background: 'rgba(201,169,110,0.04)',
@@ -1808,11 +1809,11 @@ function AgentDrawer({
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <div>
                 <label style={lStyle}>ICA Date</label>
-                <input type="date" value={editForm.icaDate} onChange={set('icaDate')} style={iStyle} />
+                <DatePicker value={editForm.icaDate} onChange={v => setEditForm(f => ({ ...f, icaDate: v }))} />
               </div>
               <div>
                 <label style={lStyle}>Date of Birth</label>
-                <input type="date" value={editForm.dateOfBirth} onChange={set('dateOfBirth')} style={iStyle} />
+                <DatePicker value={editForm.dateOfBirth} onChange={v => setEditForm(f => ({ ...f, dateOfBirth: v }))} max={new Date().toISOString().slice(0, 10)} />
               </div>
             </div>
 
@@ -1914,6 +1915,135 @@ function AgentDrawer({
   )
 }
 
+// ─── Internal Notes Section ───────────────────────────────────────────────────
+// Pinned at the top of the agent drawer. Loads ADMIN_ONLY licensing
+// notes (the LICENSING-scoped notes still appear on /vault/licensing
+// where the LC works, so we don't double-list them here). Lets admins
+// add a quick note to track conversations they've had with the agent.
+
+interface InternalNote {
+  id: string
+  body: string
+  scope: 'LICENSING' | 'ADMIN_ONLY'
+  createdAt: string
+  author: { id: string; name: string; role: string } | null
+}
+
+function InternalNotesSection({ agentProfileId }: { agentProfileId: string }) {
+  const [notes, setNotes] = useState<InternalNote[]>([])
+  const [loading, setLoading] = useState(true)
+  const [draft, setDraft] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [expanded, setExpanded] = useState(false)
+
+  const refresh = useCallback(() => {
+    setLoading(true)
+    fetch(`/api/vault/licensing-agents/${agentProfileId}/notes`)
+      .then(r => r.ok ? r.json() : { notes: [] })
+      .then((d: { notes: InternalNote[] }) => setNotes(d.notes ?? []))
+      .catch(() => setNotes([]))
+      .finally(() => setLoading(false))
+  }, [agentProfileId])
+
+  useEffect(() => { refresh() }, [refresh])
+
+  const adminNotes = notes.filter(n => n.scope === 'ADMIN_ONLY')
+  const newest = adminNotes[0]
+
+  const submit = async () => {
+    const body = draft.trim()
+    if (!body) return
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/vault/licensing-agents/${agentProfileId}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body, scope: 'ADMIN_ONLY' }),
+      })
+      if (res.ok) {
+        setDraft('')
+        refresh()
+      }
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div style={{
+      marginBottom: 20,
+      background: 'rgba(155,109,255,0.05)',
+      border: '1px solid rgba(155,109,255,0.22)',
+      borderRadius: 6,
+      padding: '14px 16px',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#9B6DFF' }}>
+          Internal Notes &middot; admin only
+        </div>
+        {adminNotes.length > 1 && (
+          <button
+            onClick={() => setExpanded(e => !e)}
+            style={{ background: 'none', border: 'none', color: '#9B6DFF', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}
+          >
+            {expanded ? `Hide history (${adminNotes.length})` : `History (${adminNotes.length})`}
+          </button>
+        )}
+      </div>
+
+      {/* New-note composer */}
+      <textarea
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        placeholder="Log a conversation, set a reminder for next time, capture context for the team..."
+        rows={2}
+        style={{
+          width: '100%', boxSizing: 'border-box',
+          background: '#0A1628', border: '1px solid rgba(155,109,255,0.25)',
+          color: '#d1d9e2', borderRadius: 4, padding: '8px 10px',
+          fontSize: 12, fontFamily: 'inherit', resize: 'vertical', minHeight: 56,
+        }}
+      />
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
+        <button
+          onClick={submit}
+          disabled={saving || draft.trim().length === 0}
+          style={{
+            background: '#9B6DFF', color: '#fff', border: 'none', borderRadius: 4,
+            padding: '5px 12px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+            cursor: saving || draft.trim().length === 0 ? 'not-allowed' : 'pointer',
+            opacity: saving || draft.trim().length === 0 ? 0.6 : 1,
+          }}
+        >
+          {saving ? 'Saving...' : 'Add note'}
+        </button>
+      </div>
+
+      {/* Latest note (always shown) + collapsed history */}
+      {!loading && adminNotes.length > 0 && (
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(155,109,255,0.15)' }}>
+          {(expanded ? adminNotes : (newest ? [newest] : [])).map(n => (
+            <div key={n.id} style={{ marginBottom: 8, fontSize: 11, color: '#d1d9e2', lineHeight: 1.55 }}>
+              <div style={{ color: '#9BB0C4', fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', marginBottom: 2 }}>
+                {n.author?.name ?? 'Admin'} &middot; {new Date(n.createdAt).toLocaleString()}
+              </div>
+              <div style={{ whiteSpace: 'pre-wrap' }}>{n.body}</div>
+            </div>
+          ))}
+          {!expanded && adminNotes.length > 1 && (
+            <div style={{ fontSize: 10, color: '#6B8299', fontStyle: 'italic' }}>
+              {adminNotes.length - 1} earlier note{adminNotes.length - 1 === 1 ? '' : 's'} hidden &middot; tap History above to expand.
+            </div>
+          )}
+        </div>
+      )}
+      {!loading && adminNotes.length === 0 && (
+        <div style={{ marginTop: 8, fontSize: 11, color: '#6B8299', fontStyle: 'italic' }}>
+          No internal notes yet. Drop the first one to start building context.
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Add Agent Modal ──────────────────────────────────────────────────────────
 
 function AddAgentModal({ onClose, onCreated, trainers }: { onClose: () => void; onCreated: () => void; trainers: string[] }) {
@@ -1992,7 +2122,7 @@ function AddAgentModal({ onClose, onCreated, trainers }: { onClose: () => void; 
               </select>
             </div>
             <div><label style={fieldLabel}>Phone</label><input style={inputStyle} value={form.phone} onChange={set('phone')} /></div>
-            <div><label style={fieldLabel}>ICA Date</label><input type="date" style={inputStyle} value={form.icaDate} onChange={set('icaDate')} /></div>
+            <div><label style={fieldLabel}>ICA Date</label><DatePicker value={form.icaDate} onChange={v => setForm(f => ({ ...f, icaDate: v }))} /></div>
             <div><label style={fieldLabel}>Recruiter Code</label><input style={inputStyle} value={form.recruiterId} onChange={set('recruiterId')} placeholder="e.g. B3570" /></div>
             <div><label style={fieldLabel}>Trainer (CFT)</label>
               <select style={{ ...inputStyle, appearance: 'auto' }} value={form.cft} onChange={set('cft')}>

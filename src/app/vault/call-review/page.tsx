@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import CallReviewModal, { CallReviewData } from '@/components/CallReviewModal'
+import DatePicker from '@/components/DatePicker'
 import { useIsMobile } from '@/lib/useIsMobile'
 
 interface AnalyzeResult {
@@ -150,12 +151,7 @@ export default function AdminCallReviewPage() {
               </div>
               <div>
                 <label style={labelStyle}>Call date</label>
-                <input
-                  type="date"
-                  style={inputStyle}
-                  value={callDate}
-                  onChange={e => setCallDate(e.target.value)}
-                />
+                <DatePicker value={callDate} onChange={setCallDate} max={new Date().toISOString().slice(0, 10)} />
               </div>
             </div>
 

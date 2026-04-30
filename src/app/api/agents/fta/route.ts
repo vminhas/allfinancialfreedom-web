@@ -27,6 +27,11 @@ export async function GET() {
   const ftas = await db.fieldTrainingAppointment.findMany({
     where: { agentProfileId: profileId },
     orderBy: { appointmentDate: 'desc' },
+    include: {
+      businessPartner: {
+        select: { id: true, name: true, phone: true, email: true, occupation: true, category: true },
+      },
+    },
   })
   return NextResponse.json({ ftas })
 }
@@ -35,19 +40,42 @@ export async function POST(req: NextRequest) {
   const profileId = await getAgentProfileId()
   if (!profileId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await req.json() as Record<string, unknown>
-  if (!body.name || !body.appointmentDate) {
-    return NextResponse.json({ error: 'name and appointmentDate are required' }, { status: 400 })
+  if (!body.appointmentDate) {
+    return NextResponse.json({ error: 'appointmentDate is required' }, { status: 400 })
   }
   const category = (body.category as FtaCategory | undefined) || null
   if (category && !VALID_CATEGORIES.includes(category)) {
     return NextResponse.json({ error: 'Invalid category' }, { status: 400 })
   }
 
+  // If a businessPartnerId is supplied, verify it belongs to the agent
+  // and snapshot name/phone from the BP record so the FTA still reads
+  // even if the contact is later renamed or deleted.
+  const businessPartnerId = (body.businessPartnerId as string) || null
+  let snapshotName: string | null = (body.name as string) || null
+  let snapshotPhone: string | null = (body.phone as string) || null
+  if (businessPartnerId) {
+    const bp = await db.businessPartner.findUnique({
+      where: { id: businessPartnerId },
+      select: { agentProfileId: true, name: true, phone: true },
+    })
+    if (!bp || bp.agentProfileId !== profileId) {
+      return NextResponse.json({ error: 'Invalid FTA contact' }, { status: 400 })
+    }
+    if (!snapshotName) snapshotName = bp.name
+    if (!snapshotPhone) snapshotPhone = bp.phone ?? null
+  }
+
+  if (!snapshotName) {
+    return NextResponse.json({ error: 'name or businessPartnerId is required' }, { status: 400 })
+  }
+
   const fta = await db.fieldTrainingAppointment.create({
     data: {
       agentProfileId: profileId,
-      name: String(body.name),
-      phone: (body.phone as string) || null,
+      businessPartnerId,
+      name: snapshotName,
+      phone: snapshotPhone,
       timeZone: (body.timeZone as string) || null,
       age: body.age != null && body.age !== '' ? Number(body.age) : null,
       married: body.married == null ? null : Boolean(body.married),

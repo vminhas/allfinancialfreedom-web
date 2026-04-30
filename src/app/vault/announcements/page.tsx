@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useIsMobile } from '@/lib/useIsMobile'
+import DateTimePicker from '@/components/DateTimePicker'
 
 interface Announcement {
   id: string; title: string; message: string; targetPhase: number | null
@@ -136,19 +137,14 @@ export default function AnnouncementsPage() {
             </div>
             <div>
               <div style={lbl}>Schedule for (optional)</div>
-              <input
-                type="datetime-local"
-                value={form.scheduledFor}
-                onChange={e => setForm(f => ({ ...f, scheduledFor: e.target.value }))}
-                style={inp}
-              />
+              <DateTimePicker value={form.scheduledFor} onChange={v => setForm(f => ({ ...f, scheduledFor: v }))} />
               <div style={{ fontSize: 9, color: '#6B8299', marginTop: 4, lineHeight: 1.4 }}>
                 Leave blank to publish now. Set a future date to queue it up; agents won&apos;t see it until then.
               </div>
             </div>
             <div>
               <div style={lbl}>Expires (optional)</div>
-              <input type="datetime-local" value={form.expiresAt} onChange={e => setForm(f => ({ ...f, expiresAt: e.target.value }))} style={inp} />
+              <DateTimePicker value={form.expiresAt} onChange={v => setForm(f => ({ ...f, expiresAt: v }))} />
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
@@ -194,11 +190,11 @@ export default function AnnouncementsPage() {
                     </div>
                     <div>
                       <div style={lbl}>Schedule for (optional)</div>
-                      <input type="datetime-local" value={editForm.scheduledFor} onChange={e => setEditForm(f => ({ ...f, scheduledFor: e.target.value }))} style={inp} />
+                      <DateTimePicker value={editForm.scheduledFor} onChange={v => setEditForm(f => ({ ...f, scheduledFor: v }))} />
                     </div>
                     <div>
                       <div style={lbl}>Expires (optional)</div>
-                      <input type="datetime-local" value={editForm.expiresAt} onChange={e => setEditForm(f => ({ ...f, expiresAt: e.target.value }))} style={inp} />
+                      <DateTimePicker value={editForm.expiresAt} onChange={v => setEditForm(f => ({ ...f, expiresAt: v }))} />
                     </div>
                     <div style={{ gridColumn: isMobile ? undefined : 'span 2', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                       <button onClick={() => setEditingId(null)} disabled={saving} style={{ padding: '6px 14px', borderRadius: 4, fontSize: 11, background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#9BB0C4', cursor: 'pointer' }}>Cancel</button>

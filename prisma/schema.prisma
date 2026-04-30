@@ -523,6 +523,11 @@ model BusinessPartner {
   lastContactAt   DateTime?    // last meaningful action (call, email, intro)
   createdAt       DateTime     @default(now())
 
+  // Reverse side of FieldTrainingAppointment.businessPartner relation. An
+  // FTA contact (category='fta_contact') typically generates one or more
+  // appointments over time, so this is a one-to-many.
+  ftaAppointments FieldTrainingAppointment[]
+
   @@index([agentProfileId, status])
   @@map("business_partners")
 }
@@ -903,6 +908,14 @@ model FieldTrainingAppointment {
   id                String       @id @default(cuid())
   agentProfileId    String
   agentProfile      AgentProfile @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+
+  // Optional link to the BusinessPartner this appointment is with. Going
+  // forward the agent picks an FTA contact from their imported book; the
+  // name/phone columns below stay populated as a snapshot so legacy rows
+  // (created before this field existed) don't break, and so the
+  // appointment list still reads even if the contact is later deleted.
+  businessPartnerId String?
+  businessPartner   BusinessPartner? @relation(fields: [businessPartnerId], references: [id], onDelete: SetNull)
 
   name              String
   phone             String?

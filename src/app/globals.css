@@ -285,6 +285,23 @@
 @media (max-width: 768px) {
   .vault-shell { flex-direction: column; }
   .vault-main { padding: 20px 16px; }
+
+  /* iOS Safari auto-zooms inputs whose font-size is < 16px when they
+     get focus, then gets "stuck zoomed in" with no clean way to zoom
+     back out — agents reported the whole app feeling huge after they
+     tapped a small form input. Forcing 16px on tap targets at mobile
+     breakpoints is the canonical fix. The 0.875rem visual sizing in
+     individual components stays unchanged on desktop. */
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+  /* Carve-out for the date/time native pickers since they don't suffer
+     the auto-zoom (iOS opens its own dialog) and look weird at 16px. */
+  input[type='date'],
+  input[type='datetime-local'],
+  input[type='time'] {
+    font-size: 14px !important;
+  }
 }
 
 /* Instagram in-app browser + iOS safe area support */
