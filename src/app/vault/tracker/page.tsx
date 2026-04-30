@@ -47,6 +47,7 @@ interface DetailedAgent extends Agent {
   agentUser: { email: string; lastLoginAt: string | null; inviteToken: string | null }
   phaseItems: { phase: number; itemKey: string; completed: boolean; completedAt: string | null }[]
   carrierAppointments: CarrierAppointment[]
+  selectedCarriers: string[]
   milestones: { milestone: string; completedAt: string }[]
   _count: { businessPartners: number; policies: number; callLogs: number }
   dateOfBirth: string | null
@@ -1562,6 +1563,18 @@ function AgentDrawer({
       {activeTab === 'carriers' && (
         <div>
           <div style={sLabel}>Carrier Appointments</div>
+          {/* Surface the agent's curated picks so the LC knows which carriers
+              the agent actually wants to work with vs the full library. */}
+          <div style={{ marginBottom: 12, padding: '8px 12px', background: 'rgba(201,169,110,0.04)', border: '1px solid rgba(201,169,110,0.15)', borderRadius: 4 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 4 }}>
+              Agent&apos;s selected carriers ({agent.selectedCarriers.length})
+            </div>
+            <div style={{ fontSize: 11, color: agent.selectedCarriers.length === 0 ? '#6B8299' : '#9BB0C4' }}>
+              {agent.selectedCarriers.length === 0
+                ? 'Agent hasn’t curated their list yet. They see only their active appointments.'
+                : agent.selectedCarriers.join(', ')}
+            </div>
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {CARRIERS.map(carrier => {
               const appt = agent.carrierAppointments.find(c => c.carrier === carrier)

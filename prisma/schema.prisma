@@ -176,6 +176,10 @@ model AgentProfile {
   phone                 String?
   dateOfBirth           DateTime?
   npn                   String?
+  // Carriers the agent has opted in to seeing on their dashboard.
+  // We never hide a carrier with an active appointment from the agent,
+  // but the unselected NOT_STARTED ones are hidden so the list isn't a wall.
+  selectedCarriers      String[]  @default([])
   icaDate               DateTime?
   recruiterId           String?   // agentCode of recruiter
   cft                   String?   // trainer name

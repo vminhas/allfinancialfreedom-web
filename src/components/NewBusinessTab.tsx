@@ -197,7 +197,7 @@ export default function NewBusinessTab({ isMobile, phase }: { isMobile: boolean;
         sorted.length === 0 ? <div style={{ color: '#4B5563', fontSize: 13 }}>No submissions match this filter.</div> :
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-            {(['Client', 'Carrier', 'Type', 'Points', 'Status', 'Submitted', ...(showAnniversaryCol ? ['Next Anniversary'] : [])]).map(h => (
+            {(['Client', 'Carrier', 'Type', 'Target Premium', 'Status', 'Submitted', ...(showAnniversaryCol ? ['Next Anniversary'] : [])]).map(h => (
               <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#C9A96E' }}>{h}</th>
             ))}
           </tr></thead>
@@ -207,7 +207,7 @@ export default function NewBusinessTab({ isMobile, phase }: { isMobile: boolean;
                 <td style={{ padding: '10px 12px', fontSize: 12, color: '#ffffff' }}>{s.clientFirstName} {s.clientLastName}</td>
                 <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{s.carrier}</td>
                 <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{POLICY_TYPES.find(p => p.value === s.policyType)?.label ?? s.policyType}</td>
-                <td style={{ padding: '10px 12px', fontSize: 12, color: '#C9A96E' }}>{s.points ?? '—'}</td>
+                <td style={{ padding: '10px 12px', fontSize: 12, color: '#C9A96E' }}>{s.points != null ? `$${s.points.toLocaleString()}` : '—'}</td>
                 <td style={{ padding: '10px 12px', fontSize: 11 }}><StatusPill status={s.status} /></td>
                 <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{new Date(s.createdAt).toLocaleDateString()}</td>
                 {showAnniversaryCol && (
@@ -293,7 +293,7 @@ function NewBusinessForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: ()
             {POLICY_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
           </select>
         </div>
-        <div><label style={fieldLabel}>Points</label><input type="number" step="0.1" style={inputStyle} value={form.points} onChange={e => setForm(f => ({ ...f, points: e.target.value }))} /></div>
+        <div><label style={fieldLabel}>Target Premium</label><input type="number" step="0.01" placeholder="e.g. 1200" style={inputStyle} value={form.points} onChange={e => setForm(f => ({ ...f, points: e.target.value }))} /></div>
       </div>
 
       <div style={{ ...sectionLabel, fontSize: 9, margin: '14px 0 8px' }}>Client</div>
@@ -451,8 +451,8 @@ function SubmissionDrawer({ submission, onClose, onChanged }: { submission: Subm
                 </select>
               </div>
               <div>
-                <label style={fieldLabel}>Points</label>
-                <input style={inputStyle} type="number" value={edit.points} onChange={e => setEdit(p => ({ ...p, points: e.target.value }))} />
+                <label style={fieldLabel}>Target Premium</label>
+                <input style={inputStyle} type="number" step="0.01" placeholder="e.g. 1200" value={edit.points} onChange={e => setEdit(p => ({ ...p, points: e.target.value }))} />
               </div>
               <div>
                 <label style={fieldLabel}>Application Date</label>
@@ -503,7 +503,7 @@ function SubmissionDrawer({ submission, onClose, onChanged }: { submission: Subm
           <>
             <DetailRow k="Carrier" v={submission.carrier} />
             <DetailRow k="Policy Type" v={POLICY_TYPES.find(p => p.value === submission.policyType)?.label ?? submission.policyType} />
-            <DetailRow k="Points" v={submission.points?.toString() ?? '—'} />
+            <DetailRow k="Target Premium" v={submission.points != null ? `$${submission.points.toLocaleString()}` : '—'} />
             <DetailRow k="Application Date" v={new Date(submission.applicationDate).toLocaleDateString()} />
             {submission.policyNumber && <DetailRow k="Policy Number" v={submission.policyNumber} />}
             {submission.issuedDate && <DetailRow k="Issued" v={new Date(submission.issuedDate).toLocaleDateString()} />}
