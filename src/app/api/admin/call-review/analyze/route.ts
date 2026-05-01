@@ -1,25 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { db } from '@/lib/db'
 import { reviewTranscript, TranscriptTooShortError } from '@/lib/call-review'
 
 // POST /api/admin/call-review/analyze
-// Admin-facing one-shot transcript analysis. Does NOT persist anything —
-// returns the review result directly so the admin can read it, screenshot it,
-// or run another one. If we ever want history we can swap this for a model.
+// Admin-facing transcript analysis. Persists the result so the admin
+// can build a coaching history over time -- same 6-dimension AFF
+// rubric the agents are scored against, but the row lives in
+// admin_call_reviews keyed on the admin who ran it.
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session || (session.user as { role?: string }).role !== 'admin') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+  const adminUserId = (session.user as { id?: string }).id
+  if (!adminUserId) {
+    return NextResponse.json({ error: 'Missing admin user id' }, { status: 401 })
+  }
 
   const body = await req.json() as {
     transcriptText: string
     contactName?: string
+    callDate?: string  // YYYY-MM-DD from the date input
   }
 
   if (!body.transcriptText || body.transcriptText.trim().length === 0) {
     return NextResponse.json({ error: 'Transcript is required' }, { status: 400 })
+  }
+
+  const callDate = body.callDate
+    ? new Date(`${body.callDate}T12:00:00`)  // noon to dodge tz parsing flips
+    : new Date()
+  if (isNaN(callDate.getTime())) {
+    return NextResponse.json({ error: 'Invalid callDate' }, { status: 400 })
   }
 
   try {
@@ -28,7 +42,34 @@ export async function POST(req: NextRequest) {
       contactName: body.contactName,
       // No agentContext — admin is reviewing their own call
     })
-    return NextResponse.json({ result })
+
+    const saved = await db.adminCallReview.create({
+      data: {
+        adminUserId,
+        contactName: body.contactName?.trim() || null,
+        callDate,
+        callTranscript: body.transcriptText,
+        overallScore: result.overallScore,
+        rubricScores: result.rubricScores,
+        strengths: result.strengths,
+        weaknesses: result.weaknesses,
+        coachingTips: result.coachingTips,
+        nextSteps: result.nextSteps,
+        summary: result.summary,
+        modelId: result.modelId,
+        inputTokens: result.inputTokens,
+        outputTokens: result.outputTokens,
+        cacheReadTokens: result.cacheReadTokens,
+        cacheCreateTokens: result.cacheCreateTokens,
+      },
+      select: { id: true, reviewedAt: true },
+    })
+
+    return NextResponse.json({
+      result,
+      reviewId: saved.id,
+      reviewedAt: saved.reviewedAt.toISOString(),
+    })
   } catch (err) {
     if (err instanceof TranscriptTooShortError) {
       return NextResponse.json(
