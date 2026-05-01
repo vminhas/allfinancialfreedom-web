@@ -62,6 +62,7 @@ const NAV_LC_GROUPS: NavGroup[] = [
       { href: '/vault/new-business', label: 'New Business', icon: '◆' },
       { href: '/vault/renewals', label: 'Renewals', icon: '↻' },
       { href: '/vault/milestones', label: 'Milestones', icon: '🏆' },
+      { href: '/vault/birthdays', label: 'Birthdays', icon: '✦' },
       { href: '/vault/setup', label: 'Resource Center', icon: '⊞' },
       { href: '/vault/guide', label: 'Guide', icon: '?' },
     ],
