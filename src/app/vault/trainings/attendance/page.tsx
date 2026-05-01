@@ -451,6 +451,31 @@ export default function AttendancePage() {
           />
         </div>
         <div style={{ flex: 1 }} />
+        {data && data.events.length > 0 && (
+          <button
+            onClick={async () => {
+              if (!data) return
+              if (!confirm(`Untrack all ${data.events.length} events in this date range? You can re-enable specific events from the per-event Tracked toggle on /vault/trainings or the 'N untracked' panel.`)) return
+              const res = await fetch('/api/admin/attendance/bulk-untrack', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ from, to, scope: 'range' }),
+              })
+              if (res.ok) {
+                await Promise.all([load(), loadUntracked()])
+              }
+            }}
+            title="Flip every event currently in the grid to Untracked. Use this to wipe the slate, then opt back in only the events you actually want tracked."
+            style={{
+              padding: '8px 14px', background: 'rgba(248,113,113,0.06)',
+              color: '#f87171', border: '1px solid rgba(248,113,113,0.30)',
+              borderRadius: 4, fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
+              textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap',
+            }}
+          >
+            ✕ Untrack all
+          </button>
+        )}
         <button
           onClick={syncAll}
           disabled={!!bulkSync || !data || data.events.length === 0}
