@@ -99,10 +99,20 @@ export default function TrainingsPage() {
       const fd = new FormData()
       fd.append('image', file)
       const res = await fetch('/api/admin/trainings/parse-image', { method: 'POST', body: fd })
-      const d = await res.json() as { parsed?: number; events?: { title: string }[]; error?: string }
+      const d = await res.json() as { parsed?: number; duplicates?: number; events?: { title: string; discordEvent?: string }[]; error?: string }
       if (res.ok && d.parsed) {
+        const dupes = d.duplicates ?? 0
+        const newCount = d.parsed - dupes
         const titles = d.events?.map(e => e.title).join(', ') ?? ''
-        setDropResult({ ok: true, text: `Created ${d.parsed} event${d.parsed > 1 ? 's' : ''}: ${titles}` })
+        let text: string
+        if (newCount === 0) {
+          text = `Already on the calendar: ${titles}. Nothing was created.`
+        } else if (dupes > 0) {
+          text = `Created ${newCount} event${newCount > 1 ? 's' : ''}, skipped ${dupes} duplicate${dupes > 1 ? 's' : ''}: ${titles}`
+        } else {
+          text = `Created ${newCount} event${newCount > 1 ? 's' : ''}: ${titles}`
+        }
+        setDropResult({ ok: true, text })
         load()
       } else {
         setDropResult({ ok: false, text: d.error ?? 'Failed to parse' })
@@ -744,6 +754,41 @@ function TrainingCard({ event, highlight, muted, onUpdate, onDelete }: {
   const [deleting, setDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
+  const [syncingAttendance, setSyncingAttendance] = useState(false)
+  const [attendanceMsg, setAttendanceMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  const isPast = startsAt.getTime() < Date.now()
+  const canSyncAttendance = event.streamType === 'ZOOM' && !!event.streamId && isPast
+
+  const syncAttendance = async () => {
+    setSyncingAttendance(true)
+    setAttendanceMsg(null)
+    try {
+      const res = await fetch(`/api/admin/trainings/${event.id}/sync-attendance`, { method: 'POST' })
+      const d = await res.json() as {
+        ok?: boolean
+        result?: { present: number; absent: number; excused: number; orphans: number; participantsFetched: number }
+        error?: string
+        kind?: string
+      }
+      if (res.ok && d.result) {
+        const r = d.result
+        setAttendanceMsg({
+          ok: true,
+          text: `${r.present} present · ${r.absent} absent${r.orphans ? ` · ${r.orphans} unmatched` : ''}`,
+        })
+      } else if (d.kind === 'not_ready') {
+        setAttendanceMsg({ ok: false, text: 'Zoom report not ready yet, try again in a few minutes.' })
+      } else {
+        setAttendanceMsg({ ok: false, text: d.error ?? 'Sync failed' })
+      }
+    } catch {
+      setAttendanceMsg({ ok: false, text: 'Network error' })
+    } finally {
+      setSyncingAttendance(false)
+      setTimeout(() => setAttendanceMsg(null), 8000)
+    }
+  }
 
   const togglePublished = async () => {
     setToggling(true)
@@ -1165,6 +1210,30 @@ function TrainingCard({ event, highlight, muted, onUpdate, onDelete }: {
             </div>
           )}
         </div>
+        {canSyncAttendance && (
+          <button
+            onClick={syncAttendance}
+            disabled={syncingAttendance}
+            title="Pull the Zoom participant report and update attendance for this event"
+            style={{
+              background: attendanceMsg?.ok ? 'rgba(74,222,128,0.14)' : attendanceMsg && !attendanceMsg.ok ? 'rgba(248,113,113,0.14)' : 'transparent',
+              color: attendanceMsg?.ok ? '#4ade80' : attendanceMsg && !attendanceMsg.ok ? '#f87171' : '#60a5fa',
+              border: `1px solid ${attendanceMsg?.ok ? 'rgba(74,222,128,0.4)' : attendanceMsg && !attendanceMsg.ok ? 'rgba(248,113,113,0.4)' : 'rgba(96,165,250,0.35)'}`,
+              borderRadius: 3,
+              padding: '6px 10px',
+              fontSize: 9,
+              fontWeight: 700,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              cursor: syncingAttendance ? 'wait' : 'pointer',
+              flexShrink: 0,
+              whiteSpace: 'nowrap',
+              minHeight: 28,
+            }}
+          >
+            {syncingAttendance ? 'Syncing...' : '👥 Attendance'}
+          </button>
+        )}
         <button
           onClick={postToDiscord}
           disabled={posting || !event.published}
@@ -1190,6 +1259,11 @@ function TrainingCard({ event, highlight, muted, onUpdate, onDelete }: {
       </div>
       {postStatus === 'error' && postError && (
         <div style={{ fontSize: 9, color: '#f87171', marginTop: -4 }}>{postError}</div>
+      )}
+      {attendanceMsg && (
+        <div style={{ fontSize: 10, color: attendanceMsg.ok ? '#4ade80' : '#f87171', marginTop: -4 }}>
+          {attendanceMsg.ok ? '✓ ' : '✗ '}{attendanceMsg.text}
+        </div>
       )}
       </div>{/* close card content */}
       {showEdit && (

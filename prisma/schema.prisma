@@ -230,6 +230,8 @@ model AgentProfile {
   splitSubmissions      NewBusinessSubmission[] @relation("SplitPartner")
   authoredSubmissionNotes NewBusinessNote[]     @relation("SubmissionNoteAgent")
   ftas                  FieldTrainingAppointment[]
+  trainingAttendances   TrainingAttendance[]
+  resolvedOrphans       TrainingAttendanceOrphan[] @relation("OrphanResolved")
 
   @@map("agent_profiles")
 }
@@ -770,7 +772,86 @@ model TrainingEvent {
   @@index([reminderSentAt])
   @@index([published, startsAt])
   @@index([recurrenceParentId])
+  // Tracks the most recent Zoom attendance pull so the cron can skip
+  // events it already synced. Null until the first sync runs.
+  attendanceSyncedAt    DateTime?
+  attendances           TrainingAttendance[]
+  attendanceOrphans     TrainingAttendanceOrphan[]
   @@map("training_events")
+}
+
+// Per-(training, agent) attendance row. We keep one row per active
+// agent per ZOOM-streamed training so the grid view can render dense
+// without extra joins. Computed status is filled by the Zoom sync;
+// admins can override via manualStatus to Excuse / Not Tracking.
+model TrainingAttendance {
+  id                String                   @id @default(cuid())
+  trainingEventId   String
+  trainingEvent     TrainingEvent            @relation(fields: [trainingEventId], references: [id], onDelete: Cascade)
+  agentProfileId    String
+  agentProfile      AgentProfile             @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+
+  // Effective status surfaced in the grid. Equals manualStatus when the
+  // admin has overridden, otherwise mirrors the Zoom-derived value.
+  status            TrainingAttendanceStatus
+  // Admin override; null means "use the auto-computed status."
+  manualStatus      TrainingAttendanceStatus?
+  manualNote        String?
+
+  // Raw Zoom data — useful for audit when Vick wants to see why
+  // someone got marked Absent or Present.
+  zoomDisplayName   String?
+  zoomEmail         String?
+  zoomUserId        String?
+  joinedAt          DateTime?
+  leftAt            DateTime?
+  durationSeconds   Int?
+
+  source            String                   @default("zoom")  // 'zoom' | 'manual' | 'backfill'
+  syncedAt          DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  @@unique([trainingEventId, agentProfileId])
+  @@index([trainingEventId, status])
+  @@index([agentProfileId, status])
+  @@map("training_attendances")
+}
+
+// Zoom participants we couldn't match to an AgentProfile by email or
+// fuzzy name. Admin resolves them in a queue; resolution writes a real
+// TrainingAttendance row and deletes the orphan. Kept in its own table
+// so the dense grid query stays fast.
+model TrainingAttendanceOrphan {
+  id                String        @id @default(cuid())
+  trainingEventId   String
+  trainingEvent     TrainingEvent @relation(fields: [trainingEventId], references: [id], onDelete: Cascade)
+
+  zoomDisplayName   String
+  zoomEmail         String?
+  zoomUserId        String?
+  joinedAt          DateTime
+  durationSeconds   Int
+
+  // When the admin maps this orphan to an agent we keep the link in
+  // case we want to remember the Zoom alias for next time. Once
+  // resolved we also write the corresponding TrainingAttendance row.
+  resolvedAgentId   String?
+  resolvedAgent     AgentProfile? @relation("OrphanResolved", fields: [resolvedAgentId], references: [id], onDelete: SetNull)
+  resolvedAt        DateTime?
+
+  createdAt         DateTime      @default(now())
+
+  @@index([trainingEventId])
+  @@index([resolvedAt])
+  @@map("training_attendance_orphans")
+}
+
+enum TrainingAttendanceStatus {
+  PRESENT
+  ABSENT
+  EXCUSED
+  NOT_TRACKING
+  NOT_JOINED_YET
 }
 
 model LicensingNote {

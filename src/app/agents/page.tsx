@@ -20,6 +20,7 @@ import FeedbackButton from '@/components/FeedbackButton'
 import NewBusinessTab from '@/components/NewBusinessTab'
 import FtaTab from '@/components/FtaTab'
 import { AgentTradingCardModal } from '@/components/AgentTradingCard'
+import { CallButton, EmailButton } from '@/components/ContactActions'
 import { MILESTONE_BY_KEY, isSubmittable } from '@/lib/milestones'
 import MarkdownDescription from '@/components/MarkdownDescription'
 import ChecklistItemVideo from '@/components/ChecklistItemVideo'
@@ -3494,8 +3495,18 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
                     >
                       {p.name}
                     </td>
-                    <td style={{ ...tdStyle, ...truncStyle }} title={p.email ?? ''}>{p.email ?? ''}</td>
-                    <td style={{ ...tdStyle, ...truncStyle }}>{p.phone ?? ''}</td>
+                    <td style={{ ...tdStyle, ...truncStyle }} title={p.email ?? ''}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.email ?? ''}</span>
+                        <EmailButton email={p.email} size="sm" label={false} />
+                      </span>
+                    </td>
+                    <td style={{ ...tdStyle, ...truncStyle }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <span>{p.phone ?? ''}</span>
+                        <CallButton phone={p.phone} size="sm" label={false} />
+                      </span>
+                    </td>
                     {view !== 'queue' && (
                       <td style={tdStyle}>
                         <select

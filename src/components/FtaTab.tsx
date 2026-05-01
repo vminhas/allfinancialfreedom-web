@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import DateTimePicker from './DateTimePicker'
+import { CallButton } from './ContactActions'
 import { formatPhoneAsTyped } from '@/lib/contact-validation'
 
 const card = { background: '#132238', border: '1px solid rgba(201,169,110,0.1)', borderRadius: 6 }
@@ -203,12 +204,15 @@ function Section({
                       </span>
                     )}
                   </div>
-                  <div style={{ fontSize: 11, color: '#9BB0C4', marginTop: 2 }}>
-                    {dateStr}
-                    {origStr && origStr !== dateStr && (
-                      <span style={{ color: '#6B8299', marginLeft: 6 }}>(orig {origStr})</span>
-                    )}
-                    {(f.businessPartner?.phone ?? f.phone) && <span style={{ color: '#6B8299' }}> &middot; {f.businessPartner?.phone ?? f.phone}</span>}
+                  <div style={{ fontSize: 11, color: '#9BB0C4', marginTop: 2, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span>
+                      {dateStr}
+                      {origStr && origStr !== dateStr && (
+                        <span style={{ color: '#6B8299', marginLeft: 6 }}>(orig {origStr})</span>
+                      )}
+                      {(f.businessPartner?.phone ?? f.phone) && <span style={{ color: '#6B8299' }}> &middot; {f.businessPartner?.phone ?? f.phone}</span>}
+                    </span>
+                    <CallButton phone={f.businessPartner?.phone ?? f.phone} size="sm" />
                   </div>
                   {f.outcomeNotes && (
                     <div style={{ fontSize: 11, color: '#9BB0C4', marginTop: 4, fontStyle: 'italic' }}>&ldquo;{f.outcomeNotes}&rdquo;</div>

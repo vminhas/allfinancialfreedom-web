@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { agentAuthOptions } from '@/lib/agent-auth'
 import { db } from '@/lib/db'
 import { MILESTONE_BY_KEY } from '@/lib/milestones'
 
@@ -54,20 +53,15 @@ export async function GET(
   _req: Request,
   ctx: { params: Promise<{ code: string }> },
 ) {
-  const adminSession = await getServerSession(authOptions)
-  const adminRole = (adminSession?.user as { role?: string } | undefined)?.role
+  // All three roles (admin, LC, agent) are issued by the same authOptions
+  // instance. The legacy agentAuthOptions config is unused — its cookie
+  // never gets set, which is why peer agents previously saw 401 here.
+  const session = await getServerSession(authOptions)
+  const role = (session?.user as { role?: string } | undefined)?.role
   let scope: CardPayload['scope'] | null = null
-  if (adminRole === 'admin') scope = 'admin'
-  else if (adminRole === 'licensing_coordinator') scope = 'lc'
-
-  if (!scope) {
-    // Fall back to the agent-auth session. Only a logged-in agent can
-    // view the card from the team chart side; we don't expose this
-    // endpoint to anonymous callers.
-    const agentSession = await getServerSession(agentAuthOptions)
-    const agentRole = (agentSession?.user as { role?: string } | undefined)?.role
-    if (agentRole === 'agent') scope = 'peer_agent'
-  }
+  if (role === 'admin') scope = 'admin'
+  else if (role === 'licensing_coordinator') scope = 'lc'
+  else if (role === 'agent') scope = 'peer_agent'
 
   if (!scope) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

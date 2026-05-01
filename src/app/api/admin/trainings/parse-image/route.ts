@@ -63,7 +63,25 @@ export async function POST(req: NextRequest) {
     flyerImageUrl = await uploadFlyerToBlob(`drop-${Date.now()}.${ext}`, bytes, mimeType)
   } catch { /* non-fatal */ }
 
-  const created = []
+  const created: Array<{
+    id: string
+    title: string
+    startsAt: string
+    presenters: string[]
+    discordEvent: 'created' | 'skipped (past date)' | 'duplicate' | false
+    discordError?: string
+    duplicateOfId?: string
+  }> = []
+  let duplicates = 0
+
+  // Dedupe window: Claude vision is deterministic on the same flyer, but
+  // tiny rounding differences (or DST edge cases on weekly recurrences)
+  // mean we shouldn't require exact-equality on startsAt. ±5 minutes is
+  // tight enough that two genuinely-back-to-back trainings won't collide.
+  const DEDUPE_WINDOW_MS = 5 * 60_000
+
+  const norm = (s: string | null | undefined) =>
+    (s ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
 
   for (const ev of parsed.events) {
     let startsAt: Date
@@ -72,6 +90,37 @@ export async function POST(req: NextRequest) {
       if (isNaN(startsAt.getTime())) throw new Error('invalid date')
     } catch {
       startsAt = new Date()
+    }
+
+    // Look for an existing TrainingEvent in the dedupe window. We compare
+    // normalized title in JS (Prisma can't normalize whitespace server-
+    // side) and fall back to streamId match for robustness when Claude
+    // re-cases or re-spaces the title between two reads of the same
+    // flyer.
+    const candidates = await db.trainingEvent.findMany({
+      where: {
+        startsAt: {
+          gte: new Date(startsAt.getTime() - DEDUPE_WINDOW_MS),
+          lte: new Date(startsAt.getTime() + DEDUPE_WINDOW_MS),
+        },
+      },
+      select: { id: true, title: true, streamId: true, startsAt: true },
+    })
+    const titleN = norm(ev.title)
+    const streamIdN = norm(ev.streamId)
+    const dup = candidates.find(c => norm(c.title) === titleN
+      || (streamIdN && norm(c.streamId) === streamIdN))
+    if (dup) {
+      duplicates++
+      created.push({
+        id: dup.id,
+        title: ev.title,
+        startsAt: dup.startsAt.toISOString(),
+        presenters: (ev.presenters ?? []).map(p => p.name),
+        discordEvent: 'duplicate',
+        duplicateOfId: dup.id,
+      })
+      continue
     }
 
     const durationMinutes = ev.durationMinutes ?? 60
@@ -165,6 +214,7 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     parsed: created.length,
+    duplicates,
     events: created,
   })
 }

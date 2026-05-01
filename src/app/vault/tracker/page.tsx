@@ -11,6 +11,7 @@ import { GROUP_ICONS, ChevronDown } from '@/lib/checklist-icons'
 import CallReviewModal, { CallReviewData } from '@/components/CallReviewModal'
 import DatePicker from '@/components/DatePicker'
 import { AgentTradingCardModal } from '@/components/AgentTradingCard'
+import { CallButton, EmailButton } from '@/components/ContactActions'
 
 interface Agent {
   id: string
@@ -1814,14 +1815,20 @@ function AgentDrawer({
             {/* Email */}
             <div>
               <label style={lStyle}>Email</label>
-              <input type="email" value={editForm.email} onChange={set('email')} style={iStyle} />
+              <div style={{ display: 'flex', gap: 6, alignItems: 'stretch' }}>
+                <input type="email" value={editForm.email} onChange={set('email')} style={iStyle} />
+                <EmailButton email={editForm.email} />
+              </div>
             </div>
 
             {/* Contact */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <div>
                 <label style={lStyle}>Phone</label>
-                <input value={editForm.phone} onChange={set('phone')} placeholder="e.g. (555) 555-5555" style={iStyle} />
+                <div style={{ display: 'flex', gap: 6, alignItems: 'stretch' }}>
+                  <input value={editForm.phone} onChange={set('phone')} placeholder="e.g. (555) 555-5555" style={iStyle} />
+                  <CallButton phone={editForm.phone} />
+                </div>
               </div>
               <div>
                 <label style={lStyle}>Licensed State</label>
