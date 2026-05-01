@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { CallButton, TextButton, EmailButton } from './ContactActions'
 
 // Reusable trading-card shell. The same component will eventually power
 // birthday and milestone announcement cards (different `variant`,
@@ -19,6 +20,8 @@ export interface CardData {
   phase: number
   phaseLabel: string
   trainerName: string | null
+  phone: string | null
+  email: string | null
   joinedAt: string | null
   daysAtAff: number | null
   daysInPhase: number | null
@@ -267,6 +270,18 @@ export function AgentTradingCardModal({
               )}
 
             </div>
+
+            {/* Contact strip — admin/lc only. Sits outside the captured
+                card so the buttons don't bake into a downloaded PNG.
+                Lets the operations team tap-to-call/text/email an
+                agent without leaving the trading-card view. */}
+            {(data.scope === 'admin' || data.scope === 'lc') && (data.phone || data.email) && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <CallButton phone={data.phone} />
+                <TextButton phone={data.phone} />
+                <EmailButton email={data.email} />
+              </div>
+            )}
 
             {/* Footer actions sit OUTSIDE the captured card so they
                 don't show up in the downloaded PNG. */}

@@ -44,6 +44,8 @@ export async function GET(req: NextRequest) {
       startsAt: true,
       attendanceSyncedAt: true,
       durationMinutes: true,
+      flyerImageUrl: true,
+      presenters: true,
     },
     orderBy: { startsAt: 'asc' },
   })
@@ -156,6 +158,8 @@ export async function GET(req: NextRequest) {
       title: ev.title,
       startsAt: ev.startsAt.toISOString(),
       attendanceSyncedAt: ev.attendanceSyncedAt?.toISOString() ?? null,
+      flyerImageUrl: ev.flyerImageUrl,
+      presenters: Array.isArray(ev.presenters) ? ev.presenters : null,
     })),
     rows,
   })
