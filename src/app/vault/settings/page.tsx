@@ -194,7 +194,14 @@ export default function SettingsPage() {
     ANTHROPIC_API_KEY: '',
     GHL_PROPHOG_BOOKING_URL: '',
     VICK_EMAIL: '',
+    ZOOM_ACCOUNT_ID: '',
+    ZOOM_CLIENT_ID: '',
+    ZOOM_CLIENT_SECRET: '',
+    ATTENDANCE_PRESENT_THRESHOLD_PCT: '',
   })
+
+  const [zoomTesting, setZoomTesting] = useState(false)
+  const [zoomTestResult, setZoomTestResult] = useState<{ ok: boolean; msg: string } | null>(null)
 
   const [opsFields, setOpsFields] = useState({
     // Ongoing operations contact (Natalia) — voice + signature on welcome
@@ -325,6 +332,29 @@ export default function SettingsPage() {
     setTesting(false)
   }
 
+  async function handleZoomTest() {
+    setZoomTesting(true)
+    setZoomTestResult(null)
+    // Save first so the test reads what's in the form, not the masked
+    // values currently in state. We send only the Zoom keys so we
+    // don't accidentally overwrite the masked GHL/Anthropic ones.
+    const zoomToSend: Record<string, string> = {}
+    for (const k of ['ZOOM_ACCOUNT_ID', 'ZOOM_CLIENT_ID', 'ZOOM_CLIENT_SECRET'] as const) {
+      const v = fields[k]
+      if (v && !v.includes('•')) zoomToSend[k] = v
+    }
+    if (Object.keys(zoomToSend).length > 0) {
+      await fetch('/api/admin/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(zoomToSend) })
+    }
+    const res = await fetch('/api/admin/settings/zoom-test', { method: 'POST' })
+    const data = await res.json() as { ok: boolean; error?: string }
+    setZoomTestResult({
+      ok: data.ok,
+      msg: data.ok ? 'Connected. Zoom credentials are valid.' : (data.error ?? 'Test failed'),
+    })
+    setZoomTesting(false)
+  }
+
   async function handleSetupPipeline() {
     setPipelineLoading(true)
     setPipelineMsg(null)
@@ -424,6 +454,57 @@ export default function SettingsPage() {
             {testResult && (
               <p style={{ marginTop: 14, fontSize: 13, color: testResult.ok ? '#4ade80' : '#f87171' }}>
                 {testResult.ok ? '✓ ' : '✗ '}{testResult.msg}
+              </p>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Zoom Attendance — Server-to-Server OAuth credentials for the
+          attendance sync. Vick creates an app at marketplace.zoom.us
+          and drops the three values here. */}
+      {card(
+        <>
+          {cardHeader('Zoom Attendance Sync')}
+          <div style={{ padding: '28px' }}>
+            <p style={{ color: '#6B8299', fontSize: 12, margin: '0 0 18px', lineHeight: 1.6 }}>
+              Pulls participant reports from Zoom after each training so attendance lands in the vault automatically. Create a <strong style={{ color: '#9BB0C4' }}>Server-to-Server OAuth</strong> app at <strong style={{ color: '#9BB0C4' }}>marketplace.zoom.us → Develop → Build App</strong>. Required scopes: <code style={{ color: '#C9A96E', fontSize: 11 }}>meeting:read:list_past_participants:admin</code>, <code style={{ color: '#C9A96E', fontSize: 11 }}>meeting:read:past_meeting:admin</code>, <code style={{ color: '#C9A96E', fontSize: 11 }}>user:read:list_users:admin</code>.
+            </p>
+            <Field label="Zoom Account ID" name="ZOOM_ACCOUNT_ID" value={fields.ZOOM_ACCOUNT_ID} onChange={set('ZOOM_ACCOUNT_ID')} placeholder="From the App Credentials tab" />
+            <Field label="Zoom Client ID" name="ZOOM_CLIENT_ID" value={fields.ZOOM_CLIENT_ID} onChange={set('ZOOM_CLIENT_ID')} placeholder="From the App Credentials tab" />
+            <Field label="Zoom Client Secret" name="ZOOM_CLIENT_SECRET" value={fields.ZOOM_CLIENT_SECRET} onChange={set('ZOOM_CLIENT_SECRET')} placeholder="From the App Credentials tab" />
+            <Field
+              label="Present Threshold (% of meeting duration, default 50)"
+              name="ATTENDANCE_PRESENT_THRESHOLD_PCT"
+              value={fields.ATTENDANCE_PRESENT_THRESHOLD_PCT}
+              onChange={set('ATTENDANCE_PRESENT_THRESHOLD_PCT')}
+              placeholder="50"
+            />
+            <p style={{ color: '#6B8299', fontSize: 11, margin: '0 0 18px', lineHeight: 1.5 }}>
+              Threshold governs the cell tooltip&apos;s &quot;short attendance&quot; flag, not whether someone counts as Present. Anyone who joined Zoom is marked Present; the percentage only adjusts what reads as a brief drop-in.
+            </p>
+
+            <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+              <button onClick={handleSave} disabled={saving} style={{
+                padding: '10px 24px', background: '#C9A96E', color: '#142D48', border: 'none',
+                borderRadius: 4, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em',
+                textTransform: 'uppercase', cursor: saving ? 'not-allowed' : 'pointer',
+              }}>
+                {saving ? 'Saving...' : saved ? 'Saved ✓' : 'Save Zoom Settings'}
+              </button>
+              <button onClick={handleZoomTest} disabled={zoomTesting} style={{
+                padding: '10px 24px', background: 'transparent', color: '#C9A96E',
+                border: '1px solid rgba(201,169,110,0.4)', borderRadius: 4, fontSize: 12,
+                fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase',
+                cursor: zoomTesting ? 'not-allowed' : 'pointer',
+              }}>
+                {zoomTesting ? 'Testing...' : 'Test Zoom Connection'}
+              </button>
+            </div>
+
+            {zoomTestResult && (
+              <p style={{ marginTop: 14, fontSize: 13, color: zoomTestResult.ok ? '#4ade80' : '#f87171', wordBreak: 'break-word' }}>
+                {zoomTestResult.ok ? '✓ ' : '✗ '}{zoomTestResult.msg}
               </p>
             )}
           </div>
