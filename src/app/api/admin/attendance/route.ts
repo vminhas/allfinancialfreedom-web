@@ -21,10 +21,13 @@ export async function GET(req: NextRequest) {
 
   // Default range: last 60 days. Aligns with what the spreadsheet
   // typically shows and keeps the column count manageable.
+  // Date inputs send YYYY-MM-DD which `new Date()` parses as midnight
+  // UTC; for the `to` end of the range we want end-of-day instead so
+  // a meeting at 8pm on the chosen day still falls inside.
   const now = new Date()
   const defaultFrom = new Date(now.getTime() - 60 * 86_400_000)
   const from = fromStr ? new Date(fromStr) : defaultFrom
-  const to = toStr ? new Date(toStr) : now
+  const to = toStr ? new Date(`${toStr}T23:59:59.999Z`) : now
   if (isNaN(from.getTime()) || isNaN(to.getTime())) {
     return NextResponse.json({ error: 'Invalid from/to dates' }, { status: 400 })
   }
