@@ -38,6 +38,8 @@ export async function GET(req: NextRequest) {
       streamType: 'ZOOM',
       streamId: { not: null },
       startsAt: { gte: lookbackStart, lte: now },
+      // Skip events the admin opted out of attendance tracking.
+      trackAttendance: true,
     },
     select: {
       id: true,

@@ -794,6 +794,32 @@ export default function AttendancePage() {
                 {publishing ? 'Posting...' : '📣 Publish stats to Discord'}
               </button>
 
+              {/* Stop tracking — removes the column from the grid + skips
+                  the cron going forward. Useful for events that aren't
+                  hosted on the AFF Zoom account (Onboarding Academy,
+                  hierarchy calls, guest broadcasts). */}
+              <button
+                onClick={async () => {
+                  const res = await fetch(`/api/admin/trainings/${ev.id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ trackAttendance: false }),
+                  })
+                  if (res.ok) {
+                    setEventPanelId(null)
+                    await load()
+                  }
+                }}
+                style={{
+                  width: '100%', marginTop: 8, padding: '8px 14px', borderRadius: 4,
+                  background: 'transparent', color: '#f87171', border: '1px solid rgba(248,113,113,0.35)',
+                  fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
+                  textTransform: 'uppercase', cursor: 'pointer',
+                }}
+              >
+                Stop tracking this event
+              </button>
+
               {publishMsg && (
                 <div style={{ marginTop: 10, fontSize: 11, color: publishMsg.ok ? '#4ade80' : '#f87171' }}>
                   {publishMsg.ok ? '✓ ' : '✗ '}{publishMsg.text}

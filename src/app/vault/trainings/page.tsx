@@ -13,6 +13,7 @@ interface TrainingEvent {
   driveThumbnailUrl: string | null
   flyerImageUrl: string | null
   published: boolean
+  trackAttendance: boolean
   title: string
   subtitle: string | null
   category: string | null
@@ -751,14 +752,33 @@ function TrainingCard({ event, highlight, muted, onUpdate, onDelete }: {
   const [postStatus, setPostStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [postError, setPostError] = useState('')
   const [toggling, setToggling] = useState(false)
+  const [togglingTracking, setTogglingTracking] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
   const [syncingAttendance, setSyncingAttendance] = useState(false)
   const [attendanceMsg, setAttendanceMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
+  const toggleTracking = async () => {
+    if (togglingTracking) return
+    setTogglingTracking(true)
+    try {
+      const res = await fetch(`/api/admin/trainings/${event.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trackAttendance: !event.trackAttendance }),
+      })
+      if (res.ok) {
+        const d = await res.json() as { event: TrainingEvent }
+        onUpdate?.(d.event)
+      }
+    } finally {
+      setTogglingTracking(false)
+    }
+  }
+
   const isPast = startsAt.getTime() < Date.now()
-  const canSyncAttendance = event.streamType === 'ZOOM' && !!event.streamId && isPast
+  const canSyncAttendance = event.streamType === 'ZOOM' && !!event.streamId && isPast && event.trackAttendance
 
   const syncAttendance = async () => {
     setSyncingAttendance(true)
@@ -1024,6 +1044,30 @@ function TrainingCard({ event, highlight, muted, onUpdate, onDelete }: {
             }}>
               Notified
             </span>
+          )}
+          {/* Attendance tracking toggle. Only meaningful for Zoom-streamed
+              events; GFI Live broadcasts can't be pulled from Zoom's API
+              regardless. Default state is "tracked"; admin flips off for
+              events Vick doesn't host on the AFF Zoom account (e.g.
+              Onboarding Academy, hierarchy calls, guest broadcasts). */}
+          {event.streamType === 'ZOOM' && (
+            <button
+              onClick={toggleTracking}
+              disabled={togglingTracking}
+              title={event.trackAttendance
+                ? 'Currently tracking attendance for this event. Click to exclude from the attendance grid.'
+                : 'Not tracked. Click to add this event to the attendance grid.'}
+              style={{
+                fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                padding: '2px 7px', borderRadius: 3,
+                background: event.trackAttendance ? 'rgba(96,165,250,0.12)' : 'rgba(107,130,153,0.10)',
+                border: `1px solid ${event.trackAttendance ? 'rgba(96,165,250,0.40)' : 'rgba(107,130,153,0.30)'}`,
+                color: event.trackAttendance ? '#60a5fa' : '#6B8299',
+                cursor: togglingTracking ? 'wait' : 'pointer',
+              }}
+            >
+              {event.trackAttendance ? 'Tracked' : 'Untracked'}
+            </button>
           )}
           {/* Publish toggle — only shown here for non-image cards; image cards
               have the toggle floating over the image in the top-right */}
