@@ -31,8 +31,53 @@ model AdminUser {
   authoredSubmissionNotes NewBusinessNote[] @relation("SubmissionNoteAdmin")
   renewalRemindersSent RenewalReminder[] @relation("RenewalRemindersSent")
   reviewedMilestones   RecognitionMilestone[] @relation("MilestoneReviewer")
+  callReviews          AdminCallReview[]
 
   @@map("admin_users")
+}
+
+// Standalone coaching-tool reviews authored by an admin against a
+// pasted transcript. Separate from CallReview (which is tied to an
+// agent's CallLog) because admin self-reviews don't have a CallLog
+// row. Lets each admin track their own progress over time on the
+// same 6-dimension AFF rubric the agents are scored against.
+model AdminCallReview {
+  id                 String     @id @default(cuid())
+  adminUserId        String
+  adminUser          AdminUser  @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  // Free-form context the admin entered before running the analysis.
+  // contactName is optional (helps Claude frame the review); callDate
+  // is required so the history list has something to sort/filter on.
+  contactName        String?
+  callDate           DateTime
+  // Full transcript saved so the admin can re-read it later or run a
+  // re-analysis with a tweaked prompt without having to keep the
+  // text around in their notes app.
+  callTranscript     String     @db.Text
+
+  overallScore       Int
+  rubricScores       Json
+  strengths          Json
+  weaknesses         Json
+  coachingTips       Json
+  nextSteps          Json
+  summary            String
+
+  // Free-form note the admin can add after the fact (e.g. "tried the
+  // tip on the next call, worked great").
+  notes              String?
+
+  modelId            String
+  inputTokens        Int
+  outputTokens       Int
+  cacheReadTokens    Int        @default(0)
+  cacheCreateTokens  Int        @default(0)
+  reviewedAt         DateTime   @default(now())
+
+  @@index([adminUserId, reviewedAt])
+  @@index([reviewedAt])
+  @@map("admin_call_reviews")
 }
 
 enum AdminRole {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import CallReviewModal, { CallReviewData } from '@/components/CallReviewModal'
 import DatePicker from '@/components/DatePicker'
 import { useIsMobile } from '@/lib/useIsMobile'
@@ -16,6 +16,17 @@ interface AnalyzeResult {
   flaggedForCoaching: boolean
 }
 
+interface HistoryRow {
+  id: string
+  contactName: string | null
+  callDate: string
+  reviewedAt: string
+  overallScore: number
+  rubricScores: { opening: number; discovery: number; product: number; objections: number; closing: number; tone: number }
+  summary: string
+  notes: string | null
+}
+
 export default function AdminCallReviewPage() {
   const isMobile = useIsMobile()
   const [transcript, setTranscript] = useState('')
@@ -25,8 +36,37 @@ export default function AdminCallReviewPage() {
   const [error, setError] = useState('')
   const [result, setResult] = useState<AnalyzeResult | null>(null)
   const [showModal, setShowModal] = useState(false)
+  const [history, setHistory] = useState<HistoryRow[]>([])
+  const [trend, setTrend] = useState<number | null>(null)
 
   const wordCount = transcript.trim() ? transcript.trim().split(/\s+/).length : 0
+
+  const loadHistory = useCallback(async () => {
+    const res = await fetch('/api/admin/call-review/history')
+    if (!res.ok) return
+    const d = await res.json() as { reviews: HistoryRow[]; trend: number | null }
+    setHistory(d.reviews)
+    setTrend(d.trend)
+  }, [])
+
+  useEffect(() => { loadHistory() }, [loadHistory])
+
+  const openHistoryItem = async (id: string) => {
+    const res = await fetch(`/api/admin/call-review/${id}`)
+    if (!res.ok) return
+    const d = await res.json() as { review: AnalyzeResult & { contactName: string | null; callDate: string; callTranscript: string } }
+    setResult(d.review)
+    setContactName(d.review.contactName ?? '')
+    setCallDate(d.review.callDate.slice(0, 10))
+    setTranscript(d.review.callTranscript)
+    setShowModal(true)
+  }
+
+  const deleteHistoryItem = async (id: string) => {
+    if (!confirm('Delete this saved review? This cannot be undone.')) return
+    const res = await fetch(`/api/admin/call-review/${id}`, { method: 'DELETE' })
+    if (res.ok) loadHistory()
+  }
 
   const analyze = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -40,6 +80,7 @@ export default function AdminCallReviewPage() {
         body: JSON.stringify({
           transcriptText: transcript,
           contactName: contactName || 'Prospect',
+          callDate,
         }),
       })
       const data = await res.json() as { result?: AnalyzeResult; error?: string }
@@ -51,6 +92,8 @@ export default function AdminCallReviewPage() {
       setResult(data.result)
       setShowModal(true)
       setLoading(false)
+      // Refresh the history list so the new review appears immediately.
+      loadHistory()
     } catch {
       setError('Network error — please try again')
       setLoading(false)
@@ -123,7 +166,7 @@ export default function AdminCallReviewPage() {
             <div style={{ fontSize: 14, fontWeight: 600, color: '#ffffff' }}>Standalone admin tool</div>
           </div>
           <div style={{ fontSize: 12, color: '#9BB0C4', lineHeight: 1.6 }}>
-            Use this to review your own calls or a training call. Claude scores it on the same 6-dimension rubric your agents are graded on (opening, discovery, product, objections, closing, tone). <strong style={{ color: '#C9A96E' }}>Results are not saved</strong> — this is a one-shot coaching tool. If you want per-agent history, open the agent&apos;s drawer in the AFF Tracker.
+            Use this to review your own calls or a training call. Claude scores it on the same 6-dimension rubric your agents are graded on (opening, discovery, product, objections, closing, tone). <strong style={{ color: '#C9A96E' }}>Reviews are saved</strong> to your personal history below so you can track your progress over time. For per-agent review history, open the agent&apos;s drawer in the AFF Tracker.
           </div>
         </div>
 
@@ -299,6 +342,102 @@ export default function AdminCallReviewPage() {
             </button>
           </div>
         )}
+
+        {/* Personal history */}
+        <div style={{ marginTop: 36 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12, gap: 12, flexWrap: 'wrap' }}>
+            <h2 style={{ fontSize: 18, fontWeight: 400, color: '#fff', margin: 0, letterSpacing: '-0.01em' }}>
+              Your review history
+            </h2>
+            {trend != null && history.length >= 8 && (
+              <span style={{
+                fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                padding: '4px 10px', borderRadius: 4,
+                background: trend >= 0 ? 'rgba(74,222,128,0.10)' : 'rgba(248,113,113,0.10)',
+                border: `1px solid ${trend >= 0 ? 'rgba(74,222,128,0.35)' : 'rgba(248,113,113,0.35)'}`,
+                color: trend >= 0 ? '#4ade80' : '#f87171',
+              }}>
+                {trend >= 0 ? '↑' : '↓'} {Math.abs(trend)} pts vs prior 5
+              </span>
+            )}
+          </div>
+          {history.length === 0 ? (
+            <div style={{
+              padding: '24px 20px', textAlign: 'center',
+              border: '1px dashed rgba(201,169,110,0.18)', borderRadius: 6,
+              color: '#6B8299', fontSize: 12, lineHeight: 1.6,
+            }}>
+              No reviews saved yet. Run your first transcript above and it&apos;ll appear here.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {history.map(h => {
+                const d = new Date(h.callDate)
+                const dateStr = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+                const scoreColor = h.overallScore >= 80 ? '#4ade80' : h.overallScore >= 60 ? '#FBBF24' : '#f87171'
+                return (
+                  <div
+                    key={h.id}
+                    style={{
+                      padding: '12px 16px',
+                      background: '#142D48',
+                      border: '1px solid rgba(201,169,110,0.10)',
+                      borderRadius: 6,
+                      display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+                    }}
+                  >
+                    <div style={{
+                      width: 48, height: 48, borderRadius: 6,
+                      background: `${scoreColor}14`, border: `1px solid ${scoreColor}40`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0,
+                    }}>
+                      <span style={{ fontSize: 18, fontWeight: 700, color: scoreColor, fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1 }}>
+                        {h.overallScore}
+                      </span>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 200 }}>
+                      <div style={{ color: '#fff', fontSize: 13, fontWeight: 500 }}>
+                        {h.contactName ?? 'Untitled call'}
+                      </div>
+                      <div style={{ color: '#6B8299', fontSize: 11, marginTop: 2 }}>
+                        {dateStr}
+                      </div>
+                      <div style={{ color: '#9BB0C4', fontSize: 11, marginTop: 4, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                        {h.summary}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                      <button
+                        onClick={() => openHistoryItem(h.id)}
+                        style={{
+                          background: 'transparent', border: '1px solid rgba(201,169,110,0.35)',
+                          color: '#C9A96E', borderRadius: 4, padding: '6px 12px',
+                          fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        View
+                      </button>
+                      <button
+                        onClick={() => deleteHistoryItem(h.id)}
+                        style={{
+                          background: 'transparent', border: '1px solid rgba(248,113,113,0.25)',
+                          color: '#f87171', borderRadius: 4, padding: '6px 10px',
+                          fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                          cursor: 'pointer',
+                        }}
+                        title="Delete saved review"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Review modal */}
