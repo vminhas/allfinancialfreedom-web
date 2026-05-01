@@ -112,10 +112,15 @@ export default function AttendancePage() {
   const [data, setData] = useState<AttendancePayload | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [from, setFrom] = useState(todayMinusDays(60))
+  // Default to the last 30 days so the initial load matches the
+  // window the team is most likely scanning. Wider ranges are a
+  // single click on the date input.
+  const [from, setFrom] = useState(todayMinusDays(30))
   const [to, setTo] = useState(todayStr())
   const [cftFilter, setCftFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState<'ACTIVE' | 'ALL'>('ACTIVE')
+  // Bulk-sync progress: { done, total, current } while running, null otherwise.
+  const [bulkSync, setBulkSync] = useState<{ done: number; total: number; current: string; failures: number } | null>(null)
   const [popover, setPopover] = useState<{
     rowIdx: number
     colIdx: number
@@ -196,6 +201,42 @@ export default function AttendancePage() {
     } finally { setSavingCell(false) }
   }
 
+  // Loop through every event in the current date range and trigger a
+  // sync for each. Concurrency capped at 3 so we're polite to Zoom's
+  // rate limiter (heavy endpoints sit around 10 rps; 3 in flight at
+  // a time keeps us comfortably under that). Per-event failures are
+  // counted but don't stop the run, so a single 404 (report not yet
+  // ready) doesn't abort the whole backfill.
+  const syncAll = async () => {
+    if (!data || data.events.length === 0) return
+    const events = data.events
+    setBulkSync({ done: 0, total: events.length, current: '', failures: 0 })
+
+    const CONCURRENCY = 3
+    let cursor = 0
+    let failures = 0
+
+    const worker = async () => {
+      while (cursor < events.length) {
+        const idx = cursor++
+        const ev = events[idx]
+        setBulkSync(s => s ? { ...s, current: ev.title } : s)
+        try {
+          const res = await fetch(`/api/admin/trainings/${ev.id}/sync-attendance`, { method: 'POST' })
+          if (!res.ok) failures++
+        } catch {
+          failures++
+        }
+        setBulkSync(s => s ? { ...s, done: s.done + 1, failures } : s)
+      }
+    }
+
+    await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()))
+    setBulkSync(null)
+    await load()
+    await loadOrphans()
+  }
+
   return (
     <div style={{ maxWidth: '100%' }}>
       <div style={{ marginBottom: 24 }}>
@@ -231,6 +272,23 @@ export default function AttendancePage() {
           </select>
         </div>
         <div style={{ flex: 1 }} />
+        <button
+          onClick={syncAll}
+          disabled={!!bulkSync || !data || data.events.length === 0}
+          title="Re-pull attendance from Zoom for every event in this date range"
+          style={{
+            padding: '8px 14px', background: bulkSync ? 'rgba(96,165,250,0.18)' : 'rgba(96,165,250,0.10)',
+            color: '#60a5fa', border: '1px solid rgba(96,165,250,0.40)',
+            borderRadius: 4, fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            cursor: bulkSync ? 'wait' : (!data || data.events.length === 0) ? 'not-allowed' : 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {bulkSync
+            ? `Syncing ${bulkSync.done}/${bulkSync.total}...`
+            : `↻ Sync all ${data?.events.length ?? 0} events`}
+        </button>
         {orphans.length > 0 && (
           <button
             onClick={() => setShowOrphans(s => !s)}
@@ -245,6 +303,29 @@ export default function AttendancePage() {
           </button>
         )}
       </div>
+
+      {bulkSync && (
+        <div style={{
+          marginBottom: 14, padding: '10px 14px',
+          background: 'rgba(96,165,250,0.06)',
+          border: '1px solid rgba(96,165,250,0.25)', borderRadius: 6,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, fontSize: 11, color: '#9BB0C4', marginBottom: 6 }}>
+            <span>Pulling from Zoom: {bulkSync.current || '...'}</span>
+            <span style={{ color: '#60a5fa', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+              {bulkSync.done} / {bulkSync.total}{bulkSync.failures > 0 && (
+                <span style={{ color: '#f87171', marginLeft: 8 }}>({bulkSync.failures} failed)</span>
+              )}
+            </span>
+          </div>
+          <div style={{ height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
+            <div style={{
+              width: `${Math.round((bulkSync.done / bulkSync.total) * 100)}%`,
+              height: '100%', background: '#60a5fa', transition: 'width 0.3s',
+            }} />
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 18 }}>
         {(['PRESENT','ABSENT','EXCUSED','NOT_JOINED_YET','NOT_TRACKING','PENDING'] as const).map(s => (
