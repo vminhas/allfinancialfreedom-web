@@ -34,11 +34,11 @@ export async function GET(req: NextRequest) {
 
   const events = await db.trainingEvent.findMany({
     where: {
-      streamType: 'ZOOM',
-      streamId: { not: null },
       startsAt: { gte: from, lte: to },
-      // Only include events admin has marked as tracked. Per-event
-      // toggle lives on /vault/trainings + the action panel modal.
+      // Tracked is the only filter -- streamType doesn't matter here.
+      // Zoom events get auto-pulled from the API; non-Zoom events
+      // (GFI Live, in-person, etc.) appear as columns for manual cell
+      // marking via the override popover.
       trackAttendance: true,
     },
     select: {
@@ -49,6 +49,8 @@ export async function GET(req: NextRequest) {
       durationMinutes: true,
       flyerImageUrl: true,
       presenters: true,
+      streamType: true,
+      streamId: true,
     },
     orderBy: { startsAt: 'asc' },
   })
@@ -163,6 +165,8 @@ export async function GET(req: NextRequest) {
       attendanceSyncedAt: ev.attendanceSyncedAt?.toISOString() ?? null,
       flyerImageUrl: ev.flyerImageUrl,
       presenters: Array.isArray(ev.presenters) ? ev.presenters : null,
+      streamType: ev.streamType,
+      streamId: ev.streamId,
     })),
     rows,
   })

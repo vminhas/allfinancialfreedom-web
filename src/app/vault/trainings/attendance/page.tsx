@@ -45,6 +45,8 @@ interface AttendanceEvent {
   attendanceSyncedAt: string | null
   flyerImageUrl: string | null
   presenters: AttendancePresenter[] | null
+  streamType: 'ZOOM' | 'GFI_LIVE'
+  streamId: string | null
 }
 
 interface AttendancePayload {
@@ -175,6 +177,38 @@ export default function AttendancePage() {
   const [orphanAgents, setOrphanAgents] = useState<AgentPicker[]>([])
   const [showOrphans, setShowOrphans] = useState(false)
 
+  interface UntrackedEvent {
+    id: string
+    title: string
+    startsAt: string
+    flyerImageUrl: string | null
+    presenters: AttendancePresenter[] | null
+  }
+  const [untracked, setUntracked] = useState<UntrackedEvent[]>([])
+  const [showUntracked, setShowUntracked] = useState(false)
+  const [reenabling, setReenabling] = useState<string | null>(null)
+
+  const loadUntracked = async () => {
+    const res = await fetch('/api/admin/attendance/untracked')
+    if (!res.ok) return
+    const d = await res.json() as { events: UntrackedEvent[] }
+    setUntracked(d.events)
+  }
+
+  const reenableEvent = async (eventId: string) => {
+    setReenabling(eventId)
+    try {
+      const res = await fetch(`/api/admin/trainings/${eventId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trackAttendance: true }),
+      })
+      if (res.ok) {
+        await Promise.all([loadUntracked(), load()])
+      }
+    } finally { setReenabling(null) }
+  }
+
   const load = async () => {
     setLoading(true)
     setError(null)
@@ -199,7 +233,7 @@ export default function AttendancePage() {
   }
 
   useEffect(() => { load() }, [from, to])
-  useEffect(() => { loadOrphans() }, [])
+  useEffect(() => { loadOrphans(); loadUntracked() }, [])
 
   const filteredRows = useMemo(() => {
     if (!data) return []
@@ -320,7 +354,11 @@ export default function AttendancePage() {
   // ready) doesn't abort the whole backfill.
   const syncAll = async () => {
     if (!data || data.events.length === 0) return
-    const events = data.events
+    // Only Zoom events can be auto-synced; non-Zoom events on the
+    // grid are for manual marking only and shouldn't add 400s to the
+    // failure panel.
+    const events = data.events.filter(e => e.streamType === 'ZOOM' && e.streamId)
+    if (events.length === 0) return
     setBulkSync({ done: 0, total: events.length, current: '', failures: 0 })
     setBulkFailures([])
 
@@ -428,8 +466,22 @@ export default function AttendancePage() {
         >
           {bulkSync
             ? `Syncing ${bulkSync.done}/${bulkSync.total}...`
-            : `↻ Sync all ${data?.events.length ?? 0} events`}
+            : `↻ Sync all ${data?.events.filter(e => e.streamType === 'ZOOM' && e.streamId).length ?? 0} Zoom events`}
         </button>
+        {untracked.length > 0 && (
+          <button
+            onClick={() => setShowUntracked(true)}
+            title="Re-enable events you previously stopped tracking"
+            style={{
+              padding: '8px 14px', background: 'rgba(107,130,153,0.10)',
+              color: '#9BB0C4', border: '1px solid rgba(107,130,153,0.30)',
+              borderRadius: 4, fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
+              textTransform: 'uppercase', cursor: 'pointer',
+            }}
+          >
+            {untracked.length} untracked
+          </button>
+        )}
         {orphans.length > 0 && (
           <button
             onClick={() => setShowOrphans(s => !s)}
@@ -570,7 +622,10 @@ export default function AttendancePage() {
                         <span style={{ color: '#C9A96E', fontSize: 9, fontWeight: 600 }}>
                           {truncateTitle(ev.title, 32)}
                         </span>
-                        {!ev.attendanceSyncedAt && <span style={{ color: '#6B8299', fontSize: 9 }}>pending</span>}
+                        {ev.streamType !== 'ZOOM' && (
+                          <span style={{ color: '#9B6DFF', fontSize: 9, fontWeight: 700 }}>manual</span>
+                        )}
+                        {ev.streamType === 'ZOOM' && !ev.attendanceSyncedAt && <span style={{ color: '#6B8299', fontSize: 9 }}>pending</span>}
                       </div>
                     </th>
                   )
@@ -838,6 +893,83 @@ export default function AttendancePage() {
           </div>
         )
       })()}
+
+      {/* Re-enable list: every Zoom event currently flipped to
+          trackAttendance=false, with a one-click Re-enable button so
+          admins don't have to hunt through /vault/trainings. */}
+      {showUntracked && (
+        <div
+          onClick={() => setShowUntracked(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 100,
+            background: 'rgba(0,0,0,0.55)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#142D48', border: '1px solid rgba(201,169,110,0.25)',
+              borderRadius: 8, padding: 20, width: '100%', maxWidth: 520,
+              maxHeight: '80vh', overflowY: 'auto',
+              boxShadow: '0 16px 48px rgba(0,0,0,0.6)',
+            }}
+          >
+            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 4 }}>
+              Untracked events
+            </div>
+            <div style={{ color: '#9BB0C4', fontSize: 11, marginBottom: 14, lineHeight: 1.5 }}>
+              These Zoom events are currently excluded from the grid + cron. Click <strong style={{ color: '#fff' }}>Re-enable</strong> to add one back.
+            </div>
+
+            {untracked.length === 0 ? (
+              <div style={{ color: '#6B8299', fontSize: 12, padding: '20px 0', textAlign: 'center' }}>
+                Nothing currently untracked.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {untracked.map(ev => {
+                  const presStr = ev.presenters?.map(p => p.name).join(' · ')
+                  return (
+                    <div key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(201,169,110,0.12)', borderRadius: 5 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ color: '#fff', fontSize: 12, fontWeight: 500, lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {ev.title}
+                        </div>
+                        <div style={{ color: '#6B8299', fontSize: 10, marginTop: 2 }}>
+                          {fmtDate(ev.startsAt)}{presStr ? ` · ${presStr}` : ''}
+                        </div>
+                      </div>
+                      <button
+                        disabled={reenabling === ev.id}
+                        onClick={() => reenableEvent(ev.id)}
+                        style={{
+                          background: 'rgba(96,165,250,0.12)', border: '1px solid rgba(96,165,250,0.40)',
+                          color: '#60a5fa', borderRadius: 4, padding: '6px 12px',
+                          fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                          cursor: reenabling === ev.id ? 'wait' : 'pointer',
+                        }}
+                      >
+                        {reenabling === ev.id ? '...' : 'Re-enable'}
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
+              <button
+                onClick={() => setShowUntracked(false)}
+                style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', color: '#9BB0C4', borderRadius: 4, padding: '7px 14px', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {cardCode && <AgentTradingCardModal agentCode={cardCode} onClose={() => setCardCode(null)} />}
 
