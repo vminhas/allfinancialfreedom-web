@@ -137,16 +137,98 @@ interface ParticipantsPage {
   participants: ZoomParticipant[]
 }
 
+interface PastInstance {
+  uuid: string
+  start_time: string  // ISO 8601
+}
+
+// List the UUIDs of every past occurrence of a recurring meeting.
+// Critical for backfilling: when you pass the numeric ID directly to
+// /past_meetings/{id}/participants Zoom only returns the LATEST
+// occurrence's data, not historical ones. We have to enumerate
+// instances and pick the UUID matching the date we care about.
+async function fetchPastMeetingInstances(meetingId: string): Promise<PastInstance[]> {
+  const cleanId = meetingId.replace(/[\s-]/g, '')
+  const res = await zoomFetch(`/past_meetings/${cleanId}/instances`)
+  if (!res.ok) {
+    const text = await res.text()
+    if (res.status === 404) {
+      // No past instances at all. Possibly a future meeting, or a
+      // meeting that lives on a Zoom account this app can't see.
+      throw new ZoomApiError(`Zoom has no past instances of meeting ${cleanId}`, 404)
+    }
+    throw new ZoomApiError(`Zoom API ${res.status} on /past_meetings/${cleanId}/instances: ${text}`, res.status)
+  }
+  const json = JSON.parse(await res.text()) as { meetings?: PastInstance[] }
+  return json.meetings ?? []
+}
+
+// Zoom UUIDs can contain '/' or start with '/'. Per Zoom's docs you
+// must double-URL-encode in those cases so the path doesn't get
+// chopped by their router. Otherwise single-encoding is fine.
+function encodeMeetingUuid(uuid: string): string {
+  const single = encodeURIComponent(uuid)
+  if (uuid.startsWith('/') || uuid.includes('//')) {
+    return encodeURIComponent(single)
+  }
+  return single
+}
+
 // Zoom's past_meetings/{meetingId}/participants endpoint paginates at
-// 300 records per page. We page through all of them; for typical
-// trainings (50-200 participants) one page is enough. The same person
-// rejoining shows up as multiple rows here, which is fine -- the sync
-// step sums durations by user_id.
-export async function fetchPastMeetingParticipants(meetingId: string): Promise<ZoomParticipant[]> {
+// 300 records per page. The same person rejoining shows up as multiple
+// rows here, which is fine -- the sync step sums durations by user_id.
+//
+// targetStartTime: when we know which date's occurrence we want (which
+// we always do, since each TrainingEvent has a startsAt), we look up
+// the matching instance UUID first. This lets us backfill the entire
+// history of a recurring meeting -- without it, Zoom only returns the
+// most recent occurrence's participants regardless of which date we
+// asked about.
+export async function fetchPastMeetingParticipants(
+  meetingId: string,
+  targetStartTime?: Date,
+): Promise<ZoomParticipant[]> {
   // Zoom expects the numeric meeting id with no spaces or dashes.
   const cleanId = meetingId.replace(/[\s-]/g, '')
   if (!/^\d+$/.test(cleanId)) {
     throw new ZoomApiError(`Invalid Zoom meeting ID: ${meetingId}`, 400)
+  }
+
+  // Resolve the right occurrence's UUID. For non-recurring meetings
+  // there's typically just one instance; for recurring meetings (e.g.
+  // weekly Mondays + Thursdays) we need to pick the one nearest the
+  // target date.
+  let endpointId = cleanId
+  if (targetStartTime) {
+    try {
+      const instances = await fetchPastMeetingInstances(cleanId)
+      if (instances.length > 0) {
+        const target = targetStartTime.getTime()
+        const closest = instances.reduce((best, curr) => {
+          const cd = Math.abs(new Date(curr.start_time).getTime() - target)
+          const bd = Math.abs(new Date(best.start_time).getTime() - target)
+          return cd < bd ? curr : best
+        })
+        const delta = Math.abs(new Date(closest.start_time).getTime() - target)
+        // Tolerance: within 12h of the expected start. Tight enough
+        // that we don't grab the wrong week of a weekly recurring
+        // meeting, loose enough to absorb time-zone parsing wobble in
+        // either Zoom's response or our own startsAt.
+        if (delta < 12 * 3600_000) {
+          endpointId = encodeMeetingUuid(closest.uuid)
+        } else {
+          throw new ZoomApiError(
+            `No past instance of meeting ${cleanId} near ${targetStartTime.toISOString()} (closest was ${closest.start_time})`,
+            404,
+          )
+        }
+      } else {
+        throw new ZoomApiError(`No past instances of meeting ${cleanId}`, 404)
+      }
+    } catch (err) {
+      if (err instanceof ZoomApiError) throw err
+      throw new ZoomApiError(`Failed to resolve instance: ${err instanceof Error ? err.message : String(err)}`, 500)
+    }
   }
 
   const all: ZoomParticipant[] = []
@@ -155,7 +237,7 @@ export async function fetchPastMeetingParticipants(meetingId: string): Promise<Z
   do {
     const params = new URLSearchParams({ page_size: '300' })
     if (nextPageToken) params.set('next_page_token', nextPageToken)
-    const res = await zoomFetch(`/past_meetings/${cleanId}/participants?${params.toString()}`)
+    const res = await zoomFetch(`/past_meetings/${endpointId}/participants?${params.toString()}`)
     const text = await res.text()
     if (!res.ok) {
       // 404 when the meeting hasn't ended yet, or when Zoom hasn't
