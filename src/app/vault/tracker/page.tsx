@@ -1814,14 +1814,56 @@ function AgentDrawer({
             {/* Email */}
             <div>
               <label style={lStyle}>Email</label>
-              <input type="email" value={editForm.email} onChange={set('email')} style={iStyle} />
+              <div style={{ display: 'flex', gap: 6, alignItems: 'stretch' }}>
+                <input type="email" value={editForm.email} onChange={set('email')} style={iStyle} />
+                {editForm.email && (
+                  <a
+                    href={`mailto:${editForm.email}`}
+                    title="Send email"
+                    style={{
+                      flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      padding: '0 12px', borderRadius: 4, fontSize: 11, fontWeight: 700,
+                      letterSpacing: '0.08em', textTransform: 'uppercase', textDecoration: 'none',
+                      background: 'rgba(201,169,110,0.10)', border: '1px solid rgba(201,169,110,0.35)',
+                      color: '#C9A96E',
+                    }}
+                  >
+                    ✉ Email
+                  </a>
+                )}
+              </div>
             </div>
 
             {/* Contact */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <div>
                 <label style={lStyle}>Phone</label>
-                <input value={editForm.phone} onChange={set('phone')} placeholder="e.g. (555) 555-5555" style={iStyle} />
+                <div style={{ display: 'flex', gap: 6, alignItems: 'stretch' }}>
+                  <input value={editForm.phone} onChange={set('phone')} placeholder="e.g. (555) 555-5555" style={iStyle} />
+                  {editForm.phone && (() => {
+                    // tel: links work best with digits-only. Most agents are
+                    // US so default to +1 when we get exactly 10 digits;
+                    // pass anything else through as-is so int'l numbers
+                    // already in E.164 still dial correctly.
+                    const digits = editForm.phone.replace(/[^\d]/g, '')
+                    const tel = digits.length === 10 ? `+1${digits}` : digits
+                    return (
+                      <a
+                        href={`tel:${tel}`}
+                        title="Call"
+                        style={{
+                          flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          padding: '0 12px', borderRadius: 4, fontSize: 11, fontWeight: 700,
+                          letterSpacing: '0.08em', textTransform: 'uppercase', textDecoration: 'none',
+                          background: 'rgba(74,222,128,0.10)', border: '1px solid rgba(74,222,128,0.35)',
+                          color: '#4ADE80',
+                        }}
+                      >
+                        ☏ Call
+                      </a>
+                    )
+                  })()}
+                </div>
               </div>
               <div>
                 <label style={lStyle}>Licensed State</label>
