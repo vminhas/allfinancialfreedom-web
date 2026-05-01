@@ -45,6 +45,7 @@ export async function PATCH(
 
   const body = await req.json() as {
     published?: boolean
+    trackAttendance?: boolean
     title?: string
     subtitle?: string | null
     category?: string | null
@@ -61,6 +62,7 @@ export async function PATCH(
   }
 
   const data: Record<string, unknown> = { manuallyEdited: true }
+  if (body.trackAttendance !== undefined) data.trackAttendance = body.trackAttendance
 
   // Copy simple editable fields
   const simpleFields = [

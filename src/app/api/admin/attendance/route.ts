@@ -37,6 +37,9 @@ export async function GET(req: NextRequest) {
       streamType: 'ZOOM',
       streamId: { not: null },
       startsAt: { gte: from, lte: to },
+      // Only include events admin has marked as tracked. Per-event
+      // toggle lives on /vault/trainings + the action panel modal.
+      trackAttendance: true,
     },
     select: {
       id: true,

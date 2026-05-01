@@ -776,6 +776,12 @@ model TrainingEvent {
   // Tracks the most recent Zoom attendance pull so the cron can skip
   // events it already synced. Null until the first sync runs.
   attendanceSyncedAt    DateTime?
+  // Whether this event participates in the attendance grid + cron.
+  // Default true so newly-parsed flyers are tracked by default;
+  // admins flip this off for events they don't want surfaced (e.g.
+  // Onboarding Academy, hierarchy calls, guest broadcasts that don't
+  // happen on the AFF Zoom account).
+  trackAttendance       Boolean   @default(true)
   attendances           TrainingAttendance[]
   attendanceOrphans     TrainingAttendanceOrphan[]
   @@map("training_events")
