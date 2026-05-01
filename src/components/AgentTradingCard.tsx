@@ -100,42 +100,112 @@ export function AgentTradingCardModal({
         useCORS: true,
         logging: false,
       })
-      const url = canvas.toDataURL('image/png')
-      const a = document.createElement('a')
-      a.href = url
-      a.download = data
+      const filename = data
         ? `${data.firstName}-${data.lastName}-${data.agentCode}-card.png`.toLowerCase().replace(/\s+/g, '-')
         : `agent-card-${agentCode}.png`
+
+      // iOS PWA + Safari ignore <a download>. Convert to blob first so
+      // we can route through Web Share API on mobile and a real
+      // anchor-blob download on desktop. Same fallback ladder as the
+      // headshot download.
+      const blob = await new Promise<Blob | null>(resolve => {
+        canvas.toBlob(b => resolve(b), 'image/png')
+      })
+
+      if (blob) {
+        const file = new File([blob], filename, { type: 'image/png' })
+        const nav = navigator as Navigator & {
+          canShare?: (data: { files: File[] }) => boolean
+          share?: (data: { files: File[]; title?: string }) => Promise<void>
+        }
+        if (nav.share && nav.canShare && nav.canShare({ files: [file] })) {
+          try {
+            await nav.share({ files: [file], title: data ? `${data.firstName} ${data.lastName}` : 'Trading card' })
+            return
+          } catch (err) {
+            if ((err as Error).name === 'AbortError') return
+          }
+        }
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = filename
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        setTimeout(() => URL.revokeObjectURL(url), 1000)
+        return
+      }
+
+      // Last-ditch fallback: data URL
+      const dataUrl = canvas.toDataURL('image/png')
+      const a = document.createElement('a')
+      a.href = dataUrl
+      a.download = filename
       a.click()
     } finally { setDownloading(false) }
   }
 
-  // Save the headshot itself, no card chrome — useful when the team
+  // Save the headshot itself, no card chrome -- useful when the team
   // wants the raw image for a flyer, slide, or birthday graphic.
-  // Falls back to a same-origin proxy if we can't fetch directly
-  // (Vercel Blob URLs are CORS-friendly so this usually just works).
+  //
+  // iOS Safari + iOS PWA ignore the <a download> attribute, so a plain
+  // anchor click does nothing. We try a few paths in order of UX
+  // quality:
+  //   1. Web Share API with files (iOS native share sheet -> Save
+  //      Image, Messages, Mail, etc). Best mobile UX.
+  //   2. <a download> blob (works on every desktop + Android).
+  //   3. window.open(url) so the user can long-press -> Save Image.
   const downloadHeadshot = async () => {
     if (!data?.avatarUrl) return
     setDownloading(true)
     try {
-      const res = await fetch(data.avatarUrl, { mode: 'cors' })
-      if (!res.ok) throw new Error('Fetch failed')
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      // Try to keep the original extension; default to .jpg.
       const ext = (() => {
         const m = data.avatarUrl.match(/\.([a-zA-Z0-9]{3,4})(?:\?|#|$)/)
         return m ? m[1].toLowerCase() : 'jpg'
       })()
-      a.download = `${data.firstName}-${data.lastName}-${data.agentCode}-headshot.${ext}`.toLowerCase().replace(/\s+/g, '-')
-      a.click()
-      // Revoke the object URL on next tick so the click has time to fire.
-      setTimeout(() => URL.revokeObjectURL(url), 1000)
-    } catch {
-      // Fallback: open the avatar in a new tab so the user can right-
-      // click save. Better than failing silently.
+      const filename = `${data.firstName}-${data.lastName}-${data.agentCode}-headshot.${ext}`.toLowerCase().replace(/\s+/g, '-')
+
+      // Path 1 + 2 share the same blob fetch.
+      let blob: Blob | null = null
+      try {
+        const res = await fetch(data.avatarUrl, { mode: 'cors' })
+        if (res.ok) blob = await res.blob()
+      } catch { /* CORS or network -- fall through to path 3 */ }
+
+      // Path 1: Web Share API with files (iOS Safari + PWA hits this).
+      if (blob) {
+        const file = new File([blob], filename, { type: blob.type || 'image/jpeg' })
+        const nav = navigator as Navigator & {
+          canShare?: (data: { files: File[] }) => boolean
+          share?: (data: { files: File[]; title?: string }) => Promise<void>
+        }
+        if (nav.share && nav.canShare && nav.canShare({ files: [file] })) {
+          try {
+            await nav.share({ files: [file], title: `${data.firstName} ${data.lastName}` })
+            return
+          } catch (err) {
+            // User cancelled or share failed -- silently fall through
+            // to download. AbortError is a no-op (they cancelled).
+            if ((err as Error).name === 'AbortError') return
+          }
+        }
+      }
+
+      // Path 2: <a download> blob (desktop + Android Chrome).
+      if (blob) {
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = filename
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        setTimeout(() => URL.revokeObjectURL(url), 1000)
+        return
+      }
+
+      // Path 3: open in new tab for long-press save.
       window.open(data.avatarUrl, '_blank', 'noopener,noreferrer')
     } finally { setDownloading(false) }
   }

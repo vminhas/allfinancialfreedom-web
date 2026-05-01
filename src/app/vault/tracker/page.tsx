@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine,
@@ -232,22 +232,64 @@ export default function TrackerPage() {
       .catch(() => {})
   }, [])
 
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
+  // Sync the selected agent + active tab into the URL so refresh
+  // (and home-screen PWA reopen) restores what the user was looking
+  // at. Birthday tracker / quick-jump links already use ?agentId=
+  // for deep-linking; we just keep the param in lockstep with state
+  // so the URL stays meaningful as the user navigates inside the
+  // drawer.
+  const updateUrl = useCallback((agentId: string | null, tab: string | null) => {
+    const sp = new URLSearchParams(window.location.search)
+    if (agentId) sp.set('agentId', agentId); else sp.delete('agentId')
+    if (tab) sp.set('tab', tab); else sp.delete('tab')
+    const qs = sp.toString()
+    const url = qs ? `${window.location.pathname}?${qs}` : window.location.pathname
+    window.history.replaceState(null, '', url)
+  }, [])
+
   const openDrawer = useCallback(async (id: string) => {
     setDrawerLoading(true)
     setSelectedAgent(null)
+    updateUrl(id, searchParams.get('tab'))
     const res = await fetch(`/api/admin/agents/${id}`)
     const data = await res.json() as DetailedAgent
     setSelectedAgent(data)
     setDrawerLoading(false)
-  }, [])
+  }, [updateUrl, searchParams])
+
+  const closeDrawer = useCallback(() => {
+    setSelectedAgent(null)
+    setInviteMsg('')
+    setDeleteConfirm(false)
+    updateUrl(null, null)
+  }, [updateUrl])
 
   // Deep-link support: /vault/tracker?agentId=xxx auto-opens that agent's drawer
   // (used by the birthday tracker, future quick-jump links, etc.)
-  const searchParams = useSearchParams()
+  // Also runs on mount so refreshing the page (or reopening the PWA
+  // from the home screen) restores whatever was open.
   useEffect(() => {
     const agentId = searchParams.get('agentId')
-    if (agentId) openDrawer(agentId)
-  }, [searchParams, openDrawer])
+    if (agentId && (!selectedAgent || selectedAgent.id !== agentId)) {
+      openDrawer(agentId)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
+
+  // Lock body scroll while the drawer is open so iOS Safari + PWA
+  // don't bleed scroll through the overlay. Without this, swiping
+  // inside the drawer can scroll the underlying page, and the
+  // initial open can force-scroll the body to the top -- both of
+  // which we hit before this fix.
+  useEffect(() => {
+    if (!drawerLoading && !selectedAgent) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [drawerLoading, selectedAgent])
 
   const updateCarrier = async (carrier: string, status: string, producerNumber: string) => {
     if (!selectedAgent) return
@@ -995,7 +1037,7 @@ export default function TrackerPage() {
             background: 'rgba(0,0,0,0.65)',
             display: 'flex', justifyContent: 'flex-end',
           }}
-          onClick={e => { if (e.target === e.currentTarget) { setSelectedAgent(null); setInviteMsg('') } }}
+          onClick={e => { if (e.target === e.currentTarget) closeDrawer() }}
         >
           <div style={{
             width: 'min(540px, 100vw)', height: '100%', overflow: 'auto',
@@ -1018,8 +1060,10 @@ export default function TrackerPage() {
                 inviteLoading={inviteLoading}
                 inviteMsg={inviteMsg}
                 trainers={trainers}
-                onClose={() => { setSelectedAgent(null); setInviteMsg(''); setDeleteConfirm(false) }}
+                onClose={closeDrawer}
                 onOpenCard={setCardCode}
+                initialTab={(searchParams.get('tab') as TabKey) ?? undefined}
+                onTabChange={tab => updateUrl(selectedAgent?.id ?? null, tab)}
               />
             ) : null}
           </div>
@@ -1065,6 +1109,9 @@ function AgentAvatar({ avatarUrl, firstName, lastName, size = 32 }: { avatarUrl:
 
 // ─── Agent Drawer ──────────────────────────────────────────────────────────────
 
+const TABS = ['progress', 'carriers', 'calls', 'info', 'edit'] as const
+type TabKey = typeof TABS[number]
+
 function AgentDrawer({
   agent,
   onAdvancePhase,
@@ -1079,6 +1126,8 @@ function AgentDrawer({
   trainers,
   onClose,
   onOpenCard,
+  initialTab,
+  onTabChange,
 }: {
   agent: DetailedAgent
   onAdvancePhase: () => void
@@ -1093,8 +1142,14 @@ function AgentDrawer({
   trainers: string[]
   onOpenCard: (code: string) => void
   onClose: () => void
+  initialTab?: TabKey
+  onTabChange?: (tab: TabKey) => void
 }) {
-  const [activeTab, setActiveTab] = useState<'progress' | 'carriers' | 'calls' | 'info' | 'edit'>('progress')
+  const [activeTab, setActiveTabRaw] = useState<TabKey>(initialTab && (TABS as readonly string[]).includes(initialTab) ? initialTab : 'progress')
+  const setActiveTab = (tab: TabKey) => {
+    setActiveTabRaw(tab)
+    onTabChange?.(tab)
+  }
   const [drawerChecklistPhase, setDrawerChecklistPhase] = useState<number>(agent.phase)
   const [togglingKey, setTogglingKey] = useState<string | null>(null)
   const [localPhaseItems, setLocalPhaseItems] = useState(agent.phaseItems)
