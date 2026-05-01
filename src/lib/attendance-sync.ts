@@ -182,10 +182,13 @@ export async function syncTrainingAttendance(
     throw new Error('Training event has no streamId; nothing to sync')
   }
 
-  // 1. Fetch the participant report from Zoom (paginated). Throws
-  //    ZoomConfigError / ZoomApiError on auth or 404 -- caller decides
-  //    whether to surface or retry.
-  const participants = await fetchPastMeetingParticipants(trainingEvent.streamId)
+  // 1. Fetch the participant report from Zoom (paginated). We pass
+  //    startsAt so the helper picks the right instance UUID for
+  //    recurring meetings -- otherwise Zoom returns only the most
+  //    recent occurrence's data regardless of which date we wanted.
+  //    Throws ZoomConfigError / ZoomApiError on auth or 404; caller
+  //    decides whether to surface or retry.
+  const participants = await fetchPastMeetingParticipants(trainingEvent.streamId, trainingEvent.startsAt)
   const agg = aggregateParticipants(participants)
 
   // 2. Build the agent lookup and match.
