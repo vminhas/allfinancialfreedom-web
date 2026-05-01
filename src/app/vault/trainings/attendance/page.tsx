@@ -121,6 +121,9 @@ export default function AttendancePage() {
   const [statusFilter, setStatusFilter] = useState<'ACTIVE' | 'ALL'>('ACTIVE')
   // Bulk-sync progress: { done, total, current } while running, null otherwise.
   const [bulkSync, setBulkSync] = useState<{ done: number; total: number; current: string; failures: number } | null>(null)
+  // Per-event failures from the last bulk run, sticky after the run
+  // finishes so admins can see which events errored and why.
+  const [bulkFailures, setBulkFailures] = useState<{ id: string; title: string; date: string; error: string; kind: string }[]>([])
   const [popover, setPopover] = useState<{
     rowIdx: number
     colIdx: number
@@ -211,10 +214,12 @@ export default function AttendancePage() {
     if (!data || data.events.length === 0) return
     const events = data.events
     setBulkSync({ done: 0, total: events.length, current: '', failures: 0 })
+    setBulkFailures([])
 
     const CONCURRENCY = 3
     let cursor = 0
     let failures = 0
+    const failureLog: typeof bulkFailures = []
 
     const worker = async () => {
       while (cursor < events.length) {
@@ -223,9 +228,26 @@ export default function AttendancePage() {
         setBulkSync(s => s ? { ...s, current: ev.title } : s)
         try {
           const res = await fetch(`/api/admin/trainings/${ev.id}/sync-attendance`, { method: 'POST' })
-          if (!res.ok) failures++
-        } catch {
+          if (!res.ok) {
+            const d = await res.json().catch(() => ({})) as { error?: string; kind?: string }
+            failures++
+            failureLog.push({
+              id: ev.id,
+              title: ev.title,
+              date: ev.startsAt,
+              error: d.error ?? `HTTP ${res.status}`,
+              kind: d.kind ?? 'unknown',
+            })
+          }
+        } catch (err) {
           failures++
+          failureLog.push({
+            id: ev.id,
+            title: ev.title,
+            date: ev.startsAt,
+            error: err instanceof Error ? err.message : 'Network error',
+            kind: 'network',
+          })
         }
         setBulkSync(s => s ? { ...s, done: s.done + 1, failures } : s)
       }
@@ -233,6 +255,7 @@ export default function AttendancePage() {
 
     await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()))
     setBulkSync(null)
+    setBulkFailures(failureLog)
     await load()
     await loadOrphans()
   }
@@ -323,6 +346,40 @@ export default function AttendancePage() {
               width: `${Math.round((bulkSync.done / bulkSync.total) * 100)}%`,
               height: '100%', background: '#60a5fa', transition: 'width 0.3s',
             }} />
+          </div>
+        </div>
+      )}
+
+      {!bulkSync && bulkFailures.length > 0 && (
+        <div style={{
+          marginBottom: 14, padding: '12px 14px',
+          background: 'rgba(248,113,113,0.06)',
+          border: '1px solid rgba(248,113,113,0.30)', borderRadius: 6,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#f87171' }}>
+              {bulkFailures.length} event{bulkFailures.length > 1 ? 's' : ''} couldn&apos;t sync
+            </span>
+            <button
+              onClick={() => setBulkFailures([])}
+              style={{ background: 'transparent', border: 'none', color: '#6B8299', fontSize: 11, cursor: 'pointer' }}
+              title="Dismiss"
+            >
+              ✕
+            </button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {bulkFailures.map(f => (
+              <div key={f.id} style={{ fontSize: 11, color: '#9BB0C4', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <span style={{ color: '#fff', fontWeight: 500 }}>{fmtDate(f.date)}</span>
+                <span style={{ color: '#9BB0C4' }}>{f.title}</span>
+                <span style={{ color: '#f87171', flex: 1, minWidth: 200 }}>· {f.error}</span>
+                {f.kind === 'not_ready' && <span style={{ fontSize: 9, color: '#FBBF24', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>retry later</span>}
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 10, color: '#6B8299', marginTop: 10, lineHeight: 1.5 }}>
+            <strong style={{ color: '#9BB0C4' }}>&quot;not found&quot; / 404</strong> usually means the meeting was hosted by a Zoom user outside this Workspace account. Zoom&apos;s API only returns participant data for meetings owned by users in the connected account.
           </div>
         </div>
       )}
