@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { CallButton, EmailButton } from '@/components/ContactActions'
 
 interface Contact {
   id: string
@@ -170,7 +171,13 @@ export default function ContactsPage() {
                   <p style={{ color: '#ffffff', fontSize: 13, margin: '0 0 2px' }}>{c.firstName} {c.lastName}</p>
                   {c.wornOut && <span style={{ fontSize: 9, color: '#f59e0b', letterSpacing: '0.1em', textTransform: 'uppercase', border: '1px solid rgba(245,158,11,0.3)', padding: '1px 4px', borderRadius: 2 }}>soft</span>}
                 </td>
-                <td style={{ padding: '10px 16px', color: '#9BB0C4', fontSize: 12 }}>{c.email}</td>
+                <td style={{ padding: '10px 16px', color: '#9BB0C4', fontSize: 12 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <span>{c.email}</span>
+                    <EmailButton email={c.email} size="sm" label={false} />
+                    <CallButton phone={c.phone} size="sm" label={false} />
+                  </span>
+                </td>
                 <td style={{ padding: '10px 16px', color: '#9BB0C4', fontSize: 12 }}>{normalizeLicense(c.licenseType)}</td>
                 <td style={{ padding: '10px 16px', color: '#9BB0C4', fontSize: 12 }}>{c.currentAgency ?? '—'}</td>
                 <td style={{ padding: '10px 16px', color: '#9BB0C4', fontSize: 12 }}>{c.state ?? '—'}</td>
