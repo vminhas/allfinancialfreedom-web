@@ -232,6 +232,7 @@ model AgentProfile {
   ftas                  FieldTrainingAppointment[]
   trainingAttendances   TrainingAttendance[]
   resolvedOrphans       TrainingAttendanceOrphan[] @relation("OrphanResolved")
+  zoomAliases           AgentZoomAlias[]
 
   @@map("agent_profiles")
 }
@@ -852,6 +853,43 @@ enum TrainingAttendanceStatus {
   EXCUSED
   NOT_TRACKING
   NOT_JOINED_YET
+}
+
+// Alternate Zoom display names / emails an agent has been seen joining
+// Zoom under. Each row is one alias; an agent can have many. The
+// matcher checks aliases first so that resolving an orphan once
+// teaches the system permanently. Append-only: when the agent updates
+// their Zoom display name, the orphan resolver writes a new alias
+// rather than replacing the old one (so historical events stay
+// matched even if you change your name later).
+model AgentZoomAlias {
+  id              String       @id @default(cuid())
+  agentProfileId  String
+  agentProfile    AgentProfile @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+
+  // Pre-normalized display-name key used by the matcher, OR a raw
+  // lowercased email. Only one of these is set per row; the matcher
+  // checks both.
+  nameKey         String?
+  email           String?
+
+  // What we saw on Zoom (kept verbatim for the admin UI listing
+  // aliases on an agent's profile in the future).
+  rawDisplayName  String?
+
+  // Where the alias came from -- helps audit if a wrong resolution
+  // ever needs unwinding.
+  source          String       @default("orphan_resolve")
+  createdAt       DateTime     @default(now())
+
+  // Both nameKey and email are unique across the whole table so a
+  // single Zoom name/email can't claim two different agents at once.
+  // Postgres treats nulls as distinct so unrelated aliases on the
+  // other field don't collide.
+  @@unique([nameKey])
+  @@unique([email])
+  @@index([agentProfileId])
+  @@map("agent_zoom_aliases")
 }
 
 model LicensingNote {

@@ -86,6 +86,9 @@ export async function POST(req: NextRequest) {
 
   // Write/update the attendance row. The orphan duration becomes the
   // row's duration so the cell tooltip reflects what Zoom recorded.
+  // manualStatus=PRESENT pins the resolution so a future re-sync that
+  // still doesn't match the agent natively (e.g. before alias picks
+  // them up across instances) doesn't clobber the row back to ABSENT.
   await db.trainingAttendance.upsert({
     where: {
       trainingEventId_agentProfileId: {
@@ -97,6 +100,7 @@ export async function POST(req: NextRequest) {
       trainingEventId: orphan.trainingEventId,
       agentProfileId: agent.id,
       status: 'PRESENT',
+      manualStatus: 'PRESENT',
       zoomDisplayName: orphan.zoomDisplayName,
       zoomEmail: orphan.zoomEmail,
       zoomUserId: orphan.zoomUserId,
@@ -106,7 +110,7 @@ export async function POST(req: NextRequest) {
     },
     update: {
       status: 'PRESENT',
-      manualStatus: null,        // clear any prior ABSENT manual override
+      manualStatus: 'PRESENT',
       zoomDisplayName: orphan.zoomDisplayName,
       zoomEmail: orphan.zoomEmail,
       zoomUserId: orphan.zoomUserId,
@@ -120,6 +124,49 @@ export async function POST(req: NextRequest) {
     where: { id: orphan.id },
     data: { resolvedAgentId: agent.id, resolvedAt: new Date() },
   })
+
+  // Persist the Zoom alias(es) so the matcher catches this person
+  // automatically on every future event. Append-only: if either key
+  // is already claimed by a different agent, the upsert reassigns it
+  // -- the most recent admin decision wins.
+  const nameKey = (orphan.zoomDisplayName ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^\w\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim() || null
+  const emailKey = orphan.zoomEmail?.toLowerCase().trim() || null
+
+  if (nameKey) {
+    await db.agentZoomAlias.upsert({
+      where: { nameKey },
+      create: {
+        agentProfileId: agent.id,
+        nameKey,
+        rawDisplayName: orphan.zoomDisplayName,
+        source: 'orphan_resolve',
+      },
+      update: {
+        agentProfileId: agent.id,
+        rawDisplayName: orphan.zoomDisplayName,
+      },
+    })
+  }
+  if (emailKey) {
+    await db.agentZoomAlias.upsert({
+      where: { email: emailKey },
+      create: {
+        agentProfileId: agent.id,
+        email: emailKey,
+        rawDisplayName: orphan.zoomDisplayName,
+        source: 'orphan_resolve',
+      },
+      update: {
+        agentProfileId: agent.id,
+      },
+    })
+  }
 
   return NextResponse.json({ ok: true })
 }

@@ -121,6 +121,18 @@ async function buildAgentLookup(): Promise<AgentLookup> {
     const name = normName(`${p.firstName} ${p.lastName}`)
     if (name) byName.set(name, { profileId: p.id })
   }
+  // Layer in admin-resolved aliases. These take precedence over the
+  // automatic fullName/email match because they encode an admin
+  // decision -- e.g. "Sadie's iPhone" is Sadie Grubb. Aliases
+  // accumulate over time as orphans get resolved, so this lookup
+  // gets smarter every sync cycle without the admin doing anything.
+  const aliases = await db.agentZoomAlias.findMany({
+    select: { agentProfileId: true, nameKey: true, email: true },
+  })
+  for (const a of aliases) {
+    if (a.email) byEmail.set(a.email, { profileId: a.agentProfileId })
+    if (a.nameKey) byName.set(a.nameKey, { profileId: a.agentProfileId })
+  }
   return { byEmail, byName }
 }
 
