@@ -30,6 +30,9 @@ interface CardPayload {
   phase: number
   phaseLabel: string
   trainerName: string | null
+  // Contact (admin/lc only -- peer agents don't see other agents' phone)
+  phone: string | null
+  email: string | null
   // Tenure
   joinedAt: string | null  // icaDate || createdAt
   daysAtAff: number | null
@@ -80,6 +83,8 @@ export async function GET(
       icaDate: true,
       createdAt: true,
       cft: true,
+      phone: true,
+      agentUser: { select: { email: true } },
       milestones: {
         where: { status: 'AWARDED' },
         select: { milestone: true, completedAt: true },
@@ -151,6 +156,11 @@ export async function GET(
     phase: profile.phase,
     phaseLabel: PHASE_TITLES[profile.phase] ?? `Phase ${profile.phase}`,
     trainerName: profile.cft,
+    // Phone + email leak agents' personal contact info, so we only
+    // surface them to admin/lc -- peer agents looking at teammates
+    // should DM them instead.
+    phone: scope === 'peer_agent' ? null : profile.phone,
+    email: scope === 'peer_agent' ? null : (profile.agentUser?.email ?? null),
     joinedAt: joinedAt ? joinedAt.toISOString() : null,
     daysAtAff,
     daysInPhase,

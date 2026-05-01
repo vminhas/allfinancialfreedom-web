@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { AgentTradingCardModal } from '@/components/AgentTradingCard'
 
 // Replicates Vick's "Tracking Team Empower" spreadsheet:
 //   rows = agents sorted by Day in Company
@@ -36,11 +37,14 @@ interface AttendanceRow {
   cells: AttendanceCell[]
 }
 
+interface AttendancePresenter { name: string; role: string }
 interface AttendanceEvent {
   id: string
   title: string
   startsAt: string
   attendanceSyncedAt: string | null
+  flyerImageUrl: string | null
+  presenters: AttendancePresenter[] | null
 }
 
 interface AttendancePayload {
@@ -89,6 +93,23 @@ function todayStr(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
+function truncateTitle(t: string, max: number): string {
+  const s = (t ?? '').trim()
+  if (s.length <= max) return s
+  return s.slice(0, max - 1).trimEnd() + '…'
+}
+
+// Cell-status sort priorities. Two flavors so the user can flip
+// between "show me who showed up" (present-first) and "show me who
+// missed" (absent-first) without the rest of the row order randomly
+// shifting.
+const SORT_PRESENT_FIRST: Record<string, number> = {
+  PRESENT: 0, EXCUSED: 1, ABSENT: 2, PENDING: 3, NOT_TRACKING: 4, NOT_JOINED_YET: 5,
+}
+const SORT_ABSENT_FIRST: Record<string, number> = {
+  ABSENT: 0, PENDING: 1, EXCUSED: 2, PRESENT: 3, NOT_TRACKING: 4, NOT_JOINED_YET: 5,
+}
+
 interface OrphanRow {
   id: string
   trainingEventId: string
@@ -124,6 +145,20 @@ export default function AttendancePage() {
   // Per-event failures from the last bulk run, sticky after the run
   // finishes so admins can see which events errored and why.
   const [bulkFailures, setBulkFailures] = useState<{ id: string; title: string; date: string; error: string; kind: string }[]>([])
+  // Free-text search over agent name + code.
+  const [nameFilter, setNameFilter] = useState('')
+  // When set, the grid rows are sorted by attendance status for this
+  // event in the chosen direction. Click the column header twice to
+  // toggle direction; click the same column a third time to clear.
+  const [sortBy, setSortBy] = useState<{ eventId: string; direction: 'present' | 'absent' } | null>(null)
+  // Hovered column header -> floating flyer/title preview.
+  const [hoveredEventId, setHoveredEventId] = useState<string | null>(null)
+  // Clicked column header -> action panel modal.
+  const [eventPanelId, setEventPanelId] = useState<string | null>(null)
+  const [publishing, setPublishing] = useState(false)
+  const [publishMsg, setPublishMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  // Clicked agent name -> trading card modal.
+  const [cardCode, setCardCode] = useState<string | null>(null)
   const [popover, setPopover] = useState<{
     rowIdx: number
     colIdx: number
@@ -168,12 +203,57 @@ export default function AttendancePage() {
 
   const filteredRows = useMemo(() => {
     if (!data) return []
-    return data.rows.filter(r => {
+    const q = nameFilter.trim().toLowerCase()
+    let rows = data.rows.filter(r => {
       if (statusFilter === 'ACTIVE' && r.status !== 'ACTIVE') return false
       if (cftFilter && (r.cft ?? '') !== cftFilter) return false
+      if (q) {
+        const haystack = `${r.firstName} ${r.lastName} ${r.agentCode}`.toLowerCase()
+        if (!haystack.includes(q)) return false
+      }
       return true
     })
-  }, [data, cftFilter, statusFilter])
+    // Sort by a specific event's status when set; otherwise the
+    // server's tenure-descending order is preserved.
+    if (sortBy) {
+      const eventIdx = data.events.findIndex(e => e.id === sortBy.eventId)
+      if (eventIdx >= 0) {
+        const order = sortBy.direction === 'present' ? SORT_PRESENT_FIRST : SORT_ABSENT_FIRST
+        rows = [...rows].sort((a, b) => {
+          const sa = order[a.cells[eventIdx]?.status ?? 'ABSENT'] ?? 9
+          const sb = order[b.cells[eventIdx]?.status ?? 'ABSENT'] ?? 9
+          return sa - sb
+        })
+      }
+    }
+    return rows
+  }, [data, cftFilter, statusFilter, nameFilter, sortBy])
+
+  // Per-event tally so the action panel + hover preview can show
+  // counts without re-walking the whole grid each render.
+  const eventStats = useMemo(() => {
+    const stats: Record<string, { present: number; absent: number; excused: number; pending: number; notTracking: number; notJoinedYet: number }> = {}
+    if (!data) return stats
+    for (let i = 0; i < data.events.length; i++) {
+      const ev = data.events[i]
+      const tally = { present: 0, absent: 0, excused: 0, pending: 0, notTracking: 0, notJoinedYet: 0 }
+      for (const r of data.rows) {
+        if (r.status !== 'ACTIVE') continue
+        const c = r.cells[i]
+        if (!c) continue
+        switch (c.status) {
+          case 'PRESENT': tally.present++; break
+          case 'ABSENT': tally.absent++; break
+          case 'EXCUSED': tally.excused++; break
+          case 'PENDING': tally.pending++; break
+          case 'NOT_TRACKING': tally.notTracking++; break
+          case 'NOT_JOINED_YET': tally.notJoinedYet++; break
+        }
+      }
+      stats[ev.id] = tally
+    }
+    return stats
+  }, [data])
 
   const cftOptions = useMemo(() => {
     if (!data) return []
@@ -202,6 +282,34 @@ export default function AttendancePage() {
         setPopoverNote('')
       }
     } finally { setSavingCell(false) }
+  }
+
+  const publishToDiscord = async (eventId: string) => {
+    setPublishing(true)
+    setPublishMsg(null)
+    try {
+      const res = await fetch(`/api/admin/attendance/${eventId}/publish-discord`, { method: 'POST' })
+      const d = await res.json() as { ok?: boolean; counts?: { present: number; absent: number; pct: number | null }; error?: string }
+      if (res.ok && d.ok && d.counts) {
+        const c = d.counts
+        setPublishMsg({ ok: true, text: `Posted to Discord (${c.present} present, ${c.absent} missing${c.pct != null ? `, ${c.pct}%` : ''})` })
+      } else {
+        setPublishMsg({ ok: false, text: d.error ?? 'Discord post failed' })
+      }
+    } catch {
+      setPublishMsg({ ok: false, text: 'Network error' })
+    } finally {
+      setPublishing(false)
+      setTimeout(() => setPublishMsg(null), 8000)
+    }
+  }
+
+  const toggleSort = (eventId: string) => {
+    setSortBy(prev => {
+      if (!prev || prev.eventId !== eventId) return { eventId, direction: 'present' }
+      if (prev.direction === 'present') return { eventId, direction: 'absent' }
+      return null  // third click clears
+    })
   }
 
   // Loop through every event in the current date range and trigger a
@@ -293,6 +401,16 @@ export default function AttendancePage() {
             <option value="">All trainers</option>
             {cftOptions.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
+        </div>
+        <div>
+          <label style={lblStyle}>Search</label>
+          <input
+            type="search"
+            value={nameFilter}
+            onChange={e => setNameFilter(e.target.value)}
+            placeholder="Filter by name or code..."
+            style={{ ...inputStyle, minWidth: 200 }}
+          />
         </div>
         <div style={{ flex: 1 }} />
         <button
@@ -427,18 +545,36 @@ export default function AttendancePage() {
                 <th style={{ ...thStyle, position: 'sticky', left: 0, zIndex: 3, background: '#142D48', textAlign: 'right' }}>Day in co.</th>
                 <th style={{ ...thStyle, position: 'sticky', left: 78, zIndex: 3, background: '#142D48', minWidth: 180 }}>Agent</th>
                 <th style={{ ...thStyle, textAlign: 'center' }}>%</th>
-                {data.events.map(ev => (
-                  <th key={ev.id} style={{ ...thStyle, minWidth: 56, padding: '6px 4px' }}>
-                    <div title={ev.title} style={{
-                      writingMode: 'vertical-rl', transform: 'rotate(180deg)',
-                      whiteSpace: 'nowrap', fontSize: 10, color: '#9BB0C4', fontWeight: 600,
-                      paddingTop: 8,
-                    }}>
-                      {fmtDate(ev.startsAt)}
-                      {!ev.attendanceSyncedAt && <span style={{ color: '#6B8299' }}> · pending</span>}
-                    </div>
-                  </th>
-                ))}
+                {data.events.map(ev => {
+                  const isSorted = sortBy?.eventId === ev.id
+                  const sortIcon = isSorted ? (sortBy.direction === 'present' ? '↓✓' : '↑✗') : ''
+                  return (
+                    <th key={ev.id} style={{ ...thStyle, minWidth: 56, padding: '6px 4px', cursor: 'pointer' }}>
+                      <div
+                        onMouseEnter={() => setHoveredEventId(ev.id)}
+                        onMouseLeave={() => setHoveredEventId(prev => prev === ev.id ? null : prev)}
+                        onClick={() => setEventPanelId(ev.id)}
+                        title={ev.title}
+                        style={{
+                          writingMode: 'vertical-rl', transform: 'rotate(180deg)',
+                          whiteSpace: 'nowrap', fontSize: 10, color: '#9BB0C4', fontWeight: 600,
+                          paddingTop: 8,
+                          display: 'inline-flex', flexDirection: 'column', gap: 4,
+                          minHeight: 140,
+                        }}
+                      >
+                        <span style={{ color: '#fff', fontWeight: 700 }}>
+                          {fmtDate(ev.startsAt)}
+                          {sortIcon && <span style={{ color: '#60a5fa', marginLeft: 4 }}>{sortIcon}</span>}
+                        </span>
+                        <span style={{ color: '#C9A96E', fontSize: 9, fontWeight: 600 }}>
+                          {truncateTitle(ev.title, 32)}
+                        </span>
+                        {!ev.attendanceSyncedAt && <span style={{ color: '#6B8299', fontSize: 9 }}>pending</span>}
+                      </div>
+                    </th>
+                  )
+                })}
               </tr>
             </thead>
             <tbody>
@@ -459,7 +595,15 @@ export default function AttendancePage() {
                         {!row.avatarUrl && `${row.firstName[0] ?? ''}${row.lastName[0] ?? ''}`}
                       </span>
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ color: '#fff', fontWeight: 500, fontSize: 12, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <div
+                          onClick={() => setCardCode(row.agentCode)}
+                          title="Open trading card · call · text · email"
+                          style={{
+                            color: '#fff', fontWeight: 500, fontSize: 12, lineHeight: 1.2,
+                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                            cursor: 'pointer',
+                          }}
+                        >
                           {row.firstName} {row.lastName}
                         </div>
                         <div style={{ fontSize: 9, color: '#6B8299', letterSpacing: '0.04em' }}>
@@ -524,6 +668,152 @@ export default function AttendancePage() {
           </table>
         </div>
       )}
+
+      {/* Hover preview: flyer thumbnail + full title + presenters.
+          Pinned bottom-right so the table doesn't shift; pointer-
+          events: none so it never intercepts clicks. */}
+      {hoveredEventId && data && !eventPanelId && (() => {
+        const ev = data.events.find(e => e.id === hoveredEventId)
+        if (!ev) return null
+        const presStr = ev.presenters?.map(p => p.name).join(' · ')
+        return (
+          <div style={{
+            position: 'fixed', bottom: 24, right: 24,
+            background: '#142D48', border: '1px solid rgba(201,169,110,0.35)',
+            borderRadius: 8, padding: 14, maxWidth: 320,
+            boxShadow: '0 12px 40px rgba(0,0,0,0.55)',
+            zIndex: 80, pointerEvents: 'none',
+          }}>
+            {ev.flyerImageUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={ev.flyerImageUrl} alt="" style={{ width: '100%', borderRadius: 6, marginBottom: 10, display: 'block' }} />
+            )}
+            <div style={{ color: '#fff', fontWeight: 600, fontSize: 13, lineHeight: 1.35, marginBottom: 4 }}>
+              {ev.title}
+            </div>
+            <div style={{ color: '#9BB0C4', fontSize: 11 }}>
+              {fmtDate(ev.startsAt)}{presStr ? ` · ${presStr}` : ''}
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Per-event action panel: stats, sort toggles, publish button.
+          Modal because we want all the actions in one focused space
+          and the column headers are too narrow for inline buttons. */}
+      {eventPanelId && data && (() => {
+        const ev = data.events.find(e => e.id === eventPanelId)
+        if (!ev) return null
+        const stats = eventStats[ev.id] ?? { present: 0, absent: 0, excused: 0, pending: 0, notTracking: 0, notJoinedYet: 0 }
+        const counted = stats.present + stats.absent + stats.excused
+        const attended = stats.present + stats.excused
+        const pct = counted > 0 ? Math.round((attended / counted) * 100) : null
+        const presStr = ev.presenters?.map(p => p.name).join(' · ')
+        const isSorted = sortBy?.eventId === ev.id
+        return (
+          <div
+            onClick={() => setEventPanelId(null)}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 100,
+              background: 'rgba(0,0,0,0.55)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: 16,
+            }}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{
+                background: '#142D48', border: '1px solid rgba(201,169,110,0.25)',
+                borderRadius: 8, padding: 20, width: '100%', maxWidth: 480,
+                boxShadow: '0 16px 48px rgba(0,0,0,0.6)',
+              }}
+            >
+              <div style={{ display: 'flex', gap: 14, marginBottom: 14 }}>
+                {ev.flyerImageUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={ev.flyerImageUrl} alt="" style={{ width: 96, height: 'auto', borderRadius: 6, flexShrink: 0 }} />
+                )}
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 4 }}>
+                    {fmtDate(ev.startsAt)}
+                  </div>
+                  <div style={{ color: '#fff', fontSize: 15, fontWeight: 600, lineHeight: 1.3 }}>
+                    {ev.title}
+                  </div>
+                  {presStr && (
+                    <div style={{ color: '#9BB0C4', fontSize: 11, marginTop: 4 }}>
+                      Presented by {presStr}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Stats strip */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 14 }}>
+                <Stat color="#4ADE80" label="Present" value={stats.present} />
+                <Stat color="#FBBF24" label="Absent"  value={stats.absent} />
+                <Stat color="#9B6DFF" label="Excused" value={stats.excused} />
+                <Stat color="#9BB0C4" label="Rate" value={pct != null ? `${pct}%` : '—'} />
+              </div>
+
+              {/* Sort toggle */}
+              <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => toggleSort(ev.id)}
+                  style={{
+                    flex: 1, padding: '8px 12px', borderRadius: 4,
+                    background: isSorted ? 'rgba(96,165,250,0.18)' : 'transparent',
+                    border: '1px solid rgba(96,165,250,0.4)',
+                    color: '#60a5fa', fontSize: 11, fontWeight: 700,
+                    letterSpacing: '0.08em', textTransform: 'uppercase',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {isSorted
+                    ? sortBy!.direction === 'present'
+                      ? 'Sorted: present first ✓ — flip'
+                      : 'Sorted: absent first ✗ — clear'
+                    : 'Sort grid by this event'}
+                </button>
+              </div>
+
+              {/* Publish to Discord */}
+              <button
+                onClick={() => publishToDiscord(ev.id)}
+                disabled={publishing || !ev.attendanceSyncedAt}
+                title={ev.attendanceSyncedAt ? 'Post a recap to the admin Discord channel' : 'Sync this event from Zoom first'}
+                style={{
+                  width: '100%', padding: '10px 14px', borderRadius: 4,
+                  background: '#C9A96E', color: '#142D48', border: 'none',
+                  fontSize: 12, fontWeight: 700, letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  cursor: publishing ? 'wait' : !ev.attendanceSyncedAt ? 'not-allowed' : 'pointer',
+                  opacity: !ev.attendanceSyncedAt ? 0.5 : 1,
+                }}
+              >
+                {publishing ? 'Posting...' : '📣 Publish stats to Discord'}
+              </button>
+
+              {publishMsg && (
+                <div style={{ marginTop: 10, fontSize: 11, color: publishMsg.ok ? '#4ade80' : '#f87171' }}>
+                  {publishMsg.ok ? '✓ ' : '✗ '}{publishMsg.text}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
+                <button
+                  onClick={() => setEventPanelId(null)}
+                  style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', color: '#9BB0C4', borderRadius: 4, padding: '7px 14px', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {cardCode && <AgentTradingCardModal agentCode={cardCode} onClose={() => setCardCode(null)} />}
 
       {popover && data && (
         <div
@@ -618,6 +908,22 @@ const thStyle: React.CSSProperties = {
 }
 const tdStyle: React.CSSProperties = {
   padding: '6px 8px', verticalAlign: 'middle',
+}
+
+function Stat({ color, label, value }: { color: string; label: string; value: number | string }) {
+  return (
+    <div style={{
+      padding: '8px 10px', borderRadius: 6,
+      background: `${color}14`, border: `1px solid ${color}40`,
+    }}>
+      <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color, marginBottom: 4 }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 18, fontWeight: 700, color: '#fff', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1 }}>
+        {value}
+      </div>
+    </div>
+  )
 }
 
 function OrphanQueue({ orphans, agents, onResolved }: {
