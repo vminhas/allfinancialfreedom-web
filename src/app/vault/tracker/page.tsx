@@ -1043,7 +1043,15 @@ export default function TrackerPage() {
             width: 'min(540px, 100vw)', height: '100%', overflow: 'auto',
             background: '#0C1E30',
             borderLeft: '1px solid rgba(201,169,110,0.15)',
+            // iOS PWA puts position:fixed elements under the notch/
+            // status bar. Bumping padding-top by env(safe-area-inset-top)
+            // pushes the drawer header (close button, agent name,
+            // Trading Card / View Portal pills) below the status bar.
+            // Same for the bottom -- home-indicator iPhones reserve
+            // ~34px there that the drawer was overlapping.
             padding: 'clamp(16px, 4vw, 32px)',
+            paddingTop: 'calc(clamp(16px, 4vw, 32px) + env(safe-area-inset-top))',
+            paddingBottom: 'calc(clamp(16px, 4vw, 32px) + env(safe-area-inset-bottom))',
           }}>
             {drawerLoading ? (
               <div style={{ color: '#6B8299', fontSize: 13 }}>Loading...</div>

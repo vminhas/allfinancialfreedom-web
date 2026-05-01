@@ -1803,6 +1803,12 @@ function LicensingAddAgentModal({ onClose, onCreated }: { onClose: () => void; o
         maxHeight: isMobile ? '92vh' : '90vh',
         overflowY: 'auto',
         boxShadow: '0 -24px 80px rgba(0,0,0,0.55)',
+        // iOS PWA bottom-sheet would otherwise sit under the home
+        // indicator on iPhones with no Home button. paddingBottom
+        // pushes content up; paddingTop reserved in case the user
+        // expands the sheet to ~full height.
+        paddingTop: 'env(safe-area-inset-top)',
+        paddingBottom: 'env(safe-area-inset-bottom)',
       }}>
         <div style={{
           padding: isMobile ? '18px 20px 14px' : '22px 28px 16px',
