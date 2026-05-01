@@ -186,6 +186,71 @@ export default function AttendancePage() {
   }
   const [untracked, setUntracked] = useState<UntrackedEvent[]>([])
   const [showUntracked, setShowUntracked] = useState(false)
+  // Quick-add training dialog: lets the admin drop in a one-off
+  // training that wasn't on Vick's Zoom (e.g. last night's call where
+  // he was a guest somewhere else) so it appears on the grid for
+  // manual cell marking.
+  const [showAddTraining, setShowAddTraining] = useState(false)
+  const [addTitle, setAddTitle] = useState('')
+  const [addDate, setAddDate] = useState(() => {
+    // Default to "yesterday at 8 PM ET" since the most common
+    // ad-hoc add is "last night's training."
+    const d = new Date(Date.now() - 86_400_000)
+    return d.toISOString().slice(0, 10)
+  })
+  const [addTime, setAddTime] = useState('20:00')
+  const [addPresenter, setAddPresenter] = useState('')
+  const [addingTraining, setAddingTraining] = useState(false)
+  const [addTrainingError, setAddTrainingError] = useState<string | null>(null)
+
+  const submitAddTraining = async () => {
+    if (!addTitle.trim()) {
+      setAddTrainingError('Title is required')
+      return
+    }
+    setAddingTraining(true)
+    setAddTrainingError(null)
+    try {
+      // Local time -> ISO. Day input is YYYY-MM-DD, time is HH:MM.
+      const startsAt = new Date(`${addDate}T${addTime}:00`)
+      if (isNaN(startsAt.getTime())) {
+        setAddTrainingError('Invalid date/time')
+        setAddingTraining(false)
+        return
+      }
+      const res = await fetch('/api/admin/trainings/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: addTitle.trim(),
+          startsAt: startsAt.toISOString(),
+          // GFI_LIVE is our stand-in for "manual / not Zoom-pullable";
+          // attendance grid renders these with the purple "manual"
+          // badge so admins know cells need to be marked by hand.
+          streamType: 'GFI_LIVE',
+          published: false,
+          presenters: addPresenter.trim()
+            ? [{ name: addPresenter.trim(), role: '' }]
+            : [],
+        }),
+      })
+      const d = await res.json() as { event?: { id: string }; error?: string }
+      if (!res.ok || !d.event) {
+        setAddTrainingError(d.error ?? 'Failed to create training')
+        setAddingTraining(false)
+        return
+      }
+      // Reset the form and close. The grid reloads to show the new column.
+      setAddTitle('')
+      setAddPresenter('')
+      setShowAddTraining(false)
+      await load()
+    } catch {
+      setAddTrainingError('Network error')
+    } finally {
+      setAddingTraining(false)
+    }
+  }
   const [reenabling, setReenabling] = useState<string | null>(null)
 
   const loadUntracked = async () => {
@@ -451,6 +516,18 @@ export default function AttendancePage() {
           />
         </div>
         <div style={{ flex: 1 }} />
+        <button
+          onClick={() => { setShowAddTraining(true); setAddTrainingError(null) }}
+          title="Add a manual training to the grid (use this for trainings that weren't on the AFF Zoom, e.g. guest spots, in-person events)"
+          style={{
+            padding: '8px 14px', background: 'rgba(155,109,255,0.10)',
+            color: '#9B6DFF', border: '1px solid rgba(155,109,255,0.40)',
+            borderRadius: 4, fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
+            textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap',
+          }}
+        >
+          + Add training
+        </button>
         {data && data.events.length > 0 && (
           <button
             onClick={async () => {
@@ -990,6 +1067,99 @@ export default function AttendancePage() {
                 style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', color: '#9BB0C4', borderRadius: 4, padding: '7px 14px', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick-add training dialog. Lighter version of the full
+          training editor on /vault/trainings -- just title + date +
+          time + presenter, since the only thing the admin needs is a
+          column on the grid to mark cells against. Created with
+          streamType=GFI_LIVE so it gets the purple 'manual' badge. */}
+      {showAddTraining && (
+        <div
+          onClick={() => setShowAddTraining(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 110,
+            background: 'rgba(0,0,0,0.55)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#142D48', border: '1px solid rgba(155,109,255,0.30)',
+              borderRadius: 8, padding: 20, width: '100%', maxWidth: 440,
+              boxShadow: '0 16px 48px rgba(0,0,0,0.6)',
+            }}
+          >
+            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#9B6DFF', marginBottom: 4 }}>
+              Add manual training
+            </div>
+            <div style={{ color: '#9BB0C4', fontSize: 11, marginBottom: 14, lineHeight: 1.5 }}>
+              Use this for trainings that weren&apos;t on the AFF Zoom (guest spots, in-person, ad-hoc). The event lands on the attendance grid as a column you mark by hand &mdash; no Zoom auto-sync.
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div>
+                <label style={lblStyle}>Title *</label>
+                <input
+                  value={addTitle}
+                  onChange={e => setAddTitle(e.target.value)}
+                  placeholder="e.g. Guest Spot · NVP Matthew Schloss"
+                  style={inputStyle}
+                  autoFocus
+                />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={lblStyle}>Date *</label>
+                  <input type="date" value={addDate} onChange={e => setAddDate(e.target.value)} style={inputStyle} />
+                </div>
+                <div>
+                  <label style={lblStyle}>Time (ET)</label>
+                  <input type="time" value={addTime} onChange={e => setAddTime(e.target.value)} style={inputStyle} />
+                </div>
+              </div>
+              <div>
+                <label style={lblStyle}>Presenter (optional)</label>
+                <input
+                  value={addPresenter}
+                  onChange={e => setAddPresenter(e.target.value)}
+                  placeholder="e.g. Vick Minhas"
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+
+            {addTrainingError && (
+              <div style={{ marginTop: 12, padding: '8px 12px', background: 'rgba(248,113,113,0.10)', border: '1px solid rgba(248,113,113,0.30)', borderRadius: 4, color: '#f87171', fontSize: 11 }}>
+                {addTrainingError}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+              <button
+                onClick={() => setShowAddTraining(false)}
+                disabled={addingTraining}
+                style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', color: '#9BB0C4', borderRadius: 4, padding: '8px 14px', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: addingTraining ? 'wait' : 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitAddTraining}
+                disabled={addingTraining || !addTitle.trim()}
+                style={{
+                  background: addingTraining || !addTitle.trim() ? 'rgba(155,109,255,0.4)' : '#9B6DFF',
+                  color: '#fff', border: 'none', borderRadius: 4, padding: '8px 18px',
+                  fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                  cursor: addingTraining || !addTitle.trim() ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {addingTraining ? 'Adding...' : 'Add to grid'}
               </button>
             </div>
           </div>

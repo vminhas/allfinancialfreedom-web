@@ -9,7 +9,9 @@ import { requireRole } from '@/lib/permissions'
 // Computed in JS so we don't have to do DOY math in SQL.
 export async function GET() {
   const session = await getServerSession(authOptions)
-  const denied = requireRole(session, 'admin')
+  // Admins + Licensing Coordinators both see Birthdays so the LC can
+  // wish agents happy birthday from the operations side.
+  const denied = requireRole(session, 'admin', 'licensing_coordinator')
   if (denied) return denied
 
   const profiles = await db.agentProfile.findMany({
