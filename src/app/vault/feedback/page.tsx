@@ -184,33 +184,39 @@ export default function FeedbackPage() {
                   background: '#132238',
                   border: `1px solid ${meta.color}25`,
                 }}>
-                  {/* Header: agent + category + status pill + date */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 10 }}>
-                    <div>
+                  {/* Header: agent identity on top; pills + date below
+                      so they wrap independently. On narrow viewports
+                      the long agent name + a couple of pills + a
+                      date used to overflow off the right edge -- now
+                      everything wraps cleanly to additional lines. */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 8 }}>
                       <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff' }}>
                         {f.agentProfile.firstName} {f.agentProfile.lastName}
                       </span>
-                      <span style={{ fontSize: 11, color: '#6B8299', marginLeft: 8 }}>
+                      <span style={{ fontSize: 11, color: '#6B8299' }}>
                         {f.agentProfile.agentCode} &middot; Phase {f.agentProfile.phase}
                       </span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
                       <span style={{
                         fontSize: 8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em',
                         color: CATEGORY_COLORS[f.category] ?? '#6B8299',
                         padding: '2px 8px', borderRadius: 10,
                         background: `${CATEGORY_COLORS[f.category] ?? '#6B8299'}15`,
+                        whiteSpace: 'nowrap',
                       }}>{f.category}</span>
                       <span style={{
                         fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
                         padding: '3px 9px', borderRadius: 999,
                         background: meta.bg, color: meta.color,
                         border: `1px solid ${meta.color}55`,
+                        whiteSpace: 'nowrap',
                       }}>
                         {meta.label}
                       </span>
-                      <span style={{ fontSize: 10, color: '#4B5563' }}>
-                        {new Date(f.createdAt).toLocaleDateString()}
+                      <span style={{ fontSize: 10, color: '#4B5563', whiteSpace: 'nowrap', marginLeft: 'auto' }}>
+                        {new Date(f.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                       </span>
                     </div>
                   </div>
@@ -220,8 +226,15 @@ export default function FeedbackPage() {
                     {f.message}
                   </div>
 
-                  {/* Workflow controls */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: 12, alignItems: 'flex-start' }}>
+                  {/* Workflow controls. grid-template-columns minmax with
+                      auto-fit lets the two columns sit side-by-side on
+                      desktop but stack on narrow viewports when the
+                      response textarea would otherwise be squeezed. */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                    gap: 12, alignItems: 'flex-start',
+                  }}>
                     <div>
                       <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 4 }}>
                         Status
