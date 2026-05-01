@@ -99,10 +99,20 @@ export default function TrainingsPage() {
       const fd = new FormData()
       fd.append('image', file)
       const res = await fetch('/api/admin/trainings/parse-image', { method: 'POST', body: fd })
-      const d = await res.json() as { parsed?: number; events?: { title: string }[]; error?: string }
+      const d = await res.json() as { parsed?: number; duplicates?: number; events?: { title: string; discordEvent?: string }[]; error?: string }
       if (res.ok && d.parsed) {
+        const dupes = d.duplicates ?? 0
+        const newCount = d.parsed - dupes
         const titles = d.events?.map(e => e.title).join(', ') ?? ''
-        setDropResult({ ok: true, text: `Created ${d.parsed} event${d.parsed > 1 ? 's' : ''}: ${titles}` })
+        let text: string
+        if (newCount === 0) {
+          text = `Already on the calendar: ${titles}. Nothing was created.`
+        } else if (dupes > 0) {
+          text = `Created ${newCount} event${newCount > 1 ? 's' : ''}, skipped ${dupes} duplicate${dupes > 1 ? 's' : ''}: ${titles}`
+        } else {
+          text = `Created ${newCount} event${newCount > 1 ? 's' : ''}: ${titles}`
+        }
+        setDropResult({ ok: true, text })
         load()
       } else {
         setDropResult({ ok: false, text: d.error ?? 'Failed to parse' })

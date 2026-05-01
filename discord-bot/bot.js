@@ -419,24 +419,41 @@ client.on(Events.MessageCreate, async (message) => {
         if (e.discordEvent === 'created') status = ' ✅ Discord event created';
         else if (e.discordEvent === false) status = ` ⚠️ Discord failed: ${e.discordError || 'unknown'}`;
         else if (e.discordEvent === 'skipped (past date)') status = ' ⏭️ Past date, no Discord event';
+        else if (e.discordEvent === 'duplicate') status = ' ♻️ Already exists, skipped';
         return `• **${e.title}** — ${date}${status}`;
       });
+      // Distinguish "all duplicate" / "some duplicate" / "all new" so Vick
+      // gets immediate feedback on whether the second post of a flyer
+      // actually did anything.
+      const dupeCount = data.duplicates || 0;
+      const newCount = data.parsed - dupeCount;
+      let title;
+      if (newCount === 0) {
+        title = `♻️ Already on the calendar (${dupeCount} duplicate${dupeCount > 1 ? 's' : ''} skipped)`;
+      } else if (dupeCount > 0) {
+        title = `✅ Created ${newCount} · ♻️ ${dupeCount} duplicate${dupeCount > 1 ? 's' : ''} skipped`;
+      } else {
+        title = `✅ Created ${newCount} training event${newCount > 1 ? 's' : ''}`;
+      }
+      const color = newCount === 0 ? 0x9BB0C4 : COLORS.GOLD;
       const successEmbed = new EmbedBuilder()
-        .setColor(COLORS.GOLD)
-        .setTitle(`✅ Created ${data.parsed} training event${data.parsed > 1 ? 's' : ''}`)
+        .setColor(color)
+        .setTitle(title)
         .setDescription(lines.join('\n'))
         .setFooter({ text: `AFF Concierge · Parsed by ${message.author.displayName || message.author.username}` });
 
       // Reply in the original channel
       await message.reply({ embeds: [successEmbed] });
 
-      // Also post in the admin activity channel so the team can see
-      if (adminChannelId && message.channelId !== adminChannelId) {
+      // Also post in the admin activity channel so the team can see —
+      // but only when something actually changed. A pure-duplicate post
+      // is just noise in the activity channel.
+      if (newCount > 0 && adminChannelId && message.channelId !== adminChannelId) {
         const activityChannel = await client.channels.fetch(adminChannelId).catch(() => null);
         if (activityChannel?.isTextBased()) {
           const activityEmbed = new EmbedBuilder()
             .setColor(COLORS.GOLD)
-            .setTitle(`📅 ${data.parsed} Training Event${data.parsed > 1 ? 's' : ''} Added`)
+            .setTitle(`📅 ${newCount} Training Event${newCount > 1 ? 's' : ''} Added`)
             .setDescription(lines.join('\n'))
             .setFooter({ text: `Parsed from flyer uploaded by ${message.author.displayName || message.author.username}` })
             .setTimestamp();
