@@ -166,7 +166,7 @@ export default function AdminCallReviewPage() {
             <div style={{ fontSize: 14, fontWeight: 600, color: '#ffffff' }}>Standalone admin tool</div>
           </div>
           <div style={{ fontSize: 12, color: '#9BB0C4', lineHeight: 1.6 }}>
-            Use this to review your own calls or a training call. Claude scores it on the same 6-dimension rubric your agents are graded on (opening, discovery, product, objections, closing, tone). <strong style={{ color: '#C9A96E' }}>Reviews are saved</strong> to your personal history below so you can track your progress over time. For per-agent review history, open the agent&apos;s drawer in the AFF Tracker.
+            Use this to review your own calls or a training call. Claude scores it on the same 6-dimension rubric your agents are graded on (opening, discovery, product, objections, closing, tone). <strong style={{ color: '#C9A96E' }}>Reviews are saved</strong>{' '}to your personal history below so you can track your progress over time. For per-agent review history, open the agent&apos;s drawer in the AFF Tracker.
           </div>
         </div>
 
