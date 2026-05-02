@@ -67,10 +67,15 @@ export async function GET() {
     if (totalItems > 0 && completedItems >= totalItems) readyToPromoteCount++
   }
 
-  // New this month
-  const oneMonthAgo = new Date()
-  oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1)
-  const newThisMonth = profiles.filter(p => p.icaDate && p.icaDate >= oneMonthAgo).length
+  // New this month: align with the table filter, which uses first-
+  // day-of-current-calendar-month -> today. Previous version used a
+  // rolling 30-day window, which made the stat and the click-to-
+  // filter return different counts (e.g. on May 1 the stat showed
+  // everyone who joined since Apr 1 but the filter returned no one).
+  const monthStart = new Date()
+  monthStart.setDate(1)
+  monthStart.setHours(0, 0, 0, 0)
+  const newThisMonth = profiles.filter(p => p.icaDate && p.icaDate >= monthStart).length
 
   return NextResponse.json({
     totalAgents,
