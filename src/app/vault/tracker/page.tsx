@@ -183,11 +183,14 @@ export default function TrackerPage() {
       if (phaseFilter) params.set('phase', phaseFilter)
       if (statusFilter) params.set('status', statusFilter)
       if (newThisMonthOnly) {
+        // Rolling 30-day window so the click-to-filter result matches
+        // the dashboard stat exactly. Calendar-month boundary made
+        // the page read empty on the 1st of every month.
         const today = new Date()
-        const start = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`
-        const end = today.toISOString().split('T')[0]
-        params.set('icaStart', start)
-        params.set('icaEnd', end)
+        const start = new Date(today)
+        start.setDate(start.getDate() - 30)
+        params.set('icaStart', start.toISOString().split('T')[0])
+        params.set('icaEnd', today.toISOString().split('T')[0])
       }
     }
     if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim())
@@ -500,7 +503,7 @@ export default function TrackerPage() {
                 borderRadius: 6, padding: '16px 20px', cursor: 'pointer', transition: 'all 0.15s',
               }}
             >
-              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#6B8299', marginBottom: 8 }}>New This Month</div>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#6B8299', marginBottom: 8 }}>New (30 Days)</div>
               <div style={{ fontSize: 28, fontWeight: 600, color: '#C9A96E', lineHeight: 1, marginBottom: 4 }}>{stats.newThisMonth}</div>
               <div style={{ fontSize: 11, color: newThisMonthFilterOn ? '#C9A96E' : '#4B5563' }}>
                 {newThisMonthFilterOn ? '✕ clear filter' : 'by ICA date'}
