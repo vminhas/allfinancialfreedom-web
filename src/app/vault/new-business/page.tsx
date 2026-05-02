@@ -311,7 +311,14 @@ export default function VaultNewBusinessPage() {
       <div style={{ ...card, padding: '20px 24px' }}>
         {loading ? <div style={{ color: '#6B8299', fontSize: 13 }}>Loading...</div> :
           list.length === 0 ? <div style={{ color: '#4B5563', fontSize: 13 }}>No submissions match.</div> :
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          // 9-column table; on narrow viewports it has no chance of
+          // fitting. Wrapping in an overflow:auto container lets it
+          // horizontally scroll within the card instead of bleeding
+          // out the right edge. The negative margin + matching padding
+          // expands the scroll area to the card edges so the first
+          // and last columns aren't clipped by the card padding.
+          <div style={{ overflowX: 'auto', margin: '0 -24px', padding: '0 24px', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
             <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
               {['Agent', 'Client', 'Carrier', 'Type', 'Points', 'Status', 'Assigned', 'Submitted', 'Notes'].map(h => (
                 <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#C9A96E' }}>{h}</th>
@@ -379,6 +386,7 @@ export default function VaultNewBusinessPage() {
               })}
             </tbody>
           </table>
+          </div>
         }
       </div>
 
