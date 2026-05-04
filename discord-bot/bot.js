@@ -374,15 +374,18 @@ client.on(Events.MessageCreate, async (message) => {
   const image = message.attachments.find(a => a.contentType?.startsWith('image/'));
   if (!image) return;
 
-  // Only respond if the message is in the admin channel or a DM
+  // Only respond if the message is in the admin channel or a DM.
+  // Previously we also matched any image whose caption mentioned
+  // 'flyer' / 'training' / 'event' anywhere -- that was eating
+  // flyers Vick posted in #announcements alongside copy like 'tonight's
+  // training flyer is up.' Restricting the trigger to the dedicated
+  // admin channel + DMs keeps the parser opt-in: drop a flyer in
+  // admin to add it to the system, drop it in announcements to just
+  // share it visually.
   const adminChannelId = process.env.DISCORD_ADMIN_CHANNEL_ID;
   const isDM = !message.guild;
   const isAdminChannel = adminChannelId && message.channelId === adminChannelId;
-
-  // Also respond if the message content mentions "parse" or "training" or "flyer"
-  const mentionsTraining = /parse|training|flyer|schedule|event/i.test(message.content);
-
-  if (!isDM && !isAdminChannel && !mentionsTraining) return;
+  if (!isDM && !isAdminChannel) return;
 
   // React to acknowledge
   await message.react('⏳').catch(() => {});
