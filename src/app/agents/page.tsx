@@ -433,6 +433,7 @@ function AgentDashboardInner() {
       <div style={{
         borderBottom: '1px solid rgba(201,169,110,0.1)',
         padding: '14px clamp(16px, 4vw, 32px)',
+        paddingTop: 'calc(14px + env(safe-area-inset-top))',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         gap: 12, flexWrap: 'wrap',
         background: '#0A1628', position: 'sticky', top: 0, zIndex: 10,

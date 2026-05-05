@@ -45,6 +45,19 @@
 - An agent's downline is computed from `AgentProfile.recruiterId` (which
   stores the recruiter's `agentCode`, not the recruiter's database id).
 
+## Mobile / iOS
+
+- Any sticky-or-fixed bar at `top: 0` MUST include
+  `paddingTop: 'calc(<intended-top-padding> + env(safe-area-inset-top))'`,
+  otherwise on iPhone the status bar / battery indicator overlaps the
+  header content (logo, "Back to portal" button, etc.) and the buttons
+  become unclickable. The global `nav { ... }` rule in `globals.css`
+  only covers `<nav>` elements, not page-level `<div>` headers like the
+  ones in `/agents/*` and other custom shells. The CEO has reported this
+  bug repeatedly: do not regress it.
+- `VaultSidebar.tsx` is the reference implementation for a mobile top
+  bar that handles the inset correctly.
+
 ## Migrations
 
 - All schema changes need a Prisma migration in `prisma/migrations/<ts>_<name>/migration.sql`.
