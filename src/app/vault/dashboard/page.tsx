@@ -1,0 +1,159 @@
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { db } from '@/lib/db'
+import { getSetting } from '@/lib/settings'
+import GhlStatusWidget from '@/components/vault/GhlStatusWidget'
+import ClaudeCostWidget from '@/components/vault/ClaudeCostWidget'
+import AutoSendWidget from '@/components/vault/AutoSendWidget'
+import ResumeButton from '@/components/vault/ResumeButton'
+import DiagnoseButton from '@/components/vault/DiagnoseButton'
+
+export default async function VaultDashboard() {
+  const session = await getServerSession(authOptions)
+
+  const todayStart = new Date()
+  todayStart.setHours(0, 0, 0, 0)
+
+  const [totalContacts, recentJobs, totalSent, sentToday, queueDepth, autoSendEnabled, startDateStr] = await Promise.all([
+    db.contact.count(),
+    db.importJob.findMany({ orderBy: { createdAt: 'desc' }, take: 5 }),
+    db.outreachMessage.count({ where: { status: 'SENT' } }),
+    db.outreachMessage.count({ where: { sentAt: { gte: todayStart }, status: 'SENT' } }),
+    db.contact.count({ where: { outreachStatus: 'pending', ghlContactId: { not: null } } }),
+    getSetting('AUTO_SEND_ENABLED'),
+    getSetting('AUTO_SEND_START_DATE'),
+  ])
+
+  const RAMP = [50, 150, 300, 500]
+  const startDate = startDateStr ? new Date(startDateStr) : null
+  const daysSince = startDate ? Math.floor((Date.now() - startDate.getTime()) / (1000 * 60 * 60 * 24)) : 0
+  const week = Math.min(Math.floor(daysSince / 7), RAMP.length - 1)
+  const dailyLimit = RAMP[week]
+
+  const statusColors: Record<string, string> = {
+    COMPLETE: '#4ade80',
+    RUNNING: '#C9A96E',
+    PAUSED: '#f59e0b',
+    ERROR: '#f87171',
+    PENDING: '#6B8299',
+  }
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ marginBottom: 36 }}>
+        <p style={{ color: '#C9A96E', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 600, margin: '0 0 6px' }}>
+          Welcome back
+        </p>
+        <h1 style={{ color: '#ffffff', fontSize: 28, fontWeight: 300, margin: 0 }}>
+          {session?.user?.name ?? 'Dashboard'}
+        </h1>
+      </div>
+
+      {/* Workflow overview */}
+      <div style={{ display: 'flex', gap: 0, marginBottom: 28, background: '#142D48', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)', overflow: 'hidden' }}>
+        {[
+          { step: '1', label: 'Import', desc: 'Upload PropHog CSV, map fields, import to GHL', href: '/vault/import' },
+          { step: '2', label: 'Outreach', desc: 'AI drafts personalized emails, you review and send', href: '/vault/outreach' },
+          { step: '3', label: 'Pipeline', desc: 'Track contacts from Contacted → Ready to Onboard', href: '/vault/pipeline' },
+          { step: '4', label: 'GHL', desc: 'Replies, SMS follow-ups, and booking calls live here', href: null },
+        ].map((w, i) => (
+          <div key={w.step} style={{ flex: 1, padding: '16px 20px', borderRight: i < 3 ? '1px solid rgba(201,169,110,0.08)' : 'none' }}>
+            <p style={{ color: '#C9A96E', fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700, margin: '0 0 4px' }}>Step {w.step} — {w.label}</p>
+            <p style={{ color: '#6B8299', fontSize: 11, margin: 0, lineHeight: 1.5 }}>{w.desc}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* GHL Connector */}
+      <GhlStatusWidget />
+
+      {/* Stats row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, margin: '24px 0' }}>
+        {[
+          { label: 'Total Contacts', value: totalContacts.toLocaleString() },
+          { label: 'Emails Sent', value: totalSent.toLocaleString() },
+          { label: 'Import Jobs', value: recentJobs.length },
+        ].map(stat => (
+          <div key={stat.label} style={{
+            background: '#142D48', borderRadius: 6, padding: '24px 28px',
+            border: '1px solid rgba(201,169,110,0.1)',
+          }}>
+            <p style={{ color: '#6B8299', fontSize: 11, letterSpacing: '0.15em', textTransform: 'uppercase', margin: '0 0 8px' }}>
+              {stat.label}
+            </p>
+            <p style={{ color: '#ffffff', fontSize: 28, fontWeight: 300, margin: 0 }}>{stat.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Auto-send queue */}
+      <AutoSendWidget
+        enabled={autoSendEnabled === 'true'}
+        sentToday={sentToday}
+        dailyLimit={dailyLimit}
+        queueDepth={queueDepth}
+        week={week + 1}
+        ramp={RAMP}
+      />
+
+      {/* Claude Cost */}
+      <ClaudeCostWidget />
+
+      {/* Recent imports */}
+      <div style={{ background: '#142D48', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)', overflow: 'hidden' }}>
+        <div style={{ padding: '20px 28px', borderBottom: '1px solid rgba(201,169,110,0.1)' }}>
+          <p style={{ color: '#C9A96E', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 600, margin: 0 }}>
+            Recent Import Jobs
+          </p>
+        </div>
+        {recentJobs.length === 0 ? (
+          <div style={{ padding: '28px', color: '#6B8299', fontSize: 13, textAlign: 'center' }}>
+            No imports yet. Head to Import to get started.
+          </div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                {['File', 'Imported', 'Skipped', 'Status', 'Date'].map(h => (
+                  <th key={h} style={{ padding: '12px 28px', textAlign: 'left', color: '#6B8299', fontSize: 11, fontWeight: 500, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {recentJobs.map(job => (
+                <tr key={job.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '14px 28px', color: '#ffffff', fontSize: 13 }}>
+                    {job.fileName}
+                    <span style={{ color: '#4B5563', fontSize: 11, marginLeft: 8 }}>{job.importedCount}/{job.totalRows}</span>
+                  </td>
+                  <td style={{ padding: '14px 28px', color: '#4ade80', fontSize: 13 }}>{job.importedCount}</td>
+                  <td style={{ padding: '14px 28px', color: '#6B8299', fontSize: 13 }}>{job.skippedCount}</td>
+                  <td style={{ padding: '14px 28px' }}>
+                    <span style={{
+                      fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase',
+                      color: statusColors[job.status] ?? '#6B8299',
+                    }}>
+                      {job.status}
+                    </span>
+                  </td>
+                  <td style={{ padding: '14px 28px', color: '#6B8299', fontSize: 12 }}>
+                    {new Date(job.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </td>
+                  <td style={{ padding: '14px 28px', whiteSpace: 'nowrap' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      {job.status === 'PAUSED' && <ResumeButton jobId={job.id} />}
+                      <DiagnoseButton jobId={job.id} />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  )
+}

@@ -11,8 +11,15 @@ interface NavGroup { key: string; label: string; items: NavItem[]; defaultOpen?:
 
 const NAV_GROUPS: NavGroup[] = [
   {
+    // The default landing (`/vault`) redirects to the AFF Tracker, so the
+    // tracker is the first thing surfaced in the overview group. The
+    // legacy outreach dashboard still lives at /vault/dashboard for the
+    // CRM-side workflow widgets.
     key: 'overview', label: '', defaultOpen: true,
-    items: [{ href: '/vault', label: 'Dashboard', icon: '◈' }],
+    items: [
+      { href: '/vault/tracker', label: 'AFF Tracker', icon: '◑' },
+      { href: '/vault/dashboard', label: 'Outreach Dashboard', icon: '◈' },
+    ],
   },
   {
     key: 'crm', label: 'CRM', defaultOpen: false,
@@ -27,7 +34,9 @@ const NAV_GROUPS: NavGroup[] = [
   {
     key: 'agents', label: 'Agents', defaultOpen: true,
     items: [
-      { href: '/vault/tracker', label: 'AFF Tracker', icon: '◑' },
+      // AFF Tracker is also the default landing; promoted to the
+      // overview group above. Not duplicated here.
+      { href: '/vault/progress', label: 'Progression Matrix', icon: '⊟' },
       { href: '/vault/org', label: 'Team Structure', icon: '⊞' },
       { href: '/vault/new-business', label: 'New Business', icon: '◆' },
       { href: '/vault/renewals', label: 'Renewals', icon: '↻' },
