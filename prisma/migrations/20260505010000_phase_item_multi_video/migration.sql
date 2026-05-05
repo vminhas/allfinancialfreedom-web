@@ -13,12 +13,23 @@
 -- "video_title" and the production deploy failed with "column does not
 -- exist". Don't rename without checking.
 
+-- IF NOT EXISTS because the first deploy attempt committed the ADD
+-- COLUMN before failing on the broken UPDATE below; on retry the column
+-- is already there and a plain ADD COLUMN would error with 42701
+-- (duplicate_column). Idempotent ADD makes this migration safe to run on
+-- any DB state: fresh, partially-applied, or fully-applied.
 ALTER TABLE "phase_item_definitions"
-  ADD COLUMN "videos" JSONB NOT NULL DEFAULT '[]'::jsonb;
+  ADD COLUMN IF NOT EXISTS "videos" JSONB NOT NULL DEFAULT '[]'::jsonb;
 
+-- Backfill from the legacy single-video columns. Idempotent: rewriting
+-- the same payload to videos is a no-op even if the row was previously
+-- backfilled. Only updates rows where the array is still empty so that
+-- any rows already populated by the new admin route (post-deploy) don't
+-- get clobbered.
 UPDATE "phase_item_definitions"
    SET "videos" = jsonb_build_array(
          jsonb_build_object('url', "videoUrl", 'title', "videoTitle")
        )
  WHERE "videoUrl" IS NOT NULL
-   AND "videoUrl" <> '';
+   AND "videoUrl" <> ''
+   AND ("videos" IS NULL OR "videos" = '[]'::jsonb);
