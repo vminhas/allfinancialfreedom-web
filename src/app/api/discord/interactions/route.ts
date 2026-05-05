@@ -71,6 +71,11 @@ export async function POST(req: NextRequest) {
       const referralId = customId.slice('referral-reject:'.length)
       return handleReferralReject(interaction, referralId)
     }
+    if (customId.startsWith('agent-kick:')) {
+      // Format: agent-kick:<discordUserId>:<agentProfileId>
+      const [, discordUserId, agentProfileId] = customId.split(':')
+      return handleAgentKick(interaction, discordUserId, agentProfileId)
+    }
   }
 
   // Anything we don't recognize — return an ephemeral fallback so the user
@@ -192,3 +197,59 @@ async function handleReferralReject(interaction: DiscordInteraction, referralId:
 // from the lib for future flows that need to follow up after a deferred
 // response. This route uses synchronous UPDATE_MESSAGE so we don't call it.
 void editOriginalInteractionResponse
+
+// Agent kick: pulled from a `agent-kick:<discordUserId>:<agentProfileId>`
+// button posted on the deactivation embed. Removes the user from the
+// guild and edits the original message to show who kicked them and
+// when. Errors fall through to a friendly UPDATE_MESSAGE so the
+// admin sees what went wrong instead of a stuck spinner.
+async function handleAgentKick(interaction: DiscordInteraction, discordUserId: string, agentProfileId: string) {
+  const clicker = clickerLabel(interaction)
+  const baseEmbed = interaction.message?.embeds?.[0] ?? {}
+
+  if (!discordUserId) {
+    return NextResponse.json({
+      type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+      data: { content: 'No Discord user ID encoded on this button.', flags: MessageFlags.EPHEMERAL },
+    })
+  }
+
+  try {
+    const { kickGuildMember } = await import('@/lib/discord')
+    await kickGuildMember(discordUserId, `Marked inactive in AFF portal by ${clicker}`)
+  } catch (err) {
+    return NextResponse.json({
+      type: InteractionResponseType.UPDATE_MESSAGE,
+      data: {
+        embeds: [{
+          ...baseEmbed,
+          title: '⚠️ Kick failed',
+          color: 0xEF4444,
+          footer: { text: `Tried by ${clicker} · ${err instanceof Error ? err.message : 'unknown error'}` },
+        }],
+        components: [],
+      },
+    })
+  }
+
+  // Clear the Discord ID off the agent profile so we don't try to
+  // re-target a user who's no longer in the guild.
+  await db.agentProfile.update({
+    where: { id: agentProfileId },
+    data: { discordUserId: null },
+  }).catch(() => {})
+
+  return NextResponse.json({
+    type: InteractionResponseType.UPDATE_MESSAGE,
+    data: {
+      embeds: [{
+        ...baseEmbed,
+        title: '🚪 Kicked from Discord',
+        color: 0x6B7280,
+        footer: { text: `Kicked by ${clicker}` },
+        timestamp: new Date().toISOString(),
+      }],
+      components: [],
+    },
+  })
+}
