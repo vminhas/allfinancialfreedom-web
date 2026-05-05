@@ -179,6 +179,28 @@ export async function deleteGuildScheduledEvent(eventId: string): Promise<void> 
 // ─── Channel messages ────────────────────────────────────────────────────────
 
 /**
+ * Delete a channel message by ID. Used to retract previously-posted
+ * embeds (e.g. when an agent un-checks a completed phase item, we
+ * remove the celebratory post we sent on the original completion).
+ *
+ * Treats 404 (message already deleted) as success — the desired end
+ * state is reached either way. Throws on any other non-2xx response.
+ */
+export async function deleteChannelMessage(channelId: string, messageId: string): Promise<void> {
+  const res = await discordFetch(`${API}/channels/${channelId}/messages/${messageId}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  })
+  if (res.status === 404) return
+  if (!res.ok) {
+    const text = await res.text()
+    const err = new Error(`Discord deleteChannelMessage failed (${res.status}): ${text.slice(0, 400)}`) as Error & { status: number }
+    err.status = res.status
+    throw err
+  }
+}
+
+/**
  * Edit an existing channel message. Returns the updated message.
  * Throws with the response body if Discord rejects the edit (including
  * 404 when the message was deleted — caller can catch to fall through
