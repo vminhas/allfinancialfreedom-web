@@ -30,10 +30,15 @@ interface DiscordInteraction {
   id: string
   application_id: string
   token: string
-  data?: { custom_id?: string; component_type?: number }
+  data?: {
+    custom_id?: string
+    component_type?: number
+    // Modal submission payloads carry the user's text input here.
+    components?: { components: { custom_id: string; value: string }[] }[]
+  }
   member?: { user?: { id: string; username: string; global_name?: string | null } }
   user?: { id: string; username: string; global_name?: string | null }
-  message?: { embeds?: Record<string, unknown>[] }
+  message?: { embeds?: Record<string, unknown>[]; id?: string }
 }
 
 export async function POST(req: NextRequest) {
@@ -72,9 +77,35 @@ export async function POST(req: NextRequest) {
       return handleReferralReject(interaction, referralId)
     }
     if (customId.startsWith('agent-kick:')) {
+      // First click: ask for confirmation instead of kicking immediately.
       // Format: agent-kick:<discordUserId>:<agentProfileId>
       const [, discordUserId, agentProfileId] = customId.split(':')
+      return handleAgentKickPrompt(interaction, discordUserId, agentProfileId)
+    }
+    if (customId.startsWith('agent-kick-confirm:')) {
+      // Second click after confirm. Actually kicks.
+      const [, discordUserId, agentProfileId] = customId.split(':')
       return handleAgentKick(interaction, discordUserId, agentProfileId)
+    }
+    if (customId.startsWith('agent-kick-cancel:')) {
+      // Cancel the confirm prompt: restore the original kick button.
+      const [, discordUserId, agentProfileId] = customId.split(':')
+      return handleAgentKickCancel(interaction, discordUserId, agentProfileId)
+    }
+    if (customId.startsWith('agent-search:')) {
+      // Open a modal with a text input for manual Discord lookup.
+      const [, agentProfileId] = customId.split(':')
+      return openSearchModal(agentProfileId)
+    }
+  }
+
+  // Modal submissions (manual Discord search).
+  if (interaction.type === InteractionType.MODAL_SUBMIT) {
+    const customId = interaction.data?.custom_id ?? ''
+    if (customId.startsWith('agent-search-modal:')) {
+      const [, agentProfileId] = customId.split(':')
+      const query = interaction.data?.components?.[0]?.components?.[0]?.value ?? ''
+      return handleSearchSubmit(interaction, agentProfileId, query)
     }
   }
 
@@ -197,6 +228,143 @@ async function handleReferralReject(interaction: DiscordInteraction, referralId:
 // from the lib for future flows that need to follow up after a deferred
 // response. This route uses synchronous UPDATE_MESSAGE so we don't call it.
 void editOriginalInteractionResponse
+
+// First click on "Kick from Discord" doesn't kick — it swaps the
+// embed for a confirm prompt so we don't act on accidental clicks.
+// The original red button is replaced with Confirm + Cancel.
+function handleAgentKickPrompt(interaction: DiscordInteraction, discordUserId: string, agentProfileId: string) {
+  const baseEmbed = interaction.message?.embeds?.[0] ?? {}
+  return NextResponse.json({
+    type: InteractionResponseType.UPDATE_MESSAGE,
+    data: {
+      embeds: [{
+        ...baseEmbed,
+        title: '⚠️ Confirm kick from Discord',
+        description: `${(baseEmbed as { description?: string }).description ?? ''}\n\n_This will remove them from the AFF Discord server. They can be re-invited later._`,
+        color: 0xEF4444,
+      }],
+      components: [{
+        type: 1,
+        components: [
+          { type: 2, style: 4, label: 'Yes, kick them', custom_id: `agent-kick-confirm:${discordUserId}:${agentProfileId}` },
+          { type: 2, style: 2, label: 'Cancel',          custom_id: `agent-kick-cancel:${discordUserId}:${agentProfileId}` },
+        ],
+      }],
+    },
+  })
+}
+
+// Cancel from the confirm prompt. Restores the original kick button so
+// the admin can take the action later if they decide to.
+function handleAgentKickCancel(interaction: DiscordInteraction, discordUserId: string, agentProfileId: string) {
+  const baseEmbed = interaction.message?.embeds?.[0] ?? {}
+  return NextResponse.json({
+    type: InteractionResponseType.UPDATE_MESSAGE,
+    data: {
+      embeds: [{
+        ...baseEmbed,
+        title: '⚠️ Agent marked inactive',
+        description: ((baseEmbed as { description?: string }).description ?? '').replace(/\n\n_This will remove them from.+/s, ''),
+        color: 0xF59E0B,
+      }],
+      components: [{
+        type: 1,
+        components: [{
+          type: 2, style: 4, label: 'Kick from Discord',
+          custom_id: `agent-kick:${discordUserId}:${agentProfileId}`,
+        }],
+      }],
+    },
+  })
+}
+
+// Open a Discord modal with a text input so the admin can search guild
+// membership manually when the auto-match in the original embed didn't
+// find the agent. Returns InteractionResponseType.MODAL.
+function openSearchModal(agentProfileId: string) {
+  return NextResponse.json({
+    type: InteractionResponseType.MODAL,
+    data: {
+      custom_id: `agent-search-modal:${agentProfileId}`,
+      title: 'Search Discord by name',
+      components: [{
+        type: 1,
+        components: [{
+          type: 4,  // text input
+          custom_id: 'query',
+          label: 'Discord username, display name, or nickname',
+          style: 1,  // short
+          min_length: 2,
+          max_length: 50,
+          required: true,
+          placeholder: 'e.g. bryan, thecole, BryanC',
+        }],
+      }],
+    },
+  })
+}
+
+// Modal submission: take the query, search guild members, and rebuild
+// the original deactivation embed with up to 5 candidates each
+// carrying their own kick button.
+async function handleSearchSubmit(interaction: DiscordInteraction, agentProfileId: string, query: string) {
+  const baseEmbed = interaction.message?.embeds?.[0] ?? {}
+  const { searchGuildMembers } = await import('@/lib/discord')
+  const candidates = await searchGuildMembers(query.trim(), 5)
+
+  if (candidates.length === 0) {
+    return NextResponse.json({
+      type: InteractionResponseType.UPDATE_MESSAGE,
+      data: {
+        embeds: [{
+          ...baseEmbed,
+          fields: [
+            ...((baseEmbed as { fields?: { name: string; value: string; inline?: boolean }[] }).fields?.filter(f => f.name !== 'Search results') ?? []),
+            { name: 'Search results', value: `No members matched \`${query}\`.`, inline: false },
+          ],
+        }],
+        // Keep the search button so they can retry with a different query.
+        components: [{
+          type: 1,
+          components: [{
+            type: 2, style: 2, label: 'Search again',
+            custom_id: `agent-search:${agentProfileId}`,
+          }],
+        }],
+      },
+    })
+  }
+
+  // Show the candidates as a numbered list in a field, with one kick
+  // button per candidate (Discord allows up to 5 buttons in a row).
+  const list = candidates.map((m, i) => {
+    const display = m.user.global_name ?? m.user.username
+    const nick = m.nick ? ` (${m.nick})` : ''
+    return `**${i + 1}.** ${display}${nick} — <@${m.user.id}>`
+  }).join('\n')
+
+  return NextResponse.json({
+    type: InteractionResponseType.UPDATE_MESSAGE,
+    data: {
+      embeds: [{
+        ...baseEmbed,
+        fields: [
+          ...((baseEmbed as { fields?: { name: string; value: string; inline?: boolean }[] }).fields?.filter(f => f.name !== 'Search results') ?? []),
+          { name: 'Search results', value: list, inline: false },
+        ],
+      }],
+      components: [{
+        type: 1,
+        components: candidates.slice(0, 5).map((m, i) => ({
+          type: 2,
+          style: 4,
+          label: `Kick #${i + 1}`,
+          custom_id: `agent-kick:${m.user.id}:${agentProfileId}`,
+        })),
+      }],
+    },
+  })
+}
 
 // Agent kick: pulled from a `agent-kick:<discordUserId>:<agentProfileId>`
 // button posted on the deactivation embed. Removes the user from the

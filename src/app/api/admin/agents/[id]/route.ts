@@ -287,6 +287,10 @@ async function notifyDeactivation(args: {
       footer: { text: 'AFF Concierge · Deactivation' },
       timestamp: new Date().toISOString(),
     }],
+    // When we have a match, offer the kick directly. When we don't,
+    // offer a "Search by name" button that opens a Discord modal so
+    // the admin can find the right user manually without leaving
+    // the channel.
     components: discordMatch ? [{
       type: 1,
       components: [{
@@ -295,7 +299,15 @@ async function notifyDeactivation(args: {
         label: 'Kick from Discord',
         custom_id: `agent-kick:${discordMatch.id}:${args.agentProfileId}`,
       }],
-    }] : undefined,
+    }] : [{
+      type: 1,
+      components: [{
+        type: 2,
+        style: 2,  // secondary
+        label: 'Search Discord by name',
+        custom_id: `agent-search:${args.agentProfileId}`,
+      }],
+    }],
   }).catch(() => {})
 }
 
