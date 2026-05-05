@@ -4,9 +4,17 @@
 // their new email. The /api/agents/profile/email-verify route does
 // the actual swap then redirects here with ?status=ok | invalid |
 // expired | collision | missing.
+//
+// Backwards-compat for emails sent before the link-target fix: if
+// we see ?token=... but no ?status=..., the email was generated
+// against the older code that pointed verify links at this page
+// instead of the API. Forward straight to the API so the agent
+// doesn't get stuck on "this link is no longer valid" through no
+// fault of their own. New emails go directly to the API and never
+// hit this branch.
 
 import Link from 'next/link'
-import { Suspense } from 'react'
+import { Suspense, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 
 const COPY: Record<string, { title: string; body: string; color: string }> = {
@@ -47,8 +55,27 @@ export default function EmailVerifyPage() {
 
 function Inner() {
   const searchParams = useSearchParams()
-  const status = searchParams.get('status') ?? 'invalid'
-  const c = COPY[status] ?? COPY.invalid
+  const status = searchParams.get('status')
+  const token = searchParams.get('token')
+
+  // Legacy-link rescue: token but no status → forward to the API,
+  // which will validate the token and redirect back here with the
+  // resolved status.
+  useEffect(() => {
+    if (token && !status) {
+      window.location.replace(`/api/agents/profile/email-verify?token=${encodeURIComponent(token)}`)
+    }
+  }, [token, status])
+
+  if (token && !status) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#0A1628', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, color: '#9BB0C4', fontSize: 13 }}>
+        Verifying your email change...
+      </div>
+    )
+  }
+
+  const c = COPY[status ?? 'invalid'] ?? COPY.invalid
   return (
     <div style={{ minHeight: '100vh', background: '#0A1628', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div style={{ maxWidth: 480, width: '100%', background: '#0F1E33', border: `1px solid ${c.color}40`, borderRadius: 10, padding: 36 }}>
