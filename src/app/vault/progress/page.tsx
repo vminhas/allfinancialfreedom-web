@@ -470,19 +470,20 @@ function Matrix({
   return (
     <div style={{
       background: '#142D48', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)',
-      overflow: 'auto',
-      // Containing the horizontal scroll inside this div keeps the page
-      // header / sidebar from doing it; cleaner UX.
+      // Horizontal-only scroll. overflow-y: clip lets us keep the
+      // horizontal scroll for cells while explicitly telling the
+      // browser NOT to create a vertical scrolling context here —
+      // without this, browsers auto-promote overflow-y to "auto"
+      // whenever overflow-x is "auto", and that coupling makes the
+      // inner position:sticky headers stick to the matrix box top
+      // instead of the page viewport. With clip, the nearest scroll
+      // ancestor for vertical sticky becomes the page itself, so the
+      // column headers + phase band + roster row all stick to the
+      // top of the SCREEN as the page scrolls — exactly the
+      // experience the admin asked for.
+      overflowX: 'auto',
+      overflowY: 'clip',
       maxWidth: '100%',
-      // Cap the height so vertical scrolling happens INSIDE this
-      // container instead of at the page level. Without the cap, the
-      // `position:sticky` column headers stick to the top of the
-      // matrix box, but the whole box scrolls off when the page
-      // scrolls — so the headers leave the viewport the moment you
-      // start reading rows below the fold. With the cap, both the
-      // column headers (top) and the sticky-left agent column stay
-      // locked while you scroll through the roster, Excel-style.
-      maxHeight: 'calc(100vh - 240px)',
       WebkitOverflowScrolling: 'touch',
     }}>
       <div style={{ position: 'relative', display: 'inline-block', minWidth: '100%' }}>
@@ -566,16 +567,21 @@ function Matrix({
             background + thin centered bar instead of a chip-shape, so
             the eye reads it as a summary band rather than another
             agent's data. */}
+        {/* Roster Completion banner. Backgrounds are SOLID (not the
+            translucent gold tint that read nicely at rest but let
+            agent rows show through when they scrolled past underneath
+            this sticky row). #1F344A is #142D48 with a 6% gold
+            mix-down — same visual register, full opacity. */}
         <div style={{
           display: 'flex', position: 'sticky', top: headerHeight + 24, zIndex: 3,
-          background: 'rgba(201,169,110,0.06)',
+          background: '#1F344A',
           borderTop: '1px solid rgba(201,169,110,0.25)',
           borderBottom: '1px solid rgba(201,169,110,0.25)',
         }}>
           <div style={{
             width: labelColWidth, flexShrink: 0, height: 32,
             position: 'sticky', left: 0,
-            background: 'rgba(201,169,110,0.06)',
+            background: '#1F344A',
             zIndex: 4,
             borderRight: '1px solid rgba(201,169,110,0.15)',
             display: 'flex', alignItems: 'center', padding: '0 10px',
