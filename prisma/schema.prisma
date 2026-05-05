@@ -328,6 +328,18 @@ model PhaseItemDefinition {
   // The agent-side checklist renderer detects which to use.
   videoUrl    String?
   videoTitle  String?
+  // Ordered list of walkthrough videos: [{ url: string, title: string|null }, ...].
+  // Replaces the singular videoUrl/videoTitle columns above (those stay populated
+  // with videos[0] for back-compat until they're dropped in a follow-up migration).
+  videos      Json     @default("[]")
+  // Discord notification toggles, configured per-item in the checklist
+  // editor. postToActivity is on by default so the #agent-activity feed
+  // captures every completion; the other two are opt-in for items that
+  // should also @ping Vick (so he can personally congratulate the agent)
+  // or broadcast to #announcements (so the whole team sees the milestone).
+  postToActivity        Boolean  @default(true)  @map("post_to_activity")
+  pingAdmin             Boolean  @default(false) @map("ping_admin")
+  postToAnnouncements   Boolean  @default(false) @map("post_to_announcements")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
