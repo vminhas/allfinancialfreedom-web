@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { useIsMobile } from '@/lib/useIsMobile'
 
 // Adjacency-matrix style dashboard inspired by Bostock's Les Misérables
@@ -63,6 +64,11 @@ export default function ProgressMatrixPage() {
   const [phaseFilter, setPhaseFilter] = useState<number | 'all'>('all')
   const [agentSort, setAgentSort] = useState<'progress' | 'phase' | 'name'>('progress')
   const [hideAdminOnly, setHideAdminOnly] = useState(true)
+  const [search, setSearch] = useState('')
+  // "Stuck" = agent in their current phase with <50% of that phase's
+  // items completed. Quick way to surface who needs a nudge from the
+  // leadership team without combing the whole matrix.
+  const [stuckOnly, setStuckOnly] = useState(false)
 
   useEffect(() => {
     fetch('/api/admin/progress-matrix')
@@ -104,9 +110,51 @@ export default function ProgressMatrixPage() {
     return m
   }, [data, items])
 
+  // Per-agent ratio within their CURRENT phase, regardless of the matrix
+  // filter. Used by the "Stuck" toggle: an agent who has only done 20% of
+  // Phase 3 items but is in Phase 3 is stuck, even when the matrix is
+  // filtered to Phase 1.
+  const currentPhaseRatio = useMemo(() => {
+    if (!data) return new Map<string, number>()
+    const m = new Map<string, number>()
+    for (const a of data.agents) {
+      const phaseItems = data.items.filter(it => it.phase === a.phase && (!hideAdminOnly || !it.adminOnly))
+      if (phaseItems.length === 0) { m.set(a.id, 1); continue }
+      const done = phaseItems.filter(it => data.completedAt[`${a.id}:${it.itemKey}`]).length
+      m.set(a.id, done / phaseItems.length)
+    }
+    return m
+  }, [data, hideAdminOnly])
+
+  // Per-item completion rate across all currently-shown agents. Drives the
+  // bar above each column so admins can spot bottleneck items at a glance.
+  const itemCompletionRate = useMemo(() => {
+    if (!data) return new Map<string, number>()
+    const m = new Map<string, number>()
+    for (const it of items) {
+      let done = 0
+      for (const a of data.agents) {
+        if (data.completedAt[`${a.id}:${it.itemKey}`]) done++
+      }
+      m.set(it.itemKey, data.agents.length > 0 ? done / data.agents.length : 0)
+    }
+    return m
+  }, [data, items])
+
   const sortedAgents = useMemo(() => {
     if (!data) return []
-    const arr = [...data.agents]
+    const q = search.trim().toLowerCase()
+    const arr = data.agents.filter(a => {
+      if (q) {
+        const hay = `${a.firstName} ${a.lastName} ${a.agentCode}`.toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+      if (stuckOnly) {
+        const r = currentPhaseRatio.get(a.id) ?? 1
+        if (r >= 0.5) return false
+      }
+      return true
+    })
     arr.sort((a, b) => {
       if (agentSort === 'name') {
         return (a.lastName + a.firstName).localeCompare(b.lastName + b.firstName)
@@ -122,7 +170,7 @@ export default function ProgressMatrixPage() {
       return b.phase - a.phase
     })
     return arr
-  }, [data, agentSort, agentStats])
+  }, [data, agentSort, agentStats, search, stuckOnly, currentPhaseRatio])
 
   // Items grouped by phase for the column-header rendering. Each phase
   // gets a colored band above its column block.
@@ -135,13 +183,72 @@ export default function ProgressMatrixPage() {
     return map
   }, [items])
 
+  // Aggregate stats for the summary cards above the matrix. Average
+  // completion is a roster-wide ratio (sum of done / sum of possible)
+  // rather than mean of per-agent ratios so big rosters don't get
+  // dominated by one outlier.
+  const aggregate = useMemo(() => {
+    if (!data) return { agents: 0, items: 0, totalDone: 0, totalPossible: 0, avgPct: 0 }
+    let totalDone = 0
+    let totalPossible = 0
+    for (const a of data.agents) {
+      const s = agentStats.get(a.id)
+      if (s) {
+        totalDone += s.done
+        totalPossible += s.total
+      }
+    }
+    return {
+      agents: data.agents.length,
+      items: items.length,
+      totalDone,
+      totalPossible,
+      avgPct: totalPossible > 0 ? Math.round((totalDone / totalPossible) * 100) : 0,
+    }
+  }, [data, agentStats, items])
+
+  // CSV export of the current matrix view (respects active filters and
+  // sort order). Header is the item labels; each row is one agent with a
+  // 1 / 0 per item. UTF-8 BOM up front so Excel opens it as Unicode.
+  const exportCsv = () => {
+    if (!data) return
+    const cols = ['Agent', 'Code', 'Phase', 'Done', 'Total', '%']
+    const itemList = Object.values(itemsByPhase).flat()
+    for (const it of itemList) cols.push(it.label)
+    const rows: string[] = [cols.map(escapeCsv).join(',')]
+    for (const a of sortedAgents) {
+      const s = agentStats.get(a.id) ?? { done: 0, total: 0, ratio: 0 }
+      const r: string[] = [
+        `${a.firstName} ${a.lastName}`,
+        a.agentCode,
+        String(a.phase),
+        String(s.done),
+        String(s.total),
+        String(Math.round(s.ratio * 100)),
+      ]
+      for (const it of itemList) {
+        r.push(data.completedAt[`${a.id}:${it.itemKey}`] ? '1' : '0')
+      }
+      rows.push(r.map(escapeCsv).join(','))
+    }
+    const blob = new Blob(['﻿', rows.join('\n')], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `aff-progression-${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
+
   if (loading) return <Centered>Loading progression matrix...</Centered>
   if (error) return <Centered tone="error">Couldn&apos;t load matrix: {error}</Centered>
   if (!data) return null
 
   return (
     <div>
-      <div style={{ marginBottom: 20 }}>
+      <div style={{ marginBottom: 16 }}>
         <p style={{ color: '#C9A96E', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 600, margin: '0 0 6px' }}>
           Progression Matrix
         </p>
@@ -149,9 +256,22 @@ export default function ProgressMatrixPage() {
           Agents &middot; Checklist
         </h1>
         <p style={{ color: '#6B8299', fontSize: 12, margin: '8px 0 0', lineHeight: 1.5 }}>
-          Every active agent on the {isMobile ? 'left' : 'left'}, every checklist item across the top.
+          Every active agent on the left, every checklist item across the top.
           Filled cells mean the agent has completed that item. Hover any cell for details.
         </p>
+      </div>
+
+      {/* Summary cards: roster-wide totals at a glance. Sit above the
+          controls so they read first. */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+        gap: 10, marginBottom: 14,
+      }}>
+        <SummaryCard label="Active agents" value={aggregate.agents.toString()} />
+        <SummaryCard label="Items shown" value={aggregate.items.toString()} />
+        <SummaryCard label="Completions" value={aggregate.totalDone.toLocaleString()} sub={`${aggregate.totalPossible.toLocaleString()} possible`} />
+        <SummaryCard label="Avg completion" value={`${aggregate.avgPct}%`} accent="#C9A96E" />
       </div>
 
       {/* Controls */}
@@ -168,6 +288,18 @@ export default function ProgressMatrixPage() {
             </FilterPill>
           ))}
         </div>
+        <input
+          type="search"
+          placeholder="Search agent name or code..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{
+            background: '#0A1628', color: '#ffffff',
+            border: '1px solid rgba(201,169,110,0.2)',
+            borderRadius: 4, padding: '6px 10px', fontSize: 12,
+            width: isMobile ? '100%' : 200,
+          }}
+        />
         <div style={{ flex: 1 }} />
         <select
           value={agentSort}
@@ -186,12 +318,56 @@ export default function ProgressMatrixPage() {
           <input type="checkbox" checked={hideAdminOnly} onChange={e => setHideAdminOnly(e.target.checked)} />
           Hide admin-only items
         </label>
+        <label
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            color: stuckOnly ? '#f87171' : '#9BB0C4',
+            fontSize: 11, cursor: 'pointer',
+            padding: '3px 8px', borderRadius: 4,
+            background: stuckOnly ? 'rgba(248,113,113,0.08)' : 'transparent',
+            border: `1px solid ${stuckOnly ? 'rgba(248,113,113,0.3)' : 'transparent'}`,
+          }}
+          title="Show only agents who have completed less than 50% of their current phase"
+        >
+          <input type="checkbox" checked={stuckOnly} onChange={e => setStuckOnly(e.target.checked)} />
+          Stuck only
+        </label>
+        <button
+          onClick={exportCsv}
+          style={{
+            background: 'transparent', color: '#C9A96E',
+            border: '1px solid rgba(201,169,110,0.3)',
+            borderRadius: 4, padding: '5px 10px', fontSize: 11, fontWeight: 600,
+            cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.06em',
+          }}
+          title="Download the current view as a CSV"
+        >
+          ↓ CSV
+        </button>
       </div>
+
+      {/* Empty state when filters knock everything out, so an admin
+          searching for a name that doesn't match doesn't stare at a
+          blank matrix wondering if it's broken. */}
+      {sortedAgents.length === 0 && (
+        <div style={{
+          padding: '40px 20px', textAlign: 'center', color: '#6B8299', fontSize: 13,
+          background: '#142D48', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)',
+        }}>
+          No agents match the current filters.{' '}
+          <button
+            onClick={() => { setSearch(''); setStuckOnly(false); setPhaseFilter('all') }}
+            style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 13, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+          >
+            Clear filters
+          </button>
+        </div>
+      )}
 
       {/* Mobile compact list, desktop matrix. The breakpoint matches
           useIsMobile's 768px so the layout switches in lockstep with
           the rest of the vault shell. */}
-      {isMobile
+      {sortedAgents.length > 0 && (isMobile
         ? <MobileList agents={sortedAgents} stats={agentStats} />
         : (
           <Matrix
@@ -199,24 +375,33 @@ export default function ProgressMatrixPage() {
             itemsByPhase={itemsByPhase}
             completedAt={data.completedAt}
             stats={agentStats}
+            itemCompletionRate={itemCompletionRate}
+            currentPhaseRatio={currentPhaseRatio}
             hover={hover}
             onHover={setHover}
           />
         )
-      }
+      )}
     </div>
   )
+}
+
+function escapeCsv(v: string): string {
+  if (/[",\n]/.test(v)) return '"' + v.replace(/"/g, '""') + '"'
+  return v
 }
 
 // ─── Desktop matrix ─────────────────────────────────────────────────────
 
 function Matrix({
-  agents, itemsByPhase, completedAt, stats, hover, onHover,
+  agents, itemsByPhase, completedAt, stats, itemCompletionRate, currentPhaseRatio, hover, onHover,
 }: {
   agents: Agent[]
   itemsByPhase: Record<number, ItemDef[]>
   completedAt: Record<string, string>
   stats: Map<string, { done: number; total: number; ratio: number }>
+  itemCompletionRate: Map<string, number>
+  currentPhaseRatio: Map<string, number>
   hover: { agentId: string; itemKey: string } | null
   onHover: (h: { agentId: string; itemKey: string } | null) => void
 }) {
@@ -312,6 +497,52 @@ function Matrix({
           })}
         </div>
 
+        {/* Per-column completion bar — what fraction of the visible
+            roster has done each item. Reads as a horizontal heatmap
+            row: fully-filled column = everyone's done it, sparse =
+            bottleneck training. Fastest signal in the whole page for
+            "what's the team stuck on." */}
+        <div style={{ display: 'flex', position: 'sticky', top: headerHeight + 24, zIndex: 3, background: '#142D48', borderBottom: '1px solid rgba(201,169,110,0.15)' }}>
+          <div style={{
+            width: labelColWidth, flexShrink: 0, height: 28,
+            position: 'sticky', left: 0, background: '#142D48', zIndex: 4,
+            borderRight: '1px solid rgba(201,169,110,0.15)',
+            display: 'flex', alignItems: 'center', padding: '0 10px',
+            fontSize: 9, fontWeight: 700, letterSpacing: '0.12em',
+            textTransform: 'uppercase', color: '#6B8299',
+          }}>
+            Roster Completion
+          </div>
+          {phases.map((ph, phIdx) => (
+            <div key={ph} style={{ display: 'flex', marginLeft: phIdx === 0 ? 0 : phaseGap }}>
+              {itemsByPhase[ph].map((it, idx) => {
+                const rate = itemCompletionRate.get(it.itemKey) ?? 0
+                const isHoveredCol = hover?.itemKey === it.itemKey
+                return (
+                  <div
+                    key={it.itemKey}
+                    title={`${Math.round(rate * 100)}% of roster has completed "${it.label}"`}
+                    style={{
+                      width: cellSize, height: 28, flexShrink: 0,
+                      padding: '4px 3px',
+                      borderLeft: idx === 0 ? `2px solid ${PHASE_COLORS[ph]}` : '1px solid rgba(255,255,255,0.04)',
+                      background: isHoveredCol ? `${PHASE_COLORS[ph]}10` : 'transparent',
+                      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+                    }}
+                  >
+                    <div style={{
+                      width: '100%', height: `${Math.max(2, rate * 100)}%`,
+                      background: PHASE_COLORS[ph],
+                      opacity: 0.55 + rate * 0.4,
+                      borderRadius: 2,
+                    }} />
+                  </div>
+                )
+              })}
+            </div>
+          ))}
+        </div>
+
         {/* Agent rows */}
         {agents.map(agent => {
           const s = stats.get(agent.id)
@@ -326,7 +557,13 @@ function Matrix({
               }}
             >
               {/* Agent label cell (sticky-left) */}
-              <div
+              {/* Sticky-left agent label, wrapped in a Link so clicking
+                  the name jumps to the tracker pre-scoped to this agent
+                  via ?agent=<code>. The cells stay non-link so cell
+                  hover / future click-handlers don't fight with row
+                  navigation. */}
+              <Link
+                href={`/vault/tracker?agentId=${encodeURIComponent(agent.id)}`}
                 style={{
                   width: labelColWidth, flexShrink: 0,
                   position: 'sticky', left: 0, zIndex: 2,
@@ -335,7 +572,10 @@ function Matrix({
                   borderRight: '1px solid rgba(201,169,110,0.15)',
                   display: 'flex', alignItems: 'center', gap: 8,
                   height: cellSize + 4,
+                  textDecoration: 'none',
+                  cursor: 'pointer',
                 }}
+                title={`Open ${agent.firstName} ${agent.lastName} in the AFF Tracker`}
               >
                 <Avatar firstName={agent.firstName} lastName={agent.lastName} avatarUrl={agent.avatarUrl} size={22} />
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -345,6 +585,9 @@ function Matrix({
                   <div style={{ fontSize: 9, color: '#6B8299', display: 'flex', gap: 6, marginTop: 1 }}>
                     <span>{agent.agentCode}</span>
                     <span style={{ color: PHASE_COLORS[agent.phase] }}>P{agent.phase}</span>
+                    {(currentPhaseRatio.get(agent.id) ?? 1) < 0.5 && (
+                      <span style={{ color: '#f87171', fontWeight: 700 }}>STUCK</span>
+                    )}
                   </div>
                 </div>
                 {s && s.total > 0 && (
@@ -352,7 +595,7 @@ function Matrix({
                     {Math.round(s.ratio * 100)}%
                   </span>
                 )}
-              </div>
+              </Link>
 
               {/* Cells, grouped by phase so we can put a visible gap between
                   phase blocks (mirrors the column-header phase gap above).
@@ -391,14 +634,22 @@ function Matrix({
                       >
                         <div style={{
                           width: '100%', height: '100%',
+                          // Done cells: solid phase fill. Not-done cells:
+                          // a faint outlined chip in the same phase color
+                          // so the grid stays visible across columns
+                          // nobody has touched yet (otherwise the right
+                          // half of the matrix reads as empty space and
+                          // it's hard to track rows). Hover bumps the
+                          // outline alpha so the cross-pattern still
+                          // reads.
                           background: done ? PHASE_COLORS[it.phase] : 'transparent',
                           borderRadius: 3,
-                          opacity: done ? (isHovered ? 1 : 0.9) : 0,
-                          // Subtle outline on un-filled cells lets you see
-                          // the grid even when nothing is completed.
-                          outline: !done && (isHoveredCol || isHoveredRow) ? `1px solid ${PHASE_COLORS[it.phase]}40` : 'none',
+                          opacity: done ? (isHovered ? 1 : 0.9) : 1,
+                          border: done
+                            ? 'none'
+                            : `1px solid ${PHASE_COLORS[it.phase]}${isHoveredCol || isHoveredRow ? '55' : '20'}`,
                           boxShadow: isHovered && done ? `0 0 0 1px #ffffff` : 'none',
-                          transition: 'opacity 0.1s, box-shadow 0.1s',
+                          transition: 'opacity 0.1s, box-shadow 0.1s, border-color 0.1s',
                         }} />
                       </div>
                     )
@@ -426,12 +677,17 @@ function MobileList({
       {agents.map(a => {
         const s = stats.get(a.id) ?? { done: 0, total: 0, ratio: 0 }
         return (
-          <div key={a.id} style={{
-            background: '#142D48', borderRadius: 6,
-            border: '1px solid rgba(201,169,110,0.1)',
-            padding: '12px 14px',
-            display: 'flex', alignItems: 'center', gap: 10,
-          }}>
+          <Link
+            key={a.id}
+            href={`/vault/tracker?agent=${encodeURIComponent(a.agentCode)}`}
+            style={{
+              background: '#142D48', borderRadius: 6,
+              border: '1px solid rgba(201,169,110,0.1)',
+              padding: '12px 14px',
+              display: 'flex', alignItems: 'center', gap: 10,
+              textDecoration: 'none', color: 'inherit',
+            }}
+          >
             <Avatar firstName={a.firstName} lastName={a.lastName} avatarUrl={a.avatarUrl} size={32} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
@@ -451,7 +707,7 @@ function MobileList({
                 {s.done} / {s.total} items completed &middot; {Math.round(s.ratio * 100)}%
               </div>
             </div>
-          </div>
+          </Link>
         )
       })}
     </div>
@@ -459,6 +715,25 @@ function MobileList({
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────
+
+function SummaryCard({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: string }) {
+  return (
+    <div style={{
+      background: '#142D48', borderRadius: 6, padding: '12px 14px',
+      border: '1px solid rgba(201,169,110,0.1)',
+    }}>
+      <div style={{ fontSize: 9, color: '#6B8299', letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 22, color: accent ?? '#ffffff', fontWeight: 300, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>
+        {value}
+      </div>
+      {sub && (
+        <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2 }}>{sub}</div>
+      )}
+    </div>
+  )
+}
 
 function FilterPill({ children, active, onClick, accent }: { children: React.ReactNode; active: boolean; onClick: () => void; accent?: string }) {
   return (
