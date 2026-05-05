@@ -501,15 +501,28 @@ function Matrix({
             roster has done each item. Reads as a horizontal heatmap
             row: fully-filled column = everyone's done it, sparse =
             bottleneck training. Fastest signal in the whole page for
-            "what's the team stuck on." */}
-        <div style={{ display: 'flex', position: 'sticky', top: headerHeight + 24, zIndex: 3, background: '#142D48', borderBottom: '1px solid rgba(201,169,110,0.15)' }}>
+            "what's the team stuck on."
+
+            Visual treatment is intentionally distinct from the data
+            rows below: gold accent (not a phase color) + tinted row
+            background + thin centered bar instead of a chip-shape, so
+            the eye reads it as a summary band rather than another
+            agent's data. */}
+        <div style={{
+          display: 'flex', position: 'sticky', top: headerHeight + 24, zIndex: 3,
+          background: 'rgba(201,169,110,0.06)',
+          borderTop: '1px solid rgba(201,169,110,0.25)',
+          borderBottom: '1px solid rgba(201,169,110,0.25)',
+        }}>
           <div style={{
-            width: labelColWidth, flexShrink: 0, height: 28,
-            position: 'sticky', left: 0, background: '#142D48', zIndex: 4,
+            width: labelColWidth, flexShrink: 0, height: 32,
+            position: 'sticky', left: 0,
+            background: 'rgba(201,169,110,0.06)',
+            zIndex: 4,
             borderRight: '1px solid rgba(201,169,110,0.15)',
             display: 'flex', alignItems: 'center', padding: '0 10px',
             fontSize: 9, fontWeight: 700, letterSpacing: '0.12em',
-            textTransform: 'uppercase', color: '#6B8299',
+            textTransform: 'uppercase', color: '#C9A96E',
           }}>
             Roster Completion
           </div>
@@ -523,17 +536,21 @@ function Matrix({
                     key={it.itemKey}
                     title={`${Math.round(rate * 100)}% of roster has completed "${it.label}"`}
                     style={{
-                      width: cellSize, height: 28, flexShrink: 0,
-                      padding: '4px 3px',
+                      width: cellSize, height: 32, flexShrink: 0,
+                      padding: '6px 0',
                       borderLeft: idx === 0 ? `2px solid ${PHASE_COLORS[ph]}` : '1px solid rgba(255,255,255,0.04)',
-                      background: isHoveredCol ? `${PHASE_COLORS[ph]}10` : 'transparent',
+                      background: isHoveredCol ? 'rgba(201,169,110,0.12)' : 'transparent',
                       display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
                     }}
                   >
+                    {/* Thin centered bar — clearly distinct from the
+                        rounded chips in the data rows. Gold at varying
+                        opacity tracks completion rate. */}
                     <div style={{
-                      width: '100%', height: `${Math.max(2, rate * 100)}%`,
-                      background: PHASE_COLORS[ph],
-                      opacity: 0.55 + rate * 0.4,
+                      width: 5,
+                      height: `${Math.max(2, rate * 100)}%`,
+                      background: '#C9A96E',
+                      opacity: 0.35 + rate * 0.65,
                       borderRadius: 2,
                     }} />
                   </div>
