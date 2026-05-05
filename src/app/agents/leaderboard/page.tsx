@@ -237,7 +237,16 @@ function Matrix({
   return (
     <div style={{
       background: '#142D48', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)',
-      overflow: 'auto', maxWidth: '100%',
+      // Mirror the admin /vault/progress matrix container: horizontal
+      // scroll for cells, but overflow-y: clip so the inner sticky
+      // headers escape upward to the document and stick to the
+      // viewport top instead of the matrix box top. Browsers that see
+      // overflow-x:auto auto-promote overflow-y to "auto" unless we
+      // explicitly say otherwise; clip avoids the auto-promotion.
+      overflowX: 'auto',
+      overflowY: 'clip',
+      maxWidth: '100%',
+      WebkitOverflowScrolling: 'touch',
     }}>
       <div style={{ position: 'relative', display: 'inline-block', minWidth: '100%' }}>
         {/* Headers */}
