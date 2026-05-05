@@ -221,13 +221,18 @@ function Matrix({
   onHover: (h: { agentId: string; itemKey: string } | null) => void
 }) {
   const phases = Object.keys(itemsByPhase).map(Number).sort((a, b) => a - b)
-  const allItems = phases.flatMap(p => itemsByPhase[p])
-  const cellSize = 18
+  // Bigger cell with internal padding so completed cells render as
+  // discrete dots instead of merging into a continuous bar (the previous
+  // 18px no-padding version made each row look like one stripe). The
+  // 4px gap on each side leaves a clear gridline between cells.
+  const cellSize = 26
+  const cellInsetPad = 4
   const labelColWidth = 220
+  const phaseGap = 6  // extra horizontal gap separating phase blocks
 
-  // Column header height is the longest item label rotated 90°. Cap at
-  // 220px so absurdly long item labels don't push the matrix off-screen.
-  const headerHeight = 200
+  // Column header height tuned for the rotated-vertical label. Most item
+  // labels are ~22 chars so 9px font * 22 ≈ 200px gives plenty of room.
+  const headerHeight = 210
 
   return (
     <div style={{
@@ -238,11 +243,13 @@ function Matrix({
       maxWidth: '100%',
     }}>
       <div style={{ position: 'relative', display: 'inline-block', minWidth: '100%' }}>
-        {/* Column headers */}
+        {/* Column headers. Labels are rendered vertically (writing-mode +
+            rotate) instead of obliquely so adjacent labels never overlap
+            no matter how dense the cells get. */}
         <div style={{ display: 'flex', position: 'sticky', top: 0, zIndex: 3, background: '#142D48', borderBottom: '1px solid rgba(201,169,110,0.15)' }}>
           <div style={{ width: labelColWidth, flexShrink: 0, height: headerHeight, position: 'sticky', left: 0, background: '#142D48', zIndex: 4, borderRight: '1px solid rgba(201,169,110,0.15)' }} />
-          {phases.map(ph => (
-            <div key={ph} style={{ display: 'flex' }}>
+          {phases.map((ph, phIdx) => (
+            <div key={ph} style={{ display: 'flex', marginLeft: phIdx === 0 ? 0 : phaseGap }}>
               {itemsByPhase[ph].map((it, idx) => {
                 const isHovered = hover?.itemKey === it.itemKey
                 return (
@@ -250,20 +257,28 @@ function Matrix({
                     key={it.itemKey}
                     style={{
                       width: cellSize, height: headerHeight, flexShrink: 0,
-                      borderLeft: idx === 0 ? `2px solid ${PHASE_COLORS[ph]}` : '1px solid rgba(255,255,255,0.03)',
+                      borderLeft: idx === 0 ? `2px solid ${PHASE_COLORS[ph]}` : '1px solid rgba(255,255,255,0.04)',
                       position: 'relative',
-                      background: isHovered ? 'rgba(201,169,110,0.08)' : 'transparent',
+                      background: isHovered ? `${PHASE_COLORS[ph]}18` : 'transparent',
+                      transition: 'background 0.1s',
                     }}
                     title={`Phase ${ph} · ${it.label}`}
                   >
                     <div style={{
-                      position: 'absolute', bottom: 6, left: '50%',
-                      transform: 'translateX(-50%) rotate(-65deg)',
-                      transformOrigin: 'left bottom',
-                      whiteSpace: 'nowrap', fontSize: 10,
+                      position: 'absolute',
+                      bottom: 8, left: '50%',
+                      transform: 'translateX(-50%)',
+                      writingMode: 'vertical-rl',
+                      textOrientation: 'mixed',
+                      // Flip so the text reads bottom-to-top (more natural
+                      // for English column labels than top-to-bottom).
+                      rotate: '180deg',
+                      whiteSpace: 'nowrap',
+                      fontSize: 10, lineHeight: 1,
                       color: isHovered ? '#ffffff' : '#9BB0C4',
                       fontWeight: isHovered ? 600 : 400,
-                      maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis',
+                      maxHeight: headerHeight - 20,
+                      overflow: 'hidden', textOverflow: 'ellipsis',
                     }}>
                       {it.label}
                     </div>
@@ -274,21 +289,22 @@ function Matrix({
           ))}
         </div>
 
-        {/* Phase color bands above the columns. Floats between header and
-            first row so the section breaks read clearly. */}
-        <div style={{ display: 'flex', position: 'sticky', top: headerHeight, zIndex: 3, background: '#142D48' }}>
+        {/* Phase color bands above the columns. Sit between the headers
+            and the first row, lined up with each phase block so the
+            section breaks are visually unmistakable. */}
+        <div style={{ display: 'flex', position: 'sticky', top: headerHeight, zIndex: 3, background: '#142D48', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
           <div style={{ width: labelColWidth, flexShrink: 0, position: 'sticky', left: 0, background: '#142D48', zIndex: 4 }} />
-          {phases.map(ph => {
+          {phases.map((ph, phIdx) => {
             const span = itemsByPhase[ph].length * cellSize
             return (
               <div key={ph} style={{
-                width: span, height: 22, flexShrink: 0,
-                background: PHASE_COLORS[ph],
-                opacity: 0.18,
+                width: span, height: 24, flexShrink: 0,
+                background: `${PHASE_COLORS[ph]}24`,
                 borderLeft: `2px solid ${PHASE_COLORS[ph]}`,
+                marginLeft: phIdx === 0 ? 0 : phaseGap,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
-                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: PHASE_COLORS[ph] }}>
+                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: PHASE_COLORS[ph] }}>
                   Phase {ph} &middot; {PHASE_TITLES[ph]}
                 </span>
               </div>
@@ -318,14 +334,15 @@ function Matrix({
                   padding: '6px 10px',
                   borderRight: '1px solid rgba(201,169,110,0.15)',
                   display: 'flex', alignItems: 'center', gap: 8,
+                  height: cellSize + 4,
                 }}
               >
-                <Avatar firstName={agent.firstName} lastName={agent.lastName} avatarUrl={agent.avatarUrl} size={24} />
+                <Avatar firstName={agent.firstName} lastName={agent.lastName} avatarUrl={agent.avatarUrl} size={22} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, color: '#ffffff', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{ fontSize: 12, color: '#ffffff', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.15 }}>
                     {agent.firstName} {agent.lastName}
                   </div>
-                  <div style={{ fontSize: 9, color: '#6B8299', display: 'flex', gap: 6 }}>
+                  <div style={{ fontSize: 9, color: '#6B8299', display: 'flex', gap: 6, marginTop: 1 }}>
                     <span>{agent.agentCode}</span>
                     <span style={{ color: PHASE_COLORS[agent.phase] }}>P{agent.phase}</span>
                   </div>
@@ -337,32 +354,57 @@ function Matrix({
                 )}
               </div>
 
-              {/* Cells */}
-              {allItems.map(it => {
-                const done = !!completedAt[`${agent.id}:${it.itemKey}`]
-                const isHovered = hover?.agentId === agent.id && hover?.itemKey === it.itemKey
-                const isHoveredCol = hover?.itemKey === it.itemKey
-                return (
-                  <div
-                    key={it.itemKey}
-                    onMouseEnter={() => onHover({ agentId: agent.id, itemKey: it.itemKey })}
-                    onMouseLeave={() => onHover(null)}
-                    style={{
-                      width: cellSize, height: cellSize, flexShrink: 0,
-                      background: done
-                        ? PHASE_COLORS[it.phase]
-                        : isHoveredCol || isHoveredRow
-                          ? 'rgba(255,255,255,0.04)'
-                          : 'transparent',
-                      opacity: done ? (isHovered ? 1 : 0.85) : 1,
-                      border: isHovered ? '1px solid #ffffff' : '1px solid rgba(255,255,255,0.03)',
-                      cursor: 'default',
-                      transition: 'opacity 0.1s, background 0.1s',
-                    }}
-                    title={`${agent.firstName} ${agent.lastName} · ${it.label} · ${done ? 'Completed' : 'Not yet'}${done ? ` (${new Date(completedAt[`${agent.id}:${it.itemKey}`]).toLocaleDateString()})` : ''}`}
-                  />
-                )
-              })}
+              {/* Cells, grouped by phase so we can put a visible gap between
+                  phase blocks (mirrors the column-header phase gap above).
+                  Each cell is a fixed-size container with an inner inset
+                  square that's filled iff the agent has completed that
+                  item — that way completed cells read as discrete dots
+                  rather than merging into one continuous bar (which is
+                  what the previous tight-pack layout looked like). */}
+              {phases.map((ph, phIdx) => (
+                <div key={ph} style={{ display: 'flex', marginLeft: phIdx === 0 ? 0 : phaseGap }}>
+                  {itemsByPhase[ph].map((it, idx) => {
+                    const done = !!completedAt[`${agent.id}:${it.itemKey}`]
+                    const isHovered = hover?.agentId === agent.id && hover?.itemKey === it.itemKey
+                    const isHoveredCol = hover?.itemKey === it.itemKey
+                    return (
+                      <div
+                        key={it.itemKey}
+                        onMouseEnter={() => onHover({ agentId: agent.id, itemKey: it.itemKey })}
+                        onMouseLeave={() => onHover(null)}
+                        style={{
+                          width: cellSize, height: cellSize, flexShrink: 0,
+                          padding: cellInsetPad,
+                          // Container background highlights the cross
+                          // pattern (row + column) on hover; the dot itself
+                          // stays its phase color.
+                          background: isHovered
+                            ? `${PHASE_COLORS[it.phase]}30`
+                            : isHoveredCol || isHoveredRow
+                              ? `${PHASE_COLORS[it.phase]}10`
+                              : 'transparent',
+                          borderLeft: idx === 0 ? `2px solid ${PHASE_COLORS[ph]}` : '1px solid rgba(255,255,255,0.04)',
+                          transition: 'background 0.1s',
+                          cursor: 'default',
+                        }}
+                        title={`${agent.firstName} ${agent.lastName} · ${it.label} · ${done ? 'Completed' : 'Not yet'}${done ? ` (${new Date(completedAt[`${agent.id}:${it.itemKey}`]).toLocaleDateString()})` : ''}`}
+                      >
+                        <div style={{
+                          width: '100%', height: '100%',
+                          background: done ? PHASE_COLORS[it.phase] : 'transparent',
+                          borderRadius: 3,
+                          opacity: done ? (isHovered ? 1 : 0.9) : 0,
+                          // Subtle outline on un-filled cells lets you see
+                          // the grid even when nothing is completed.
+                          outline: !done && (isHoveredCol || isHoveredRow) ? `1px solid ${PHASE_COLORS[it.phase]}40` : 'none',
+                          boxShadow: isHovered && done ? `0 0 0 1px #ffffff` : 'none',
+                          transition: 'opacity 0.1s, box-shadow 0.1s',
+                        }} />
+                      </div>
+                    )
+                  })}
+                </div>
+              ))}
             </div>
           )
         })}
