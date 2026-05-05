@@ -179,6 +179,57 @@ export async function deleteGuildScheduledEvent(eventId: string): Promise<void> 
 // ─── Channel messages ────────────────────────────────────────────────────────
 
 /**
+ * Search guild members by username / nickname. Used when an agent's
+ * profile doesn't have a discordUserId on file but admin actions
+ * (e.g. kicking on deactivation) still need to target their Discord
+ * account. Discord matches against username, global_name, and
+ * nickname; the search is fuzzy enough to find Bryan Cole when the
+ * query is "bryan".
+ *
+ * Returns an empty array on any non-2xx so the caller can degrade to
+ * "no Discord match found" instead of throwing on a transient blip.
+ *
+ * Note: the bot needs the GUILD_MEMBERS privileged intent enabled in
+ * the Developer Portal AND the search permission, otherwise this
+ * returns 403 and we fall through to empty.
+ */
+export interface DiscordGuildMember {
+  user: { id: string; username: string; global_name?: string | null }
+  nick?: string | null
+}
+export async function searchGuildMembers(query: string, limit = 10): Promise<DiscordGuildMember[]> {
+  const q = query.trim()
+  if (!q) return []
+  const url = `${API}/guilds/${guildId()}/members/search?query=${encodeURIComponent(q)}&limit=${limit}`
+  try {
+    const res = await discordFetch(url, { headers: authHeaders() })
+    if (!res.ok) return []
+    return await res.json() as DiscordGuildMember[]
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Kick (remove) a member from the guild. Used by the admin
+ * "Kick from Discord" button posted alongside deactivation notices.
+ * Treats 404 (already gone) as success.
+ */
+export async function kickGuildMember(userId: string, reason?: string): Promise<void> {
+  const headers: Record<string, string> = { Authorization: `Bot ${botToken()}` }
+  if (reason) headers['X-Audit-Log-Reason'] = reason.slice(0, 512)
+  const res = await discordFetch(`${API}/guilds/${guildId()}/members/${userId}`, {
+    method: 'DELETE',
+    headers,
+  })
+  if (res.status === 404) return
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Discord kickGuildMember failed (${res.status}): ${text.slice(0, 400)}`)
+  }
+}
+
+/**
  * Delete a channel message by ID. Used to retract previously-posted
  * embeds (e.g. when an agent un-checks a completed phase item, we
  * remove the celebratory post we sent on the original completion).

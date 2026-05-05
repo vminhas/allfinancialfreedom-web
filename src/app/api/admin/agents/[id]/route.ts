@@ -168,6 +168,22 @@ export async function PUT(
 
   const updated = await db.agentProfile.update({ where: { id }, data })
 
+  // Status flipped to INACTIVE — post an admin-channel notice with a
+  // "Kick from Discord" button so we can clean up the server in one
+  // click. Discord lookup falls back to a name search when the agent
+  // doesn't have a discordUserId on file. Best-effort throughout: a
+  // missing Discord match (or a Discord outage) doesn't block the
+  // status update.
+  if (data.status === 'INACTIVE' && existing.status !== 'INACTIVE' && process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_ADMIN_CHANNEL_ID) {
+    notifyDeactivation({
+      agentProfileId: existing.id,
+      firstName: existing.firstName,
+      lastName: existing.lastName,
+      agentCode: existing.agentCode,
+      knownDiscordId: existing.discordUserId,
+    }).catch(err => console.warn('[agents PUT] deactivation notify failed:', err))
+  }
+
   // Update email on the AgentUser record if provided. Wrapped because
   // legacy profiles can have an agentUserId that points to a deleted
   // user row (P2025); when that happens, the profile update has
@@ -221,3 +237,65 @@ export async function DELETE(
 
   return NextResponse.json({ ok: true })
 }
+
+// ─── Deactivation notifier ─────────────────────────────────────────────
+
+// Post an admin-channel embed when an agent gets flipped to INACTIVE,
+// with an optional 'Kick from Discord' button so the team can clean
+// up the server in one click. Looks up the agent's Discord member by
+// stored user ID first, falling back to a name search when the
+// agent profile has no discordUserId on file (the search needs the
+// GUILD_MEMBERS privileged intent enabled on the bot).
+async function notifyDeactivation(args: {
+  agentProfileId: string
+  firstName: string
+  lastName: string
+  agentCode: string
+  knownDiscordId: string | null
+}) {
+  const channelId = process.env.DISCORD_ADMIN_CHANNEL_ID
+  if (!channelId) return
+
+  const { sendChannelMessage, searchGuildMembers } = await import('@/lib/discord')
+  const fullName = `${args.firstName} ${args.lastName}`.trim()
+
+  // Resolve Discord member: prefer the stored user ID; fall back to
+  // a fuzzy name search across guild membership.
+  let discordMatch: { id: string; label: string } | null = null
+  if (args.knownDiscordId) {
+    discordMatch = { id: args.knownDiscordId, label: `<@${args.knownDiscordId}>` }
+  } else {
+    const candidates = await searchGuildMembers(fullName, 5)
+    if (candidates.length > 0) {
+      const top = candidates[0]
+      const display = top.user.global_name ?? top.user.username
+      discordMatch = { id: top.user.id, label: `${display} (<@${top.user.id}>)` }
+    }
+  }
+
+  const fields = [
+    { name: 'Agent Code', value: `\`${args.agentCode}\``, inline: true },
+    { name: 'Discord',    value: discordMatch ? discordMatch.label : '_not found in guild_', inline: true },
+  ]
+
+  await sendChannelMessage(channelId, {
+    embeds: [{
+      title: '⚠️ Agent marked inactive',
+      description: `**${fullName}** has been deactivated. They're hidden from the matrix and the leaderboard.`,
+      color: 0xF59E0B,
+      fields,
+      footer: { text: 'AFF Concierge · Deactivation' },
+      timestamp: new Date().toISOString(),
+    }],
+    components: discordMatch ? [{
+      type: 1,
+      components: [{
+        type: 2,
+        style: 4,  // danger
+        label: 'Kick from Discord',
+        custom_id: `agent-kick:${discordMatch.id}:${args.agentProfileId}`,
+      }],
+    }] : undefined,
+  }).catch(() => {})
+}
+
