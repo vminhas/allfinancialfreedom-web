@@ -1246,36 +1246,47 @@ function AgentDrawer({
 
   const saveEdit = async () => {
     setEditSaving(true); setEditError(''); setEditSaved(false)
-    const res = await fetch(`/api/admin/agents/${agent.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...editForm,
-        phone: editForm.phone || null,
-        state: editForm.state || null,
-        dateOfBirth: editForm.dateOfBirth || null,
-        npn: editForm.npn || null,
-        licenseNumber: editForm.licenseNumber || null,
-        icaDate: editForm.icaDate || null,
-        cft: editForm.cft || null,
-        goal: editForm.goal || null,
-        recruiterId: editForm.recruiterId || null,
-        discordUserId: editForm.discordUserId || null,
-        addressLine1: editForm.addressLine1 || null,
-        addressLine2: editForm.addressLine2 || null,
-        city: editForm.city || null,
-        zip: editForm.zip || null,
-        notes: editForm.notes || null,
-      }),
-    })
-    if (!res.ok) {
-      const d = await res.json() as { error?: string }
-      setEditError(d.error ?? 'Save failed')
-    } else {
-      setEditSaved(true)
-      setTimeout(() => setEditSaved(false), 3000)
+    try {
+      const res = await fetch(`/api/admin/agents/${agent.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...editForm,
+          phone: editForm.phone || null,
+          state: editForm.state || null,
+          dateOfBirth: editForm.dateOfBirth || null,
+          npn: editForm.npn || null,
+          licenseNumber: editForm.licenseNumber || null,
+          icaDate: editForm.icaDate || null,
+          cft: editForm.cft || null,
+          goal: editForm.goal || null,
+          recruiterId: editForm.recruiterId || null,
+          discordUserId: editForm.discordUserId || null,
+          addressLine1: editForm.addressLine1 || null,
+          addressLine2: editForm.addressLine2 || null,
+          city: editForm.city || null,
+          zip: editForm.zip || null,
+          notes: editForm.notes || null,
+        }),
+      })
+      if (!res.ok) {
+        // Server crashed or returned a non-JSON error page — fall back to
+        // raw text so the form doesn't hang on a parse error. Without
+        // this, an HTML 500 from Vercel makes res.json() throw and the
+        // outer catch loses the actual cause.
+        const text = await res.text().catch(() => '')
+        let parsed: { error?: string } | null = null
+        try { parsed = JSON.parse(text) as { error?: string } } catch { /* not JSON */ }
+        setEditError(parsed?.error ?? text.slice(0, 200) ?? `Save failed (${res.status})`)
+      } else {
+        setEditSaved(true)
+        setTimeout(() => setEditSaved(false), 3000)
+      }
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Network error')
+    } finally {
+      setEditSaving(false)
     }
-    setEditSaving(false)
   }
 
   const riskStatus = getAtRiskStatus(
