@@ -25,6 +25,11 @@ export async function GET() {
       select: {
         id: true, agentCode: true, firstName: true, lastName: true,
         phase: true, avatarUrl: true, state: true,
+        icaDate: true,
+        // lastLoginAt lives on AgentUser (auth row), not the profile.
+        // Pull it via the relation so the page can sort by recent
+        // activity without a second query.
+        agentUser: { select: { lastLoginAt: true } },
       },
       orderBy: [{ phase: 'desc' }, { agentCode: 'asc' }],
     }),
@@ -46,5 +51,20 @@ export async function GET() {
     completedAt[`${c.agentProfileId}:${c.itemKey}`] = c.completedAt?.toISOString() ?? ''
   }
 
-  return NextResponse.json({ agents, items, completedAt })
+  // Flatten lastLoginAt onto the agent shape the page expects. Keeps
+  // the client interface flat instead of forcing it to deal with the
+  // relation object.
+  const flatAgents = agents.map(a => ({
+    id: a.id,
+    agentCode: a.agentCode,
+    firstName: a.firstName,
+    lastName: a.lastName,
+    phase: a.phase,
+    avatarUrl: a.avatarUrl,
+    state: a.state,
+    icaDate: a.icaDate?.toISOString() ?? null,
+    lastLoginAt: a.agentUser?.lastLoginAt?.toISOString() ?? null,
+  }))
+
+  return NextResponse.json({ agents: flatAgents, items, completedAt })
 }

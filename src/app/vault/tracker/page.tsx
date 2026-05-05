@@ -75,6 +75,7 @@ interface DetailedAgent extends Agent {
   discordUserId: string | null
   notes: string | null
   isTest: boolean
+  recruiter: { firstName: string; lastName: string; agentCode: string } | null
 }
 
 interface TrendPoint { month: string; label: string; newAgents: number; active: number }
@@ -1330,7 +1331,27 @@ function AgentDrawer({
               {agent.firstName} {agent.lastName}
             </div>
             <div style={{ fontSize: 11, color: '#6B8299', marginTop: 4 }}>
-              {agent.agentCode} · {agent.state ?? 'No state'} · {agent.email}
+              {agent.agentCode} &middot; {agent.state ?? 'No state'} &middot; {agent.email}
+            </div>
+            {/* Recruiter + join date row. Both are editable in the
+                Edit tab; surfacing them in the header gives admins
+                instant context (who's accountable for this agent +
+                how long they've been with us) without an extra click. */}
+            <div style={{ fontSize: 11, color: '#6B8299', marginTop: 3, display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+              <span>
+                <span style={{ color: '#4B5563' }}>Recruited by</span>{' '}
+                {agent.recruiter
+                  ? <span style={{ color: '#9BB0C4' }}>{agent.recruiter.firstName} {agent.recruiter.lastName} <span style={{ color: '#4B5563' }}>({agent.recruiter.agentCode})</span></span>
+                  : agent.recruiterId
+                    ? <span style={{ color: '#9BB0C4' }}>{agent.recruiterId}</span>
+                    : <span style={{ color: '#4B5563', fontStyle: 'italic' }}>not set</span>}
+              </span>
+              <span>
+                <span style={{ color: '#4B5563' }}>Joined</span>{' '}
+                {agent.icaDate
+                  ? <span style={{ color: '#9BB0C4' }}>{new Date(agent.icaDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                  : <span style={{ color: '#4B5563', fontStyle: 'italic' }}>not set</span>}
+              </span>
             </div>
           </div>
         </div>
@@ -2159,9 +2180,22 @@ function InternalNotesSection({ agentProfileId }: { agentProfileId: string }) {
         </button>
       </div>
 
-      {/* Latest note (always shown) + collapsed history */}
+      {/* Latest note (always shown) + scrollable history when expanded.
+          Capped at ~360px (≈4–5 notes, depending on length) so the
+          drawer stays a manageable height even after dozens of notes
+          accumulate; admins scroll within the section instead of the
+          whole drawer growing unbounded. */}
       {!loading && adminNotes.length > 0 && (
-        <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(155,109,255,0.15)' }}>
+        <div style={{
+          marginTop: 10, paddingTop: 10,
+          borderTop: '1px solid rgba(155,109,255,0.15)',
+          maxHeight: expanded ? 360 : undefined,
+          overflowY: expanded ? 'auto' : 'visible',
+          // Custom-tuned scrollbar so it reads as part of the purple
+          // notes card rather than browser default.
+          scrollbarWidth: 'thin',
+          scrollbarColor: 'rgba(155,109,255,0.4) transparent',
+        }}>
           {(expanded ? adminNotes : (newest ? [newest] : [])).map(n => (
             <div key={n.id} style={{ marginBottom: 8, fontSize: 11, color: '#d1d9e2', lineHeight: 1.55 }}>
               <div style={{ color: '#9BB0C4', fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', marginBottom: 2 }}>
