@@ -44,16 +44,22 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'admin') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  // Wrap the whole handler so any thrown error returns proper JSON
+  // instead of an HTML 500 page from Vercel. The frontend reads error
+  // messages out of res.json(); a non-JSON response makes the form hang
+  // on the parse step. Reproduced on test@allfinancialfreedom.com which
+  // had some legacy data state that made a downstream Prisma call throw.
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session || (session.user as { role?: string }).role !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
-  const { id } = await params
-  const body = await req.json() as Record<string, unknown>
+    const { id } = await params
+    const body = await req.json() as Record<string, unknown>
 
-  const existing = await db.agentProfile.findUnique({ where: { id } })
-  if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    const existing = await db.agentProfile.findUnique({ where: { id } })
+    if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   // Handle phase advancement — seed new phase items + trigger Discord role
   const newPhase = typeof body.phase === 'number' ? body.phase : undefined
@@ -151,15 +157,28 @@ export async function PUT(
 
   const updated = await db.agentProfile.update({ where: { id }, data })
 
-  // Update email on the AgentUser record if provided
+  // Update email on the AgentUser record if provided. Wrapped because
+  // legacy profiles can have an agentUserId that points to a deleted
+  // user row (P2025); when that happens, the profile update has
+  // already succeeded and we don't want to fail the whole request
+  // just because the email side-update can't find a row.
   if (typeof body.email === 'string' && body.email.trim()) {
-    await db.agentUser.update({
-      where: { id: existing.agentUserId },
-      data: { email: body.email.toLowerCase().trim() },
-    })
+    try {
+      await db.agentUser.update({
+        where: { id: existing.agentUserId },
+        data: { email: body.email.toLowerCase().trim() },
+      })
+    } catch (err) {
+      console.warn('[agents PUT] agentUser email update failed (non-fatal):', err)
+    }
   }
 
   return NextResponse.json(updated)
+  } catch (err) {
+    console.error('[agents PUT] failed:', err)
+    const msg = err instanceof Error ? err.message : 'Unknown server error'
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
 }
 
 // DELETE /api/admin/agents/[id]
