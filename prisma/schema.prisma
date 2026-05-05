@@ -479,6 +479,14 @@ model PhaseItem {
   itemKey        String
   completed      Boolean      @default(false)
   completedAt    DateTime?
+  // Discord message IDs for the activity-channel post and the
+  // announcements broadcast emitted when this item was completed.
+  // Stored so we can DELETE those messages if the agent un-checks the
+  // item, instead of leaving the celebratory post dangling. Null when
+  // the item's definition had notifications disabled, or when the
+  // completion happened before this column existed.
+  activityMsgId       String?
+  announcementMsgId   String?
   updatedAt      DateTime     @updatedAt
 
   @@unique([agentProfileId, phase, itemKey])
