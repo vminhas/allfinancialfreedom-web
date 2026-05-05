@@ -384,9 +384,30 @@ function AgentDashboardInner() {
     )
   }
   if (!data) {
+    // Most common cause is a stale session after an email change: the
+    // user's session JWT still references their previous email, but
+    // /api/agents/me looks up by that email and the DB row has moved
+    // on. Force-signing out and back in with the new address recovers
+    // them. Trainer fallback stays for actual missing-profile cases.
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ color: '#f87171', fontSize: 13 }}>Profile not found. Contact your trainer.</div>
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16 }}>
+        <div style={{ color: '#f87171', fontSize: 13, textAlign: 'center' }}>
+          We couldn&apos;t load your profile.
+        </div>
+        <div style={{ color: '#9BB0C4', fontSize: 12, textAlign: 'center', maxWidth: 380, lineHeight: 1.6 }}>
+          If you recently changed your email, your old login session needs to be refreshed. Sign out and sign back in with your new email. Otherwise, contact your trainer.
+        </div>
+        <button
+          onClick={() => signOut({ callbackUrl: '/agents/login' })}
+          style={{
+            background: '#C9A96E', color: '#142D48', border: 'none',
+            borderRadius: 4, padding: '10px 20px', fontSize: 12,
+            fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
+            cursor: 'pointer',
+          }}
+        >
+          Sign out &amp; sign back in
+        </button>
       </div>
     )
   }

@@ -16,11 +16,12 @@
 import Link from 'next/link'
 import { Suspense, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { signOut } from 'next-auth/react'
 
 const COPY: Record<string, { title: string; body: string; color: string }> = {
   ok: {
     title: 'Email confirmed',
-    body: "You're all set. Sign in with your new email going forward; your old address won't work for the AFF agent portal anymore.",
+    body: "You're all set. We're signing you out so you can log back in with your new email; your old address won't work for the AFF agent portal anymore.",
     color: '#4ADE80',
   },
   invalid: {
@@ -66,6 +67,20 @@ function Inner() {
       window.location.replace(`/api/agents/profile/email-verify?token=${encodeURIComponent(token)}`)
     }
   }, [token, status])
+
+  // After a successful swap, force-sign-out and bounce to the login
+  // page so the agent's stale session JWT (still tied to the OLD
+  // email) doesn't strand them on /agents with "Profile not found."
+  // Without this, the next /agents fetch looks up the user by the
+  // session's email, finds nothing, and renders the error screen.
+  useEffect(() => {
+    if (status === 'ok') {
+      const t = setTimeout(() => {
+        signOut({ callbackUrl: '/agents/login' })
+      }, 1500)
+      return () => clearTimeout(t)
+    }
+  }, [status])
 
   if (token && !status) {
     return (
