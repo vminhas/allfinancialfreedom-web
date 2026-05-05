@@ -563,7 +563,7 @@ function Matrix({
                   hover / future click-handlers don't fight with row
                   navigation. */}
               <Link
-                href={`/vault/tracker?agent=${encodeURIComponent(agent.agentCode)}`}
+                href={`/vault/tracker?agentId=${encodeURIComponent(agent.id)}`}
                 style={{
                   width: labelColWidth, flexShrink: 0,
                   position: 'sticky', left: 0, zIndex: 2,
@@ -634,14 +634,22 @@ function Matrix({
                       >
                         <div style={{
                           width: '100%', height: '100%',
+                          // Done cells: solid phase fill. Not-done cells:
+                          // a faint outlined chip in the same phase color
+                          // so the grid stays visible across columns
+                          // nobody has touched yet (otherwise the right
+                          // half of the matrix reads as empty space and
+                          // it's hard to track rows). Hover bumps the
+                          // outline alpha so the cross-pattern still
+                          // reads.
                           background: done ? PHASE_COLORS[it.phase] : 'transparent',
                           borderRadius: 3,
-                          opacity: done ? (isHovered ? 1 : 0.9) : 0,
-                          // Subtle outline on un-filled cells lets you see
-                          // the grid even when nothing is completed.
-                          outline: !done && (isHoveredCol || isHoveredRow) ? `1px solid ${PHASE_COLORS[it.phase]}40` : 'none',
+                          opacity: done ? (isHovered ? 1 : 0.9) : 1,
+                          border: done
+                            ? 'none'
+                            : `1px solid ${PHASE_COLORS[it.phase]}${isHoveredCol || isHoveredRow ? '55' : '20'}`,
                           boxShadow: isHovered && done ? `0 0 0 1px #ffffff` : 'none',
-                          transition: 'opacity 0.1s, box-shadow 0.1s',
+                          transition: 'opacity 0.1s, box-shadow 0.1s, border-color 0.1s',
                         }} />
                       </div>
                     )
