@@ -21,6 +21,10 @@ interface PhaseItemDef {
   linkedProgression: string | null
   videoUrl: string | null
   videoTitle: string | null
+  videos: Array<{ url: string; title?: string | null }>
+  postToActivity: boolean
+  pingAdmin: boolean
+  postToAnnouncements: boolean
 }
 
 const PROGRESSION_OPTIONS = SYSTEM_PROGRESSIONS.map(p => ({ key: p.key, label: p.label }))
@@ -50,7 +54,8 @@ export default function ChecklistEditorPage() {
   const [form, setForm] = useState({
     itemKey: '', label: '', description: '', duration: '',
     groupKey: '', adminOnly: false, coordinatorTopic: '', linkedProgression: '',
-    videoUrl: '', videoTitle: '',
+    videos: [] as Array<{ url: string; title: string }>,
+    postToActivity: true, pingAdmin: false, postToAnnouncements: false,
   })
   const [uploadingVideo, setUploadingVideo] = useState(false)
   const [videoUploadError, setVideoUploadError] = useState<string | null>(null)
@@ -73,7 +78,7 @@ export default function ChecklistEditorPage() {
   const groups = PHASE_GROUPS[activePhase] ?? []
 
   const resetForm = () => {
-    setForm({ itemKey: '', label: '', description: '', duration: '', groupKey: '', adminOnly: false, coordinatorTopic: '', linkedProgression: '', videoUrl: '', videoTitle: '' })
+    setForm({ itemKey: '', label: '', description: '', duration: '', groupKey: '', adminOnly: false, coordinatorTopic: '', linkedProgression: '', videos: [], postToActivity: true, pingAdmin: false, postToAnnouncements: false })
     setEditingId(null)
     setShowAdd(false)
     setVideoUploadError(null)
@@ -89,8 +94,15 @@ export default function ChecklistEditorPage() {
       adminOnly: item.adminOnly,
       coordinatorTopic: item.coordinatorTopic ?? '',
       linkedProgression: item.linkedProgression ?? '',
-      videoUrl: item.videoUrl ?? '',
-      videoTitle: item.videoTitle ?? '',
+      videos: (Array.isArray(item.videos) && item.videos.length
+        ? item.videos.map(v => ({ url: v.url, title: v.title ?? '' }))
+        : item.videoUrl
+          ? [{ url: item.videoUrl, title: item.videoTitle ?? '' }]
+          : []
+      ),
+      postToActivity: item.postToActivity,
+      pingAdmin: item.pingAdmin,
+      postToAnnouncements: item.postToAnnouncements,
     })
     setEditingId(item.id)
     setShowAdd(true)
@@ -113,8 +125,10 @@ export default function ChecklistEditorPage() {
             adminOnly: form.adminOnly,
             coordinatorTopic: form.coordinatorTopic || null,
             linkedProgression: form.linkedProgression || null,
-            videoUrl: form.videoUrl || null,
-            videoTitle: form.videoTitle || null,
+            videos: form.videos.filter(v => v.url.trim()).map(v => ({ url: v.url.trim(), title: v.title.trim() || null })),
+            postToActivity: form.postToActivity,
+            pingAdmin: form.pingAdmin,
+            postToAnnouncements: form.postToAnnouncements,
           }),
         })
       } else {
@@ -132,8 +146,10 @@ export default function ChecklistEditorPage() {
             adminOnly: form.adminOnly,
             coordinatorTopic: form.coordinatorTopic || undefined,
             linkedProgression: form.linkedProgression || undefined,
-            videoUrl: form.videoUrl || undefined,
-            videoTitle: form.videoTitle || undefined,
+            videos: form.videos.filter(v => v.url.trim()).map(v => ({ url: v.url.trim(), title: v.title.trim() || null })),
+            postToActivity: form.postToActivity,
+            pingAdmin: form.pingAdmin,
+            postToAnnouncements: form.postToAnnouncements,
           }),
         })
       }
@@ -324,30 +340,87 @@ export default function ChecklistEditorPage() {
             </div>
           </div>
 
-          {/* Walkthrough video — paste a Loom share URL or upload a file. */}
-          <div style={{ marginTop: 18, padding: '14px 16px', background: 'rgba(201,169,110,0.04)', border: '1px solid rgba(201,169,110,0.15)', borderRadius: 6 }}>
-            <div style={{ ...lbl, marginBottom: 10 }}>Walkthrough video (optional)</div>
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
-              <div>
-                <div style={{ fontSize: 10, color: '#6B8299', marginBottom: 4 }}>Loom share URL, Google Drive share URL, or direct video URL</div>
-                <input
-                  value={form.videoUrl}
-                  onChange={e => setForm(f => ({ ...f, videoUrl: e.target.value }))}
-                  placeholder="https://www.loom.com/share/... or https://drive.google.com/file/d/..."
-                  style={inp}
-                />
-              </div>
-              <div>
-                <div style={{ fontSize: 10, color: '#6B8299', marginBottom: 4 }}>Button label (defaults to &quot;Watch the walkthrough&quot;)</div>
-                <input
-                  value={form.videoTitle}
-                  onChange={e => setForm(f => ({ ...f, videoTitle: e.target.value }))}
-                  placeholder="e.g. How to schedule your exam"
-                  style={inp}
-                />
-              </div>
+          {/* Discord notifications — fan-out config for when an agent
+              ticks this item off. The activity-channel post is on by
+              default; the other two are opt-in. */}
+          <div style={{ marginTop: 18, padding: '14px 16px', background: 'rgba(96,165,250,0.04)', border: '1px solid rgba(96,165,250,0.15)', borderRadius: 6 }}>
+            <div style={{ ...lbl, marginBottom: 10 }}>Discord notifications on completion</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#9BB0C4', cursor: 'pointer' }}>
+                <input type="checkbox" checked={form.postToActivity} onChange={e => setForm(f => ({ ...f, postToActivity: e.target.checked }))} />
+                Post to <code style={{ background: 'rgba(96,165,250,0.1)', color: '#60a5fa', padding: '1px 6px', borderRadius: 3, fontSize: 11 }}>#agent-activity</code>
+                <span style={{ fontSize: 10, color: '#6B8299' }}>(default on, gives the team a live activity feed)</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#9BB0C4', cursor: 'pointer' }}>
+                <input type="checkbox" checked={form.pingAdmin} onChange={e => setForm(f => ({ ...f, pingAdmin: e.target.checked }))} />
+                Ping admin (Vick)
+                <span style={{ fontSize: 10, color: '#6B8299' }}>(use for milestones worth a personal congrats)</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#9BB0C4', cursor: 'pointer' }}>
+                <input type="checkbox" checked={form.postToAnnouncements} onChange={e => setForm(f => ({ ...f, postToAnnouncements: e.target.checked }))} />
+                Broadcast to <code style={{ background: 'rgba(96,165,250,0.1)', color: '#60a5fa', padding: '1px 6px', borderRadius: 3, fontSize: 11 }}>#announcements</code>
+                <span style={{ fontSize: 10, color: '#6B8299' }}>(public celebratory post, all agents see it)</span>
+              </label>
             </div>
+          </div>
+
+          {/* Walkthrough videos — admins can attach one or more Loom URLs,
+              Drive shares, or uploaded video files. Rendered in order on the
+              agent side. Uploads append a new row; URL fields can be edited
+              in place. */}
+          <div style={{ marginTop: 18, padding: '14px 16px', background: 'rgba(201,169,110,0.04)', border: '1px solid rgba(201,169,110,0.15)', borderRadius: 6 }}>
+            <div style={{ ...lbl, marginBottom: 10 }}>Walkthrough videos (optional)</div>
+
+            {form.videos.length === 0 && (
+              <div style={{ fontSize: 11, color: '#6B8299', marginBottom: 10, fontStyle: 'italic' }}>
+                No videos attached. Use &quot;+ Add video URL&quot; or upload a file below.
+              </div>
+            )}
+
+            {form.videos.map((v, idx) => (
+              <div key={idx} style={{
+                display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr auto',
+                gap: 8, marginBottom: 8, alignItems: 'start',
+              }}>
+                <div>
+                  {idx === 0 && <div style={{ fontSize: 10, color: '#6B8299', marginBottom: 4 }}>Loom / Drive / direct video URL</div>}
+                  <input
+                    value={v.url}
+                    onChange={e => setForm(f => ({ ...f, videos: f.videos.map((vv, i) => i === idx ? { ...vv, url: e.target.value } : vv) }))}
+                    placeholder="https://www.loom.com/share/..."
+                    style={inp}
+                  />
+                </div>
+                <div>
+                  {idx === 0 && <div style={{ fontSize: 10, color: '#6B8299', marginBottom: 4 }}>Button label (defaults to &quot;Watch the walkthrough&quot;)</div>}
+                  <input
+                    value={v.title}
+                    onChange={e => setForm(f => ({ ...f, videos: f.videos.map((vv, i) => i === idx ? { ...vv, title: e.target.value } : vv) }))}
+                    placeholder="e.g. How to schedule your exam"
+                    style={inp}
+                  />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, paddingTop: idx === 0 ? 18 : 0 }}>
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, videos: f.videos.filter((_, i) => i !== idx) }))}
+                    title="Remove video"
+                    style={{ padding: '6px 10px', borderRadius: 4, fontSize: 11, background: 'transparent', border: '1px solid rgba(239,68,68,0.3)', color: '#EF4444', cursor: 'pointer' }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ))}
+
             <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => setForm(f => ({ ...f, videos: [...f.videos, { url: '', title: '' }] }))}
+                style={{ padding: '6px 12px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'transparent', border: '1px solid rgba(201,169,110,0.3)', color: '#C9A96E', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.06em' }}
+              >
+                + Add video URL
+              </button>
               <label style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6,
                 padding: '6px 12px', borderRadius: 4,
@@ -375,7 +448,9 @@ export default function ChecklistEditorPage() {
                       if (!res.ok || !d.url) {
                         setVideoUploadError(d.error ?? 'Upload failed')
                       } else {
-                        setForm(f => ({ ...f, videoUrl: d.url! }))
+                        // Append the upload as a new entry. Admins can rename
+                        // it in the title field after.
+                        setForm(f => ({ ...f, videos: [...f.videos, { url: d.url!, title: '' }] }))
                       }
                     } catch {
                       setVideoUploadError('Network error')
@@ -387,15 +462,6 @@ export default function ChecklistEditorPage() {
                   style={{ display: 'none' }}
                 />
               </label>
-              {form.videoUrl && (
-                <button
-                  type="button"
-                  onClick={() => setForm(f => ({ ...f, videoUrl: '' }))}
-                  style={{ padding: '6px 12px', borderRadius: 4, fontSize: 11, background: 'transparent', border: '1px solid rgba(239,68,68,0.3)', color: '#EF4444', cursor: 'pointer' }}
-                >
-                  Remove
-                </button>
-              )}
               <span style={{ fontSize: 10, color: '#6B8299', lineHeight: 1.5 }}>
                 Loom and Google Drive URLs embed inline. <strong style={{ color: '#9BB0C4' }}>Both must be set to &quot;Anyone with the link can view&quot;</strong> in their share settings or the iframe shows a sign-in prompt instead of the player. Uploaded files are stored on Vercel Blob (max 500MB, MP4/WebM/MOV/MKV).
               </span>
@@ -462,6 +528,15 @@ export default function ChecklistEditorPage() {
                     <span style={{ fontSize: 8, color: '#4ade80', padding: '1px 6px', background: 'rgba(74,222,128,0.08)', borderRadius: 3, fontWeight: 600 }}>
                       {PROGRESSION_OPTIONS.find(p => p.key === item.linkedProgression)?.label ?? item.linkedProgression}
                     </span>
+                  )}
+                  {item.pingAdmin && (
+                    <span style={{ fontSize: 8, color: '#60a5fa', padding: '1px 6px', background: 'rgba(96,165,250,0.1)', borderRadius: 3, textTransform: 'uppercase', fontWeight: 600 }}>Pings Admin</span>
+                  )}
+                  {item.postToAnnouncements && (
+                    <span style={{ fontSize: 8, color: '#60a5fa', padding: '1px 6px', background: 'rgba(96,165,250,0.1)', borderRadius: 3, textTransform: 'uppercase', fontWeight: 600 }}>Announces</span>
+                  )}
+                  {!item.postToActivity && (
+                    <span style={{ fontSize: 8, color: '#6B8299', padding: '1px 6px', background: 'rgba(107,130,153,0.1)', borderRadius: 3, textTransform: 'uppercase', fontWeight: 600 }}>Silent</span>
                   )}
                 </div>
                 <div style={{ fontSize: 11, color: '#6B8299', lineHeight: 1.5, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const }}>

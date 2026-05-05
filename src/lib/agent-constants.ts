@@ -32,6 +32,7 @@ export interface PhaseItemDef {
   adminOnly?: boolean
   videoUrl?: string
   videoTitle?: string
+  videos?: Array<{ url: string; title?: string | null }>
 }
 
 export interface PhaseGroupDef {

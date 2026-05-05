@@ -57,6 +57,10 @@ export async function POST(req: NextRequest) {
     linkedProgression?: string
     videoUrl?: string
     videoTitle?: string
+    videos?: Array<{ url: string; title?: string | null }>
+    postToActivity?: boolean
+    pingAdmin?: boolean
+    postToAnnouncements?: boolean
   }
 
   if (!body.phase || !body.itemKey || !body.label || !body.description) {
@@ -68,6 +72,14 @@ export async function POST(req: NextRequest) {
     orderBy: { sortOrder: 'desc' },
     select: { sortOrder: true },
   })
+
+  // Mirror the videos array into the legacy single-video columns so any
+  // un-migrated reader still gets data. videos is the source of truth.
+  const cleanVideos = (body.videos ?? [])
+    .filter(v => v && typeof v.url === 'string' && v.url.trim())
+    .map(v => ({ url: v.url.trim(), title: v.title?.trim() || null }))
+  const legacyUrl = cleanVideos[0]?.url ?? body.videoUrl ?? null
+  const legacyTitle = cleanVideos[0]?.title ?? body.videoTitle ?? null
 
   try {
     const item = await db.phaseItemDefinition.create({
@@ -82,8 +94,12 @@ export async function POST(req: NextRequest) {
         adminOnly: body.adminOnly ?? false,
         coordinatorTopic: body.coordinatorTopic,
         linkedProgression: body.linkedProgression,
-        videoUrl: body.videoUrl || null,
-        videoTitle: body.videoTitle || null,
+        videoUrl: legacyUrl,
+        videoTitle: legacyTitle,
+        videos: cleanVideos.length ? cleanVideos : (legacyUrl ? [{ url: legacyUrl, title: legacyTitle }] : []),
+        postToActivity: body.postToActivity ?? true,
+        pingAdmin: body.pingAdmin ?? false,
+        postToAnnouncements: body.postToAnnouncements ?? false,
       },
     })
     return NextResponse.json(item)
@@ -113,6 +129,10 @@ export async function PUT(req: NextRequest) {
     actionJson?: string | null
     videoUrl?: string | null
     videoTitle?: string | null
+    videos?: Array<{ url: string; title?: string | null }>
+    postToActivity?: boolean
+    pingAdmin?: boolean
+    postToAnnouncements?: boolean
   }
 
   if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 })
@@ -126,8 +146,23 @@ export async function PUT(req: NextRequest) {
   if (body.adminOnly !== undefined) data.adminOnly = body.adminOnly
   if (body.coordinatorTopic !== undefined) data.coordinatorTopic = body.coordinatorTopic
   if (body.actionJson !== undefined) data.actionJson = body.actionJson
-  if (body.videoUrl !== undefined) data.videoUrl = body.videoUrl || null
-  if (body.videoTitle !== undefined) data.videoTitle = body.videoTitle || null
+  if (body.videos !== undefined) {
+    const cleanVideos = body.videos
+      .filter(v => v && typeof v.url === 'string' && v.url.trim())
+      .map(v => ({ url: v.url.trim(), title: v.title?.trim() || null }))
+    data.videos = cleanVideos
+    // Mirror first video into the legacy columns so un-migrated readers
+    // still see something. Pass-through videoUrl/videoTitle below is
+    // only honored when videos isn't sent.
+    data.videoUrl = cleanVideos[0]?.url ?? null
+    data.videoTitle = cleanVideos[0]?.title ?? null
+  } else {
+    if (body.videoUrl !== undefined) data.videoUrl = body.videoUrl || null
+    if (body.videoTitle !== undefined) data.videoTitle = body.videoTitle || null
+  }
+  if (body.postToActivity !== undefined) data.postToActivity = body.postToActivity
+  if (body.pingAdmin !== undefined) data.pingAdmin = body.pingAdmin
+  if (body.postToAnnouncements !== undefined) data.postToAnnouncements = body.postToAnnouncements
   if ((body as Record<string, unknown>).linkedProgression !== undefined) data.linkedProgression = (body as Record<string, unknown>).linkedProgression
 
   const item = await db.phaseItemDefinition.update({ where: { id: body.id }, data })

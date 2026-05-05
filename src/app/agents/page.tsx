@@ -272,19 +272,28 @@ function AgentDashboardInner() {
   useEffect(() => {
     fetch('/api/agents/phase-items')
       .then(r => r.ok ? r.json() : null)
-      .then((d: { items: Record<string, { itemKey: string; label: string; description: string; duration?: string; groupKey?: string; adminOnly?: boolean; coordinatorTopic?: string; actionJson?: string; videoUrl?: string | null; videoTitle?: string | null }[]>; source: string } | null) => {
+      .then((d: { items: Record<string, { itemKey: string; label: string; description: string; duration?: string; groupKey?: string; adminOnly?: boolean; coordinatorTopic?: string; actionJson?: string; videoUrl?: string | null; videoTitle?: string | null; videos?: Array<{ url: string; title?: string | null }> | null }[]>; source: string } | null) => {
         if (d?.source === 'database' && d.items) {
           const mapped: Record<number, typeof PHASE_ITEMS[1]> = {}
           for (const [phase, phaseItems] of Object.entries(d.items)) {
-            mapped[parseInt(phase)] = (phaseItems as typeof d.items[string]).map(i => ({
-              key: i.itemKey, label: i.label, description: i.description,
-              duration: i.duration, group: i.groupKey ?? undefined,
-              adminOnly: i.adminOnly,
-              coordinatorTopic: i.coordinatorTopic as typeof PHASE_ITEMS[1][0]['coordinatorTopic'],
-              action: i.actionJson ? JSON.parse(i.actionJson) : undefined,
-              videoUrl: i.videoUrl ?? undefined,
-              videoTitle: i.videoTitle ?? undefined,
-            }))
+            mapped[parseInt(phase)] = (phaseItems as typeof d.items[string]).map(i => {
+              // Prefer the new multi-video array; fall back to the legacy
+              // single-video columns so items that haven't been re-saved
+              // since the migration still render their video.
+              const videos = Array.isArray(i.videos) && i.videos.length
+                ? i.videos.filter(v => v && typeof v.url === 'string' && v.url)
+                : (i.videoUrl ? [{ url: i.videoUrl, title: i.videoTitle ?? null }] : [])
+              return {
+                key: i.itemKey, label: i.label, description: i.description,
+                duration: i.duration, group: i.groupKey ?? undefined,
+                adminOnly: i.adminOnly,
+                coordinatorTopic: i.coordinatorTopic as typeof PHASE_ITEMS[1][0]['coordinatorTopic'],
+                action: i.actionJson ? JSON.parse(i.actionJson) : undefined,
+                videoUrl: videos[0]?.url,
+                videoTitle: videos[0]?.title ?? undefined,
+                videos,
+              }
+            })
           }
           setDbPhaseItems(mapped)
         }
@@ -1392,15 +1401,23 @@ function AgentDashboardInner() {
                             <MarkdownDescription text={item.description} />
                           </div>
 
-                          {/* Walkthrough video — admins attach a Loom share URL or
-                              uploaded video on the phase item; we render an
-                              expandable player here. */}
-                          {item.videoUrl && (
+                          {/* Walkthrough videos — admins attach one or more
+                              Loom share URLs / uploaded videos on the phase
+                              item; we render each as an expandable player.
+                              Falls back to the legacy single-video field for
+                              items that predate the multi-video migration. */}
+                          {(item.videos && item.videos.length > 0
+                            ? item.videos
+                            : item.videoUrl
+                              ? [{ url: item.videoUrl, title: item.videoTitle ?? null }]
+                              : []
+                          ).map((v, i) => (
                             <ChecklistItemVideo
-                              videoUrl={item.videoUrl}
-                              videoTitle={item.videoTitle ?? null}
+                              key={`${v.url}-${i}`}
+                              videoUrl={v.url}
+                              videoTitle={v.title ?? null}
                             />
-                          )}
+                          ))}
 
 
                           {/* Coordinator request — inline CTAs for items with coordinatorTopic. */}
