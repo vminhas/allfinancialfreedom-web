@@ -82,8 +82,15 @@ export async function POST(req: NextRequest) {
   })
 
   const baseUrl = process.env.NEXTAUTH_URL ?? 'https://allfinancialfreedom.com'
-  const verifyUrl = `${baseUrl}/agents/email-verify?token=${token}`
-  const cancelUrl = `${baseUrl}/agents/email-cancel?token=${token}`
+  // Both URLs point at the API routes that actually process the token
+  // and then redirect to the agent-side landing page with ?status=...
+  // for the result. Pointing the email links directly at the agent
+  // pages (which only read ?status= and ignore ?token=) was the bug
+  // that made every link land on "this link is no longer valid" —
+  // the page never called the API, so the default invalid status
+  // always rendered.
+  const verifyUrl = `${baseUrl}/api/agents/profile/email-verify?token=${token}`
+  const cancelUrl = `${baseUrl}/api/agents/profile/email-change-cancel?token=${token}`
   const firstName = me.profile?.firstName ?? me.email.split('@')[0]
 
   // Send both emails best-effort. We don't block on GHL send failures

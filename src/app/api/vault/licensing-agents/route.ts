@@ -19,7 +19,15 @@ export async function GET(req: NextRequest) {
   const phaseFilter = searchParams.get('phase')
   const q = searchParams.get('q')?.trim() ?? ''
 
-  const where: Record<string, unknown> = { status: 'ACTIVE' }
+  // The Agents tab in the Licensing Inbox is the LC's "everyone I'm
+  // responsible for" roster. Hardcoding status:ACTIVE caused INACTIVE
+  // agents with open requests to vanish from the agent search even
+  // though their requests still showed in the inbox tab (Natalia hit
+  // this with Prudence). The LC should see every real agent regardless
+  // of activation state; status flows through to the response so the
+  // card can mark inactive ones visually if needed. Test accounts
+  // stay hidden via the new isTest flag.
+  const where: Record<string, unknown> = { isTest: false }
   if (phaseFilter) where.phase = parseInt(phaseFilter)
   if (q) {
     where.OR = [
@@ -42,6 +50,7 @@ export async function GET(req: NextRequest) {
       lastName: true,
       state: true,
       phase: true,
+      status: true,
       phone: true,
       examDate: true,
       licenseNumber: true,
@@ -68,6 +77,7 @@ export async function GET(req: NextRequest) {
     lastName: p.lastName,
     state: p.state,
     phase: p.phase,
+    status: p.status,
     phone: p.phone,
     email: p.agentUser.email,
     examDate: p.examDate,
