@@ -24,6 +24,8 @@ interface Agent {
   phase: number
   avatarUrl: string | null
   state: string | null
+  icaDate: string | null
+  lastLoginAt: string | null
 }
 
 interface ItemDef {
@@ -62,7 +64,7 @@ export default function ProgressMatrixPage() {
   const [error, setError] = useState<string | null>(null)
   const [hover, setHover] = useState<{ agentId: string; itemKey: string } | null>(null)
   const [phaseFilter, setPhaseFilter] = useState<number | 'all'>('all')
-  const [agentSort, setAgentSort] = useState<'progress' | 'phase' | 'name'>('progress')
+  const [agentSort, setAgentSort] = useState<'progress' | 'phase' | 'name' | 'joined' | 'active'>('progress')
   const [hideAdminOnly, setHideAdminOnly] = useState(true)
   const [search, setSearch] = useState('')
   // "Stuck" = agent in their current phase with <50% of that phase's
@@ -163,6 +165,20 @@ export default function ProgressMatrixPage() {
         if (a.phase !== b.phase) return b.phase - a.phase
         return (agentStats.get(b.id)?.ratio ?? 0) - (agentStats.get(a.id)?.ratio ?? 0)
       }
+      if (agentSort === 'joined') {
+        // Newest first. Nulls (no icaDate set) sort to the bottom so
+        // the top of the list is always interpretable.
+        const da = a.icaDate ? new Date(a.icaDate).getTime() : -Infinity
+        const db_ = b.icaDate ? new Date(b.icaDate).getTime() : -Infinity
+        return db_ - da
+      }
+      if (agentSort === 'active') {
+        // Most recently active first. Agents who've never logged in
+        // sort to the bottom (lastLoginAt null = -Infinity).
+        const la = a.lastLoginAt ? new Date(a.lastLoginAt).getTime() : -Infinity
+        const lb = b.lastLoginAt ? new Date(b.lastLoginAt).getTime() : -Infinity
+        return lb - la
+      }
       // progress (default): most-completed first, ties broken by phase
       const ra = agentStats.get(a.id)?.ratio ?? 0
       const rb = agentStats.get(b.id)?.ratio ?? 0
@@ -206,6 +222,34 @@ export default function ProgressMatrixPage() {
       avgPct: totalPossible > 0 ? Math.round((totalDone / totalPossible) * 100) : 0,
     }
   }, [data, agentStats, items])
+
+  // Mark an agent inactive directly from the matrix. Confirms first
+  // (destructive-ish: removes them from rosters and reports), then
+  // PATCHes /api/admin/agents/[id] with status=INACTIVE and removes
+  // the row from local state so the UI reflects the change instantly.
+  // The matrix endpoint already filters status:'ACTIVE', so a refetch
+  // would also hide them; the optimistic local removal just avoids the
+  // network round-trip.
+  const markInactive = async (a: Agent) => {
+    if (!data) return
+    const ok = confirm(`Mark ${a.firstName} ${a.lastName} (${a.agentCode}) as inactive? They'll be hidden from the matrix and the agent leaderboard. You can reactivate them anytime from the AFF Tracker drawer.`)
+    if (!ok) return
+    try {
+      const res = await fetch(`/api/admin/agents/${a.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'INACTIVE' }),
+      })
+      if (!res.ok) {
+        const text = await res.text().catch(() => '')
+        alert(`Couldn't mark inactive: ${text.slice(0, 200) || res.status}`)
+        return
+      }
+      setData(prev => prev ? { ...prev, agents: prev.agents.filter(x => x.id !== a.id) } : prev)
+    } catch (err) {
+      alert(`Network error marking inactive: ${err instanceof Error ? err.message : ''}`)
+    }
+  }
 
   // CSV export of the current matrix view (respects active filters and
   // sort order). Header is the item labels; each row is one agent with a
@@ -312,6 +356,8 @@ export default function ProgressMatrixPage() {
         >
           <option value="progress">Sort: Most progress first</option>
           <option value="phase">Sort: Highest phase first</option>
+          <option value="joined">Sort: Newest joined</option>
+          <option value="active">Sort: Most recently active</option>
           <option value="name">Sort: Name (A-Z)</option>
         </select>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#9BB0C4', fontSize: 11, cursor: 'pointer' }}>
@@ -368,7 +414,7 @@ export default function ProgressMatrixPage() {
           useIsMobile's 768px so the layout switches in lockstep with
           the rest of the vault shell. */}
       {sortedAgents.length > 0 && (isMobile
-        ? <MobileList agents={sortedAgents} stats={agentStats} />
+        ? <MobileList agents={sortedAgents} stats={agentStats} onMarkInactive={markInactive} />
         : (
           <Matrix
             agents={sortedAgents}
@@ -379,6 +425,7 @@ export default function ProgressMatrixPage() {
             currentPhaseRatio={currentPhaseRatio}
             hover={hover}
             onHover={setHover}
+            onMarkInactive={markInactive}
           />
         )
       )}
@@ -394,7 +441,7 @@ function escapeCsv(v: string): string {
 // ─── Desktop matrix ─────────────────────────────────────────────────────
 
 function Matrix({
-  agents, itemsByPhase, completedAt, stats, itemCompletionRate, currentPhaseRatio, hover, onHover,
+  agents, itemsByPhase, completedAt, stats, itemCompletionRate, currentPhaseRatio, hover, onHover, onMarkInactive,
 }: {
   agents: Agent[]
   itemsByPhase: Record<number, ItemDef[]>
@@ -404,6 +451,7 @@ function Matrix({
   currentPhaseRatio: Map<string, number>
   hover: { agentId: string; itemKey: string } | null
   onHover: (h: { agentId: string; itemKey: string } | null) => void
+  onMarkInactive: (a: Agent) => void
 }) {
   const phases = Object.keys(itemsByPhase).map(Number).sort((a, b) => a - b)
   // Bigger cell with internal padding so completed cells render as
@@ -426,6 +474,16 @@ function Matrix({
       // Containing the horizontal scroll inside this div keeps the page
       // header / sidebar from doing it; cleaner UX.
       maxWidth: '100%',
+      // Cap the height so vertical scrolling happens INSIDE this
+      // container instead of at the page level. Without the cap, the
+      // `position:sticky` column headers stick to the top of the
+      // matrix box, but the whole box scrolls off when the page
+      // scrolls — so the headers leave the viewport the moment you
+      // start reading rows below the fold. With the cap, both the
+      // column headers (top) and the sticky-left agent column stay
+      // locked while you scroll through the roster, Excel-style.
+      maxHeight: 'calc(100vh - 240px)',
+      WebkitOverflowScrolling: 'touch',
     }}>
       <div style={{ position: 'relative', display: 'inline-block', minWidth: '100%' }}>
         {/* Column headers. Labels are rendered vertically (writing-mode +
@@ -573,46 +631,74 @@ function Matrix({
                 borderBottom: '1px solid rgba(255,255,255,0.04)',
               }}
             >
-              {/* Agent label cell (sticky-left) */}
-              {/* Sticky-left agent label, wrapped in a Link so clicking
-                  the name jumps to the tracker pre-scoped to this agent
-                  via ?agent=<code>. The cells stay non-link so cell
-                  hover / future click-handlers don't fight with row
-                  navigation. */}
-              <Link
-                href={`/vault/tracker?agentId=${encodeURIComponent(agent.id)}`}
+              {/* Sticky-left agent label. The Link inside opens the
+                  tracker. A small hover-only ✕ sits at the right edge
+                  to mark the agent inactive without leaving the page;
+                  it's a sibling of the Link (not nested) so clicks
+                  don't bubble into navigation. */}
+              <div
                 style={{
                   width: labelColWidth, flexShrink: 0,
                   position: 'sticky', left: 0, zIndex: 2,
                   background: isHoveredRow ? '#1a3656' : '#142D48',
-                  padding: '6px 10px',
                   borderRight: '1px solid rgba(201,169,110,0.15)',
-                  display: 'flex', alignItems: 'center', gap: 8,
                   height: cellSize + 4,
-                  textDecoration: 'none',
-                  cursor: 'pointer',
                 }}
-                title={`Open ${agent.firstName} ${agent.lastName} in the AFF Tracker`}
               >
-                <Avatar firstName={agent.firstName} lastName={agent.lastName} avatarUrl={agent.avatarUrl} size={22} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, color: '#ffffff', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.15 }}>
-                    {agent.firstName} {agent.lastName}
+                <Link
+                  href={`/vault/tracker?agentId=${encodeURIComponent(agent.id)}`}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '6px 28px 6px 10px',  // right padding leaves room for the ✕
+                    height: '100%', boxSizing: 'border-box',
+                    textDecoration: 'none', cursor: 'pointer',
+                  }}
+                  title={`Open ${agent.firstName} ${agent.lastName} in the AFF Tracker`}
+                >
+                  <Avatar firstName={agent.firstName} lastName={agent.lastName} avatarUrl={agent.avatarUrl} size={22} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, color: '#ffffff', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.15 }}>
+                      {agent.firstName} {agent.lastName}
+                    </div>
+                    <div style={{ fontSize: 9, color: '#6B8299', display: 'flex', gap: 6, marginTop: 1 }}>
+                      <span>{agent.agentCode}</span>
+                      <span style={{ color: PHASE_COLORS[agent.phase] }}>P{agent.phase}</span>
+                      {(currentPhaseRatio.get(agent.id) ?? 1) < 0.5 && (
+                        <span style={{ color: '#f87171', fontWeight: 700 }}>STUCK</span>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ fontSize: 9, color: '#6B8299', display: 'flex', gap: 6, marginTop: 1 }}>
-                    <span>{agent.agentCode}</span>
-                    <span style={{ color: PHASE_COLORS[agent.phase] }}>P{agent.phase}</span>
-                    {(currentPhaseRatio.get(agent.id) ?? 1) < 0.5 && (
-                      <span style={{ color: '#f87171', fontWeight: 700 }}>STUCK</span>
-                    )}
-                  </div>
-                </div>
-                {s && s.total > 0 && (
-                  <span style={{ fontSize: 9, color: '#C9A96E', fontVariantNumeric: 'tabular-nums' }}>
-                    {Math.round(s.ratio * 100)}%
-                  </span>
-                )}
-              </Link>
+                  {s && s.total > 0 && (
+                    <span style={{ fontSize: 9, color: '#C9A96E', fontVariantNumeric: 'tabular-nums' }}>
+                      {Math.round(s.ratio * 100)}%
+                    </span>
+                  )}
+                </Link>
+                {/* Mark-inactive button. Hidden until the row is
+                    hovered so it doesn't add visual noise to the
+                    happy path. Confirms before firing. */}
+                <button
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    onMarkInactive(agent)
+                  }}
+                  title={`Mark ${agent.firstName} ${agent.lastName} inactive`}
+                  aria-label="Mark inactive"
+                  style={{
+                    position: 'absolute', top: '50%', right: 6, transform: 'translateY(-50%)',
+                    width: 20, height: 20, padding: 0,
+                    background: 'transparent',
+                    border: '1px solid rgba(248,113,113,0.3)',
+                    borderRadius: 4,
+                    color: '#f87171', fontSize: 11, lineHeight: 1, cursor: 'pointer',
+                    opacity: isHoveredRow ? 1 : 0,
+                    transition: 'opacity 0.15s',
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
 
               {/* Cells, grouped by phase so we can put a visible gap between
                   phase blocks (mirrors the column-header phase gap above).
@@ -684,47 +770,74 @@ function Matrix({
 // ─── Mobile compact list ────────────────────────────────────────────────
 
 function MobileList({
-  agents, stats,
+  agents, stats, onMarkInactive,
 }: {
   agents: Agent[]
   stats: Map<string, { done: number; total: number; ratio: number }>
+  onMarkInactive: (a: Agent) => void
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {agents.map(a => {
         const s = stats.get(a.id) ?? { done: 0, total: 0, ratio: 0 }
         return (
-          <Link
+          <div
             key={a.id}
-            href={`/vault/tracker?agent=${encodeURIComponent(a.agentCode)}`}
             style={{
               background: '#142D48', borderRadius: 6,
               border: '1px solid rgba(201,169,110,0.1)',
               padding: '12px 14px',
               display: 'flex', alignItems: 'center', gap: 10,
-              textDecoration: 'none', color: 'inherit',
+              position: 'relative',
             }}
           >
-            <Avatar firstName={a.firstName} lastName={a.lastName} avatarUrl={a.avatarUrl} size={32} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 13, color: '#ffffff', fontWeight: 600 }}>{a.firstName} {a.lastName}</span>
-                <span style={{ fontSize: 9, color: PHASE_COLORS[a.phase], fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>P{a.phase}</span>
-                <span style={{ fontSize: 10, color: '#6B8299' }}>{a.agentCode}</span>
+            <Link
+              href={`/vault/tracker?agentId=${encodeURIComponent(a.id)}`}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                flex: 1, minWidth: 0,
+                textDecoration: 'none', color: 'inherit',
+                paddingRight: 28,
+              }}
+            >
+              <Avatar firstName={a.firstName} lastName={a.lastName} avatarUrl={a.avatarUrl} size={32} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 13, color: '#ffffff', fontWeight: 600 }}>{a.firstName} {a.lastName}</span>
+                  <span style={{ fontSize: 9, color: PHASE_COLORS[a.phase], fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>P{a.phase}</span>
+                  <span style={{ fontSize: 10, color: '#6B8299' }}>{a.agentCode}</span>
+                </div>
+                <div style={{ position: 'relative', height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{
+                    position: 'absolute', inset: 0,
+                    width: `${Math.round(s.ratio * 100)}%`,
+                    background: PHASE_COLORS[a.phase],
+                    borderRadius: 3,
+                  }} />
+                </div>
+                <div style={{ marginTop: 4, fontSize: 10, color: '#6B8299', fontVariantNumeric: 'tabular-nums' }}>
+                  {s.done} / {s.total} items completed &middot; {Math.round(s.ratio * 100)}%
+                </div>
               </div>
-              <div style={{ position: 'relative', height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden' }}>
-                <div style={{
-                  position: 'absolute', inset: 0,
-                  width: `${Math.round(s.ratio * 100)}%`,
-                  background: PHASE_COLORS[a.phase],
-                  borderRadius: 3,
-                }} />
-              </div>
-              <div style={{ marginTop: 4, fontSize: 10, color: '#6B8299', fontVariantNumeric: 'tabular-nums' }}>
-                {s.done} / {s.total} items completed &middot; {Math.round(s.ratio * 100)}%
-              </div>
-            </div>
-          </Link>
+            </Link>
+            {/* Mark-inactive button. Always visible on mobile (no
+                hover affordance) but small + muted. */}
+            <button
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onMarkInactive(a) }}
+              title="Mark inactive"
+              aria-label="Mark inactive"
+              style={{
+                position: 'absolute', top: 8, right: 8,
+                width: 24, height: 24, padding: 0,
+                background: 'transparent',
+                border: '1px solid rgba(248,113,113,0.3)',
+                borderRadius: 4,
+                color: '#f87171', fontSize: 12, lineHeight: 1, cursor: 'pointer',
+              }}
+            >
+              ✕
+            </button>
+          </div>
         )
       })}
     </div>

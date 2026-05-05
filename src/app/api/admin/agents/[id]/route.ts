@@ -36,7 +36,18 @@ export async function GET(
     ? `${ssnDecrypted.slice(0, 3)}-${ssnDecrypted.slice(3, 5)}-${ssnDecrypted.slice(5)}`
     : null
 
-  return NextResponse.json({ ...profile, ssn: ssnFormatted })
+  // Recruiter name lookup. AgentProfile.recruiterId stores the
+  // recruiter's agentCode (not the recruiter's database id), so we
+  // resolve it here and surface a small object the drawer can render
+  // as "Recruited by X" without a second client round-trip.
+  const recruiter = profile.recruiterId
+    ? await db.agentProfile.findUnique({
+        where: { agentCode: profile.recruiterId },
+        select: { firstName: true, lastName: true, agentCode: true },
+      })
+    : null
+
+  return NextResponse.json({ ...profile, ssn: ssnFormatted, recruiter })
 }
 
 // PUT /api/admin/agents/[id] — update agent profile
