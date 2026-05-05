@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
-import { signIn } from 'next-auth/react'
+import { signIn, useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 // Wrap useSearchParams in Suspense per Next.js 15 build requirements;
@@ -18,6 +18,7 @@ export default function AgentLoginPage() {
 function AgentLoginInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { data: session, status: sessionStatus } = useSession()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -38,12 +39,31 @@ function AgentLoginInner() {
       .catch(() => {})
   }, [])
 
+  // If the user already has a live session by the time this page
+  // renders, the OAuth round-trip succeeded and any ?error=... in the
+  // URL is a stale artifact (NextAuth occasionally bounces the user
+  // through the configured signIn page even on success, particularly
+  // when callbackUrl handling has hiccuped). Just send them on to
+  // their dashboard instead of flashing a red error message at them.
+  useEffect(() => {
+    if (sessionStatus === 'authenticated' && session) {
+      const role = (session.user as { role?: string } | undefined)?.role
+      router.replace(role === 'admin' || role === 'licensing_coordinator' ? '/vault' : '/agents')
+    }
+  }, [sessionStatus, session, router])
+
   // NextAuth sends ?error=... back to the login page when an OAuth
   // sign-in is rejected. Surface a friendly message instead of the raw
   // code. The most likely case is "Google identity has no AgentUser
   // here yet" - i.e. the agent typed the wrong Google account or
   // hasn't been invited to AFF yet.
   useEffect(() => {
+    // Guard: don't surface a stale ?error if the user is actually
+    // signed in already (race condition where the redirect chain
+    // included a transient error param that no longer applies).
+    if (sessionStatus === 'authenticated') return
+    if (sessionStatus === 'loading') return
+
     const err = searchParams.get('error')
     if (!err) return
     if (err === 'AccessDenied' || err === 'OAuthAccountNotLinked') {
@@ -60,7 +80,7 @@ function AgentLoginInner() {
     } else {
       setError(`Sign-in error: ${err}`)
     }
-  }, [searchParams])
+  }, [searchParams, sessionStatus])
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()

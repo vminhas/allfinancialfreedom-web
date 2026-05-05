@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react'
 import { signIn, signOut } from 'next-auth/react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 interface SessionInfo {
   user?: {
@@ -23,6 +23,7 @@ export default function VaultLoginPage() {
 
 function VaultLoginInner() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -49,15 +50,31 @@ function VaultLoginInner() {
     fetch('/api/auth/session')
       .then(r => r.ok ? r.json() : null)
       .then((d: SessionInfo | null) => {
-        if (d?.user?.email) setExistingSession(d)
+        if (d?.user?.email) {
+          // If an agent landed here (NextAuth fell back to the
+          // configured signIn page after a successful Google round-trip
+          // when callbackUrl was lost), redirect them to their portal
+          // immediately instead of showing the error UI plus "wrong
+          // role" warning. They're already authenticated, just on the
+          // wrong landing.
+          if (d.user.role === 'agent') {
+            router.replace('/agents')
+            return
+          }
+          setExistingSession(d)
+        }
       })
       .catch(() => {})
-  }, [])
+  }, [router])
 
   // NextAuth posts an ?error= back to the login page when an OAuth
   // sign-in fails. Most likely cause is "Google identity isn't in the
-  // AdminUser or AgentUser tables yet".
+  // AdminUser or AgentUser tables yet". Skipped when the user is
+  // already signed in — the ?error param is a stale artifact in that
+  // case (the session got created mid-flow despite the URL bouncing
+  // through the error landing).
   useEffect(() => {
+    if (existingSession?.user) return
     const err = searchParams.get('error')
     if (!err) return
     if (err === 'AccessDenied' || err === 'OAuthAccountNotLinked') {
@@ -69,7 +86,7 @@ function VaultLoginInner() {
     } else {
       setError(`Sign-in error: ${err}`)
     }
-  }, [searchParams])
+  }, [searchParams, existingSession])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
