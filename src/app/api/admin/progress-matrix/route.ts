@@ -18,7 +18,10 @@ export async function GET() {
 
   const [agents, items, completions] = await Promise.all([
     db.agentProfile.findMany({
-      where: { status: 'ACTIVE' },
+      // Hide test accounts from the roster-facing matrix. They still
+      // exist and can log in; they're just excluded from any view that
+      // implies "this is the team."
+      where: { status: 'ACTIVE', isTest: false },
       select: {
         id: true, agentCode: true, firstName: true, lastName: true,
         phase: true, avatarUrl: true, state: true,

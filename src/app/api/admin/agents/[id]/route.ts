@@ -141,6 +141,7 @@ export async function PUT(
     'licenseNumber', 'licenseLines', 'dateSubmittedToGfi', 'discordJoinDate',
     'discordUserId', 'welcomeLetterSentAt', 'clientProduct', 'licenseProcess', 'notes',
     'addressLine1', 'addressLine2', 'city', 'zip', 'country', 'avatarUrl',
+    'isTest',
   ] as const
 
   const data: Record<string, unknown> = {}

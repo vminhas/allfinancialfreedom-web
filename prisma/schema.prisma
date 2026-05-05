@@ -231,6 +231,11 @@ model AgentProfile {
   cft                   String?   // trainer name
   eliteCft              String?
   status                AgentStatus @default(ACTIVE)
+  // Marks a profile as a QA / test account that should be hidden from
+  // every roster-facing view (admin progression matrix, agent-facing
+  // leaderboard, future aggregate dashboards). Test agents keep all
+  // login + flow capabilities so we can exercise the agent UX as them.
+  isTest                Boolean     @default(false) @map("is_test")
   phase                 Int         @default(1)
   phaseStartedAt        DateTime?   // when they entered current phase
   goal                  String?     // "MD", "EMD", etc.

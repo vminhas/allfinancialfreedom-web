@@ -480,6 +480,7 @@ function AgentDashboardInner() {
               flexWrap: 'wrap',
             }}
           >
+            <NavbarLink href="/agents/leaderboard" icon="◑" label="Leaderboard" />
             <NavbarLink href="/agents/guide" icon="?" label="Guide" />
             <NavbarLink href="/agents/resources" icon="◈" label="Resources" />
             <NavbarLink href="/agents/book" icon="✦" label="Book" />

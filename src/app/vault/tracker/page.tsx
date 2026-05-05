@@ -74,6 +74,7 @@ interface DetailedAgent extends Agent {
   welcomeLetterSentAt: string | null
   discordUserId: string | null
   notes: string | null
+  isTest: boolean
 }
 
 interface TrendPoint { month: string; label: string; newAgents: number; active: number }
@@ -1225,6 +1226,7 @@ function AgentDrawer({
     city: agent.city ?? '',
     zip: agent.zip ?? '',
     notes: agent.notes ?? '',
+    isTest: agent.isTest ?? false,
   })
   const [editSaving, setEditSaving] = useState(false)
   const [editSaved, setEditSaved] = useState(false)
@@ -1828,6 +1830,35 @@ function AgentDrawer({
 
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* QA / test account flag. Surfaced at the top because it
+                materially changes whether this profile shows up in any
+                roster-facing view (admin matrix, agent leaderboard).
+                Persists with the rest of the edit form on Save. */}
+            <label style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '10px 12px', borderRadius: 4,
+              background: editForm.isTest ? 'rgba(245,158,11,0.08)' : 'rgba(255,255,255,0.02)',
+              border: editForm.isTest ? '1px solid rgba(245,158,11,0.3)' : '1px solid rgba(255,255,255,0.05)',
+              cursor: 'pointer',
+            }}>
+              <input
+                type="checkbox"
+                checked={editForm.isTest}
+                onChange={e => setEditForm(f => ({ ...f, isTest: e.target.checked }))}
+                style={{ flexShrink: 0 }}
+              />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: editForm.isTest ? '#f59e0b' : '#9BB0C4', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                  Test Account
+                </div>
+                <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2 }}>
+                  Hides this agent from the admin progression matrix and the
+                  agent-facing leaderboard. Login + features still work
+                  normally for QA.
+                </div>
+              </div>
+            </label>
+
             {/* Avatar */}
             <div>
               <div style={sLabel}>Profile Photo</div>
