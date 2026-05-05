@@ -81,15 +81,26 @@ export async function PATCH(req: NextRequest) {
 
   const updated = await db.agentFeedback.update({ where: { id: body.id }, data })
 
-  // Out-of-band notification. We only ping when the status changed (not
-  // for adminNotes-only edits) so the agent doesn't get a buzz every
-  // time someone tweaks an internal note.
+  // Out-of-band notification. We ping the agent on either:
+  //   (a) a status change (OPEN → ACKNOWLEDGED / IN_PROGRESS / CLOSED), OR
+  //   (b) a meaningful update to responseToAgent (the team replied or
+  //       added more detail, even if status didn't move).
+  // adminNotes-only edits never ping — that's an internal field.
+  // Mercedes (D2161) flagged this on 2026-05-05: she wasn't getting
+  // notified when an admin replied without changing status.
   const statusChanged = body.status !== undefined && body.status !== existing.status
-  if (statusChanged && existing.agentProfile.discordUserId) {
-    notifyAgentOfStatusChange({
+  const responseChanged =
+    body.responseToAgent !== undefined &&
+    (body.responseToAgent ?? '').trim() !== (existing.responseToAgent ?? '').trim() &&
+    (body.responseToAgent ?? '').trim().length > 0
+
+  if ((statusChanged || responseChanged) && existing.agentProfile.discordUserId) {
+    notifyAgentOfFeedbackUpdate({
       discordUserId: existing.agentProfile.discordUserId,
       firstName: existing.agentProfile.firstName,
-      newStatus: body.status!,
+      newStatus: body.status ?? existing.status,
+      statusChanged,
+      responseChanged,
       responseToAgent: body.responseToAgent ?? existing.responseToAgent,
       messagePreview: existing.message.slice(0, 120),
     }).catch(() => {})
@@ -102,14 +113,19 @@ interface NotifyArgs {
   discordUserId: string
   firstName: string
   newStatus: string
+  statusChanged: boolean
+  responseChanged: boolean
   responseToAgent: string | null
   messagePreview: string
 }
 
-// Friendly Discord DM to the agent when their feedback moves through
-// the workflow. Copy is intentionally warm so a "CLOSED, not pursuing"
-// status doesn't read as a brush-off.
-async function notifyAgentOfStatusChange(args: NotifyArgs): Promise<void> {
+// Friendly Discord DM to the agent whenever there's something new on
+// their feedback ticket — either a status move OR a fresh response
+// from the team. Copy is intentionally warm so a "CLOSED, not
+// pursuing" status doesn't read as a brush-off, and the
+// response-only path uses different copy ("💬 The team replied")
+// so the agent immediately knows what's new.
+async function notifyAgentOfFeedbackUpdate(args: NotifyArgs): Promise<void> {
   if (!process.env.DISCORD_BOT_TOKEN) return
 
   const STATUS_COPY: Record<string, { title: string; description: string; color: number }> = {
@@ -135,7 +151,18 @@ async function notifyAgentOfStatusChange(args: NotifyArgs): Promise<void> {
     },
   }
 
-  const copy = STATUS_COPY[args.newStatus]
+  // Pick copy: response-only updates get a distinct "the team replied"
+  // template; status changes use their per-status template above.
+  // If both happened in the same PATCH, the status copy wins (it's the
+  // more meaningful workflow event).
+  let copy = STATUS_COPY[args.newStatus]
+  if (!args.statusChanged && args.responseChanged) {
+    copy = {
+      title: '💬 The team replied to your feedback',
+      description: `${args.firstName}, there's a new response on the feedback you sent in. Open the agent portal to view the full thread.`,
+      color: 0x9B6DFF,
+    }
+  }
   if (!copy) return
 
   const fields: Array<{ name: string; value: string; inline?: boolean }> = [

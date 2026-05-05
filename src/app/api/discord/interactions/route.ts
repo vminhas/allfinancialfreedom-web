@@ -264,7 +264,7 @@ function handleAgentKickCancel(interaction: DiscordInteraction, discordUserId: s
       embeds: [{
         ...baseEmbed,
         title: '⚠️ Agent marked inactive',
-        description: ((baseEmbed as { description?: string }).description ?? '').replace(/\n\n_This will remove them from.+/s, ''),
+        description: ((baseEmbed as { description?: string }).description ?? '').replace(/\n\n_This will remove them from[\s\S]+/, ''),
         color: 0xF59E0B,
       }],
       components: [{
