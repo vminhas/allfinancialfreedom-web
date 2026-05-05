@@ -267,7 +267,11 @@ model AgentProfile {
   carrierAppointments   CarrierAppointment[]
   milestones            RecognitionMilestone[]
   businessPartners      BusinessPartner[]
-  policies              PolicyEntry[]
+  policies              PolicyEntry[]    @relation("PolicyWriter")
+  splitPolicies         PolicyEntry[]    @relation("PolicySplit")
+  policyComments        PolicyComment[]
+  policyActivity        PolicyActivity[] @relation("PolicyActivityActor")
+  policyViews           PolicyView[]
   callLogs              CallLog[]
   callReviews           CallReview[]
   coordinatorRequests   CoordinatorRequest[]
@@ -621,20 +625,90 @@ model SetupResource {
 model PolicyEntry {
   id               String       @id @default(cuid())
   agentProfileId   String
-  agentProfile     AgentProfile @relation(fields: [agentProfileId], references: [id])
+  agentProfile     AgentProfile @relation("PolicyWriter", fields: [agentProfileId], references: [id])
   policyNumber     String?
   clientName       String
   carrier          String
   product          String
+  // Real FK collaboration relation. The legacy splitAgentName free-text
+  // column stays so historical rows + non-AFF split partners still
+  // render their name; new rows prefer the relation. Authorization
+  // for view + comment uses splitAgentId only.
+  splitAgentId     String?
+  splitAgent       AgentProfile? @relation("PolicySplit", fields: [splitAgentId], references: [id], onDelete: SetNull)
   splitAgentName   String?
   dateSubmitted    DateTime?
   targetPremium    Float?
   targetPoints     Float?
   commissionPayout Float?
   notes            String?
+  // Denormalized "last comment" preview so the policies list can render
+  // "VM · 2h ago: Got the underwriting back…" without an N+1 fetch per
+  // row. Refreshed every time a PolicyComment is written.
+  lastCommentAt       DateTime?
+  lastCommentBy       String?
+  lastCommentPreview  String?     @db.VarChar(200)
   createdAt        DateTime     @default(now())
 
+  comments         PolicyComment[]
+  activity         PolicyActivity[]
+  views            PolicyView[]
+
+  @@index([splitAgentId])
+  @@index([lastCommentAt(sort: Desc)])
   @@map("policy_entries")
+}
+
+// Chat-style thread on a PolicyEntry. Visible to the writing agent
+// (PolicyEntry.agentProfileId) AND the split agent
+// (PolicyEntry.splitAgentId) regardless of phase. Both can post; only
+// the author can edit / delete their own comment.
+model PolicyComment {
+  id              String       @id @default(cuid())
+  policyEntryId   String
+  policyEntry     PolicyEntry  @relation(fields: [policyEntryId], references: [id], onDelete: Cascade)
+  agentProfileId  String
+  agentProfile    AgentProfile @relation(fields: [agentProfileId], references: [id])
+  body            String
+  editedAt        DateTime?
+  createdAt       DateTime     @default(now())
+
+  @@index([policyEntryId, createdAt])
+  @@map("policy_comments")
+}
+
+// Audit log on a PolicyEntry, kept separate from the conversation
+// thread so admins can see "who did what when" without scrolling
+// through chatter. ADDED_SPLIT, REMOVED_SPLIT, STATUS_CHANGED, OTHER.
+model PolicyActivity {
+  id              String       @id @default(cuid())
+  policyEntryId   String
+  policyEntry     PolicyEntry  @relation(fields: [policyEntryId], references: [id], onDelete: Cascade)
+  actorProfileId  String?
+  actor           AgentProfile? @relation("PolicyActivityActor", fields: [actorProfileId], references: [id], onDelete: SetNull)
+  kind            String       // ADDED_SPLIT | REMOVED_SPLIT | STATUS_CHANGED | OTHER
+  metaJson        Json?
+  createdAt       DateTime     @default(now())
+
+  @@index([policyEntryId])
+  @@map("policy_activity")
+}
+
+// Per-agent, per-policy lastViewedAt for the unread-dot indicator on
+// the policies list. Also carries a per-policy `muted` flag so an
+// agent can silence Discord pings for a specific noisy thread without
+// affecting their other policies.
+model PolicyView {
+  id              String       @id @default(cuid())
+  policyEntryId   String
+  policyEntry     PolicyEntry  @relation(fields: [policyEntryId], references: [id], onDelete: Cascade)
+  agentProfileId  String
+  agentProfile    AgentProfile @relation(fields: [agentProfileId], references: [id])
+  lastViewedAt    DateTime     @default(now())
+  muted           Boolean      @default(false)
+
+  @@unique([policyEntryId, agentProfileId])
+  @@map("policy_views")
 }
 
 model CallLog {
