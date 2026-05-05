@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { PHASE_LABELS, PHASE_GROUPS, SYSTEM_PROGRESSIONS } from '@/lib/agent-constants'
 import { useIsMobile } from '@/lib/useIsMobile'
 import MarkdownDescription from '@/components/MarkdownDescription'
@@ -59,6 +59,10 @@ export default function ChecklistEditorPage() {
   })
   const [uploadingVideo, setUploadingVideo] = useState(false)
   const [videoUploadError, setVideoUploadError] = useState<string | null>(null)
+  // Scrolled into view whenever the editor opens (top-level for "Add" or
+  // inline for "Edit"), so the admin can always see the form they just
+  // opened even if they were scrolled deep into a long phase.
+  const formRef = useRef<HTMLDivElement | null>(null)
 
   const fetchItems = useCallback(async () => {
     const [itemsRes, groupsRes, progsRes] = await Promise.all([
@@ -108,6 +112,18 @@ export default function ChecklistEditorPage() {
     setShowAdd(true)
     setVideoUploadError(null)
   }
+
+  // Scroll the editor into view whenever it opens or switches to a different
+  // item. Without this, clicking Edit on a row that's far below the form's
+  // top-of-page anchor produced a "nothing happened" experience.
+  useEffect(() => {
+    if (!showAdd) return
+    // requestAnimationFrame so the DOM has settled before we measure.
+    const r = requestAnimationFrame(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+    return () => cancelAnimationFrame(r)
+  }, [showAdd, editingId])
 
   const handleSave = async () => {
     setSaving(true)
@@ -245,15 +261,38 @@ export default function ChecklistEditorPage() {
         ))}
       </div>
 
-      {/* Add/Edit form */}
+      {/* Add/Edit form. The ref lets us scrollIntoView when the form opens
+          so a "Click Edit on a row buried far below" workflow doesn't leave
+          the form invisible above the viewport. */}
       {showAdd && (
-        <div style={{
+        <div ref={formRef} style={{
           padding: 20, marginBottom: 16,
-          background: '#132238', border: '1px solid rgba(201,169,110,0.15)',
+          background: '#132238',
+          border: editingId ? '1px solid rgba(201,169,110,0.45)' : '1px solid rgba(201,169,110,0.15)',
+          borderLeft: editingId ? '3px solid #C9A96E' : '1px solid rgba(201,169,110,0.15)',
           borderRadius: 6,
+          // Soft gold glow when editing so it's unmistakable that this form
+          // belongs to the highlighted row in the list below.
+          boxShadow: editingId ? '0 0 0 4px rgba(201,169,110,0.06)' : 'none',
         }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: '#ffffff', marginBottom: 16 }}>
-            {editingId ? 'Edit Item' : `Add Item to Phase ${activePhase}`}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              {editingId ? (
+                <>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: '#C9A96E', letterSpacing: '0.18em', textTransform: 'uppercase', padding: '3px 8px', background: 'rgba(201,169,110,0.12)', borderRadius: 3 }}>Editing</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: '#ffffff' }}>{form.label || items.find(i => i.id === editingId)?.label || 'Item'}</span>
+                </>
+              ) : (
+                <span style={{ fontSize: 14, fontWeight: 600, color: '#ffffff' }}>Add Item to Phase {activePhase}</span>
+              )}
+            </div>
+            <button
+              onClick={resetForm}
+              style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#9BB0C4', fontSize: 11, padding: '4px 10px', borderRadius: 4, cursor: 'pointer' }}
+              title="Close editor"
+            >
+              ✕ Close
+            </button>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
             <div style={{ gridColumn: editingId ? undefined : isMobile ? undefined : 'span 2' }}>
@@ -490,11 +529,20 @@ export default function ChecklistEditorPage() {
           </div>
         ) : phaseItems.map((item, idx) => {
           const group = groups.find(g => g.key === item.groupKey)
+          const isEditingThis = editingId === item.id
           return (
             <div key={item.id} style={{
               display: 'flex', alignItems: 'flex-start', gap: 10,
               padding: '12px 16px', borderRadius: 6,
-              background: '#132238', border: '1px solid rgba(255,255,255,0.05)',
+              // Strong visual coupling between the row and the form: gold
+              // left rule, gold-tinted background, glow shadow. Without this,
+              // the form (which sits above the items list) is hard to
+              // associate with the row being edited, especially in long phases.
+              background: isEditingThis ? 'rgba(201,169,110,0.06)' : '#132238',
+              border: isEditingThis ? '1px solid rgba(201,169,110,0.45)' : '1px solid rgba(255,255,255,0.05)',
+              borderLeft: isEditingThis ? '3px solid #C9A96E' : '1px solid rgba(255,255,255,0.05)',
+              boxShadow: isEditingThis ? '0 0 0 4px rgba(201,169,110,0.06)' : 'none',
+              transition: 'background 0.15s, border-color 0.15s',
             }}>
               {/* Reorder buttons */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0, paddingTop: 2 }}>
@@ -511,6 +559,9 @@ export default function ChecklistEditorPage() {
               {/* Item content */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                  {isEditingThis && (
+                    <span style={{ fontSize: 8, color: '#C9A96E', padding: '2px 7px', background: 'rgba(201,169,110,0.18)', border: '1px solid rgba(201,169,110,0.4)', borderRadius: 3, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.12em' }}>Editing</span>
+                  )}
                   <span style={{ fontSize: 13, fontWeight: 600, color: '#ffffff' }}>{item.label}</span>
                   {item.duration && (
                     <span style={{ fontSize: 9, color: '#6B8299', padding: '1px 6px', background: 'rgba(255,255,255,0.04)', borderRadius: 3 }}>{item.duration}</span>
@@ -549,7 +600,16 @@ export default function ChecklistEditorPage() {
 
               {/* Actions */}
               <div style={{ display: 'flex', gap: 6, flexShrink: 0, paddingTop: 2 }}>
-                <button onClick={() => startEdit(item)} style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 11, cursor: 'pointer' }}>Edit</button>
+                {isEditingThis ? (
+                  <button
+                    onClick={resetForm}
+                    style={{ background: 'rgba(201,169,110,0.12)', border: '1px solid rgba(201,169,110,0.3)', color: '#C9A96E', fontSize: 11, cursor: 'pointer', padding: '2px 10px', borderRadius: 3, fontWeight: 600 }}
+                  >
+                    Close
+                  </button>
+                ) : (
+                  <button onClick={() => startEdit(item)} style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 11, cursor: 'pointer' }}>Edit</button>
+                )}
                 <button onClick={() => handleDelete(item.id)} style={{ background: 'none', border: 'none', color: '#f87171', fontSize: 11, cursor: 'pointer' }}>Delete</button>
               </div>
             </div>
