@@ -33,6 +33,7 @@ model AdminUser {
   renewalRemindersSent RenewalReminder[] @relation("RenewalRemindersSent")
   reviewedMilestones   RecognitionMilestone[] @relation("MilestoneReviewer")
   callReviews          AdminCallReview[]
+  authoredFeedbackNotes AgentFeedbackNote[]
 
   @@map("admin_users")
 }
@@ -283,6 +284,7 @@ model AgentProfile {
   referrals             AgentReferral[]
   pfr                   PersonalFinancialReview?
   feedback              AgentFeedback[]
+  authoredFeedbackNotes AgentFeedbackNote[]
   announcementReads     AnnouncementRead[]
   submissions           NewBusinessSubmission[] @relation("SubmissionAgent")
   splitSubmissions      NewBusinessSubmission[] @relation("SplitPartner")
@@ -455,7 +457,37 @@ model AgentFeedback {
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt @default(now())
 
+  notes           AgentFeedbackNote[]
+
   @@map("agent_feedback")
+}
+
+// Threaded back-and-forth on a single AgentFeedback item. Replaces
+// the original "single responseToAgent + single adminNotes" pattern
+// with a real ticket conversation: admins post visible replies or
+// internal-only notes, agents post clarification questions, both
+// sides see chronological history. The legacy responseToAgent +
+// adminNotes columns on AgentFeedback stay populated for a transition
+// window and are seeded into this table by the migration.
+model AgentFeedbackNote {
+  id                   String         @id @default(cuid())
+  feedbackId           String
+  feedback             AgentFeedback  @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  body                 String
+  // true = admin/LC-only context, hidden from the agent.
+  // Agent-authored notes are always isInternal=false.
+  isInternal           Boolean        @default(false)
+  // Exactly one author column is set per row. authorAdminId for admin/LC
+  // posts, authorAgentProfileId for agent replies. SetNull on delete so
+  // a deleted user doesn't take their old notes with them.
+  authorAdminId        String?
+  authorAdmin          AdminUser?     @relation(fields: [authorAdminId], references: [id], onDelete: SetNull)
+  authorAgentProfileId String?
+  authorAgentProfile   AgentProfile?  @relation(fields: [authorAgentProfileId], references: [id], onDelete: SetNull)
+  createdAt            DateTime       @default(now())
+
+  @@index([feedbackId, createdAt])
+  @@map("agent_feedback_notes")
 }
 
 enum ReferralStatus {
