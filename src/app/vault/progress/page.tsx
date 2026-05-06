@@ -470,20 +470,24 @@ function Matrix({
   return (
     <div style={{
       background: '#142D48', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)',
-      // Horizontal-only scroll. overflow-y: clip lets us keep the
-      // horizontal scroll for cells while explicitly telling the
-      // browser NOT to create a vertical scrolling context here —
-      // without this, browsers auto-promote overflow-y to "auto"
-      // whenever overflow-x is "auto", and that coupling makes the
-      // inner position:sticky headers stick to the matrix box top
-      // instead of the page viewport. With clip, the nearest scroll
-      // ancestor for vertical sticky becomes the page itself, so the
-      // column headers + phase band + roster row all stick to the
-      // top of the SCREEN as the page scrolls — exactly the
-      // experience the admin asked for.
-      overflowX: 'auto',
-      overflowY: 'clip',
+      // Single scroll container for both axes. The matrix is its own
+      // viewport — sticky headers stick to the top of THIS box as the
+      // user scrolls inside it. We tried `overflow-y: clip` to escape
+      // sticky upward to the document, but Safari and some Chrome
+      // versions don't honor it when paired with `overflow-x: auto`,
+      // so headers stopped sticking entirely. Excel-style internal
+      // scroll is universally supported.
+      //
+      // maxHeight is calc'd from viewport so the matrix fills the
+      // remaining screen real estate after the page header / summary
+      // cards / controls. As the user scrolls the page down, the
+      // matrix's top edge eventually reaches the viewport top, and
+      // from there the sticky headers visually pin to the top of the
+      // screen — same UX the admin asked for, more reliable
+      // implementation.
+      overflow: 'auto',
       maxWidth: '100%',
+      maxHeight: 'calc(100vh - 200px)',
       WebkitOverflowScrolling: 'touch',
     }}>
       <div style={{ position: 'relative', display: 'inline-block', minWidth: '100%' }}>
