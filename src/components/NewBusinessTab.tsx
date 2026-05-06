@@ -702,6 +702,7 @@ function SubmissionDrawer({ submission, onClose, onChanged }: { submission: Subm
     carrier: submission.carrier,
     policyType: submission.policyType,
     points: submission.points?.toString() ?? '',
+    policyNumber: submission.policyNumber ?? '',
     applicationDate: submission.applicationDate.slice(0, 10),
     clientFirstName: submission.clientFirstName,
     clientLastName: submission.clientLastName,
@@ -735,6 +736,7 @@ function SubmissionDrawer({ submission, onClose, onChanged }: { submission: Subm
         carrier: edit.carrier,
         policyType: edit.policyType,
         points: edit.points === '' ? null : Number(edit.points),
+        policyNumber: edit.policyNumber.trim() || null,
         applicationDate: edit.applicationDate || null,
         clientFirstName: edit.clientFirstName.trim(),
         clientLastName: edit.clientLastName.trim(),
@@ -802,6 +804,10 @@ function SubmissionDrawer({ submission, onClose, onChanged }: { submission: Subm
               <div>
                 <label style={fieldLabel}>Target Premium</label>
                 <input style={inputStyle} type="number" step="0.01" placeholder="e.g. 1200" value={edit.points} onChange={e => setEdit(p => ({ ...p, points: e.target.value }))} />
+              </div>
+              <div>
+                <label style={fieldLabel}>Policy Number</label>
+                <input style={inputStyle} placeholder="From the carrier (e.g. AB123456)" value={edit.policyNumber} onChange={e => setEdit(p => ({ ...p, policyNumber: e.target.value }))} />
               </div>
               <div>
                 <label style={fieldLabel}>Application Date</label>

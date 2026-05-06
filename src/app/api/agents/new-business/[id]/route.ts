@@ -18,6 +18,8 @@ async function getAgentProfileId() {
 
 const EDITABLE_FIELDS = [
   'applicationDate', 'carrier', 'policyType', 'points', 'splitWithAgentId',
+  'splitWithExternalName',
+  'policyNumber',
   'clientFirstName', 'clientLastName', 'clientPhone', 'clientEmail', 'clientBirthday',
   'clientAddressLine1', 'clientAddressLine2', 'clientCity', 'clientState', 'clientZip',
 ] as const
