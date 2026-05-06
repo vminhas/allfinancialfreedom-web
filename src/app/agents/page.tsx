@@ -14,6 +14,7 @@ import CallReviewModal, { CallReviewData } from '@/components/CallReviewModal'
 import DatePicker from '@/components/DatePicker'
 import DateTimePicker from '@/components/DateTimePicker'
 import LicensingRequestModal, { type LicensingRequestTopic } from '@/components/LicensingRequestModal'
+import NotificationCenter from '@/components/NotificationCenter'
 import LicensingCoordinatorPanel from '@/components/LicensingCoordinatorPanel'
 import FTALogModal from '@/components/FTALogModal'
 import FeedbackButton from '@/components/FeedbackButton'
@@ -505,6 +506,7 @@ function AgentDashboardInner() {
             <NavbarLink href="/agents/guide" icon="?" label="Guide" />
             <NavbarLink href="/agents/resources" icon="◈" label="Resources" />
             <NavbarLink href="/agents/book" icon="✦" label="Book" />
+            <NotificationCenter />
             <button
               onClick={() => signOut({ callbackUrl: '/agents/login' })}
               style={{ background: 'none', border: 'none', color: '#6B8299', fontSize: 12, cursor: 'pointer', padding: '6px 8px', marginLeft: 4 }}
@@ -1011,9 +1013,13 @@ function AgentDashboardInner() {
               })()}
             </div>
 
-            <div style={{ height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3, marginBottom: 24 }}>
+            <div style={{ height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3, marginBottom: 24, overflow: 'hidden' }}>
               <div style={{
-                height: '100%', width: `${currentPhaseProgress?.pct ?? 0}%`,
+                height: '100%',
+                // Defensive clamp — even if the server math drifts, the
+                // bar never overflows its container. overflow:hidden on
+                // the parent is a second line of defense.
+                width: `${Math.min(100, currentPhaseProgress?.pct ?? 0)}%`,
                 background: PHASE_COLORS[activeChecklistPhase], borderRadius: 3, transition: 'width 0.5s',
               }} />
             </div>

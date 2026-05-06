@@ -79,11 +79,48 @@ export async function GET(req: NextRequest) {
 
   const p = agentUser.profile
 
-  // Phase progress for current and all phases
+  // Phase progress for current and all phases.
+  //
+  // We resolve the live definition set from PhaseItemDefinition (the
+  // editor's source of truth) rather than the bundled PHASE_ITEMS
+  // constants. Agents reported 20/18 (111%) on Phase 2 because the
+  // total used the constants but the completed count walked every
+  // PhaseItem row, including stale ones whose itemKey was removed or
+  // renamed in the editor. Only count completions whose itemKey is
+  // still in the current definition set; the math now matches "what
+  // the checklist actually shows."
+  const allDefs = await db.phaseItemDefinition.findMany({
+    select: { phase: true, itemKey: true },
+  })
+  const liveKeysByPhase: Record<number, Set<string>> = {}
+  const totalByPhase: Record<number, number> = {}
+  for (const d of allDefs) {
+    if (!liveKeysByPhase[d.phase]) {
+      liveKeysByPhase[d.phase] = new Set()
+      totalByPhase[d.phase] = 0
+    }
+    liveKeysByPhase[d.phase].add(d.itemKey)
+    totalByPhase[d.phase] += 1
+  }
+
   const allPhaseProgress = [1, 2, 3, 4, 5].map(phase => {
-    const total = PHASE_ITEMS[phase]?.length ?? 0
-    const completed = p.phaseItems.filter(i => i.phase === phase && i.completed).length
-    return { phase, total, completed, pct: total > 0 ? Math.round((completed / total) * 100) : 0 }
+    // Fall back to PHASE_ITEMS only if the editor hasn't seeded any
+    // definitions yet (fresh-DB / dev-environment safety).
+    const liveKeys = liveKeysByPhase[phase]
+    const fellBack = !liveKeys
+    const total = fellBack ? (PHASE_ITEMS[phase]?.length ?? 0) : (totalByPhase[phase] ?? 0)
+    const completed = p.phaseItems.filter(i =>
+      i.phase === phase && i.completed && (fellBack || liveKeys!.has(i.itemKey))
+    ).length
+    // Belt-and-braces clamp so an off-by-one in either direction
+    // never blows up the UI bar width.
+    const safeCompleted = Math.min(completed, total)
+    return {
+      phase,
+      total,
+      completed: safeCompleted,
+      pct: total > 0 ? Math.round((safeCompleted / total) * 100) : 0,
+    }
   })
 
   const discordRoleName = await getAgentDiscordRoleName(p.phase).catch(() => null)
