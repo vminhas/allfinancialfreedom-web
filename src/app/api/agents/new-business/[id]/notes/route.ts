@@ -102,5 +102,40 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }).catch(err => console.warn('[new-business notes] notify failed:', err))
   }
 
+  // Audit ping to the licensing-coordinator / admin Discord channel
+  // so the LC tracks every conversation on their submissions, even
+  // when they're not the assigned reviewer or part of the back-and-
+  // forth themselves. Channel post (not DM) so it's a passive feed
+  // rather than a direct interrupt for every message.
+  const adminChannelId = process.env.DISCORD_ADMIN_CHANNEL_ID
+  if (adminChannelId && process.env.DISCORD_BOT_TOKEN) {
+    try {
+      const author = await db.agentProfile.findUnique({
+        where: { id: profile.id },
+        select: { firstName: true, lastName: true, agentCode: true },
+      })
+      const fromName = author
+        ? `${author.firstName} ${author.lastName} (${author.agentCode})`
+        : 'an agent'
+      const clientName = `${submission.clientFirstName} ${submission.clientLastName}`
+      const { sendChannelMessage } = await import('@/lib/discord')
+      sendChannelMessage(adminChannelId, {
+        embeds: [{
+          title: `💬 New Business note · ${clientName}`,
+          description: text.length > 800 ? text.slice(0, 800) + '…' : text,
+          color: 0x9B6DFF,
+          fields: [
+            { name: 'From',    value: fromName,                 inline: true },
+            { name: 'Carrier', value: submission.carrier,       inline: true },
+          ],
+          footer: { text: 'AFF · Licensing audit feed' },
+          timestamp: new Date().toISOString(),
+        }],
+      }).catch(() => { /* non-fatal */ })
+    } catch (err) {
+      console.warn('[new-business notes] admin-channel ping failed:', err)
+    }
+  }
+
   return NextResponse.json({ note })
 }

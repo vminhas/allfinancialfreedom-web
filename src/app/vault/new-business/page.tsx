@@ -34,7 +34,7 @@ interface SubmissionListItem {
   createdAt: string
   issuedDate: string | null
   agentProfile: { id: string; firstName: string; lastName: string; agentCode: string }
-  splitWithAgent: { firstName: string; lastName: string } | null
+  splitWithAgent: { id: string; firstName: string; lastName: string } | null
   assignedTo: { id: string; name: string } | null
   _count: { notes: number }
 }
@@ -537,7 +537,21 @@ function SubmissionDrawer({ id, onClose, onChanged }: { id: string; onClose: () 
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 50, display: 'flex', justifyContent: 'flex-end' }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: 600, maxWidth: '95vw', height: '100vh', background: '#0F1E33', borderLeft: '1px solid rgba(201,169,110,0.2)', overflowY: 'auto', padding: 24, paddingTop: 'calc(24px + env(safe-area-inset-top))', paddingBottom: 'calc(24px + env(safe-area-inset-bottom))' }}>
+      {/* Drawer is a 3-row flex column: header (fixed), scrollable
+          body, sticky composer at the bottom. Without this, growing
+          notes pushed the composer off-screen and the LC had to
+          scroll to find the input every time. Chat-room layout. */}
+      <div onClick={e => e.stopPropagation()} style={{
+        width: 600, maxWidth: '95vw', height: '100vh',
+        background: '#0F1E33', borderLeft: '1px solid rgba(201,169,110,0.2)',
+        display: 'flex', flexDirection: 'column',
+        paddingTop: 'env(safe-area-inset-top)',
+        paddingBottom: 'env(safe-area-inset-bottom)',
+      }}>
+      <div style={{
+        flex: 1, minHeight: 0, overflowY: 'auto',
+        padding: '24px 24px 0',
+      }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <h2 style={{ color: '#fff', fontSize: 16, fontWeight: 600, margin: 0 }}>{detail.clientFirstName} {detail.clientLastName}</h2>
@@ -618,21 +632,53 @@ function SubmissionDrawer({ id, onClose, onChanged }: { id: string; onClose: () 
           <div style={{ ...sectionLabel, fontSize: 9 }}>Notes (visible to agent)</div>
           <div style={{ marginBottom: 12 }}>
             {detail.notes.length === 0 && <div style={{ color: '#4B5563', fontSize: 12 }}>No notes yet.</div>}
-            {detail.notes.map(n => (
-              <div key={n.id} style={{ padding: '10px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 4, marginBottom: 6, borderLeft: `3px solid ${n.authorType === 'ADMIN' ? '#9B6DFF' : '#C9A96E'}` }}>
-                <div style={{ fontSize: 10, color: n.authorType === 'ADMIN' ? '#9B6DFF' : '#C9A96E', fontWeight: 700, marginBottom: 4 }}>
-                  {n.authorType === 'ADMIN' ? `Coordinator: ${n.authorAdmin?.name ?? 'Admin'}` : `${n.authorAgent?.firstName ?? 'Agent'} ${n.authorAgent?.lastName ?? ''}`}
-                  <span style={{ color: '#6B8299', fontWeight: 400, marginLeft: 8 }}>{new Date(n.createdAt).toLocaleString()}</span>
+            {detail.notes.map(n => {
+              // Color by ROLE on this policy. Writer = sky, split =
+              // pink, admin = purple. Fixed assignments mean the
+              // colors never collide regardless of who's posting.
+              const isAdmin = n.authorType === 'ADMIN'
+              const isWriter = !isAdmin && n.authorAgent?.id === detail.agentProfile.id
+              const isSplit  = !isAdmin && n.authorAgent?.id != null && n.authorAgent.id === detail.splitWithAgent?.id
+              const accent = isAdmin ? '#9B6DFF' : isWriter ? '#60A5FA' : isSplit ? '#F472B6' : '#4ADE80'
+              return (
+                <div key={n.id} style={{
+                  padding: '10px 12px',
+                  background: `${accent}0E`,
+                  borderRadius: 4, marginBottom: 6,
+                  borderLeft: `3px solid ${accent}`,
+                }}>
+                  <div style={{ fontSize: 10, color: accent, fontWeight: 700, marginBottom: 4 }}>
+                    {isAdmin ? `Coordinator: ${n.authorAdmin?.name ?? 'Admin'}` : `${n.authorAgent?.firstName ?? 'Agent'} ${n.authorAgent?.lastName ?? ''}`}
+                    <span style={{ color: '#6B8299', fontWeight: 400, marginLeft: 8 }}>{new Date(n.createdAt).toLocaleString()}</span>
+                  </div>
+                  <div style={{ color: '#E5E7EB', fontSize: 12, whiteSpace: 'pre-wrap' }}>{n.body}</div>
                 </div>
-                <div style={{ color: '#E5E7EB', fontSize: 12, whiteSpace: 'pre-wrap' }}>{n.body}</div>
-              </div>
-            ))}
+              )
+            })}
           </div>
-          <textarea value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Add a note..." style={{ ...inputStyle, height: 70, resize: 'vertical' }} />
-          <button onClick={addNote} disabled={posting || !noteText.trim()} style={{ marginTop: 8, background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: posting ? 'wait' : 'pointer', opacity: posting || !noteText.trim() ? 0.6 : 1 }}>
+        </div>
+      </div>
+      {/* Composer pinned to the bottom of the drawer (chat-room
+          style) so it stays in place no matter how many notes
+          accumulate. The body above scrolls; this row doesn't. */}
+      <div style={{
+        flexShrink: 0,
+        padding: '12px 24px 16px',
+        borderTop: '1px solid rgba(201,169,110,0.15)',
+        background: '#0A1628',
+      }}>
+        <textarea
+          value={noteText}
+          onChange={e => setNoteText(e.target.value)}
+          placeholder="Add a note... (visible to the agent)"
+          style={{ ...inputStyle, height: 64, resize: 'vertical' }}
+        />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+          <button onClick={addNote} disabled={posting || !noteText.trim()} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: posting ? 'wait' : 'pointer', opacity: posting || !noteText.trim() ? 0.6 : 1 }}>
             {posting ? 'Posting...' : 'Add Note'}
           </button>
         </div>
+      </div>
       </div>
     </div>
   )

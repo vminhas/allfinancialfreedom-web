@@ -52,7 +52,10 @@ export async function GET() {
       notes: {
         orderBy: { createdAt: 'asc' },
         include: {
-          authorAgent: { select: { firstName: true, lastName: true } },
+          // id is needed by the client so it can color notes by
+          // policy role (writer vs split agent). Name alone could
+          // collide if two collaborators happen to share one.
+          authorAgent: { select: { id: true, firstName: true, lastName: true } },
           authorAdmin: { select: { name: true } },
         },
       },

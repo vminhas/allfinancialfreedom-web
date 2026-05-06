@@ -29,12 +29,12 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     where: { id },
     include: {
       agentProfile: { select: { id: true, firstName: true, lastName: true, agentCode: true, discordUserId: true } },
-      splitWithAgent: { select: { firstName: true, lastName: true, agentCode: true } },
+      splitWithAgent: { select: { id: true, firstName: true, lastName: true, agentCode: true } },
       assignedTo: { select: { id: true, name: true } },
       notes: {
         orderBy: { createdAt: 'asc' },
         include: {
-          authorAgent: { select: { firstName: true, lastName: true } },
+          authorAgent: { select: { id: true, firstName: true, lastName: true } },
           authorAdmin: { select: { name: true } },
         },
       },
