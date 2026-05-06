@@ -32,7 +32,7 @@ interface SubmissionNote {
   id: string
   body: string
   authorType: 'AGENT' | 'ADMIN'
-  authorAgent: { firstName: string; lastName: string } | null
+  authorAgent: { id: string; firstName: string; lastName: string } | null
   authorAdmin: { name: string } | null
   createdAt: string
 }
@@ -49,6 +49,12 @@ interface Submission {
   policyType: string
   points: number | null
   illustrationUrls: string[]
+  // agentProfileId = the writer (always set). splitWithAgentId =
+  // the collaborator (nullable). The two are used by the notes
+  // renderer to color each author by their policy ROLE rather than
+  // by a name hash that could collide.
+  agentProfileId: string
+  splitWithAgentId: string | null
   splitWithAgent: { firstName: string; lastName: string; agentCode: string } | null
   clientFirstName: string
   clientLastName: string
@@ -669,6 +675,23 @@ function SubmissionDrawer({ submission, onClose, onChanged }: { submission: Subm
   // active back-and-forth happens; Activity is more for "wait,
   // when did Bryan get added as split?"
   const [drawerTab, setDrawerTab] = useState<'notes' | 'activity'>('notes')
+  // Refs for the notes scroll container + composer. When the drawer
+  // opens (especially via a notification deep-link), we scroll the
+  // thread to the latest note and focus the composer so the agent
+  // can immediately reply without hunting.
+  const notesScrollRef = useRef<HTMLDivElement | null>(null)
+  const composerRef = useRef<HTMLTextAreaElement | null>(null)
+  useEffect(() => {
+    if (drawerTab !== 'notes') return
+    const t = setTimeout(() => {
+      const c = notesScrollRef.current
+      if (c) c.scrollTop = c.scrollHeight
+      composerRef.current?.focus()
+    }, 50)
+    return () => clearTimeout(t)
+    // Re-run when a new note arrives (length change) so the latest
+    // message is always in view, even on cross-agent live updates.
+  }, [drawerTab, submission.notes.length])
   // Edit mode state. Only available while status === PENDING (server
   // enforces the same rule). Once issued/declined the submission is
   // frozen for the agent and we hide the Edit button.
@@ -879,21 +902,29 @@ function SubmissionDrawer({ submission, onClose, onChanged }: { submission: Subm
             <ActivityList submission={submission} />
           ) : (
           <>
-          <div style={{ marginBottom: 12 }}>
+          <div ref={notesScrollRef} style={{ marginBottom: 12, maxHeight: '50vh', overflowY: 'auto', paddingRight: 4 }}>
             {submission.notes.length === 0 && <div style={{ color: '#4B5563', fontSize: 12 }}>No notes yet.</div>}
             {submission.notes.map(n => {
-              // Per-author color so it's instantly clear who said
-              // what when two agents are going back and forth on the
-              // same thread. Admins always purple (existing
-              // convention); each agent gets a stable color hashed
-              // from their name so the same person always looks the
-              // same in the thread regardless of who's viewing.
+              // Color by ROLE on this policy, not by a name hash that
+              // could collide. A given policy thread has at most three
+              // distinct voices: the writer, the split agent, and the
+              // licensing coordinator (admin). Fixed assignments
+              // guarantee they always look distinct.
               const authorName = n.authorType === 'ADMIN'
                 ? `Coordinator: ${n.authorAdmin?.name ?? 'Admin'}`
                 : `${n.authorAgent?.firstName ?? 'Agent'} ${n.authorAgent?.lastName ?? ''}`
-              const accent = n.authorType === 'ADMIN'
-                ? '#9B6DFF'
-                : agentNoteColor(`${n.authorAgent?.firstName ?? ''} ${n.authorAgent?.lastName ?? ''}`)
+              let accent: string
+              if (n.authorType === 'ADMIN') {
+                accent = '#9B6DFF'                                          // purple — coordinator
+              } else if (n.authorAgent?.id === submission.agentProfileId) {
+                accent = '#60A5FA'                                          // sky — writer
+              } else if (n.authorAgent?.id && n.authorAgent.id === submission.splitWithAgentId) {
+                accent = '#F472B6'                                          // pink — split agent
+              } else {
+                // Some other agent posted (rare; shouldn't happen given
+                // the notes endpoint's auth check, but handle gracefully).
+                accent = '#4ADE80'
+              }
               return (
                 <div key={n.id} style={{
                   padding: '10px 12px',
@@ -911,6 +942,7 @@ function SubmissionDrawer({ submission, onClose, onChanged }: { submission: Subm
             })}
           </div>
           <textarea
+            ref={composerRef}
             value={noteText}
             onChange={e => setNoteText(e.target.value)}
             placeholder="Add a note..."
