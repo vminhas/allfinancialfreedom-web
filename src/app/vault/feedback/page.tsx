@@ -9,8 +9,6 @@ interface FeedbackItem {
   message: string
   category: string
   status: Status
-  responseToAgent: string | null
-  adminNotes: string | null
   reviewedAt: string | null
   closedAt: string | null
   createdAt: string
@@ -59,22 +57,17 @@ export default function FeedbackPage() {
     const item = feedback.find(f => f.id === id)
     if (!item) return
 
-    // Guard rail: closing without a single visible reply on file
-    // would leave the agent feeling ghosted. The check looks at both
-    // legacy responseToAgent (for tickets opened before the threading
-    // refactor) and the new note thread.
+    // Guard rail: closing without a single visible note on file
+    // would leave the agent feeling ghosted.
     if (draft.status === 'CLOSED' && item.status !== 'CLOSED') {
-      const hasLegacyResponse = (item.responseToAgent ?? '').trim().length > 0
-      let hasVisibleNote = hasLegacyResponse
-      if (!hasVisibleNote) {
-        try {
-          const r = await fetch(`/api/vault/feedback/${id}/notes`)
-          if (r.ok) {
-            const d = await r.json() as { notes: Array<{ isInternal: boolean }> }
-            hasVisibleNote = d.notes.some(n => !n.isInternal)
-          }
-        } catch { /* fall through to alert */ }
-      }
+      let hasVisibleNote = false
+      try {
+        const r = await fetch(`/api/vault/feedback/${id}/notes`)
+        if (r.ok) {
+          const d = await r.json() as { notes: Array<{ isInternal: boolean }> }
+          hasVisibleNote = d.notes.some(n => !n.isInternal)
+        }
+      } catch { /* fall through to alert */ }
       if (!hasVisibleNote) {
         alert('Post a short reply to the agent before closing. They\'ll see it on their feedback panel.')
         return

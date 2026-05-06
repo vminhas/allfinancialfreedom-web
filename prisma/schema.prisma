@@ -446,12 +446,6 @@ model AgentFeedback {
   // Workflow status. String (not enum) so future statuses don't need a
   // migration. Allowed values: OPEN | ACKNOWLEDGED | IN_PROGRESS | CLOSED.
   status          String       @default("OPEN")
-  // Response visible to the agent. Required (in the UI) when moving an
-  // item to CLOSED so the agent never sees a "closed without comment"
-  // and feels ignored.
-  responseToAgent String?
-  // Admin-only notes - kept for back-compat / internal context.
-  adminNotes      String?
   reviewedAt      DateTime?    // first time status moved off OPEN
   closedAt        DateTime?
   createdAt       DateTime     @default(now())

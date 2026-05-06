@@ -25,7 +25,6 @@ interface MyFeedbackItem {
   category: string
   message: string
   status: Status
-  responseToAgent: string | null
   reviewedAt: string | null
   closedAt: string | null
   createdAt: string

@@ -23,7 +23,6 @@ export async function GET() {
       category: true,
       message: true,
       status: true,
-      responseToAgent: true,
       reviewedAt: true,
       closedAt: true,
       createdAt: true,
