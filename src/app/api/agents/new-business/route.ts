@@ -6,6 +6,7 @@ import { uploadIllustrationToBlob, validateIllustration } from '@/lib/illustrati
 import { notifySubmitted } from '@/lib/new-business-notifications'
 import { validatePhone, validateEmail } from '@/lib/contact-validation'
 import { computeRenewalWindow, todayInEt } from '@/lib/renewals'
+import { createNotification } from '@/lib/notify'
 import type { PolicyType } from '@/generated/prisma/client'
 
 const VALID_POLICY_TYPES: PolicyType[] = ['TERM', 'WHOLE_LIFE', 'IUL', 'ANNUITY', 'DISABILITY', 'LTC', 'OTHER']
@@ -28,15 +29,25 @@ async function getAgentProfile() {
 export async function GET() {
   const profile = await getAgentProfile()
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (profile.phase < NEW_BUSINESS_MIN_PHASE) {
-    return NextResponse.json({ error: 'Locked', minPhase: NEW_BUSINESS_MIN_PHASE, phase: profile.phase }, { status: 403 })
-  }
 
+  const locked = profile.phase < NEW_BUSINESS_MIN_PHASE
+
+  // Return submissions where the caller is the writer OR the split
+  // agent. Both lanes are returned regardless of phase — split-agent
+  // access bypasses the phase gate so a Phase-2 collaborator can
+  // still see + comment on their colleague's policy. The phase gate
+  // applies to CREATING new submissions, surfaced via `locked: true`.
   const submissions = await db.newBusinessSubmission.findMany({
-    where: { agentProfileId: profile.id },
+    where: {
+      OR: [
+        { agentProfileId: profile.id },
+        { splitWithAgentId: profile.id },
+      ],
+    },
     orderBy: { createdAt: 'desc' },
     include: {
-      splitWithAgent: { select: { firstName: true, lastName: true, agentCode: true } },
+      agentProfile:    { select: { firstName: true, lastName: true, agentCode: true } },
+      splitWithAgent:  { select: { firstName: true, lastName: true, agentCode: true } },
       notes: {
         orderBy: { createdAt: 'asc' },
         include: {
@@ -50,19 +61,26 @@ export async function GET() {
 
   const today = todayInEt()
   const enriched = submissions.map(s => {
+    const lane: 'own' | 'shared' = s.agentProfileId === profile.id ? 'own' : 'shared'
     if (s.status !== 'ISSUED' || !s.issuedDate) {
-      return { ...s, daysUntilAnniversary: null, currentStage: null, anniversaryYear: null }
+      return { ...s, lane, daysUntilAnniversary: null, currentStage: null, anniversaryYear: null }
     }
     const w = computeRenewalWindow(s.issuedDate, today)
     return {
       ...s,
+      lane,
       daysUntilAnniversary: w.daysUntilAnniversary,
       currentStage: w.currentStage,
       anniversaryYear: w.anniversaryYear,
     }
   })
 
-  return NextResponse.json({ submissions: enriched })
+  return NextResponse.json({
+    submissions: enriched,
+    locked,
+    minPhase: NEW_BUSINESS_MIN_PHASE,
+    phase: profile.phase,
+  })
 }
 
 export async function POST(req: NextRequest) {
@@ -151,6 +169,34 @@ export async function POST(req: NextRequest) {
     clientName: `${submission.clientFirstName} ${submission.clientLastName}`,
     points: submission.points,
   }).catch(() => {})
+
+  // If the writer added a split agent, ping that person so they know
+  // they're collaborating on this policy. Routed through the unified
+  // notify helper so it lands in their bell + Discord DM at once.
+  if (submission.splitWithAgentId) {
+    const writerName = `${profile.firstName} ${profile.lastName}`.trim()
+    const clientName = `${submission.clientFirstName} ${submission.clientLastName}`
+    createNotification({
+      recipientAgentProfileId: submission.splitWithAgentId,
+      kind: 'policy.split_added',
+      subjectType: 'new_business',
+      subjectId: submission.id,
+      title: `📎 Added as split agent on ${clientName}'s policy`,
+      body: `${writerName} added you as a split agent on a ${submission.carrier} ${policyType.toLowerCase()} policy. You can view and comment on it from New Business.`,
+      linkUrl: '/agents?tab=new-business',
+      color: 0xC9A96E,
+      discord: {
+        title: '📎 You were added as a split agent',
+        description: `**${writerName}** added you to **${clientName}**'s policy. View + comment from your New Business tab.`,
+        color: 0xC9A96E,
+        fields: [
+          { name: 'Carrier',     value: submission.carrier,            inline: true },
+          { name: 'Policy type', value: policyType.toString(),         inline: true },
+          { name: 'Client',      value: clientName,                    inline: true },
+        ],
+      },
+    }).catch(err => console.warn('[new-business POST] split notify failed:', err))
+  }
 
   return NextResponse.json({ submission })
 }

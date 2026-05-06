@@ -19,8 +19,24 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
 
   const { id } = await ctx.params
-  const submission = await db.newBusinessSubmission.findUnique({ where: { id }, select: { agentProfileId: true } })
-  if (!submission || submission.agentProfileId !== profile.id) {
+  // Either the writer OR the split agent can post notes. The split
+  // agent's access bypasses the phase gate (they may be Phase 2 on
+  // a Phase 4 colleague's policy). Anyone else gets 404 — we don't
+  // leak existence by 403'ing.
+  const submission = await db.newBusinessSubmission.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      agentProfileId: true,
+      splitWithAgentId: true,
+      carrier: true,
+      clientFirstName: true,
+      clientLastName: true,
+    },
+  })
+  const isWriter = submission?.agentProfileId === profile.id
+  const isSplit  = submission?.splitWithAgentId === profile.id
+  if (!submission || (!isWriter && !isSplit)) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
@@ -37,5 +53,43 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     },
     include: { authorAgent: { select: { firstName: true, lastName: true } } },
   })
+
+  // Ping the OTHER agent (writer when split posts, vice versa) so
+  // the thread feels like live collaboration. Author never gets
+  // notified of their own post. Routed through the unified notify
+  // helper so it lands in the bell + Discord DM in one call.
+  const otherAgentId =
+    isWriter ? submission.splitWithAgentId :
+    isSplit  ? submission.agentProfileId   :
+    null
+  if (otherAgentId) {
+    const myProfile = await db.agentProfile.findUnique({
+      where: { id: profile.id },
+      select: { firstName: true, lastName: true },
+    })
+    const fromName = myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : 'Your collaborator'
+    const clientName = `${submission.clientFirstName} ${submission.clientLastName}`
+    const { createNotification } = await import('@/lib/notify')
+    createNotification({
+      recipientAgentProfileId: otherAgentId,
+      kind: 'policy.comment',
+      subjectType: 'new_business',
+      subjectId: submission.id,
+      title: `💬 ${fromName} commented on ${clientName}'s policy`,
+      body: text.length > 200 ? text.slice(0, 200) + '…' : text,
+      linkUrl: '/agents?tab=new-business',
+      color: 0x9B6DFF,
+      discord: {
+        title: `💬 New comment on ${clientName}'s policy`,
+        description: text.length > 800 ? text.slice(0, 800) + '…' : text,
+        color: 0x9B6DFF,
+        fields: [
+          { name: 'From',    value: fromName,            inline: true },
+          { name: 'Carrier', value: submission.carrier,  inline: true },
+        ],
+      },
+    }).catch(err => console.warn('[new-business notes] notify failed:', err))
+  }
+
   return NextResponse.json({ note })
 }

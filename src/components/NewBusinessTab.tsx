@@ -81,18 +81,18 @@ export default function NewBusinessTab({ isMobile, phase }: { isMobile: boolean;
   const [submissions, setSubmissions] = useState<Submission[]>([])
   const [loading, setLoading] = useState(true)
   const [locked, setLocked] = useState(false)
+  const [minPhase, setMinPhase] = useState(4)
   const [showForm, setShowForm] = useState(false)
   const [openId, setOpenId] = useState<string | null>(null)
   const [filter, setFilter] = useState<Filter>('all')
 
   const refresh = useCallback(() => {
     fetch('/api/agents/new-business')
-      .then(async r => {
-        if (r.status === 403) { setLocked(true); setLoading(false); return null }
-        return r.ok ? r.json() : null
-      })
-      .then((d: { submissions: Submission[] } | null) => {
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { submissions: Submission[]; locked?: boolean; minPhase?: number } | null) => {
         if (d?.submissions) setSubmissions(d.submissions)
+        if (typeof d?.locked === 'boolean') setLocked(d.locked)
+        if (typeof d?.minPhase === 'number') setMinPhase(d.minPhase)
         setLoading(false)
       })
       .catch(() => setLoading(false))
@@ -100,28 +100,28 @@ export default function NewBusinessTab({ isMobile, phase }: { isMobile: boolean;
 
   useEffect(() => { refresh() }, [refresh])
 
-  if (locked || phase < 4) {
-    return (
-      <div style={{ ...card, padding: '40px 28px', textAlign: 'center' }}>
-        <div style={{ ...sectionLabel, marginBottom: 8 }}>New Business &middot; Locked</div>
-        <div style={{ color: '#9BB0C4', fontSize: 13, marginBottom: 4 }}>
-          Unlocks at Phase 4 (Marketing Director track).
-        </div>
-        <div style={{ color: '#6B8299', fontSize: 12 }}>
-          Once you reach Phase 4 you can submit new business and your issued policies will appear here as clients with anniversary reminders.
-        </div>
-      </div>
-    )
-  }
+  // Phase-locked agents still see this view — they may have shared
+  // submissions where they're the split agent on a colleague's
+  // policy. The lock only prevents CREATION (the + Submit button is
+  // greyed below), not viewing or commenting on policies they're
+  // explicitly invited to.
+  const isPhaseLocked = locked || phase < minPhase
 
   const opened = submissions.find(s => s.id === openId) ?? null
 
+  // Split into "my submissions" (writer) and "shared with me" (split agent)
+  // lanes so an agent can tell at a glance which policies are theirs to
+  // edit vs which they're collaborating on.
+  const ownSubmissions    = submissions.filter(s => (s as Submission & { lane?: string }).lane !== 'shared')
+  const sharedSubmissions = submissions.filter(s => (s as Submission & { lane?: string }).lane === 'shared')
+
   // Filter the table based on the pill selection
-  const filtered = submissions.filter(s => {
+  const applyFilter = (list: Submission[]) => list.filter(s => {
     if (filter === 'pending') return s.status === 'PENDING'
     if (filter === 'clients') return s.status === 'ISSUED'
     return true
   })
+  const filtered = applyFilter(ownSubmissions)
 
   // Sort: when on the Clients filter, pin upcoming anniversaries to top.
   const sorted = filter === 'clients'
@@ -142,11 +142,48 @@ export default function NewBusinessTab({ isMobile, phase }: { isMobile: boolean;
   return (
     <div style={{ ...card, padding: '24px 28px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
-        <div style={sectionLabel}>New Business ({submissions.length})</div>
-        <button onClick={() => setShowForm(s => !s)} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-          {showForm ? 'Cancel' : '+ Submit New Business'}
-        </button>
+        <div style={sectionLabel}>New Business ({ownSubmissions.length})</div>
+        {isPhaseLocked ? (
+          // Phase-locked: greyed-but-visible button + tooltip explaining
+          // the unlock. Page itself is still rendered so the agent can
+          // see the "Shared with me" lane below if they're a split
+          // agent on a colleague's policy.
+          <div style={{ position: 'relative' }}>
+            <button
+              disabled
+              title={`Unlocks at Phase ${minPhase}`}
+              style={{
+                background: 'rgba(201,169,110,0.15)',
+                color: 'rgba(201,169,110,0.5)',
+                border: '1px dashed rgba(201,169,110,0.35)',
+                borderRadius: 4, padding: '6px 14px',
+                fontSize: 11, fontWeight: 700, cursor: 'not-allowed',
+              }}
+            >
+              + Submit New Business
+            </button>
+            <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 4px)', fontSize: 10, color: '#6B8299', whiteSpace: 'nowrap' }}>
+              Unlocks at Phase {minPhase}
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => setShowForm(s => !s)} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+            {showForm ? 'Cancel' : '+ Submit New Business'}
+          </button>
+        )}
       </div>
+
+      {isPhaseLocked && sharedSubmissions.length === 0 && ownSubmissions.length === 0 && (
+        <div style={{ ...card, padding: '32px 24px', textAlign: 'center', background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(201,169,110,0.2)' }}>
+          <div style={{ ...sectionLabel, marginBottom: 8 }}>New Business &middot; Locked</div>
+          <div style={{ color: '#9BB0C4', fontSize: 13, marginBottom: 4 }}>
+            Unlocks at Phase {minPhase} (Marketing Director track).
+          </div>
+          <div style={{ color: '#6B8299', fontSize: 12 }}>
+            Once you reach Phase {minPhase} you can submit new business. If a teammate adds you as a split agent on their policy, it'll show up here regardless of phase.
+          </div>
+        </div>
+      )}
 
       {/* Filter pills */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
@@ -230,6 +267,43 @@ export default function NewBusinessTab({ isMobile, phase }: { isMobile: boolean;
         </table>
       }
 
+      {/* Shared with me — policies where the agent is the split agent.
+          Always rendered when there are any, regardless of phase. */}
+      {sharedSubmissions.length > 0 && (
+        <>
+          <div style={{ ...sectionLabel, marginTop: 28, marginBottom: 12 }}>
+            Shared with me ({sharedSubmissions.length})
+          </div>
+          <div style={{ fontSize: 11, color: '#6B8299', marginBottom: 12, lineHeight: 1.5 }}>
+            Policies where a teammate added you as a split agent. You can view + comment regardless of your phase.
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 8 }}>
+            <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+              {['Client', 'Carrier', 'Type', 'Writer', 'Status', 'Submitted'].map(h => (
+                <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#C9A96E' }}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {applyFilter(sharedSubmissions).map(s => {
+                const writer = (s as Submission & { agentProfile?: { firstName: string; lastName: string; agentCode: string } | null }).agentProfile
+                return (
+                  <tr key={s.id} onClick={() => setOpenId(s.id)} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', cursor: 'pointer' }}>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#ffffff' }}>{s.clientFirstName} {s.clientLastName}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{s.carrier}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{POLICY_TYPES.find(p => p.value === s.policyType)?.label ?? s.policyType}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>
+                      {writer ? <>{writer.firstName} {writer.lastName} <span style={{ color: '#4B5563' }}>· {writer.agentCode}</span></> : '—'}
+                    </td>
+                    <td style={{ padding: '10px 12px', fontSize: 11 }}><StatusPill status={s.status} /></td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{new Date(s.createdAt).toLocaleDateString()}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </>
+      )}
+
       {opened && <SubmissionDrawer submission={opened} onClose={() => setOpenId(null)} onChanged={refresh} />}
     </div>
   )
@@ -245,15 +319,60 @@ function StatusPill({ status }: { status: string }) {
   )
 }
 
+interface SplitAgentCandidate {
+  id: string
+  agentCode: string
+  firstName: string
+  lastName: string
+  phase: number
+  avatarUrl: string | null
+}
+
 function NewBusinessForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: () => void }) {
   const [form, setForm] = useState({
     applicationDate: '', carrier: '', policyType: 'TERM', points: '',
+    splitWithAgentId: '',
     clientFirstName: '', clientLastName: '', clientPhone: '', clientEmail: '', clientBirthday: '',
     clientAddressLine1: '', clientAddressLine2: '', clientCity: '', clientState: '', clientZip: '',
   })
+  const [splitQuery, setSplitQuery] = useState('')
+  const [splitResults, setSplitResults] = useState<SplitAgentCandidate[]>([])
+  const [splitSelected, setSplitSelected] = useState<SplitAgentCandidate | null>(null)
+  const [splitOpen, setSplitOpen] = useState(false)
   const [files, setFiles] = useState<File[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Debounced agent search for the picker. Three+ chars triggers
+  // /api/agents/new-business/agent-search; results render in the
+  // dropdown below the input. Selecting locks splitWithAgentId on
+  // the form payload and closes the dropdown.
+  useEffect(() => {
+    if (splitSelected) return
+    const q = splitQuery.trim()
+    if (q.length < 2) { setSplitResults([]); return }
+    const t = setTimeout(() => {
+      fetch(`/api/agents/new-business/agent-search?q=${encodeURIComponent(q)}`)
+        .then(r => r.ok ? r.json() : null)
+        .then((d: { agents: SplitAgentCandidate[] } | null) => {
+          if (d?.agents) setSplitResults(d.agents)
+        })
+        .catch(() => { /* non-fatal */ })
+    }, 200)
+    return () => clearTimeout(t)
+  }, [splitQuery, splitSelected])
+
+  const pickSplit = (a: SplitAgentCandidate) => {
+    setSplitSelected(a)
+    setSplitOpen(false)
+    setSplitQuery(`${a.firstName} ${a.lastName} (${a.agentCode})`)
+    setForm(f => ({ ...f, splitWithAgentId: a.id }))
+  }
+  const clearSplit = () => {
+    setSplitSelected(null)
+    setSplitQuery('')
+    setForm(f => ({ ...f, splitWithAgentId: '' }))
+  }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -294,6 +413,88 @@ function NewBusinessForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: ()
           </select>
         </div>
         <div><label style={fieldLabel}>Target Premium</label><input type="number" step="0.01" placeholder="e.g. 1200" style={inputStyle} value={form.points} onChange={e => setForm(f => ({ ...f, points: e.target.value }))} /></div>
+      </div>
+
+      {/* Split-agent picker. Optional. When set, the chosen agent
+          gets read + comment access on this submission regardless of
+          their own phase, and is pinged via the unified notifications
+          channel ("you were added as split agent on X's policy").
+          Search activates after 2 chars; click a result to lock it
+          in, click ✕ to unset. */}
+      <div style={{ marginTop: 14 }}>
+        <label style={fieldLabel}>Split with (optional)</label>
+        <div style={{ position: 'relative' }}>
+          <input
+            style={inputStyle}
+            value={splitQuery}
+            onChange={e => {
+              setSplitQuery(e.target.value)
+              if (splitSelected) {
+                // Editing after select clears the lock so user can
+                // pick a different agent.
+                setSplitSelected(null)
+                setForm(f => ({ ...f, splitWithAgentId: '' }))
+              }
+              setSplitOpen(true)
+            }}
+            onFocus={() => setSplitOpen(true)}
+            onBlur={() => { setTimeout(() => setSplitOpen(false), 150) }}
+            placeholder="Type a colleague's name or agent code"
+          />
+          {splitSelected && (
+            <button
+              type="button"
+              onClick={clearSplit}
+              aria-label="Clear split agent"
+              style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#6B8299', fontSize: 14, cursor: 'pointer' }}
+            >
+              ✕
+            </button>
+          )}
+          {splitOpen && !splitSelected && splitResults.length > 0 && (
+            <div style={{
+              position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+              background: '#0F1E33', border: '1px solid rgba(201,169,110,0.25)',
+              borderRadius: 4, zIndex: 10,
+              maxHeight: 240, overflowY: 'auto',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+            }}>
+              {splitResults.map(a => (
+                <div
+                  key={a.id}
+                  onMouseDown={(e) => { e.preventDefault(); pickSplit(a) }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '8px 12px',
+                    borderBottom: '1px solid rgba(255,255,255,0.04)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div style={{
+                    width: 24, height: 24, borderRadius: '50%', flexShrink: 0,
+                    background: a.avatarUrl ? 'transparent' : 'rgba(201,169,110,0.15)',
+                    border: '1px solid rgba(201,169,110,0.3)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    overflow: 'hidden',
+                    fontSize: 9, color: '#C9A96E', fontWeight: 700,
+                  }}>
+                    {a.avatarUrl
+                      // eslint-disable-next-line @next/next/no-img-element
+                      ? <img src={a.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : `${a.firstName[0] ?? ''}${a.lastName[0] ?? ''}`}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, color: '#fff' }}>{a.firstName} {a.lastName}</div>
+                    <div style={{ fontSize: 10, color: '#6B8299' }}>{a.agentCode} · Phase {a.phase}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{ fontSize: 10, color: '#6B8299', marginTop: 4, lineHeight: 1.5 }}>
+          They&apos;ll be able to see and comment on this policy from their own portal regardless of their phase. We&apos;ll DM them on Discord and send an in-app notification.
+        </div>
       </div>
 
       <div style={{ ...sectionLabel, fontSize: 9, margin: '14px 0 8px' }}>Client</div>
