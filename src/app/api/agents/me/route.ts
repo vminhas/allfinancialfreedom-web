@@ -79,6 +79,46 @@ export async function GET(req: NextRequest) {
 
   const p = agentUser.profile
 
+  // Self-heal: agents who connected Discord before the discord-callback
+  // route started persisting the `connect_discord` PhaseItem (e.g. Sadie)
+  // have `discordUserId` set but no completion row, so they show as
+  // not-done on the leaderboard / progression matrix. Catch up on their
+  // next dashboard load. Idempotent — runs at most once per agent.
+  if (p.discordUserId && !p.phaseItems.some(i => i.itemKey === 'connect_discord' && i.completed)) {
+    const now = new Date()
+    await db.phaseItem.upsert({
+      where: {
+        agentProfileId_phase_itemKey: {
+          agentProfileId: p.id,
+          phase: 1,
+          itemKey: 'connect_discord',
+        },
+      },
+      update: { completed: true, completedAt: now },
+      create: {
+        agentProfileId: p.id,
+        phase: 1,
+        itemKey: 'connect_discord',
+        completed: true,
+        completedAt: now,
+      },
+    })
+    // Reflect into the in-memory copy so this request's progress math
+    // doesn't undercount by one. Replace the existing row if any, else
+    // append.
+    const existingIdx = p.phaseItems.findIndex(i => i.itemKey === 'connect_discord')
+    const healed = {
+      ...(existingIdx >= 0 ? p.phaseItems[existingIdx] : {
+        id: 'pending', agentProfileId: p.id, phase: 1, itemKey: 'connect_discord',
+        activityMsgId: null, announcementMsgId: null,
+      }),
+      completed: true,
+      completedAt: now,
+    } as typeof p.phaseItems[number]
+    if (existingIdx >= 0) p.phaseItems[existingIdx] = healed
+    else p.phaseItems.push(healed)
+  }
+
   // Phase progress for current and all phases.
   //
   // We resolve the live definition set from PhaseItemDefinition (the

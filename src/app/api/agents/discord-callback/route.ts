@@ -84,6 +84,42 @@ export async function GET(req: NextRequest) {
     data: { discordUserId: discordUser.id },
   })
 
+  // Mark the `connect_discord` checklist item complete. Without this
+  // the agent's own dashboard shows it ticked (it overrides the row
+  // client-side from `discordUserId`), but the leaderboard, progression
+  // matrix, and promotion-readiness math all read PhaseItem directly
+  // and would still see the box empty. Idempotent upsert so reconnects
+  // don't reset `completedAt`.
+  const existingItem = await db.phaseItem.findUnique({
+    where: {
+      agentProfileId_phase_itemKey: {
+        agentProfileId: agentUser.profile.id,
+        phase: 1,
+        itemKey: 'connect_discord',
+      },
+    },
+    select: { completed: true },
+  })
+  if (!existingItem?.completed) {
+    await db.phaseItem.upsert({
+      where: {
+        agentProfileId_phase_itemKey: {
+          agentProfileId: agentUser.profile.id,
+          phase: 1,
+          itemKey: 'connect_discord',
+        },
+      },
+      update: { completed: true, completedAt: new Date() },
+      create: {
+        agentProfileId: agentUser.profile.id,
+        phase: 1,
+        itemKey: 'connect_discord',
+        completed: true,
+        completedAt: new Date(),
+      },
+    })
+  }
+
   // Assign Discord phase role + portal connected role (non-blocking)
   assignDiscordPhaseRole(discordUser.id, agentUser.profile.phase, null).catch(() => {})
   if (process.env.DISCORD_PORTAL_CONNECTED_ROLE_ID) {
