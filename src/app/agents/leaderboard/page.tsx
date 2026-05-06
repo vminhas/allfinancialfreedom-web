@@ -237,15 +237,16 @@ function Matrix({
   return (
     <div style={{
       background: '#142D48', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)',
-      // Mirror the admin /vault/progress matrix container: horizontal
-      // scroll for cells, but overflow-y: clip so the inner sticky
-      // headers escape upward to the document and stick to the
-      // viewport top instead of the matrix box top. Browsers that see
-      // overflow-x:auto auto-promote overflow-y to "auto" unless we
-      // explicitly say otherwise; clip avoids the auto-promotion.
-      overflowX: 'auto',
-      overflowY: 'clip',
+      // Single scroll container for both axes, matching the admin
+      // /vault/progress matrix. Sticky headers stick to the top of
+      // this box. Tried `overflow-y: clip` previously to escape sticky
+      // upward to the document but Safari (and some Chrome versions)
+      // didn't honor it when paired with overflow-x: auto, so the
+      // headers stopped sticking entirely. Excel-style internal scroll
+      // is universally supported.
+      overflow: 'auto',
       maxWidth: '100%',
+      maxHeight: 'calc(100vh - 200px)',
       WebkitOverflowScrolling: 'touch',
     }}>
       <div style={{ position: 'relative', display: 'inline-block', minWidth: '100%' }}>
