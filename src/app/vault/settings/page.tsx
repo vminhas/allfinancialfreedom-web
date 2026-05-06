@@ -256,6 +256,8 @@ export default function SettingsPage() {
     description?: string
     icon?: string
     avatarUrl?: string
+    personType?: 'admin' | 'agent'
+    personId?: string
   }
   const [bookings, setBookings] = useState<BookingLink[]>([])
   const [bookingsSaving, setBookingsSaving] = useState(false)
@@ -593,11 +595,27 @@ export default function SettingsPage() {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {bookings.map((b, i) => (
+                {bookings.map((b, i) => {
+                  const linked = !!(b.personType && b.personId)
+                  return (
                   <div key={b.id} style={{ border: '1px solid rgba(201,169,110,0.15)', borderRadius: 6, padding: '14px 16px', background: 'rgba(255,255,255,0.02)' }}>
+                    <div style={{ marginBottom: 12 }}>
+                      <BookingPersonPicker
+                        link={b}
+                        onPick={(p) => updateBooking(b.id, {
+                          personType: p.type,
+                          personId: p.id,
+                          name: p.name,
+                          avatarUrl: p.avatarUrl ?? b.avatarUrl,
+                        })}
+                        onUnlink={() => updateBooking(b.id, { personType: undefined, personId: undefined })}
+                      />
+                    </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
-                      <BookingField label="Name" value={b.name} placeholder="e.g. Vick Minhas" onChange={v => updateBooking(b.id, { name: v })} />
-                      <BookingField label="Role" value={b.role} placeholder="e.g. CEO" onChange={v => updateBooking(b.id, { role: v })} />
+                      {!linked && (
+                        <BookingField label="Name" value={b.name} placeholder="e.g. Vick Minhas" onChange={v => updateBooking(b.id, { name: v })} />
+                      )}
+                      <BookingField label="Role / title" value={b.role} placeholder="e.g. CEO" onChange={v => updateBooking(b.id, { role: v })} />
                       <div>
                         <BookingLabel>Group</BookingLabel>
                         <select
@@ -617,19 +635,21 @@ export default function SettingsPage() {
                           onChange={e => updateBooking(b.id, { icon: e.target.value })}
                           style={{ ...bookingInput, cursor: 'pointer' }}
                         >
-                          <option value="">— None —</option>
+                          <option value="">&mdash; None &mdash;</option>
                           {BOOKING_ICON_OPTIONS.map(opt => (
                             <option key={opt.value} value={opt.value}>{opt.value} &nbsp; {opt.label}</option>
                           ))}
                         </select>
                       </div>
                     </div>
-                    <div style={{ marginTop: 10 }}>
-                      <BookingAvatarRow
-                        link={b}
-                        onChange={(url) => updateBooking(b.id, { avatarUrl: url })}
-                      />
-                    </div>
+                    {!linked && (
+                      <div style={{ marginTop: 10 }}>
+                        <BookingAvatarRow
+                          link={b}
+                          onChange={(url) => updateBooking(b.id, { avatarUrl: url })}
+                        />
+                      </div>
+                    )}
                     <div style={{ marginTop: 10 }}>
                       <BookingField label="Calendly / Booking URL" value={b.calendlyUrl} placeholder="https://calendly.com/..." onChange={v => updateBooking(b.id, { calendlyUrl: v })} mono />
                     </div>
@@ -658,7 +678,8 @@ export default function SettingsPage() {
                       </button>
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             )}
 
@@ -1121,6 +1142,148 @@ function BookingAvatarRow({ link, onChange }: {
       {error && (
         <div style={{ fontSize: 11, color: '#EF4444', marginTop: 6 }}>{error}</div>
       )}
+    </div>
+  )
+}
+
+// Search-as-you-type picker that links a booking-link row to an actual
+// AFF user (admin staff or active agent profile). When a person is
+// linked, the agent-side endpoint resolves their live name + headshot
+// from the source record — so updating the user's profile elsewhere
+// flows through to the Book page automatically.
+type PersonHit = {
+  id: string
+  type: 'admin' | 'agent'
+  name: string
+  hint: string
+  avatarUrl: string | null
+}
+function BookingPersonPicker({ link, onPick, onUnlink }: {
+  link: { name: string; avatarUrl?: string; personType?: 'admin' | 'agent'; personId?: string }
+  onPick: (p: { id: string; type: 'admin' | 'agent'; name: string; avatarUrl: string | null }) => void
+  onUnlink: () => void
+}) {
+  const [q, setQ] = useState('')
+  const [results, setResults] = useState<PersonHit[]>([])
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    const term = q.trim()
+    if (term.length < 2) { setResults([]); return }
+    setBusy(true)
+    const ctrl = new AbortController()
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/admin/booking-links/people-search?q=${encodeURIComponent(term)}`, { signal: ctrl.signal })
+        const d = await res.json() as { people?: PersonHit[] }
+        setResults(d.people ?? [])
+      } catch { /* aborted or network */ }
+      finally { setBusy(false) }
+    }, 200)
+    return () => { clearTimeout(t); ctrl.abort() }
+  }, [q, open])
+
+  const linked = !!(link.personType && link.personId)
+
+  if (linked) {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '8px 12px', border: '1px solid rgba(34,197,94,0.35)',
+        background: 'rgba(34,197,94,0.06)', borderRadius: 6,
+      }}>
+        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#22C55E' }}>
+          Linked
+        </span>
+        <span style={{ fontSize: 13, color: '#E2E8F0', fontWeight: 600 }}>{link.name || '(no name)'}</span>
+        <span style={{ fontSize: 11, color: '#6B8299' }}>
+          {link.personType === 'admin' ? 'Admin user' : 'Agent profile'} &middot; live name &amp; photo from their record
+        </span>
+        <button
+          type="button"
+          onClick={onUnlink}
+          style={{
+            marginLeft: 'auto', background: 'transparent',
+            border: '1px solid rgba(239,68,68,0.4)', color: '#EF4444',
+            borderRadius: 4, padding: '4px 10px', fontSize: 10, fontWeight: 700,
+            letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer',
+          }}
+        >
+          Unlink
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#9BB0C4', marginBottom: 6 }}>
+        Pick person (recommended)
+      </div>
+      <input
+        type="text"
+        value={q}
+        onChange={e => { setQ(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder="Search admins &amp; agents by name..."
+        style={bookingInput}
+      />
+      {open && q.trim().length >= 2 && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
+          marginTop: 4, background: '#0F2238',
+          border: '1px solid rgba(201,169,110,0.3)', borderRadius: 6,
+          maxHeight: 280, overflowY: 'auto',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.4)',
+        }}>
+          {busy && results.length === 0 ? (
+            <div style={{ padding: '12px 14px', color: '#6B8299', fontSize: 12 }}>Searching...</div>
+          ) : results.length === 0 ? (
+            <div style={{ padding: '12px 14px', color: '#6B8299', fontSize: 12 }}>No matches.</div>
+          ) : results.map(p => (
+            <button
+              key={`${p.type}:${p.id}`}
+              type="button"
+              onMouseDown={e => e.preventDefault()}
+              onClick={() => {
+                onPick({ id: p.id, type: p.type, name: p.name, avatarUrl: p.avatarUrl })
+                setQ('')
+                setOpen(false)
+              }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                width: '100%', padding: '10px 14px',
+                background: 'transparent', border: 'none', cursor: 'pointer',
+                color: '#E2E8F0', textAlign: 'left',
+                borderBottom: '1px solid rgba(201,169,110,0.08)',
+              }}
+            >
+              <div style={{
+                width: 28, height: 28, borderRadius: '50%', overflow: 'hidden',
+                background: 'rgba(201,169,110,0.12)', border: '1px solid rgba(201,169,110,0.3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#C9A96E', fontWeight: 700, fontSize: 11, flexShrink: 0,
+              }}>
+                {p.avatarUrl
+                  // eslint-disable-next-line @next/next/no-img-element
+                  ? <img src={p.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : p.name.split(/\s+/).slice(0, 2).map(s => s[0] ?? '').join('').toUpperCase()}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{p.name}</div>
+                <div style={{ fontSize: 10, color: '#6B8299', marginTop: 1 }}>{p.hint}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+      <div style={{ fontSize: 10, color: '#6B8299', marginTop: 6, lineHeight: 1.5 }}>
+        Linking to a real user keeps their name &amp; headshot in sync automatically.
+        Leave unlinked for external partners; you&rsquo;ll fill in name + photo manually below.
+      </div>
     </div>
   )
 }
