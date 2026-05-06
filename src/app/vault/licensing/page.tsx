@@ -760,6 +760,7 @@ function AgentsTab({ refreshNonce }: { refreshNonce: number }) {
               expanded={expandedId === a.id}
               onToggle={() => setExpandedId(expandedId === a.id ? null : a.id)}
               onUpdate={updateField}
+              onRefresh={load}
             />
           ))}
         </div>
@@ -769,12 +770,16 @@ function AgentsTab({ refreshNonce }: { refreshNonce: number }) {
 }
 
 function AgentRow({
-  agent, expanded, onToggle, onUpdate,
+  agent, expanded, onToggle, onUpdate, onRefresh,
 }: {
   agent: LicensingAgent
   expanded: boolean
   onToggle: () => void
   onUpdate: (id: string, field: string, value: string | null) => void
+  // Called after a successful inline action that changes server state
+  // (currently: dismissing an open request). Refetches the agent list
+  // so the request pill disappears + the openRequestCount decrements.
+  onRefresh: () => void
 }) {
   return (
     <div style={{
@@ -802,17 +807,45 @@ function AgentRow({
           </div>
           {/* Surface WHY this agent is flagged. Without this the LC sees
               "needs attention" with no signal of what to do. Show up to
-              two topic labels inline; rest land in the expanded view. */}
+              two topic labels inline; rest land in the expanded view.
+              Each pill carries a ✕ to kill the request — used when an
+              agent left or the request became stale. PATCHes status to
+              CLOSED on the server. */}
           {agent.openRequestCount > 0 && (
             <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
               {agent.openRequests.slice(0, 2).map(r => (
                 <span key={r.id} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
                   fontSize: 9, fontWeight: 600, letterSpacing: '0.04em',
-                  padding: '2px 7px', borderRadius: 999,
+                  padding: '2px 4px 2px 7px', borderRadius: 999,
                   background: 'rgba(248,113,113,0.08)', color: '#f87171',
                   border: '1px solid rgba(248,113,113,0.25)',
                 }}>
                   {TOPIC_LABELS[r.topic] ?? r.topic}
+                  <button
+                    type="button"
+                    onClick={async (e) => {
+                      e.stopPropagation()
+                      const ok = confirm(`Dismiss "${TOPIC_LABELS[r.topic] ?? r.topic}"?\n\nUse this when ${agent.firstName} no longer needs this request — they left, the issue resolved itself, or it was created by mistake. The request is closed in the system; the agent won't be pinged again.`)
+                      if (!ok) return
+                      const res = await fetch(`/api/vault/coordinator-requests/${r.id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ status: 'CLOSED', resolutionNote: 'Dismissed from licensing inbox' }),
+                      })
+                      if (res.ok) onRefresh()
+                      else alert('Couldn\'t dismiss the request — refresh and try again.')
+                    }}
+                    aria-label={`Dismiss ${TOPIC_LABELS[r.topic] ?? r.topic}`}
+                    title="Dismiss this request"
+                    style={{
+                      background: 'transparent', border: 'none', color: 'inherit',
+                      fontSize: 11, lineHeight: 1, padding: '0 2px',
+                      cursor: 'pointer', opacity: 0.7,
+                    }}
+                  >
+                    ×
+                  </button>
                 </span>
               ))}
               {agent.openRequests.length > 2 && (
