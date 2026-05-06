@@ -36,6 +36,31 @@ function BookingField({ label, value, onChange, placeholder, mono }: {
   )
 }
 
+// Curated emoji set for booking-link icons. Keeps the choices on-brand
+// (no random food / animal emoji), matches the kind of titles that
+// actually show up (CEO, COO, trainer, coordinator), and dodges
+// admin typos like trailing whitespace or invalid UTF-8 sequences.
+const BOOKING_ICON_OPTIONS: { value: string; label: string }[] = [
+  { value: '✦',   label: 'Star (gold accent)' },
+  { value: '⭐',  label: 'Star' },
+  { value: '🌟',  label: 'Glowing star' },
+  { value: '✨',  label: 'Sparkles' },
+  { value: '💎',  label: 'Diamond' },
+  { value: '🏆',  label: 'Trophy' },
+  { value: '👑',  label: 'Crown' },
+  { value: '🚀',  label: 'Rocket' },
+  { value: '🎯',  label: 'Target' },
+  { value: '💡',  label: 'Lightbulb' },
+  { value: '⚡',  label: 'Lightning' },
+  { value: '🎓',  label: 'Graduation cap' },
+  { value: '📚',  label: 'Books' },
+  { value: '💼',  label: 'Briefcase' },
+  { value: '🔑',  label: 'Key' },
+  { value: '🤝',  label: 'Handshake' },
+  { value: '📞',  label: 'Phone' },
+  { value: '✉',   label: 'Envelope' },
+]
+
 function smallBtn(disabled: boolean): React.CSSProperties {
   return {
     background: 'transparent', border: '1px solid rgba(255,255,255,0.1)',
@@ -585,7 +610,19 @@ export default function SettingsPage() {
                           <option value="support">Licensing &amp; Support</option>
                         </select>
                       </div>
-                      <BookingField label="Icon (emoji, optional)" value={b.icon ?? ''} placeholder="✦ / 🎯 / etc" onChange={v => updateBooking(b.id, { icon: v })} />
+                      <div>
+                        <BookingLabel>Icon (optional)</BookingLabel>
+                        <select
+                          value={b.icon ?? ''}
+                          onChange={e => updateBooking(b.id, { icon: e.target.value })}
+                          style={{ ...bookingInput, cursor: 'pointer' }}
+                        >
+                          <option value="">— None —</option>
+                          {BOOKING_ICON_OPTIONS.map(opt => (
+                            <option key={opt.value} value={opt.value}>{opt.value} &nbsp; {opt.label}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                     <div style={{ marginTop: 10 }}>
                       <BookingAvatarRow
