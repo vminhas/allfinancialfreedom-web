@@ -56,7 +56,7 @@ interface SubmissionDetail extends SubmissionListItem {
     id: string
     body: string
     authorType: 'AGENT' | 'ADMIN'
-    authorAgent: { firstName: string; lastName: string } | null
+    authorAgent: { id: string; firstName: string; lastName: string } | null
     authorAdmin: { name: string } | null
     createdAt: string
   }[]
