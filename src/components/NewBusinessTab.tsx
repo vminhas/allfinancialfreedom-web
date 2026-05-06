@@ -571,6 +571,11 @@ function SubmissionDrawer({ submission, onClose, onChanged }: { submission: Subm
 
   const [noteText, setNoteText] = useState('')
   const [posting, setPosting] = useState(false)
+  // Tab inside the drawer between the conversation thread and the
+  // audit-log timeline. Defaults to Notes since that's where the
+  // active back-and-forth happens; Activity is more for "wait,
+  // when did Bryan get added as split?"
+  const [drawerTab, setDrawerTab] = useState<'notes' | 'activity'>('notes')
   // Edit mode state. Only available while status === PENDING (server
   // enforces the same rule). Once issued/declined the submission is
   // frozen for the agent and we hide the Edit button.
@@ -754,7 +759,33 @@ function SubmissionDrawer({ submission, onClose, onChanged }: { submission: Subm
         )}
 
         <div style={{ marginTop: 24 }}>
-          <div style={{ ...sectionLabel, fontSize: 9 }}>Notes</div>
+          {/* Tab switcher: Notes (chat thread) vs Activity (audit
+              log). Both surfaces are scoped to this submission;
+              tabs keep the drawer compact instead of stacking two
+              long lists. */}
+          <div style={{ display: 'flex', gap: 4, marginBottom: 12, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+            {(['notes', 'activity'] as const).map(t => (
+              <button
+                key={t}
+                onClick={() => setDrawerTab(t)}
+                style={{
+                  padding: '8px 14px', fontSize: 10, fontWeight: 700,
+                  letterSpacing: '0.12em', textTransform: 'uppercase',
+                  background: 'transparent', border: 'none',
+                  color: drawerTab === t ? '#C9A96E' : '#6B8299',
+                  borderBottom: drawerTab === t ? '2px solid #C9A96E' : '2px solid transparent',
+                  cursor: 'pointer', marginBottom: -1,
+                }}
+              >
+                {t === 'notes' ? `Notes (${submission.notes.length})` : `Activity (${(submission as Submission & { activity?: unknown[] }).activity?.length ?? 0})`}
+              </button>
+            ))}
+          </div>
+
+          {drawerTab === 'activity' ? (
+            <ActivityList submission={submission} />
+          ) : (
+          <>
           <div style={{ marginBottom: 12 }}>
             {submission.notes.length === 0 && <div style={{ color: '#4B5563', fontSize: 12 }}>No notes yet.</div>}
             {submission.notes.map(n => (
@@ -776,6 +807,8 @@ function SubmissionDrawer({ submission, onClose, onChanged }: { submission: Subm
           <button onClick={addNote} disabled={posting || !noteText.trim()} style={{ marginTop: 8, background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: posting ? 'wait' : 'pointer', opacity: posting || !noteText.trim() ? 0.6 : 1 }}>
             {posting ? 'Posting...' : 'Add Note'}
           </button>
+          </>
+          )}
         </div>
       </div>
     </div>
@@ -841,4 +874,80 @@ function MuteToggle({ submission, onChanged }: { submission: Submission & { mute
       {muted ? '🔕' : '🔔'}
     </button>
   )
+}
+
+interface ActivityRow {
+  id: string
+  kind: string
+  metaJson: Record<string, unknown> | null
+  actorAgent: { firstName: string; lastName: string } | null
+  actorAdmin: { name: string } | null
+  createdAt: string
+}
+
+// Audit-log timeline. Renders the kind+meta+actor stamp into
+// human-readable copy for each row, color-coded by kind so admins
+// can scan a long history at a glance.
+function ActivityList({ submission }: { submission: Submission }) {
+  const rows = ((submission as Submission & { activity?: ActivityRow[] }).activity) ?? []
+  if (rows.length === 0) {
+    return <div style={{ color: '#4B5563', fontSize: 12, padding: '8px 0' }}>No activity recorded yet.</div>
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+      {rows.map(r => {
+        const actor = r.actorAdmin?.name
+          ?? (r.actorAgent ? `${r.actorAgent.firstName} ${r.actorAgent.lastName}` : 'System')
+        const accent = ACTIVITY_COLORS[r.kind] ?? '#9BB0C4'
+        return (
+          <div key={r.id} style={{
+            padding: '8px 12px',
+            background: 'rgba(255,255,255,0.02)',
+            borderLeft: `3px solid ${accent}`,
+            borderRadius: 4,
+            display: 'flex', justifyContent: 'space-between', gap: 12,
+            alignItems: 'flex-start', flexWrap: 'wrap',
+          }}>
+            <div style={{ fontSize: 12, color: '#E5E7EB', flex: 1, minWidth: 200 }}>
+              <span style={{ color: accent, fontWeight: 700 }}>{actor}</span>{' '}
+              {renderActivityText(r)}
+            </div>
+            <div style={{ fontSize: 10, color: '#6B8299' }}>{new Date(r.createdAt).toLocaleString()}</div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+const ACTIVITY_COLORS: Record<string, string> = {
+  CREATED:        '#C9A96E',
+  SPLIT_ADDED:    '#9B6DFF',
+  SPLIT_REMOVED:  '#6B7280',
+  STATUS_CHANGED: '#4ADE80',
+  OTHER:          '#9BB0C4',
+}
+
+function renderActivityText(r: ActivityRow): string {
+  const meta = (r.metaJson ?? {}) as Record<string, unknown>
+  switch (r.kind) {
+    case 'CREATED': {
+      const carrier = typeof meta.carrier === 'string' ? meta.carrier : ''
+      return carrier ? `created the submission for ${carrier}.` : 'created the submission.'
+    }
+    case 'SPLIT_ADDED': {
+      const name = typeof meta.name === 'string' ? meta.name : ''
+      const code = typeof meta.agentCode === 'string' ? `(${meta.agentCode})` : ''
+      return name ? `added ${name} ${code} as the split agent.` : 'added a split agent.'
+    }
+    case 'SPLIT_REMOVED':
+      return 'removed the split agent.'
+    case 'STATUS_CHANGED': {
+      const from = typeof meta.from === 'string' ? meta.from : '—'
+      const to   = typeof meta.to   === 'string' ? meta.to   : '—'
+      return `moved status from ${from} to ${to}.`
+    }
+    default:
+      return r.kind
+  }
 }
