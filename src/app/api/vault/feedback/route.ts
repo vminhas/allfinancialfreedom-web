@@ -106,9 +106,78 @@ export async function PATCH(req: NextRequest) {
       responseToAgent: body.responseToAgent ?? existing.responseToAgent,
       messagePreview: existing.message.slice(0, 120),
     }).catch(err => console.warn('[feedback PATCH] notification failed:', err))
+
+    // Admin-side mirror of the agent-facing notification: status moves
+    // and reply postings show up in the admin activity channel so the
+    // team has a single feed of who-did-what across the feedback queue.
+    // Internal-note edits never ping (handled above by the
+    // statusChanged/responseChanged gate).
+    pingAdminFeedbackUpdate({
+      feedbackId: existing.id,
+      agentProfileId: existing.agentProfile.id,
+      oldStatus: existing.status,
+      newStatus: body.status ?? existing.status,
+      statusChanged,
+      responseChanged,
+      newResponse: body.responseToAgent ?? null,
+      originalMessagePreview: existing.message.slice(0, 200),
+      actorName: (session.user as { name?: string }).name ?? 'Admin',
+    }).catch(err => console.warn('[feedback PATCH] admin ping failed:', err))
   }
 
   return NextResponse.json({ ok: true, feedback: updated })
+}
+
+async function pingAdminFeedbackUpdate(args: {
+  feedbackId: string
+  agentProfileId: string
+  oldStatus: string
+  newStatus: string
+  statusChanged: boolean
+  responseChanged: boolean
+  newResponse: string | null
+  originalMessagePreview: string
+  actorName: string
+}): Promise<void> {
+  if (!process.env.DISCORD_BOT_TOKEN || !process.env.DISCORD_ADMIN_CHANNEL_ID) return
+  const profile = await db.agentProfile.findUnique({
+    where: { id: args.agentProfileId },
+    select: { firstName: true, lastName: true, agentCode: true },
+  })
+  if (!profile) return
+  const { sendChannelMessage } = await import('@/lib/discord')
+  const baseUrl = process.env.NEXTAUTH_URL ?? 'https://allfinancialfreedom.com'
+
+  const STATUS_COLOR: Record<string, number> = {
+    OPEN: 0x9B6DFF,
+    ACKNOWLEDGED: 0x60A5FA,
+    IN_PROGRESS: 0xC9A96E,
+    CLOSED: 0x4ADE80,
+  }
+  const headline = args.statusChanged
+    ? `📋 Feedback ${args.oldStatus} → ${args.newStatus}`
+    : '💬 Reply posted to feedback'
+
+  const fields: Array<{ name: string; value: string; inline?: boolean }> = [
+    { name: 'From', value: `${profile.firstName} ${profile.lastName} (${profile.agentCode})`, inline: true },
+    { name: 'By', value: args.actorName, inline: true },
+  ]
+  if (args.responseChanged && args.newResponse && args.newResponse.trim().length > 0) {
+    const reply = args.newResponse.trim()
+    fields.push({ name: 'Reply', value: reply.length > 300 ? reply.slice(0, 300) + '...' : reply })
+  }
+
+  await sendChannelMessage(process.env.DISCORD_ADMIN_CHANNEL_ID, {
+    embeds: [{
+      title: headline,
+      description: args.originalMessagePreview + (args.originalMessagePreview.length >= 200 ? '...' : ''),
+      color: STATUS_COLOR[args.newStatus] ?? 0x9BB0C4,
+      fields,
+      footer: { text: 'AFF Concierge · /vault/feedback' },
+      url: `${baseUrl}/vault/feedback`,
+      timestamp: new Date().toISOString(),
+    }],
+  })
 }
 
 interface NotifyArgs {
