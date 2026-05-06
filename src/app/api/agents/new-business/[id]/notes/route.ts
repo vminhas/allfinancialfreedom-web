@@ -63,10 +63,20 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     isSplit  ? submission.agentProfileId   :
     null
   if (otherAgentId) {
-    const myProfile = await db.agentProfile.findUnique({
-      where: { id: profile.id },
-      select: { firstName: true, lastName: true },
-    })
+    const [myProfile, mute] = await Promise.all([
+      db.agentProfile.findUnique({
+        where: { id: profile.id },
+        select: { firstName: true, lastName: true },
+      }),
+      // Recipient's mute row for this submission, if any. When muted,
+      // we still write the in-app notification (so they catch up in
+      // the bell inbox + see the toast if they're in-portal) but
+      // skip the Discord DM.
+      db.newBusinessSubmissionMute.findUnique({
+        where: { submissionId_agentProfileId: { submissionId: submission.id, agentProfileId: otherAgentId } },
+        select: { id: true },
+      }),
+    ])
     const fromName = myProfile ? `${myProfile.firstName} ${myProfile.lastName}` : 'Your collaborator'
     const clientName = `${submission.clientFirstName} ${submission.clientLastName}`
     const { createNotification } = await import('@/lib/notify')
@@ -79,7 +89,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       body: text.length > 200 ? text.slice(0, 200) + '…' : text,
       linkUrl: '/agents?tab=new-business',
       color: 0x9B6DFF,
-      discord: {
+      // Skip Discord DM when recipient muted this submission.
+      discord: mute ? undefined : {
         title: `💬 New comment on ${clientName}'s policy`,
         description: text.length > 800 ? text.slice(0, 800) + '…' : text,
         color: 0x9B6DFF,

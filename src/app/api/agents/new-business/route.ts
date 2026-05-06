@@ -56,19 +56,29 @@ export async function GET() {
         },
       },
       renewalReminders: { orderBy: { sentAt: 'desc' } },
+      // Caller's own mute row, if any. We surface a boolean rather
+      // than the row itself so the client doesn't have to inspect
+      // the array.
+      mutes: {
+        where: { agentProfileId: profile.id },
+        select: { id: true },
+        take: 1,
+      },
     },
   })
 
   const today = todayInEt()
   const enriched = submissions.map(s => {
     const lane: 'own' | 'shared' = s.agentProfileId === profile.id ? 'own' : 'shared'
+    const muted = s.mutes.length > 0
     if (s.status !== 'ISSUED' || !s.issuedDate) {
-      return { ...s, lane, daysUntilAnniversary: null, currentStage: null, anniversaryYear: null }
+      return { ...s, lane, muted, daysUntilAnniversary: null, currentStage: null, anniversaryYear: null }
     }
     const w = computeRenewalWindow(s.issuedDate, today)
     return {
       ...s,
       lane,
+      muted,
       daysUntilAnniversary: w.daysUntilAnniversary,
       currentStage: w.currentStage,
       anniversaryYear: w.anniversaryYear,

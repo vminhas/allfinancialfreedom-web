@@ -640,7 +640,10 @@ function SubmissionDrawer({ submission, onClose, onChanged }: { submission: Subm
       <div onClick={e => e.stopPropagation()} style={{ width: 520, maxWidth: '95vw', height: '100vh', background: '#0F1E33', borderLeft: '1px solid rgba(201,169,110,0.2)', overflowY: 'auto', padding: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h2 style={{ color: '#fff', fontSize: 16, fontWeight: 600, margin: 0 }}>{submission.clientFirstName} {submission.clientLastName}</h2>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#9BB0C4', fontSize: 18, cursor: 'pointer' }}>✕</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <MuteToggle submission={submission} onChanged={onChanged} />
+            <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#9BB0C4', fontSize: 18, cursor: 'pointer' }}>✕</button>
+          </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
           <StatusPill status={submission.status} />
@@ -785,5 +788,57 @@ function DetailRow({ k, v }: { k: string; v: string }) {
       <div style={{ width: 130, color: '#6B8299' }}>{k}</div>
       <div style={{ color: '#E5E7EB', flex: 1 }}>{v}</div>
     </div>
+  )
+}
+
+// Per-policy mute toggle. Lives in the drawer header next to the
+// close button. When muted, suppress Discord DMs about new comments
+// on this submission only — the in-app row + bell-icon ping still
+// fire so the agent catches up next time they're in-portal.
+//
+// Optimistic state: the toggle flips immediately, the API call
+// runs in the background. If it fails we revert. Reload via
+// onChanged() so the parent submission list reflects the new
+// state (used by the icon's filled vs hollow rendering on next
+// drawer open).
+function MuteToggle({ submission, onChanged }: { submission: Submission & { muted?: boolean }; onChanged: () => void }) {
+  const [muted, setMuted] = useState(!!submission.muted)
+  const [pending, setPending] = useState(false)
+
+  const toggle = async () => {
+    if (pending) return
+    setPending(true)
+    const next = !muted
+    setMuted(next)  // optimistic
+    try {
+      const res = await fetch(`/api/agents/new-business/${submission.id}/mute`, {
+        method: next ? 'POST' : 'DELETE',
+      })
+      if (!res.ok) throw new Error(`${res.status}`)
+      onChanged()
+    } catch {
+      setMuted(!next)  // revert
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return (
+    <button
+      onClick={toggle}
+      title={muted
+        ? "Muted — Discord DMs on new comments suppressed. In-app notifications still arrive."
+        : "Mute Discord DMs for this policy. Bell-icon notifications still arrive."}
+      aria-label={muted ? 'Unmute Discord DMs for this policy' : 'Mute Discord DMs for this policy'}
+      disabled={pending}
+      style={{
+        background: muted ? 'rgba(248,113,113,0.10)' : 'transparent',
+        border: muted ? '1px solid rgba(248,113,113,0.35)' : '1px solid rgba(255,255,255,0.08)',
+        color: muted ? '#f87171' : '#9BB0C4',
+        borderRadius: 4, padding: '4px 8px', fontSize: 12, lineHeight: 1, cursor: pending ? 'wait' : 'pointer',
+      }}
+    >
+      {muted ? '🔕' : '🔔'}
+    </button>
   )
 }
