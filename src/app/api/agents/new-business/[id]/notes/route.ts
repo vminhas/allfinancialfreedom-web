@@ -87,7 +87,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       subjectId: submission.id,
       title: `💬 ${fromName} commented on ${clientName}'s policy`,
       body: text.length > 200 ? text.slice(0, 200) + '…' : text,
-      linkUrl: '/agents?tab=new-business',
+      linkUrl: `/agents?tab=new-business&submission=${submission.id}`,
       color: 0x9B6DFF,
       // Skip Discord DM when recipient muted this submission.
       discord: mute ? undefined : {
