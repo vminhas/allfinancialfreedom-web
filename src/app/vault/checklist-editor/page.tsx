@@ -471,7 +471,7 @@ export default function ChecklistEditorPage() {
                 {uploadingVideo ? 'Uploading...' : '↑ Upload video file'}
                 <input
                   type="file"
-                  accept="video/mp4,video/webm,video/quicktime,video/x-matroska"
+                  accept="video/mp4,video/quicktime"
                   disabled={uploadingVideo}
                   onChange={async e => {
                     const file = e.target.files?.[0]
@@ -502,7 +502,7 @@ export default function ChecklistEditorPage() {
                 />
               </label>
               <span style={{ fontSize: 10, color: '#6B8299', lineHeight: 1.5 }}>
-                Loom and Google Drive URLs embed inline. <strong style={{ color: '#9BB0C4' }}>Both must be set to &quot;Anyone with the link can view&quot;</strong> in their share settings or the iframe shows a sign-in prompt instead of the player. Uploaded files are stored on Vercel Blob (max 500MB, MP4/WebM/MOV/MKV).
+                Loom and Google Drive URLs embed inline. <strong style={{ color: '#9BB0C4' }}>Both must be set to &quot;Anyone with the link can view&quot;</strong> in their share settings or the iframe shows a sign-in prompt instead of the player. Uploaded files: <strong style={{ color: '#9BB0C4' }}>MP4 (H.264) or MOV only, max 500MB.</strong> WebM and MKV won&apos;t play on Safari/iOS — convert before uploading.
               </span>
             </div>
             {videoUploadError && (

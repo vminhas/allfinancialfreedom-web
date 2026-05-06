@@ -21,6 +21,11 @@ export interface BookingLink {
   // Either an emoji ("✦") or a lucide-react icon name we know how to
   // render on the agent side. Falls back to initials if missing.
   icon?: string
+  // Vercel Blob URL of the leadership/trainer's headshot. When set,
+  // renders in place of the icon/initials on the agent's Book page,
+  // so trainers feel like real humans you're booking with rather
+  // than abstract roles. Uploaded via the admin /vault/settings UI.
+  avatarUrl?: string
 }
 
 const KEY = 'BOOKING_LINKS'

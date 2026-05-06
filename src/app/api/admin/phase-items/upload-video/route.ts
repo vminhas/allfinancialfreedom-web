@@ -12,13 +12,17 @@ import { put } from '@vercel/blob'
 // into, so the agent-side renderer can swap players without caring about
 // the source.
 //
-// Limits: 500MB to keep storage costs reasonable, common video mimetypes only.
+// Limits: 500MB to keep storage costs reasonable. MP4 (H.264) and
+// MOV/QuickTime are the only formats accepted because they're the
+// only ones that play reliably on Safari + iOS — agents are heavy
+// mobile users and uploading a WebM or MKV would silently break for
+// them. Admins shooting in those formats need to convert before
+// uploading; we reject with a clear error so the failure is visible
+// at upload time rather than at agent-playback time.
 const MAX_BYTES = 500 * 1024 * 1024
 const ALLOWED = new Set([
   'video/mp4',
-  'video/webm',
   'video/quicktime',
-  'video/x-matroska',
 ])
 
 export async function POST(req: NextRequest) {
@@ -35,7 +39,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `File exceeds ${MAX_BYTES / 1024 / 1024}MB limit` }, { status: 400 })
   }
   if (!ALLOWED.has(file.type)) {
-    return NextResponse.json({ error: `Unsupported video type: ${file.type}. Use MP4, WebM, MOV, or MKV.` }, { status: 400 })
+    return NextResponse.json({ error: `Unsupported video type: ${file.type}. Use MP4 (H.264) or MOV — those play on Safari + iOS. Convert WebM or MKV before uploading.` }, { status: 400 })
   }
 
   const itemKey = (form.get('itemKey') as string | null) ?? 'general'

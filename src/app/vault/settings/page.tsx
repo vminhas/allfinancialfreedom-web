@@ -230,6 +230,7 @@ export default function SettingsPage() {
     calendlyUrl: string
     description?: string
     icon?: string
+    avatarUrl?: string
   }
   const [bookings, setBookings] = useState<BookingLink[]>([])
   const [bookingsSaving, setBookingsSaving] = useState(false)
@@ -585,6 +586,12 @@ export default function SettingsPage() {
                         </select>
                       </div>
                       <BookingField label="Icon (emoji, optional)" value={b.icon ?? ''} placeholder="✦ / 🎯 / etc" onChange={v => updateBooking(b.id, { icon: v })} />
+                    </div>
+                    <div style={{ marginTop: 10 }}>
+                      <BookingAvatarRow
+                        link={b}
+                        onChange={(url) => updateBooking(b.id, { avatarUrl: url })}
+                      />
                     </div>
                     <div style={{ marginTop: 10 }}>
                       <BookingField label="Calendly / Booking URL" value={b.calendlyUrl} placeholder="https://calendly.com/..." onChange={v => updateBooking(b.id, { calendlyUrl: v })} mono />
@@ -967,6 +974,115 @@ export default function SettingsPage() {
             )}
           </div>
         </>
+      )}
+    </div>
+  )
+}
+
+// Avatar upload control inside the admin booking-links editor.
+// Lives in /vault/settings on each row of the Booking Links section
+// so admins can give Vick / Melinee / each CFT a real headshot.
+// Uploads to Vercel Blob via /api/admin/booking-links/avatar, gets
+// the public URL back, and patches the link via the parent's
+// onChange so the next Save persists it. Optimistic preview while
+// the upload is in flight.
+function BookingAvatarRow({ link, onChange }: {
+  link: { id: string; name: string; avatarUrl?: string }
+  onChange: (url: string | undefined) => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const initials = link.name.split(/\s+/).slice(0, 2).map(p => p[0] ?? '').join('').toUpperCase() || '·'
+
+  const upload = async (file: File) => {
+    setBusy(true)
+    setError(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('linkId', link.id)
+      const res = await fetch('/api/admin/booking-links/avatar', { method: 'POST', body: fd })
+      const d = await res.json().catch(() => ({})) as { avatarUrl?: string; error?: string }
+      if (!res.ok || !d.avatarUrl) {
+        setError(d.error ?? 'Upload failed')
+        return
+      }
+      onChange(d.avatarUrl)
+    } catch {
+      setError('Network error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const remove = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      await fetch(`/api/admin/booking-links/avatar?linkId=${encodeURIComponent(link.id)}`, { method: 'DELETE' })
+      onChange(undefined)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#9BB0C4', marginBottom: 6 }}>
+        Profile photo (optional)
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{
+          width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+          background: link.avatarUrl ? 'transparent' : 'rgba(201,169,110,0.12)',
+          border: '1px solid rgba(201,169,110,0.3)',
+          overflow: 'hidden',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#C9A96E', fontWeight: 700, fontSize: 13,
+        }}>
+          {link.avatarUrl
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={link.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : initials}
+        </div>
+        <label style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          cursor: busy ? 'wait' : 'pointer',
+          padding: '6px 12px', borderRadius: 4,
+          background: 'rgba(201,169,110,0.1)', border: '1px solid rgba(201,169,110,0.3)',
+          color: '#C9A96E', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          opacity: busy ? 0.6 : 1,
+        }}>
+          {busy ? 'Uploading...' : link.avatarUrl ? 'Replace' : 'Upload photo'}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            disabled={busy}
+            onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = '' }}
+            style={{ display: 'none' }}
+          />
+        </label>
+        {link.avatarUrl && !busy && (
+          <button
+            type="button"
+            onClick={remove}
+            style={{
+              background: 'transparent', border: '1px solid rgba(239,68,68,0.4)',
+              color: '#EF4444', borderRadius: 4, padding: '5px 10px',
+              fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
+              textTransform: 'uppercase', cursor: 'pointer',
+            }}
+          >
+            Remove
+          </button>
+        )}
+        <span style={{ fontSize: 10, color: '#6B8299', marginLeft: 'auto', maxWidth: 200, lineHeight: 1.4 }}>
+          Shown on the agent Book page when they pick this person.
+        </span>
+      </div>
+      {error && (
+        <div style={{ fontSize: 11, color: '#EF4444', marginTop: 6 }}>{error}</div>
       )}
     </div>
   )
