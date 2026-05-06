@@ -424,101 +424,145 @@ function NewBusinessForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: ()
       <div style={{ marginTop: 14 }}>
         <label style={fieldLabel}>Split with (optional)</label>
         <div style={{ position: 'relative' }}>
-          <input
-            style={inputStyle}
-            value={splitQuery}
-            onChange={e => {
-              setSplitQuery(e.target.value)
-              if (splitSelected) {
-                // Editing after select clears the lock so user can
-                // pick a different agent.
-                setSplitSelected(null)
-                setForm(f => ({ ...f, splitWithAgentId: '' }))
-              }
-              setSplitOpen(true)
-            }}
-            onFocus={() => setSplitOpen(true)}
-            onBlur={() => {
-              // Close the dropdown after a beat (so click events on
-              // result rows still register), and if the agent typed
-              // text but never picked anyone, clear it. Without the
-              // clear, leftover text in the field reads as "set" but
-              // no splitWithAgentId actually got attached, which was
-              // confusing — agents thought they'd picked a colleague
-              // when they hadn't.
-              setTimeout(() => {
-                setSplitOpen(false)
-                if (!splitSelected && splitQuery.trim().length > 0) {
-                  setSplitQuery('')
-                }
-              }, 150)
-            }}
-            placeholder="Search by name (e.g. Bryan Cole)"
-          />
-          {splitSelected && (
-            <button
-              type="button"
-              onClick={clearSplit}
-              aria-label="Clear split agent"
-              style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#6B8299', fontSize: 14, cursor: 'pointer' }}
+          {splitSelected ? (
+            // Locked state: render the selected agent as a chip
+            // (avatar + name + ✕) instead of leaving an editable
+            // input. Standard selected-entity treatment in modern
+            // pickers (Slack mentions, Linear assignees, GitHub
+            // reviewers, etc.) — once a person is picked, the field
+            // reads as "X added," not "edit this name." Click ✕
+            // to remove and reopen the search.
+            <div
+              role="status"
+              aria-label={`Split agent: ${splitSelected.firstName} ${splitSelected.lastName}`}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '6px 8px 6px 6px',
+                background: 'rgba(201,169,110,0.10)',
+                border: '1px solid rgba(201,169,110,0.4)',
+                borderRadius: 4,
+                minHeight: 36, boxSizing: 'border-box',
+              }}
             >
-              ✕
-            </button>
-          )}
-          {splitOpen && !splitSelected && splitResults.length > 0 && (
-            <div style={{
-              position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
-              background: '#0F1E33', border: '1px solid rgba(201,169,110,0.25)',
-              borderRadius: 4, zIndex: 10,
-              maxHeight: 240, overflowY: 'auto',
-              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-            }}>
-              {splitResults.map(a => (
-                <div
-                  key={a.id}
-                  onMouseDown={(e) => { e.preventDefault(); pickSplit(a) }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '8px 12px',
-                    borderBottom: '1px solid rgba(255,255,255,0.04)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <div style={{
-                    width: 24, height: 24, borderRadius: '50%', flexShrink: 0,
-                    background: a.avatarUrl ? 'transparent' : 'rgba(201,169,110,0.15)',
-                    border: '1px solid rgba(201,169,110,0.3)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    overflow: 'hidden',
-                    fontSize: 9, color: '#C9A96E', fontWeight: 700,
-                  }}>
-                    {a.avatarUrl
-                      // eslint-disable-next-line @next/next/no-img-element
-                      ? <img src={a.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : `${a.firstName[0] ?? ''}${a.lastName[0] ?? ''}`}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, color: '#fff' }}>{a.firstName} {a.lastName}</div>
-                    <div style={{ fontSize: 10, color: '#6B8299' }}>{a.agentCode} · Phase {a.phase}</div>
-                  </div>
+              <div style={{
+                width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
+                background: splitSelected.avatarUrl ? 'transparent' : 'rgba(201,169,110,0.18)',
+                border: '1px solid rgba(201,169,110,0.45)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                overflow: 'hidden',
+                fontSize: 10, color: '#C9A96E', fontWeight: 700,
+              }}>
+                {splitSelected.avatarUrl
+                  // eslint-disable-next-line @next/next/no-img-element
+                  ? <img src={splitSelected.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : `${splitSelected.firstName[0] ?? ''}${splitSelected.lastName[0] ?? ''}`}
+              </div>
+              <div style={{ flex: 1, minWidth: 0, lineHeight: 1.2 }}>
+                <div style={{ fontSize: 13, color: '#fff', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {splitSelected.firstName} {splitSelected.lastName}
                 </div>
-              ))}
+                <div style={{ fontSize: 10, color: '#9BB0C4', marginTop: 1 }}>
+                  {splitSelected.agentCode} · Phase {splitSelected.phase}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={clearSplit}
+                aria-label={`Remove ${splitSelected.firstName} ${splitSelected.lastName} as split agent`}
+                title="Remove split agent"
+                style={{
+                  width: 26, height: 26, padding: 0, flexShrink: 0,
+                  background: 'transparent',
+                  border: '1px solid rgba(201,169,110,0.25)',
+                  borderRadius: 4,
+                  color: '#9BB0C4', fontSize: 13, lineHeight: 1, cursor: 'pointer',
+                }}
+              >
+                ✕
+              </button>
             </div>
-          )}
-          {/* Empty-state feedback so an agent searching for someone
-              who isn't in the system gets a clear answer instead of
-              wondering why the dropdown didn't appear. */}
-          {splitOpen && !splitSelected && splitQuery.trim().length >= 2 && splitResults.length === 0 && (
-            <div style={{
-              position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
-              background: '#0F1E33', border: '1px solid rgba(201,169,110,0.25)',
-              borderRadius: 4, zIndex: 10,
-              padding: '12px 14px',
-              fontSize: 11, color: '#6B8299', lineHeight: 1.5,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-            }}>
-              No matching AFF agents. Only registered teammates can be added as split agents — double-check the spelling.
-            </div>
+          ) : (
+            <>
+              <input
+                style={inputStyle}
+                value={splitQuery}
+                onChange={e => {
+                  setSplitQuery(e.target.value)
+                  setSplitOpen(true)
+                }}
+                onFocus={() => setSplitOpen(true)}
+                onBlur={() => {
+                  // Close the dropdown after a beat (so click events on
+                  // result rows still register), and if the agent typed
+                  // text but never picked anyone, clear it. Without the
+                  // clear, leftover text reads as "set" but no
+                  // splitWithAgentId actually attached on submit, which
+                  // confused agents.
+                  setTimeout(() => {
+                    setSplitOpen(false)
+                    if (!splitSelected && splitQuery.trim().length > 0) {
+                      setSplitQuery('')
+                    }
+                  }, 150)
+                }}
+                placeholder="Search by name (e.g. Bryan Cole)"
+              />
+              {splitOpen && splitResults.length > 0 && (
+                <div style={{
+                  position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+                  background: '#0F1E33', border: '1px solid rgba(201,169,110,0.25)',
+                  borderRadius: 4, zIndex: 10,
+                  maxHeight: 240, overflowY: 'auto',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                }}>
+                  {splitResults.map(a => (
+                    <div
+                      key={a.id}
+                      onMouseDown={(e) => { e.preventDefault(); pickSplit(a) }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '8px 12px',
+                        borderBottom: '1px solid rgba(255,255,255,0.04)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <div style={{
+                        width: 24, height: 24, borderRadius: '50%', flexShrink: 0,
+                        background: a.avatarUrl ? 'transparent' : 'rgba(201,169,110,0.15)',
+                        border: '1px solid rgba(201,169,110,0.3)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        overflow: 'hidden',
+                        fontSize: 9, color: '#C9A96E', fontWeight: 700,
+                      }}>
+                        {a.avatarUrl
+                          // eslint-disable-next-line @next/next/no-img-element
+                          ? <img src={a.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          : `${a.firstName[0] ?? ''}${a.lastName[0] ?? ''}`}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, color: '#fff' }}>{a.firstName} {a.lastName}</div>
+                        <div style={{ fontSize: 10, color: '#6B8299' }}>{a.agentCode} · Phase {a.phase}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* Empty-state feedback so an agent searching for someone
+                  who isn't in the system gets a clear answer instead of
+                  wondering why the dropdown didn't appear. */}
+              {splitOpen && splitQuery.trim().length >= 2 && splitResults.length === 0 && (
+                <div style={{
+                  position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+                  background: '#0F1E33', border: '1px solid rgba(201,169,110,0.25)',
+                  borderRadius: 4, zIndex: 10,
+                  padding: '12px 14px',
+                  fontSize: 11, color: '#6B8299', lineHeight: 1.5,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                }}>
+                  No matching AFF agents. Only registered teammates can be added as split agents — double-check the spelling.
+                </div>
+              )}
+            </>
           )}
         </div>
         <div style={{ fontSize: 10, color: '#6B8299', marginTop: 4, lineHeight: 1.5 }}>
