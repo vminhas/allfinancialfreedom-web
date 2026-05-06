@@ -44,6 +44,7 @@ export async function PUT(req: NextRequest) {
       calendlyUrl: url,
       description: typeof r.description === 'string' ? r.description.trim() || undefined : undefined,
       icon: typeof r.icon === 'string' ? r.icon.trim() || undefined : undefined,
+      avatarUrl: typeof r.avatarUrl === 'string' ? r.avatarUrl.trim() || undefined : undefined,
     })
   }
 

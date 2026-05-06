@@ -15,6 +15,7 @@ interface BookingLink {
   calendlyUrl: string
   description?: string
   icon?: string
+  avatarUrl?: string
 }
 
 const GROUP_LABEL: Record<BookingLink['group'], string> = {
@@ -121,9 +122,12 @@ export default function BookPage() {
 
 function BookingCard({ link, accent }: { link: BookingLink; accent: string }) {
   const initials = link.name.split(/\s+/).slice(0, 2).map(p => p[0] ?? '').join('').toUpperCase()
-  // The icon field is intentionally permissive: admins can drop any
-  // emoji ("✦", "🎯") and we render it. Falls back to initials.
-  const showIcon = link.icon && link.icon.trim().length > 0
+  // Render priority: avatarUrl (real photo) > icon (emoji) > initials.
+  // A real headshot turns "MM" into a face, which makes booking with
+  // leadership / trainers feel like booking with a person rather than
+  // a slot.
+  const showAvatar = link.avatarUrl && link.avatarUrl.trim().length > 0
+  const showIcon = !showAvatar && link.icon && link.icon.trim().length > 0
   return (
     <a
       href={link.calendlyUrl}
@@ -142,12 +146,17 @@ function BookingCard({ link, accent }: { link: BookingLink; accent: string }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <div style={{
           width: 40, height: 40, borderRadius: '50%',
-          background: `${accent}1a`, color: accent,
+          background: showAvatar ? 'transparent' : `${accent}1a`,
+          color: accent,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: showIcon ? 20 : 13, fontWeight: 700,
           flexShrink: 0, border: `1px solid ${accent}40`,
+          overflow: 'hidden',
         }}>
-          {showIcon ? link.icon : initials}
+          {showAvatar
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={link.avatarUrl!} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : showIcon ? link.icon : initials}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', lineHeight: 1.2 }}>
