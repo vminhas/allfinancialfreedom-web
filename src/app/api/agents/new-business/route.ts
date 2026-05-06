@@ -223,7 +223,7 @@ export async function POST(req: NextRequest) {
       subjectId: submission.id,
       title: `📎 Added as split agent on ${clientName}'s policy`,
       body: `${writerName} added you as a split agent on a ${submission.carrier} ${policyType.toLowerCase()} policy. You can view and comment on it from New Business.`,
-      linkUrl: '/agents?tab=new-business',
+      linkUrl: `/agents?tab=new-business&submission=${submission.id}`,
       color: 0xC9A96E,
       discord: {
         title: '📎 You were added as a split agent',

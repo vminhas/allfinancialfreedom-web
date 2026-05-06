@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import DatePicker from './DatePicker'
 import { CARRIERS } from '@/lib/agent-constants'
 import { formatPhoneAsTyped } from '@/lib/contact-validation'
@@ -77,13 +77,18 @@ function anniversaryColor(daysUntil: number | null): string {
   return '#6B8299'
 }
 
-export default function NewBusinessTab({ isMobile, phase }: { isMobile: boolean; phase: number }) {
+export default function NewBusinessTab({ isMobile, phase, initialSubmissionId }: { isMobile: boolean; phase: number; initialSubmissionId?: string | null }) {
   const [submissions, setSubmissions] = useState<Submission[]>([])
   const [loading, setLoading] = useState(true)
   const [locked, setLocked] = useState(false)
   const [minPhase, setMinPhase] = useState(4)
   const [showForm, setShowForm] = useState(false)
-  const [openId, setOpenId] = useState<string | null>(null)
+  // Notification deep-link: when the agents page passes a
+  // ?submission=<id> from the URL, open that submission's drawer
+  // automatically once the list has loaded. We only honor it once
+  // per id to avoid re-opening the drawer on every refresh.
+  const [openId, setOpenId] = useState<string | null>(initialSubmissionId ?? null)
+  const honoredInitialRef = useRef<string | null>(null)
   const [filter, setFilter] = useState<Filter>('all')
 
   const refresh = useCallback(() => {
@@ -99,6 +104,21 @@ export default function NewBusinessTab({ isMobile, phase }: { isMobile: boolean;
   }, [])
 
   useEffect(() => { refresh() }, [refresh])
+
+  // After load, if the URL passed in a submission id and we haven't
+  // already honored it, open the matching drawer. This is what makes
+  // a click on a "you were added as split agent on Sarah Cole's
+  // policy" notification land directly on Sarah Cole's drawer
+  // instead of just dumping the agent on the New Business list.
+  useEffect(() => {
+    if (!initialSubmissionId) return
+    if (honoredInitialRef.current === initialSubmissionId) return
+    if (loading) return
+    if (submissions.some(s => s.id === initialSubmissionId)) {
+      honoredInitialRef.current = initialSubmissionId
+      setOpenId(initialSubmissionId)
+    }
+  }, [initialSubmissionId, loading, submissions])
 
   // Phase-locked agents still see this view — they may have shared
   // submissions where they're the split agent on a colleague's
@@ -861,15 +881,34 @@ function SubmissionDrawer({ submission, onClose, onChanged }: { submission: Subm
           <>
           <div style={{ marginBottom: 12 }}>
             {submission.notes.length === 0 && <div style={{ color: '#4B5563', fontSize: 12 }}>No notes yet.</div>}
-            {submission.notes.map(n => (
-              <div key={n.id} style={{ padding: '10px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 4, marginBottom: 6, borderLeft: `3px solid ${n.authorType === 'ADMIN' ? '#9B6DFF' : '#C9A96E'}` }}>
-                <div style={{ fontSize: 10, color: n.authorType === 'ADMIN' ? '#9B6DFF' : '#C9A96E', fontWeight: 700, marginBottom: 4 }}>
-                  {n.authorType === 'ADMIN' ? `Coordinator: ${n.authorAdmin?.name ?? 'Admin'}` : `${n.authorAgent?.firstName ?? 'Agent'} ${n.authorAgent?.lastName ?? ''}`}
-                  <span style={{ color: '#6B8299', fontWeight: 400, marginLeft: 8 }}>{new Date(n.createdAt).toLocaleString()}</span>
+            {submission.notes.map(n => {
+              // Per-author color so it's instantly clear who said
+              // what when two agents are going back and forth on the
+              // same thread. Admins always purple (existing
+              // convention); each agent gets a stable color hashed
+              // from their name so the same person always looks the
+              // same in the thread regardless of who's viewing.
+              const authorName = n.authorType === 'ADMIN'
+                ? `Coordinator: ${n.authorAdmin?.name ?? 'Admin'}`
+                : `${n.authorAgent?.firstName ?? 'Agent'} ${n.authorAgent?.lastName ?? ''}`
+              const accent = n.authorType === 'ADMIN'
+                ? '#9B6DFF'
+                : agentNoteColor(`${n.authorAgent?.firstName ?? ''} ${n.authorAgent?.lastName ?? ''}`)
+              return (
+                <div key={n.id} style={{
+                  padding: '10px 12px',
+                  background: `${accent}0E`,
+                  borderRadius: 4, marginBottom: 6,
+                  borderLeft: `3px solid ${accent}`,
+                }}>
+                  <div style={{ fontSize: 10, color: accent, fontWeight: 700, marginBottom: 4 }}>
+                    {authorName}
+                    <span style={{ color: '#6B8299', fontWeight: 400, marginLeft: 8 }}>{new Date(n.createdAt).toLocaleString()}</span>
+                  </div>
+                  <div style={{ color: '#E5E7EB', fontSize: 12, whiteSpace: 'pre-wrap' }}>{n.body}</div>
                 </div>
-                <div style={{ color: '#E5E7EB', fontSize: 12, whiteSpace: 'pre-wrap' }}>{n.body}</div>
-              </div>
-            ))}
+              )
+            })}
           </div>
           <textarea
             value={noteText}
@@ -1023,4 +1062,32 @@ function renderActivityText(r: ActivityRow): string {
     default:
       return r.kind
   }
+}
+
+// Stable per-agent color for notes thread. Hashes the author's name
+// to an index in a fixed palette so the same agent always renders
+// the same color across the thread (and across viewers — Discord /
+// Slack convention). Avoids the AFF gold (#C9A96E) and the admin
+// purple (#9B6DFF) so those two roles stay visually distinct from
+// any agent. Falls back to the first palette color for empty
+// names.
+const AGENT_PALETTE = [
+  '#60A5FA',  // sky
+  '#4ADE80',  // mint
+  '#F472B6',  // pink
+  '#FB923C',  // orange
+  '#22D3EE',  // cyan
+  '#A78BFA',  // lavender
+  '#FACC15',  // amber
+  '#34D399',  // emerald
+] as const
+
+function agentNoteColor(name: string): string {
+  const trimmed = name.trim()
+  if (!trimmed) return AGENT_PALETTE[0]
+  let h = 0
+  for (let i = 0; i < trimmed.length; i++) {
+    h = (h * 31 + trimmed.charCodeAt(i)) >>> 0
+  }
+  return AGENT_PALETTE[h % AGENT_PALETTE.length]
 }

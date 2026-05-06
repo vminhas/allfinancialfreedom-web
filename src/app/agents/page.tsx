@@ -150,11 +150,27 @@ function AgentDashboardInner() {
   const discordParam = searchParams.get('discord')
   const discordUsername = searchParams.get('username')
   const previewToken = searchParams.get('preview')
+  // Notification deep-link plumbing: `?tab=new-business&submission=<id>`
+  // lets a click on a "you were added as split agent" or "X commented
+  // on your policy" notification open the right tab AND auto-open the
+  // specific submission drawer instead of just dumping the agent on
+  // the New Business list and making them hunt for it.
+  const tabParam = searchParams.get('tab')
+  const submissionParam = searchParams.get('submission')
 
   const [data, setData] = useState<AgentData | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'checklist' | 'licensing' | 'carriers' | 'partners' | 'fta' | 'new-business' | 'calls' | 'team' | 'profile'>(
-    discordParam ? 'profile' : 'checklist'
+    discordParam ? 'profile'
+    : tabParam === 'new-business' ? 'new-business'
+    : tabParam === 'partners' ? 'partners'
+    : tabParam === 'fta' ? 'fta'
+    : tabParam === 'calls' ? 'calls'
+    : tabParam === 'team' ? 'team'
+    : tabParam === 'profile' ? 'profile'
+    : tabParam === 'licensing' ? 'licensing'
+    : tabParam === 'carriers' ? 'carriers'
+    : 'checklist'
   )
   // Use this for programmatic tab switches triggered from outside the tab
   // nav (e.g. "Complete your profile" link, checklist item actions). It
@@ -1589,7 +1605,13 @@ function AgentDashboardInner() {
         {/* ── PARTNERS / CALLS / PROFILE TABS ── */}
         {activeTab === 'partners' && <BusinessPartnersTab isMobile={isMobile} previewToken={previewToken} />}
         {activeTab === 'fta' && <FtaTab isMobile={isMobile} />}
-        {activeTab === 'new-business' && <NewBusinessTab isMobile={isMobile} phase={data.phase} />}
+        {activeTab === 'new-business' && (
+          <NewBusinessTab
+            isMobile={isMobile}
+            phase={data.phase}
+            initialSubmissionId={submissionParam}
+          />
+        )}
         {activeTab === 'calls' && <CallLogsTab />}
         {activeTab === 'team' && <MyTeamTab isMobile={isMobile} previewToken={previewToken} />}
         {activeTab === 'profile' && (
