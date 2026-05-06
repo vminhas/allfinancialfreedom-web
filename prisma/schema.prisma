@@ -273,6 +273,7 @@ model AgentProfile {
   policyActivity        PolicyActivity[] @relation("PolicyActivityActor")
   policyViews           PolicyView[]
   notifications         Notification[]
+  submissionMutes       NewBusinessSubmissionMute[]
   callLogs              CallLog[]
   callReviews           CallReview[]
   coordinatorRequests   CoordinatorRequest[]
@@ -1156,11 +1157,29 @@ model NewBusinessSubmission {
 
   notes               NewBusinessNote[]
   renewalReminders    RenewalReminder[]
+  mutes               NewBusinessSubmissionMute[]
 
   @@index([agentProfileId, status])
   @@index([status, createdAt])
   @@index([clientLastName, clientFirstName])
   @@map("new_business_submissions")
+}
+
+// Per-agent, per-submission mute. When a row exists, suppress the
+// out-of-band Discord DM for new comments on that submission;
+// in-app row + bell-icon ping still fire so the agent can catch up
+// when they're in-portal. Either the writer or the split agent can
+// create their own row.
+model NewBusinessSubmissionMute {
+  id              String   @id @default(cuid())
+  submissionId    String
+  submission      NewBusinessSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  agentProfileId  String
+  agentProfile    AgentProfile @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+
+  @@unique([submissionId, agentProfileId])
+  @@map("new_business_submission_mutes")
 }
 
 enum RenewalStage {
