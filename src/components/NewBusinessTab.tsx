@@ -549,6 +549,26 @@ function NewBusinessForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: ()
 }
 
 function SubmissionDrawer({ submission, onClose, onChanged }: { submission: Submission; onClose: () => void; onChanged: () => void }) {
+  // Live updates: when the unified notifications stream pushes a
+  // policy.comment event whose subjectId matches THIS submission,
+  // refetch so the new note appears in the thread without the agent
+  // having to close + reopen the drawer. NotificationCenter rebroadcasts
+  // every received notification as a window 'aff-notification' event.
+  useEffect(() => {
+    const onLive = (e: Event) => {
+      const detail = (e as CustomEvent).detail as
+        { kind?: string; subjectType?: string; subjectId?: string } | undefined
+      if (!detail) return
+      const isCommentForMe =
+        detail.kind === 'policy.comment' &&
+        detail.subjectType === 'new_business' &&
+        detail.subjectId === submission.id
+      if (isCommentForMe) onChanged()
+    }
+    window.addEventListener('aff-notification', onLive)
+    return () => window.removeEventListener('aff-notification', onLive)
+  }, [submission.id, onChanged])
+
   const [noteText, setNoteText] = useState('')
   const [posting, setPosting] = useState(false)
   // Edit mode state. Only available while status === PENDING (server
