@@ -272,6 +272,7 @@ model AgentProfile {
   policyComments        PolicyComment[]
   policyActivity        PolicyActivity[] @relation("PolicyActivityActor")
   policyViews           PolicyView[]
+  notifications         Notification[]
   callLogs              CallLog[]
   callReviews           CallReview[]
   coordinatorRequests   CoordinatorRequest[]
@@ -692,6 +693,34 @@ model PolicyActivity {
 
   @@index([policyEntryId])
   @@map("policy_activity")
+}
+
+// Unified in-app notification. Every agent-targeted alert (feedback
+// responses, policy comments, training reminders, announcements,
+// promotions) writes one row here. The SSE stream watches this table
+// and pushes new rows to the recipient's open client(s); the
+// createNotification() helper in src/lib/notify.ts fans out a
+// Discord DM in the same call when the recipient has discordUserId.
+model Notification {
+  id                       String   @id @default(cuid())
+  recipientAgentProfileId  String
+  recipientAgentProfile    AgentProfile @relation(fields: [recipientAgentProfileId], references: [id], onDelete: Cascade)
+  // Dotted event identifier (e.g. 'feedback.response'). Drives the
+  // client-side dispatcher and the future per-event mute UI.
+  kind                     String
+  // What this is about, so deep links resolve. e.g. subjectType='feedback'.
+  subjectType              String
+  subjectId                String?
+  title                    String
+  body                     String?
+  linkUrl                  String?
+  color                    Int?
+  readAt                   DateTime?
+  createdAt                DateTime @default(now())
+
+  @@index([recipientAgentProfileId, createdAt(sort: Desc)])
+  @@index([recipientAgentProfileId, readAt])
+  @@map("notifications")
 }
 
 // Per-agent, per-policy lastViewedAt for the unread-dot indicator on

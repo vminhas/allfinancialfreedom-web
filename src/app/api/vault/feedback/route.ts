@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/permissions'
+import { createNotification } from '@/lib/notify'
 
 const VALID_STATUSES = new Set(['OPEN', 'ACKNOWLEDGED', 'IN_PROGRESS', 'CLOSED'])
 
@@ -50,7 +51,7 @@ export async function PATCH(req: NextRequest) {
   const existing = await db.agentFeedback.findUnique({
     where: { id: body.id },
     include: {
-      agentProfile: { select: { firstName: true, discordUserId: true } },
+      agentProfile: { select: { id: true, firstName: true, discordUserId: true } },
     },
   })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -94,24 +95,26 @@ export async function PATCH(req: NextRequest) {
     (body.responseToAgent ?? '').trim() !== (existing.responseToAgent ?? '').trim() &&
     (body.responseToAgent ?? '').trim().length > 0
 
-  if ((statusChanged || responseChanged) && existing.agentProfile.discordUserId) {
-    notifyAgentOfFeedbackUpdate({
-      discordUserId: existing.agentProfile.discordUserId,
+  if (statusChanged || responseChanged) {
+    fireFeedbackNotification({
+      agentProfileId: existing.agentProfile.id,
       firstName: existing.agentProfile.firstName,
+      feedbackId: existing.id,
       newStatus: body.status ?? existing.status,
       statusChanged,
       responseChanged,
       responseToAgent: body.responseToAgent ?? existing.responseToAgent,
       messagePreview: existing.message.slice(0, 120),
-    }).catch(() => {})
+    }).catch(err => console.warn('[feedback PATCH] notification failed:', err))
   }
 
   return NextResponse.json({ ok: true, feedback: updated })
 }
 
 interface NotifyArgs {
-  discordUserId: string
+  agentProfileId: string
   firstName: string
+  feedbackId: string
   newStatus: string
   statusChanged: boolean
   responseChanged: boolean
@@ -119,13 +122,14 @@ interface NotifyArgs {
   messagePreview: string
 }
 
-// Friendly Discord DM to the agent whenever there's something new on
-// their feedback ticket — either a status move OR a fresh response
-// from the team. Copy is intentionally warm so a "CLOSED, not
-// pursuing" status doesn't read as a brush-off, and the
-// response-only path uses different copy ("💬 The team replied")
-// so the agent immediately knows what's new.
-async function notifyAgentOfFeedbackUpdate(args: NotifyArgs): Promise<void> {
+// Routes a feedback update through the unified notification helper,
+// which writes the in-app row (powering the SSE stream + bell-icon
+// inbox) and fans out a Discord DM in the same call. Copy is
+// intentionally warm so a "CLOSED, not pursuing" status doesn't
+// read as a brush-off, and the response-only path uses different
+// copy ("💬 The team replied") so the agent immediately knows
+// what's new.
+async function fireFeedbackNotification(args: NotifyArgs): Promise<void> {
   if (!process.env.DISCORD_BOT_TOKEN) return
 
   const STATUS_COPY: Record<string, { title: string; description: string; color: number }> = {
@@ -153,8 +157,8 @@ async function notifyAgentOfFeedbackUpdate(args: NotifyArgs): Promise<void> {
 
   // Pick copy: response-only updates get a distinct "the team replied"
   // template; status changes use their per-status template above.
-  // If both happened in the same PATCH, the status copy wins (it's the
-  // more meaningful workflow event).
+  // If both happened in the same PATCH, the status copy wins (it's
+  // the more meaningful workflow event).
   let copy = STATUS_COPY[args.newStatus]
   if (!args.statusChanged && args.responseChanged) {
     copy = {
@@ -172,23 +176,22 @@ async function notifyAgentOfFeedbackUpdate(args: NotifyArgs): Promise<void> {
     fields.push({ name: 'From the team', value: args.responseToAgent })
   }
 
-  // Open a DM channel with the agent and post the embed there.
-  const dmRes = await fetch('https://discord.com/api/v10/users/@me/channels', {
-    method: 'POST',
-    headers: { Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ recipient_id: args.discordUserId }),
-  })
-  if (!dmRes.ok) return
-  const dm = await dmRes.json() as { id: string }
-  const { sendChannelMessage } = await import('@/lib/discord')
-  await sendChannelMessage(dm.id, {
-    embeds: [{
+  await createNotification({
+    recipientAgentProfileId: args.agentProfileId,
+    kind: args.statusChanged ? 'feedback.status_changed' : 'feedback.response',
+    subjectType: 'feedback',
+    subjectId: args.feedbackId,
+    title: copy.title,
+    body: args.responseToAgent && args.responseToAgent.trim().length > 0
+      ? args.responseToAgent
+      : copy.description,
+    linkUrl: '/agents#feedback',
+    color: copy.color,
+    discord: {
       title: copy.title,
       description: copy.description,
       color: copy.color,
       fields,
-      footer: { text: 'AFF Concierge · Feedback' },
-      timestamp: new Date().toISOString(),
-    }],
-  }).catch(() => {})
+    },
+  })
 }
