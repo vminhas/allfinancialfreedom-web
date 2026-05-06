@@ -11,8 +11,23 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const { id } = await ctx.params
   const adminId = (session!.user as { id: string }).id
+  const adminName = (session!.user as { name?: string }).name ?? 'Coordinator'
 
-  const submission = await db.newBusinessSubmission.findUnique({ where: { id }, select: { id: true } })
+  // Pull the agent IDs alongside the submission so we can fire the
+  // same in-app + Discord + SSE pipeline that agent-to-agent notes
+  // use. Without this, admin notes saved silently and agents had
+  // no idea anyone replied until their next refresh.
+  const submission = await db.newBusinessSubmission.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      agentProfileId: true,
+      splitWithAgentId: true,
+      carrier: true,
+      clientFirstName: true,
+      clientLastName: true,
+    },
+  })
   if (!submission) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const body = await req.json() as { body?: string }
@@ -28,5 +43,50 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     },
     include: { authorAdmin: { select: { name: true } } },
   })
+
+  // Notify both collaborators (writer + split agent) so admin notes
+  // travel through the same SSE / bell-icon / Discord-DM pipeline
+  // that agent-to-agent notes use. NotificationCenter rebroadcasts
+  // each event to the window-level 'aff-notification' channel which
+  // SubmissionDrawer subscribes to, so an open thread updates live;
+  // closed sessions get the toast + DM.
+  const recipients = [submission.agentProfileId, submission.splitWithAgentId].filter(
+    (x): x is string => typeof x === 'string' && x.length > 0
+  )
+  if (recipients.length > 0) {
+    const clientName = `${submission.clientFirstName} ${submission.clientLastName}`
+    const { createNotification } = await import('@/lib/notify')
+    // Per-recipient mute lookup. Muted submissions still get the
+    // in-app row (so the agent can find it later in the bell inbox)
+    // but skip the out-of-band Discord DM.
+    const mutes = await db.newBusinessSubmissionMute.findMany({
+      where: { submissionId: submission.id, agentProfileId: { in: recipients } },
+      select: { agentProfileId: true },
+    })
+    const mutedSet = new Set(mutes.map(m => m.agentProfileId))
+    for (const recipientId of recipients) {
+      const isMuted = mutedSet.has(recipientId)
+      createNotification({
+        recipientAgentProfileId: recipientId,
+        kind: 'policy.comment',
+        subjectType: 'new_business',
+        subjectId: submission.id,
+        title: `💬 Coordinator ${adminName} commented on ${clientName}'s policy`,
+        body: text.length > 200 ? text.slice(0, 200) + '…' : text,
+        linkUrl: `/agents?tab=new-business&submission=${submission.id}`,
+        color: 0x9B6DFF,
+        discord: isMuted ? undefined : {
+          title: `💬 New comment on ${clientName}'s policy`,
+          description: text.length > 800 ? text.slice(0, 800) + '…' : text,
+          color: 0x9B6DFF,
+          fields: [
+            { name: 'From',    value: `Coordinator ${adminName}`, inline: true },
+            { name: 'Carrier', value: submission.carrier,         inline: true },
+          ],
+        },
+      }).catch(err => console.warn('[vault new-business notes] notify failed:', err))
+    }
+  }
+
   return NextResponse.json({ note })
 }
