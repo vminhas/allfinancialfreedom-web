@@ -438,8 +438,22 @@ function NewBusinessForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: ()
               setSplitOpen(true)
             }}
             onFocus={() => setSplitOpen(true)}
-            onBlur={() => { setTimeout(() => setSplitOpen(false), 150) }}
-            placeholder="Type a colleague's name or agent code"
+            onBlur={() => {
+              // Close the dropdown after a beat (so click events on
+              // result rows still register), and if the agent typed
+              // text but never picked anyone, clear it. Without the
+              // clear, leftover text in the field reads as "set" but
+              // no splitWithAgentId actually got attached, which was
+              // confusing — agents thought they'd picked a colleague
+              // when they hadn't.
+              setTimeout(() => {
+                setSplitOpen(false)
+                if (!splitSelected && splitQuery.trim().length > 0) {
+                  setSplitQuery('')
+                }
+              }, 150)
+            }}
+            placeholder="Search by name (e.g. Bryan Cole)"
           />
           {splitSelected && (
             <button
@@ -489,6 +503,21 @@ function NewBusinessForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: ()
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+          {/* Empty-state feedback so an agent searching for someone
+              who isn't in the system gets a clear answer instead of
+              wondering why the dropdown didn't appear. */}
+          {splitOpen && !splitSelected && splitQuery.trim().length >= 2 && splitResults.length === 0 && (
+            <div style={{
+              position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+              background: '#0F1E33', border: '1px solid rgba(201,169,110,0.25)',
+              borderRadius: 4, zIndex: 10,
+              padding: '12px 14px',
+              fontSize: 11, color: '#6B8299', lineHeight: 1.5,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+            }}>
+              No matching AFF agents. Only registered teammates can be added as split agents — double-check the spelling.
             </div>
           )}
         </div>
