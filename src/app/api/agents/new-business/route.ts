@@ -7,6 +7,7 @@ import { notifySubmitted } from '@/lib/new-business-notifications'
 import { validatePhone, validateEmail } from '@/lib/contact-validation'
 import { computeRenewalWindow, todayInEt } from '@/lib/renewals'
 import { createNotification } from '@/lib/notify'
+import { logSubmissionActivity } from '@/lib/submission-activity'
 import type { PolicyType } from '@/generated/prisma/client'
 
 const VALID_POLICY_TYPES: PolicyType[] = ['TERM', 'WHOLE_LIFE', 'IUL', 'ANNUITY', 'DISABILITY', 'LTC', 'OTHER']
@@ -63,6 +64,13 @@ export async function GET() {
         where: { agentProfileId: profile.id },
         select: { id: true },
         take: 1,
+      },
+      activity: {
+        orderBy: { createdAt: 'asc' },
+        include: {
+          actorAgent: { select: { firstName: true, lastName: true } },
+          actorAdmin: { select: { name: true } },
+        },
       },
     },
   })
@@ -179,6 +187,28 @@ export async function POST(req: NextRequest) {
     clientName: `${submission.clientFirstName} ${submission.clientLastName}`,
     points: submission.points,
   }).catch(() => {})
+
+  // Audit-log: CREATED + (SPLIT_ADDED if a split was set on creation).
+  // Both rows are independent so the Activity tab reads naturally:
+  // "Created the submission" then "Added Bryan Cole as split agent."
+  logSubmissionActivity({
+    submissionId: submission.id,
+    kind: 'CREATED',
+    actorAgentProfileId: profile.id,
+    meta: { carrier: submission.carrier, policyType },
+  })
+  if (submission.splitWithAgentId) {
+    const split = await db.agentProfile.findUnique({
+      where: { id: submission.splitWithAgentId },
+      select: { firstName: true, lastName: true, agentCode: true },
+    }).catch(() => null)
+    logSubmissionActivity({
+      submissionId: submission.id,
+      kind: 'SPLIT_ADDED',
+      actorAgentProfileId: profile.id,
+      meta: split ? { name: `${split.firstName} ${split.lastName}`, agentCode: split.agentCode } : {},
+    })
+  }
 
   // If the writer added a split agent, ping that person so they know
   // they're collaborating on this policy. Routed through the unified

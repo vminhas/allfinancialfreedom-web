@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/permissions'
 import { notifyIssued, notifyDeclined } from '@/lib/new-business-notifications'
+import { logSubmissionActivity } from '@/lib/submission-activity'
 import { validatePhone, validateEmail } from '@/lib/contact-validation'
 import type { NewBusinessStatus, PolicyType } from '@/generated/prisma/client'
 
@@ -101,6 +102,21 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const statusChanged = data.status && data.status !== existing.status
   const agentName = `${existing.agentProfile.firstName} ${existing.agentProfile.lastName}`
   const clientName = `${existing.clientFirstName} ${existing.clientLastName}`
+
+  // Audit-log: status changes get their own activity row so the
+  // drawer's Activity tab reads as a clean lifecycle ("Pending →
+  // Issued by Vick on 5/6"). Split add/remove is handled below in
+  // case the LC ever fixes a typoed split agent (not yet exposed
+  // in the UI but the data path is already covered for future).
+  const adminId = (session?.user as { id?: string } | undefined)?.id
+  if (statusChanged) {
+    logSubmissionActivity({
+      submissionId: id,
+      kind: 'STATUS_CHANGED',
+      actorAdminId: adminId ?? null,
+      meta: { from: existing.status, to: data.status },
+    })
+  }
 
   if (statusChanged && data.status === 'ISSUED') {
     notifyIssued({

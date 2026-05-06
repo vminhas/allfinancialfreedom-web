@@ -29,6 +29,7 @@ model AdminUser {
   authoredLicensingNotes LicensingNote[]
   assignedSubmissions NewBusinessSubmission[] @relation("AssignedSubmissions")
   authoredSubmissionNotes NewBusinessNote[] @relation("SubmissionNoteAdmin")
+  submissionActivity NewBusinessSubmissionActivity[] @relation("SubmissionActivityAdmin")
   renewalRemindersSent RenewalReminder[] @relation("RenewalRemindersSent")
   reviewedMilestones   RecognitionMilestone[] @relation("MilestoneReviewer")
   callReviews          AdminCallReview[]
@@ -274,6 +275,7 @@ model AgentProfile {
   policyViews           PolicyView[]
   notifications         Notification[]
   submissionMutes       NewBusinessSubmissionMute[]
+  submissionActivity    NewBusinessSubmissionActivity[] @relation("SubmissionActivityActor")
   callLogs              CallLog[]
   callReviews           CallReview[]
   coordinatorRequests   CoordinatorRequest[]
@@ -1158,11 +1160,34 @@ model NewBusinessSubmission {
   notes               NewBusinessNote[]
   renewalReminders    RenewalReminder[]
   mutes               NewBusinessSubmissionMute[]
+  activity            NewBusinessSubmissionActivity[]
 
   @@index([agentProfileId, status])
   @@index([status, createdAt])
   @@index([clientLastName, clientFirstName])
   @@map("new_business_submissions")
+}
+
+// Audit-log row attached to a NewBusinessSubmission. Captures key
+// lifecycle events (created, split agent added/removed, status
+// changed) so the Activity tab in the drawer can render a readable
+// "who did what when" timeline distinct from the notes thread.
+model NewBusinessSubmissionActivity {
+  id                  String  @id @default(cuid())
+  submissionId        String
+  submission          NewBusinessSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  actorAgentProfileId String?
+  actorAgent          AgentProfile? @relation("SubmissionActivityActor", fields: [actorAgentProfileId], references: [id], onDelete: SetNull)
+  actorAdminId        String?
+  actorAdmin          AdminUser?    @relation("SubmissionActivityAdmin", fields: [actorAdminId], references: [id], onDelete: SetNull)
+  // CREATED | SPLIT_ADDED | SPLIT_REMOVED | STATUS_CHANGED | OTHER.
+  // Plain string so adding a new kind doesn't need a migration.
+  kind                String
+  metaJson            Json?
+  createdAt           DateTime @default(now())
+
+  @@index([submissionId, createdAt])
+  @@map("new_business_submission_activity")
 }
 
 // Per-agent, per-submission mute. When a row exists, suppress the
