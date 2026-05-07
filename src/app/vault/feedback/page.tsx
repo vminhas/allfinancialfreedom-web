@@ -13,6 +13,7 @@ interface FeedbackItem {
   closedAt: string | null
   createdAt: string
   agentProfile: { firstName: string; lastName: string; agentCode: string; phase: number }
+  screenshotUrls?: string[]
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -222,9 +223,32 @@ export default function FeedbackPage() {
                   </div>
 
                   {/* Original message */}
-                  <div style={{ fontSize: 13, color: '#d1d9e2', lineHeight: 1.6, marginBottom: 14, whiteSpace: 'pre-wrap' }}>
+                  <div style={{ fontSize: 13, color: '#d1d9e2', lineHeight: 1.6, marginBottom: f.screenshotUrls && f.screenshotUrls.length > 0 ? 10 : 14, whiteSpace: 'pre-wrap' }}>
                     {f.message}
                   </div>
+
+                  {/* Screenshots, click to open full-size in a new tab.
+                      Bigger thumbs than the agent-side history view since
+                      admins are actually triaging and the visual context
+                      is the whole point of attaching them. */}
+                  {f.screenshotUrls && f.screenshotUrls.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                      {f.screenshotUrls.map(url => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <a key={url} href={url} target="_blank" rel="noopener noreferrer" title="Open full size in new tab">
+                          <img
+                            src={url}
+                            alt="screenshot"
+                            style={{
+                              width: 110, height: 110, objectFit: 'cover',
+                              borderRadius: 5, border: '1px solid rgba(201,169,110,0.25)',
+                              cursor: 'zoom-in', display: 'block',
+                            }}
+                          />
+                        </a>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Status select — flips fire on Save (still a draft
                       flow) so an admin can stage status moves

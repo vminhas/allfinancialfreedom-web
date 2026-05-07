@@ -28,7 +28,10 @@ interface MyFeedbackItem {
   reviewedAt: string | null
   closedAt: string | null
   createdAt: string
+  screenshotUrls?: string[]
 }
+
+const MAX_SCREENSHOTS = 4
 
 const STATUS_META: Record<Status, { label: string; color: string }> = {
   OPEN:         { label: 'Submitted',    color: '#F59E0B' },
@@ -46,6 +49,13 @@ export default function FeedbackButton() {
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
+  // Screenshot upload state. URLs are filled in as each upload completes;
+  // submit-side ships them to /api/agents/feedback alongside the message.
+  // Per-file uploadingCount lets the UI disable the picker while uploads
+  // are mid-flight without blocking the rest of the form.
+  const [screenshotUrls, setScreenshotUrls] = useState<string[]>([])
+  const [uploadingCount, setUploadingCount] = useState(0)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   const [history, setHistory] = useState<MyFeedbackItem[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
@@ -71,6 +81,39 @@ export default function FeedbackButton() {
     if (open && view === 'past') loadHistory()
   }, [open, view, loadHistory])
 
+  const handleUploadScreenshots = async (files: FileList | null) => {
+    if (!files || files.length === 0) return
+    setUploadError(null)
+    const remaining = MAX_SCREENSHOTS - screenshotUrls.length
+    const toUpload = Array.from(files).slice(0, remaining)
+    if (toUpload.length === 0) {
+      setUploadError(`Max ${MAX_SCREENSHOTS} screenshots per ticket.`)
+      return
+    }
+    setUploadingCount(c => c + toUpload.length)
+    for (const file of toUpload) {
+      try {
+        const fd = new FormData()
+        fd.append('screenshot', file)
+        const res = await fetch('/api/agents/feedback/upload', { method: 'POST', body: fd })
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({})) as { error?: string }
+          throw new Error(d.error ?? `Upload failed (${res.status})`)
+        }
+        const { url } = await res.json() as { url: string }
+        setScreenshotUrls(prev => [...prev, url])
+      } catch (err) {
+        setUploadError(err instanceof Error ? err.message : 'Upload failed.')
+      } finally {
+        setUploadingCount(c => c - 1)
+      }
+    }
+  }
+
+  const removeScreenshot = (url: string) => {
+    setScreenshotUrls(prev => prev.filter(u => u !== url))
+  }
+
   const handleSend = async () => {
     if (!message.trim() || message.trim().length < minLength) return
     setSending(true)
@@ -84,11 +127,13 @@ export default function FeedbackButton() {
         : await fetch('/api/agents/feedback', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: message.trim(), category }),
+            body: JSON.stringify({ message: message.trim(), category, screenshotUrls }),
           })
       if (res.ok) {
         setSent(true)
         setMessage('')
+        setScreenshotUrls([])
+        setUploadError(null)
         setTimeout(() => { setSent(false); setOpen(false) }, 2500)
       }
     } finally {
@@ -224,9 +269,73 @@ export default function FeedbackButton() {
                     }}
                   />
 
+                  {/* Screenshot picker, suppressed in the licensing flow
+                      because that path posts to coordinator-requests not
+                      feedback (different table, different fields). */}
+                  {!isLicensing && (
+                    <div style={{ marginTop: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <label style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 6,
+                          padding: '5px 10px', borderRadius: 4,
+                          background: 'rgba(201,169,110,0.06)',
+                          border: '1px solid rgba(201,169,110,0.2)',
+                          color: screenshotUrls.length >= MAX_SCREENSHOTS ? '#4B5563' : '#C9A96E',
+                          fontSize: 10, fontWeight: 600,
+                          cursor: screenshotUrls.length >= MAX_SCREENSHOTS ? 'not-allowed' : 'pointer',
+                        }}>
+                          📎 {uploadingCount > 0 ? 'Uploading...' : 'Attach screenshot'}
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp,image/gif"
+                            multiple
+                            disabled={screenshotUrls.length >= MAX_SCREENSHOTS}
+                            onChange={e => {
+                              handleUploadScreenshots(e.target.files)
+                              e.target.value = ''
+                            }}
+                            style={{ display: 'none' }}
+                          />
+                        </label>
+                        <span style={{ fontSize: 10, color: '#6B8299' }}>
+                          {screenshotUrls.length}/{MAX_SCREENSHOTS} attached &middot; PNG, JPG, WebP, or GIF up to 5 MB
+                        </span>
+                      </div>
+                      {uploadError && (
+                        <div style={{ marginTop: 6, fontSize: 11, color: '#fca5a5' }}>{uploadError}</div>
+                      )}
+                      {screenshotUrls.length > 0 && (
+                        <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {screenshotUrls.map(url => (
+                            <div key={url} style={{ position: 'relative' }}>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={url} alt="screenshot" style={{
+                                width: 60, height: 60, objectFit: 'cover',
+                                borderRadius: 4, border: '1px solid rgba(201,169,110,0.25)',
+                              }} />
+                              <button
+                                type="button"
+                                onClick={() => removeScreenshot(url)}
+                                title="Remove"
+                                style={{
+                                  position: 'absolute', top: -6, right: -6,
+                                  width: 18, height: 18, borderRadius: '50%',
+                                  background: '#0A1628', border: '1px solid rgba(248,113,113,0.5)',
+                                  color: '#f87171', fontSize: 11, lineHeight: 1,
+                                  cursor: 'pointer', padding: 0,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                }}
+                              >×</button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <button
                     onClick={handleSend}
-                    disabled={sending || message.trim().length < minLength}
+                    disabled={sending || uploadingCount > 0 || message.trim().length < minLength}
                     style={{
                       width: '100%', marginTop: 10, padding: '10px 16px',
                       borderRadius: 6, fontSize: 12, fontWeight: 700,
@@ -290,6 +399,24 @@ export default function FeedbackButton() {
                           <div style={{ fontSize: 12, color: '#9BB0C4', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
                             {item.message}
                           </div>
+                          {item.screenshotUrls && item.screenshotUrls.length > 0 && (
+                            <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                              {item.screenshotUrls.map(url => (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  key={url}
+                                  src={url}
+                                  alt="screenshot"
+                                  onClick={e => { e.stopPropagation(); window.open(url, '_blank', 'noopener,noreferrer') }}
+                                  style={{
+                                    width: 56, height: 56, objectFit: 'cover',
+                                    borderRadius: 4, border: '1px solid rgba(201,169,110,0.25)',
+                                    cursor: 'zoom-in',
+                                  }}
+                                />
+                              ))}
+                            </div>
+                          )}
                         </button>
                         {isOpen && (
                           <div style={{ marginTop: 10 }}>

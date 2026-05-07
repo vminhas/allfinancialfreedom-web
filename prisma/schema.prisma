@@ -462,6 +462,11 @@ model AgentFeedback {
   status          String       @default("OPEN")
   reviewedAt      DateTime?    // first time status moved off OPEN
   closedAt        DateTime?
+  // Vercel Blob URLs for screenshots the agent attached when submitting
+  // (or later edited in). Capped to 4 per ticket at the API layer; bare
+  // string array since we never need to query individual rows. Frontend
+  // renders as click-to-enlarge thumbnails on the agent + admin views.
+  screenshotUrls  String[]     @default([])
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt @default(now())
 
