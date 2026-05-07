@@ -56,34 +56,46 @@ async function dmAgent(discordUserId: string, embed: Record<string, unknown>): P
 interface IssuedArgs {
   agentDiscordUserId: string | null
   agentName: string
+  agentFirstName: string
+  agentLastName: string
+  agentCode: string
+  agentAvatarUrl: string | null
   clientName: string
   carrier: string
   policyType: PolicyType
 }
 export async function notifyIssued(args: IssuedArgs): Promise<void> {
-  // Admin channel announcement
-  if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_ADMIN_CHANNEL_ID) {
-    const { sendChannelMessage } = await import('@/lib/discord')
-    await sendChannelMessage(process.env.DISCORD_ADMIN_CHANNEL_ID, {
-      embeds: [{
-        title: 'Policy Issued',
-        description: `${args.clientName}'s ${policyTypeLabel(args.policyType)} with ${args.carrier} is now in force. **${args.agentName}** has a new client!`,
-        color: 0x4ADE80,
-        timestamp: new Date().toISOString(),
-      }],
-    }).catch(() => {})
+  if (!process.env.DISCORD_BOT_TOKEN) return
+  const { sendChannelMessage } = await import('@/lib/discord')
+  const { buildAchievementEmbed } = await import('@/lib/discord-card')
+
+  // Public POLICY ISSUED card. Goes to announcements (a producing-agent
+  // win is worth showing to the team, not just the LC queue) with a
+  // fallback to admin channel only if announcements isn't configured.
+  const card = buildAchievementEmbed({
+    flavor: 'POLICY_ISSUED',
+    protagonist: {
+      firstName: args.agentFirstName,
+      lastName: args.agentLastName,
+      agentCode: args.agentCode,
+      avatarUrl: args.agentAvatarUrl,
+    },
+    subline: `Helped a new family. **${args.clientName}**'s policy is in force.`,
+    fields: [
+      { name: 'Client',  value: args.clientName, inline: true },
+      { name: 'Carrier', value: args.carrier, inline: true },
+      { name: 'Product', value: policyTypeLabel(args.policyType), inline: true },
+    ],
+  })
+
+  const channelId = process.env.DISCORD_ANNOUNCEMENTS_CHANNEL_ID ?? process.env.DISCORD_ADMIN_CHANNEL_ID
+  if (channelId) {
+    await sendChannelMessage(channelId, { embeds: [card] }).catch(() => {})
   }
-  // DM the agent
+
+  // DM the agent the same card so it lands in their inbox too.
   if (args.agentDiscordUserId) {
-    await dmAgent(args.agentDiscordUserId, {
-      title: 'Policy Issued',
-      description: [
-        `Your ${policyTypeLabel(args.policyType)} for **${args.clientName}** with ${args.carrier} is now in force.`,
-        '',
-        'Welcome a new client! Birthday and anniversary reminders will fire automatically.',
-      ].join('\n'),
-      color: 0x4ADE80,
-    }).catch(() => {})
+    await dmAgent(args.agentDiscordUserId, card as unknown as Record<string, unknown>).catch(() => {})
   }
 }
 

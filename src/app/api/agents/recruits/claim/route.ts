@@ -11,28 +11,36 @@ const VALID_ITEM_KEYS = new Set(['direct_1', 'direct_2', 'direct_3'])
 const RECRUIT_PHASE = 2
 
 // POST /api/agents/recruits/claim
-// Body: { itemKey: 'direct_1' | 'direct_2' | 'direct_3', recruitProfileId: string }
+// Body: { itemKey?: 'direct_1' | 'direct_2' | 'direct_3' | null, recruitProfileId: string }
 //
-// Fulfills a recruit-checklist item with an existing AgentProfile.
-// Idempotent: claiming the same agent for the same item just refreshes
-// the link. Different agent for the same item replaces the prior link.
+// Two modes:
+//   1. Phase-item claim (itemKey set): fulfills a recruit-checklist item
+//      with an existing AgentProfile. PhaseItem upsert + recruiter link.
+//   2. Team-only claim (itemKey omitted/null): just associates the
+//      recruit to the caller's downline by setting recruiterId. No
+//      phase item is created or modified. Powers the "Claim existing
+//      agent" button on the Partners/FTA Refer section, which is how
+//      phase-5+ EMDs backfill recruits beyond the 3 checklist slots.
 //
-// Side effects:
-//   - PhaseItem upsert: completed=true, completedAt=now, linkedAgentProfileId=<recruit>
+// Side effects (both modes):
 //   - If the recruit's recruiterId is unset, set it to the caller's agentCode
 //   - If the recruit's recruiterId is set to someone else, leave it (warn-and-allow)
 //     and ping the admin Discord channel so the conflict gets reviewed
+//
+// Phase-item-only side effect:
+//   - PhaseItem upsert: completed=true, completedAt=now, linkedAgentProfileId=<recruit>
 export async function POST(req: NextRequest) {
   const id = await resolveAgentIdentity(req)
   if ('error' in id) return id.error
 
-  const body = await req.json() as { itemKey?: string; recruitProfileId?: string }
-  const itemKey = typeof body.itemKey === 'string' ? body.itemKey : ''
+  const body = await req.json() as { itemKey?: string | null; recruitProfileId?: string }
+  const rawItemKey = typeof body.itemKey === 'string' && body.itemKey.length > 0 ? body.itemKey : null
   const recruitProfileId = typeof body.recruitProfileId === 'string' ? body.recruitProfileId : ''
 
-  if (!VALID_ITEM_KEYS.has(itemKey)) {
+  if (rawItemKey !== null && !VALID_ITEM_KEYS.has(rawItemKey)) {
     return NextResponse.json({ error: 'Invalid itemKey' }, { status: 400 })
   }
+  const itemKey = rawItemKey
   if (!recruitProfileId) {
     return NextResponse.json({ error: 'recruitProfileId required' }, { status: 400 })
   }
@@ -58,47 +66,49 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Recruit not found' }, { status: 404 })
   }
 
-  // Block claiming the same recruit twice across direct_1/2/3 — one
-  // person can't fill two slots. Idempotent on the same slot is fine
-  // (handled by the upsert below).
-  const existingClaim = await db.phaseItem.findFirst({
-    where: {
-      agentProfileId: me.id,
-      phase: RECRUIT_PHASE,
-      itemKey: { in: [...VALID_ITEM_KEYS], not: itemKey },
-      linkedAgentProfileId: recruit.id,
-    },
-    select: { itemKey: true },
-  })
-  if (existingClaim) {
-    return NextResponse.json({
-      error: `${recruit.firstName} ${recruit.lastName} is already claimed on your ${existingClaim.itemKey} item. Pick a different recruit for this slot.`,
-    }, { status: 409 })
-  }
+  if (itemKey) {
+    // Block claiming the same recruit twice across direct_1/2/3 — one
+    // person can't fill two slots. Idempotent on the same slot is fine
+    // (handled by the upsert below).
+    const existingClaim = await db.phaseItem.findFirst({
+      where: {
+        agentProfileId: me.id,
+        phase: RECRUIT_PHASE,
+        itemKey: { in: [...VALID_ITEM_KEYS], not: itemKey },
+        linkedAgentProfileId: recruit.id,
+      },
+      select: { itemKey: true },
+    })
+    if (existingClaim) {
+      return NextResponse.json({
+        error: `${recruit.firstName} ${recruit.lastName} is already claimed on your ${existingClaim.itemKey} item. Pick a different recruit for this slot.`,
+      }, { status: 409 })
+    }
 
-  const now = new Date()
-  await db.phaseItem.upsert({
-    where: {
-      agentProfileId_phase_itemKey: {
+    const now = new Date()
+    await db.phaseItem.upsert({
+      where: {
+        agentProfileId_phase_itemKey: {
+          agentProfileId: me.id,
+          phase: RECRUIT_PHASE,
+          itemKey,
+        },
+      },
+      update: {
+        completed: true,
+        completedAt: now,
+        linkedAgentProfileId: recruit.id,
+      },
+      create: {
         agentProfileId: me.id,
         phase: RECRUIT_PHASE,
         itemKey,
+        completed: true,
+        completedAt: now,
+        linkedAgentProfileId: recruit.id,
       },
-    },
-    update: {
-      completed: true,
-      completedAt: now,
-      linkedAgentProfileId: recruit.id,
-    },
-    create: {
-      agentProfileId: me.id,
-      phase: RECRUIT_PHASE,
-      itemKey,
-      completed: true,
-      completedAt: now,
-      linkedAgentProfileId: recruit.id,
-    },
-  })
+    })
+  }
 
   // Recruiter linkage. We only set it when blank (don't silently
   // overwrite). Conflicts get a Discord ping so an admin can decide.
@@ -128,8 +138,8 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     ok: true,
-    itemKey,
-    linkedAgentProfileId: recruit.id,
+    itemKey: itemKey ?? null,
+    linkedAgentProfileId: itemKey ? recruit.id : null,
     recruit: {
       id: recruit.id,
       firstName: recruit.firstName,

@@ -29,17 +29,24 @@ export interface RecruitSearchResult {
 }
 
 export interface RecruitClaimModalProps {
-  itemKey: string
+  // Phase-item mode: pass itemKey + itemLabel. Claim links to the
+  // direct_N PhaseItem and ticks it complete.
+  // Team-only mode: pass itemKey=null. Claim just sets recruiterId on
+  // the picked agent. Used by the Partners/FTA "Claim existing agent"
+  // button so phase-5+ EMDs can backfill recruits beyond the 3
+  // checklist slots.
+  itemKey: string | null
   itemLabel: string
   // Pre-populated when an admin opens this in /agents view-as preview mode.
   previewToken?: string | null
   // Already-claimed recruits across the agent's other direct_N items, so
-  // the picker can hide them (one person can't fill two slots).
+  // the picker can hide them (one person can't fill two slots). Only
+  // meaningful in phase-item mode.
   alreadyClaimedProfileIds: string[]
   onClose: () => void
   onClaimed: (result: {
-    itemKey: string
-    linkedAgentProfileId: string
+    itemKey: string | null
+    linkedAgentProfileId: string | null
     recruit: { id: string; firstName: string; lastName: string; agentCode: string; status: string }
     conflict: { existingRecruiterCode: string } | null
   }) => void
@@ -137,11 +144,13 @@ export default function RecruitClaimModal({
         <div style={{ padding: '18px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
           <div>
             <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 4 }}>
-              Pick recruit
+              {itemKey ? 'Pick recruit' : 'Claim existing agent'}
             </div>
             <div style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>{itemLabel}</div>
             <div style={{ fontSize: 11, color: '#6B8299', marginTop: 4, lineHeight: 1.5 }}>
-              Search the AFF roster for the agent you recruited. Inactive agents still count, the act of recruiting is what matters.
+              {itemKey
+                ? 'Search the AFF roster for the agent you recruited. Inactive agents still count, the act of recruiting is what matters.'
+                : 'Search the AFF roster for an agent you recruited. They\'ll be added to your team. Inactive agents still count.'}
             </div>
           </div>
           <button onClick={onClose} aria-label="Close" style={{
