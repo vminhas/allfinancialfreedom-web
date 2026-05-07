@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { getAgentProfileIdFromEmail as getProfileId } from '@/lib/agent-identity'
+import { resolveAgentIdentity } from '@/lib/agent-identity'
 
 const VALID_TOPICS = [
   'SCHEDULE_EXAM',
@@ -21,20 +19,15 @@ type LicensingRequestTopic = typeof VALID_TOPICS[number]
 // Returns the logged-in agent's own requests. If phaseItemKey is given, only
 // those tied to that checklist item.
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const profileId = await getProfileId(session.user!.email!)
-  if (!profileId) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+  const id = await resolveAgentIdentity(req)
+  if ('error' in id) return id.error
 
   const { searchParams } = new URL(req.url)
   const phaseItemKey = searchParams.get('phaseItemKey')
 
   const requests = await db.coordinatorRequest.findMany({
     where: {
-      agentProfileId: profileId,
+      agentProfileId: id.profileId,
       ...(phaseItemKey ? { phaseItemKey } : {}),
     },
     orderBy: { createdAt: 'desc' },
@@ -48,14 +41,13 @@ export async function GET(req: NextRequest) {
 
 // POST /api/agents/coordinator-requests
 // Body: { phaseItemKey?, topic, message }
+//
+// Accepts both real agent sessions and admin/LC preview tokens (so an admin
+// using "view as agent" can re-create a deleted request on behalf of an
+// agent without bouncing out to a separate vault endpoint).
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const profileId = await getProfileId(session.user!.email!)
-  if (!profileId) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+  const id = await resolveAgentIdentity(req)
+  if ('error' in id) return id.error
 
   const body = await req.json() as {
     phaseItemKey?: string | null
@@ -72,7 +64,7 @@ export async function POST(req: NextRequest) {
 
   const request = await db.coordinatorRequest.create({
     data: {
-      agentProfileId: profileId,
+      agentProfileId: id.profileId,
       phaseItemKey: body.phaseItemKey ?? null,
       topic: body.topic as LicensingRequestTopic,
       message: body.message.trim(),

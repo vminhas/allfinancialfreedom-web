@@ -1641,6 +1641,7 @@ function AgentDashboardInner() {
               ...r,
               topic: r.topic as LicensingRequestTopic,
             }))}
+            previewToken={previewToken}
             onClose={() => setRequestModalItemKey(null)}
             onSubmitted={newReq => {
               setCoordinatorRequests(prev => [
@@ -2976,6 +2977,10 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
   const emptyForm = { name: '', email: '', phone: '', timeZone: '', age: '', married: false, children: false, homeowner: false, occupation: '', characterTraits: '', category: '', appointmentDate: '', firstCallDate: '', secondCallDate: '', bookedAppt: false, notes: '' }
   const [form, setForm] = useState(emptyForm)
+  // Counter for the "saved · N added" confirmation chip on the rapid-entry
+  // form. Auto-decrements after 4s so the chip fades unless they keep
+  // adding.
+  const [recentlyAddedCount, setRecentlyAddedCount] = useState(0)
   const [showReferForm, setShowReferForm] = useState(false)
   const [referForm, setReferForm] = useState({ firstName: '', lastName: '', email: '', phone: '', state: '', notes: '' })
   const [saving, setSaving] = useState(false)
@@ -3037,12 +3042,22 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
         const res = await fetch('/api/agents/partners', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editingId, ...payload }) })
         const updated = await res.json() as Partner
         setPartners(prev => prev.map(p => p.id === editingId ? updated : p))
+        // Edits close the form — that's the standard "I'm done with this row" flow.
+        resetForm()
       } else {
         const res = await fetch('/api/agents/partners', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
         const p = await res.json() as Partner
         setPartners(prev => [...prev, p])
+        // Rapid-entry: clear the fields but KEEP the form open so adding 5
+        // contacts in a row doesn't require 5 trips through the +Add toggle.
+        // Multiple agents reported the form "only lets me add one" because
+        // the form was collapsing after each save. Confirm the save with a
+        // brief inline pulse so they know it landed.
+        setForm(emptyForm)
+        setEditingId(null)
+        setRecentlyAddedCount(c => c + 1)
+        setTimeout(() => setRecentlyAddedCount(c => Math.max(0, c - 1)), 4000)
       }
-      resetForm()
     } finally { setSaving(false) }
   }
 
@@ -3399,7 +3414,7 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
               </button>
             )}
             <button onClick={() => { setImportOpen(true); setImportPreview(null); setImportError(null) }} style={{ background: 'transparent', color: '#C9A96E', border: '1px solid rgba(201,169,110,0.4)', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>&uarr; Import CSV</button>
-            <button onClick={() => { resetForm(); setShowForm(!showForm) }} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>+ Add</button>
+            <button onClick={() => { resetForm(); setRecentlyAddedCount(0); setShowForm(!showForm) }} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>+ Add</button>
           </div>
         </div>
 
@@ -3504,9 +3519,19 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
             <div><label style={fieldLabel}>1st Call</label><DatePicker value={form.firstCallDate} onChange={v => setForm(f => ({ ...f, firstCallDate: v }))} /></div>
             <div><label style={fieldLabel}>2nd Call</label><DatePicker value={form.secondCallDate} onChange={v => setForm(f => ({ ...f, secondCallDate: v }))} /></div>
             <div style={{ gridColumn: isMobile ? undefined : 'span 3' }}><label style={fieldLabel}>Notes</label><input style={inputStyle} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
-            <div style={{ gridColumn: isMobile ? undefined : 'span 3', display: 'flex', gap: 8 }}>
-              <button type="submit" disabled={saving} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>{saving ? 'Saving...' : editingId ? 'Update' : 'Save'}</button>
-              <button type="button" onClick={resetForm} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#6B8299', borderRadius: 4, padding: '6px 14px', fontSize: 11, cursor: 'pointer' }}>Cancel</button>
+            <div style={{ gridColumn: isMobile ? undefined : 'span 3', display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button type="submit" disabled={saving} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>{saving ? 'Saving...' : editingId ? 'Update' : 'Save & add another'}</button>
+              <button type="button" onClick={() => { resetForm(); setRecentlyAddedCount(0) }} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#6B8299', borderRadius: 4, padding: '6px 14px', fontSize: 11, cursor: 'pointer' }}>{editingId ? 'Cancel' : 'Done'}</button>
+              {recentlyAddedCount > 0 && !editingId && (
+                <span style={{
+                  fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                  color: '#4ADE80', background: 'rgba(74,222,128,0.10)',
+                  border: '1px solid rgba(74,222,128,0.3)',
+                  padding: '4px 10px', borderRadius: 999,
+                }}>
+                  &#10003; Saved &middot; {recentlyAddedCount} added this session
+                </span>
+              )}
             </div>
           </form>
         )}

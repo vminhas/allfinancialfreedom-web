@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useIsMobile } from '@/lib/useIsMobile'
 
@@ -234,25 +234,59 @@ function Matrix({
   const phaseGap = 6
   const headerHeight = 210
 
+  // Two-track scroll: the header band is its own overflow-x container
+  // sticking to the page viewport, the body is the second overflow-x
+  // container, and we mirror body.scrollLeft → header.scrollLeft so the
+  // columns line up while the agent rows pan horizontally. This is the
+  // AG-Grid pattern. The previous version put both header and body in
+  // a single overflow:auto box with maxHeight, which made the matrix
+  // feel cramped because only ~half the rows were visible at a time.
+  const headerScrollRef = useRef<HTMLDivElement>(null)
+  const bodyScrollRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const body = bodyScrollRef.current
+    const header = headerScrollRef.current
+    if (!body || !header) return
+    const sync = () => { header.scrollLeft = body.scrollLeft }
+    body.addEventListener('scroll', sync, { passive: true })
+    return () => body.removeEventListener('scroll', sync)
+  }, [])
+
   return (
     <div style={{
       background: '#142D48', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)',
-      // Single scroll container for both axes, matching the admin
-      // /vault/progress matrix. Sticky headers stick to the top of
-      // this box. Tried `overflow-y: clip` previously to escape sticky
-      // upward to the document but Safari (and some Chrome versions)
-      // didn't honor it when paired with overflow-x: auto, so the
-      // headers stopped sticking entirely. Excel-style internal scroll
-      // is universally supported.
-      overflow: 'auto',
-      maxWidth: '100%',
-      maxHeight: 'calc(100vh - 200px)',
-      WebkitOverflowScrolling: 'touch',
+      // No overflow on this wrapper; the page handles vertical scroll
+      // and the children handle their own horizontal scroll. That lets
+      // the header band be `position: sticky` against the viewport
+      // rather than the (previously cramped) inner box.
     }}>
-      <div style={{ position: 'relative', display: 'inline-block', minWidth: '100%' }}>
-        {/* Headers */}
-        <div style={{ display: 'flex', position: 'sticky', top: 0, zIndex: 3, background: '#142D48', borderBottom: '1px solid rgba(201,169,110,0.15)' }}>
-          <div style={{ width: labelColWidth, flexShrink: 0, height: headerHeight, position: 'sticky', left: 0, background: '#142D48', zIndex: 4, borderRight: '1px solid rgba(201,169,110,0.15)' }} />
+      {/* Hide the header's horizontal scrollbar — we drive it
+          programmatically from the body's scrollLeft, so no UI is
+          needed for it. The body keeps its visible scrollbar. */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        .aff-matrix-header-track { scrollbar-width: none; -ms-overflow-style: none; }
+        .aff-matrix-header-track::-webkit-scrollbar { display: none; }
+      ` }} />
+
+      {/* Sticky header band — column titles + phase color bars. Sticks
+          to the viewport just below the page's top nav (Shell). The
+          70px offset is the nav's measured height; if the nav grows,
+          increase this. */}
+      <div
+        ref={headerScrollRef}
+        className="aff-matrix-header-track"
+        style={{
+          position: 'sticky',
+          top: 'calc(50px + env(safe-area-inset-top))',
+          zIndex: 5,
+          overflowX: 'auto',
+          background: '#142D48',
+          borderRadius: '6px 6px 0 0',
+        }}
+      >
+        <div style={{ position: 'relative', display: 'inline-block', minWidth: '100%' }}>
+          <div style={{ display: 'flex', borderBottom: '1px solid rgba(201,169,110,0.15)' }}>
+            <div style={{ width: labelColWidth, flexShrink: 0, height: headerHeight, position: 'sticky', left: 0, background: '#142D48', zIndex: 4, borderRight: '1px solid rgba(201,169,110,0.15)' }} />
           {phases.map((ph, phIdx) => (
             <div key={ph} style={{ display: 'flex', marginLeft: phIdx === 0 ? 0 : phaseGap }}>
               {itemsByPhase[ph].map((it, idx) => {
@@ -289,27 +323,43 @@ function Matrix({
           ))}
         </div>
 
-        {/* Phase color band */}
-        <div style={{ display: 'flex', position: 'sticky', top: headerHeight, zIndex: 3, background: '#142D48', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-          <div style={{ width: labelColWidth, flexShrink: 0, position: 'sticky', left: 0, background: '#142D48', zIndex: 4 }} />
-          {phases.map((ph, phIdx) => {
-            const span = itemsByPhase[ph].length * cellSize
-            return (
-              <div key={ph} style={{
-                width: span, height: 24, flexShrink: 0,
-                background: `${PHASE_COLORS[ph]}24`,
-                borderLeft: `2px solid ${PHASE_COLORS[ph]}`,
-                marginLeft: phIdx === 0 ? 0 : phaseGap,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: PHASE_COLORS[ph] }}>
-                  Phase {ph} &middot; {PHASE_TITLES[ph]}
-                </span>
-              </div>
-            )
-          })}
+          {/* Phase color band — part of the sticky header band, no
+              separate sticky needed (the parent track sticks). */}
+          <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+            <div style={{ width: labelColWidth, flexShrink: 0, position: 'sticky', left: 0, background: '#142D48', zIndex: 4 }} />
+            {phases.map((ph, phIdx) => {
+              const span = itemsByPhase[ph].length * cellSize
+              return (
+                <div key={ph} style={{
+                  width: span, height: 24, flexShrink: 0,
+                  background: `${PHASE_COLORS[ph]}24`,
+                  borderLeft: `2px solid ${PHASE_COLORS[ph]}`,
+                  marginLeft: phIdx === 0 ? 0 : phaseGap,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: PHASE_COLORS[ph] }}>
+                    Phase {ph} &middot; {PHASE_TITLES[ph]}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
         </div>
+      </div>
 
+      {/* Body — separate horizontal-scroll track. Agent rows pan
+          horizontally here; on scroll we mirror scrollLeft into the
+          header track so the columns stay aligned. */}
+      <div
+        ref={bodyScrollRef}
+        style={{
+          overflowX: 'auto',
+          background: '#142D48',
+          borderRadius: '0 0 6px 6px',
+          WebkitOverflowScrolling: 'touch',
+        }}
+      >
+        <div style={{ position: 'relative', display: 'inline-block', minWidth: '100%' }}>
         {/* Ranked agent rows. The viewer's row gets a gold left border,
             tinted background, and a "YOU" pill so you can find yourself
             in a roster of any size at a glance. */}
@@ -408,6 +458,7 @@ function Matrix({
             </div>
           )
         })}
+        </div>
       </div>
     </div>
   )

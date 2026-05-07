@@ -45,6 +45,8 @@ export async function PUT(req: NextRequest) {
       description: typeof r.description === 'string' ? r.description.trim() || undefined : undefined,
       icon: typeof r.icon === 'string' ? r.icon.trim() || undefined : undefined,
       avatarUrl: typeof r.avatarUrl === 'string' ? r.avatarUrl.trim() || undefined : undefined,
+      personType: r.personType === 'admin' || r.personType === 'agent' ? r.personType : undefined,
+      personId: typeof r.personId === 'string' ? r.personId.trim() || undefined : undefined,
     })
   }
 

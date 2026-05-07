@@ -26,6 +26,13 @@ export interface BookingLink {
   // so trainers feel like real humans you're booking with rather
   // than abstract roles. Uploaded via the admin /vault/settings UI.
   avatarUrl?: string
+  // Optional link to an existing AFF user (admin or agent profile).
+  // When set, the agent-side GET resolves the person's live name +
+  // avatar from their record, so updating their profile elsewhere
+  // automatically reflects on the Book page. Free-text name +
+  // avatarUrl above stay as fallback for non-system entries.
+  personType?: 'admin' | 'agent'
+  personId?: string
 }
 
 const KEY = 'BOOKING_LINKS'

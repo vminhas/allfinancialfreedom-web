@@ -42,14 +42,18 @@ export async function POST(req: NextRequest) {
     where: { email: body.email.toLowerCase(), status: { not: 'REJECTED' } },
   })
   if (existing) {
-    return NextResponse.json({ error: 'This person has already been referred' }, { status: 409 })
+    return NextResponse.json({
+      error: `This email (${body.email.toLowerCase()}) is already in your referral queue. Check "My Referrals" to see its status — no need to resubmit. If you're trying to refer someone different, double-check the email.`,
+    }, { status: 409 })
   }
 
   const existingAgent = await db.agentUser.findUnique({
     where: { email: body.email.toLowerCase() },
   })
   if (existingAgent) {
-    return NextResponse.json({ error: 'This person is already an agent' }, { status: 409 })
+    return NextResponse.json({
+      error: `This email (${body.email.toLowerCase()}) belongs to an existing AFF agent, so we can't add them as a new referral. If you meant to refer someone else, double-check the email.`,
+    }, { status: 409 })
   }
 
   const referral = await db.agentReferral.create({

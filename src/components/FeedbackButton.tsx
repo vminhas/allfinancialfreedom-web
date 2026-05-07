@@ -25,7 +25,6 @@ interface MyFeedbackItem {
   category: string
   message: string
   status: Status
-  responseToAgent: string | null
   reviewedAt: string | null
   closedAt: string | null
   createdAt: string
@@ -50,6 +49,9 @@ export default function FeedbackButton() {
 
   const [history, setHistory] = useState<MyFeedbackItem[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
+  // Which history row is expanded into the threaded conversation view.
+  // Only one can be open at a time so the panel stays scannable.
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const isLicensing = category === LICENSING_CATEGORY
   const minLength = isLicensing ? LICENSING_MIN : FEEDBACK_MIN
@@ -257,6 +259,7 @@ export default function FeedbackButton() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {history.map(item => {
                     const meta = STATUS_META[item.status]
+                    const isOpen = expandedId === item.id
                     return (
                       <div key={item.id} style={{
                         padding: '10px 12px',
@@ -264,33 +267,33 @@ export default function FeedbackButton() {
                         border: `1px solid ${meta.color}30`,
                         borderRadius: 6,
                       }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                          <span style={{
-                            fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
-                            padding: '2px 7px', borderRadius: 999,
-                            background: `${meta.color}15`, color: meta.color, border: `1px solid ${meta.color}40`,
-                          }}>
-                            {meta.label}
-                          </span>
-                          <span style={{ fontSize: 9, color: '#6B8299' }}>
-                            {new Date(item.createdAt).toLocaleDateString()}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: 12, color: '#9BB0C4', lineHeight: 1.5, whiteSpace: 'pre-wrap', marginBottom: item.responseToAgent ? 8 : 0 }}>
-                          {item.message}
-                        </div>
-                        {item.responseToAgent && (
-                          <div style={{
-                            padding: '8px 10px', borderRadius: 4,
-                            background: 'rgba(74,222,128,0.06)',
-                            border: '1px solid rgba(74,222,128,0.2)',
-                          }}>
-                            <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#4ade80', marginBottom: 3 }}>
-                              From the team
-                            </div>
-                            <div style={{ fontSize: 11, color: '#d1d9e2', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
-                              {item.responseToAgent}
-                            </div>
+                        <button
+                          onClick={() => setExpandedId(isOpen ? null : item.id)}
+                          style={{
+                            background: 'transparent', border: 'none', padding: 0,
+                            display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                            <span style={{
+                              fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
+                              padding: '2px 7px', borderRadius: 999,
+                              background: `${meta.color}15`, color: meta.color, border: `1px solid ${meta.color}40`,
+                            }}>
+                              {meta.label}
+                            </span>
+                            <span style={{ fontSize: 9, color: '#6B8299' }}>
+                              {new Date(item.createdAt).toLocaleDateString()}
+                              <span style={{ marginLeft: 8, color: '#C9A96E' }}>{isOpen ? '▾' : '▸'}</span>
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 12, color: '#9BB0C4', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                            {item.message}
+                          </div>
+                        </button>
+                        {isOpen && (
+                          <div style={{ marginTop: 10 }}>
+                            <AgentFeedbackThread feedbackId={item.id} />
                           </div>
                         )}
                       </div>
@@ -303,5 +306,125 @@ export default function FeedbackButton() {
         </div>
       )}
     </>
+  )
+}
+
+// ─── Agent-side threaded conversation ──────────────────────────────────
+// Pulls non-internal notes only (the admin-side endpoint exposes
+// internal notes; this one filters them out) and lets the agent post
+// clarification questions or follow-ups. Posting fires an admin
+// activity Discord ping server-side, so the team sees replies without
+// polling /vault/feedback.
+
+interface ThreadNote {
+  id: string
+  body: string
+  createdAt: string
+  authorAdmin: { id: string; name: string } | null
+  authorAgentProfile: { id: string; firstName: string; lastName: string } | null
+}
+
+function AgentFeedbackThread({ feedbackId }: { feedbackId: string }) {
+  const [notes, setNotes] = useState<ThreadNote[]>([])
+  const [loading, setLoading] = useState(true)
+  const [draft, setDraft] = useState('')
+  const [posting, setPosting] = useState(false)
+
+  const load = useCallback(() => {
+    fetch(`/api/agents/feedback/${feedbackId}/notes`)
+      .then(r => r.ok ? r.json() : { notes: [] })
+      .then((d: { notes: ThreadNote[] }) => { setNotes(d.notes ?? []); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [feedbackId])
+
+  useEffect(() => { load() }, [load])
+
+  const post = async () => {
+    const body = draft.trim()
+    if (!body) return
+    setPosting(true)
+    try {
+      const res = await fetch(`/api/agents/feedback/${feedbackId}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body }),
+      })
+      if (res.ok) { setDraft(''); load() }
+    } finally { setPosting(false) }
+  }
+
+  return (
+    <div>
+      {loading ? (
+        <div style={{ fontSize: 11, color: '#6B8299' }}>Loading...</div>
+      ) : notes.length === 0 ? (
+        <div style={{ fontSize: 11, color: '#6B8299', fontStyle: 'italic', padding: '4px 0 8px' }}>
+          No replies yet. Drop a follow-up below if you have a clarification.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {notes.map(n => {
+            const isAgent = !!n.authorAgentProfile
+            const author = n.authorAdmin
+              ? `${n.authorAdmin.name} · the team`
+              : isAgent
+                ? 'You'
+                : 'Legacy entry'
+            return (
+              <div key={n.id} style={{
+                padding: '8px 10px', borderRadius: 4,
+                background: isAgent ? 'rgba(96,165,250,0.06)' : 'rgba(74,222,128,0.06)',
+                border: `1px solid ${isAgent ? 'rgba(96,165,250,0.2)' : 'rgba(74,222,128,0.2)'}`,
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                  <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: isAgent ? '#60A5FA' : '#4ade80' }}>
+                    {author}
+                  </span>
+                  <span style={{ fontSize: 9, color: '#6B8299' }}>
+                    {new Date(n.createdAt).toLocaleString()}
+                  </span>
+                </div>
+                <div style={{ fontSize: 11, color: '#d1d9e2', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                  {n.body}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Composer */}
+      <div style={{ marginTop: 8, padding: 8, background: 'rgba(0,0,0,0.2)', borderRadius: 4, border: '1px solid rgba(201,169,110,0.15)' }}>
+        <textarea
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          rows={2}
+          placeholder="Add a clarification or follow-up..."
+          style={{
+            width: '100%', boxSizing: 'border-box',
+            background: 'transparent', border: 'none', outline: 'none',
+            color: '#d1d9e2', fontSize: 11, fontFamily: 'inherit', resize: 'vertical',
+          }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); post() }
+          }}
+        />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+          <button
+            onClick={post}
+            disabled={posting || draft.trim().length === 0}
+            style={{
+              background: '#C9A96E', color: '#142D48',
+              border: 'none', borderRadius: 4,
+              padding: '5px 12px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
+              cursor: posting || draft.trim().length === 0 ? 'not-allowed' : 'pointer',
+              opacity: posting || draft.trim().length === 0 ? 0.5 : 1,
+            }}
+          >
+            {posting ? 'Sending...' : 'Send'}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }

@@ -9,8 +9,6 @@ interface FeedbackItem {
   message: string
   category: string
   status: Status
-  responseToAgent: string | null
-  adminNotes: string | null
   reviewedAt: string | null
   closedAt: string | null
   createdAt: string
@@ -38,9 +36,10 @@ export default function FeedbackPage() {
   const [feedback, setFeedback] = useState<FeedbackItem[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'open' | 'all' | Status>('open')
-  // Track per-row pending edits so the textarea/select can be edited
-  // before saving. Empty drafts mean "no change."
-  const [drafts, setDrafts] = useState<Record<string, { status?: Status; responseToAgent?: string; adminNotes?: string }>>({})
+  // Track per-row pending status edits so the admin can pick a status
+  // and Save in one shot. Notes/replies post immediately via the
+  // /notes endpoint and are not part of this draft state.
+  const [drafts, setDrafts] = useState<Record<string, { status?: Status }>>({})
   const [savingId, setSavingId] = useState<string | null>(null)
 
   const load = useCallback(() => {
@@ -58,12 +57,19 @@ export default function FeedbackPage() {
     const item = feedback.find(f => f.id === id)
     if (!item) return
 
-    // Guard rail: closing requires a response so the agent never sees a
-    // ghosted-close. Skip if no status change to CLOSED.
+    // Guard rail: closing without a single visible note on file
+    // would leave the agent feeling ghosted.
     if (draft.status === 'CLOSED' && item.status !== 'CLOSED') {
-      const finalResponse = draft.responseToAgent ?? item.responseToAgent ?? ''
-      if (finalResponse.trim().length === 0) {
-        alert('Add a short response to the agent before closing. They\'ll see it as part of their feedback panel.')
+      let hasVisibleNote = false
+      try {
+        const r = await fetch(`/api/vault/feedback/${id}/notes`)
+        if (r.ok) {
+          const d = await r.json() as { notes: Array<{ isInternal: boolean }> }
+          hasVisibleNote = d.notes.some(n => !n.isInternal)
+        }
+      } catch { /* fall through to alert */ }
+      if (!hasVisibleNote) {
+        alert('Post a short reply to the agent before closing. They\'ll see it on their feedback panel.')
         return
       }
     }
@@ -85,7 +91,7 @@ export default function FeedbackPage() {
     }
   }
 
-  const updateDraft = (id: string, patch: Partial<{ status: Status; responseToAgent: string; adminNotes: string }>) => {
+  const updateDraft = (id: string, patch: Partial<{ status: Status }>) => {
     setDrafts(prev => ({ ...prev, [id]: { ...prev[id], ...patch } }))
   }
 
@@ -169,13 +175,7 @@ export default function FeedbackPage() {
             {filtered.map(f => {
               const draft = drafts[f.id]
               const draftStatus = draft?.status ?? f.status
-              const draftResponse = draft?.responseToAgent ?? f.responseToAgent ?? ''
-              const draftNotes = draft?.adminNotes ?? f.adminNotes ?? ''
-              const dirty = !!draft && (
-                draft.status !== undefined ||
-                (draft.responseToAgent !== undefined && draft.responseToAgent !== (f.responseToAgent ?? '')) ||
-                (draft.adminNotes !== undefined && draft.adminNotes !== (f.adminNotes ?? ''))
-              )
+              const dirty = !!draft && draft.status !== undefined && draft.status !== f.status
               const meta = STATUS_META[draftStatus]
 
               return (
@@ -226,79 +226,45 @@ export default function FeedbackPage() {
                     {f.message}
                   </div>
 
-                  {/* Workflow controls. grid-template-columns minmax with
-                      auto-fit lets the two columns sit side-by-side on
-                      desktop but stack on narrow viewports when the
-                      response textarea would otherwise be squeezed. */}
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                    gap: 12, alignItems: 'flex-start',
-                  }}>
-                    <div>
-                      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 4 }}>
-                        Status
-                      </div>
+                  {/* Status select — flips fire on Save (still a draft
+                      flow) so an admin can stage status moves
+                      thoughtfully. Replies and internal notes live
+                      below in the thread; those post immediately. */}
+                  <div>
+                    <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 4 }}>
+                      Status
+                    </div>
+                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
                       <select
                         value={draftStatus}
                         onChange={e => updateDraft(f.id, { status: e.target.value as Status })}
                         style={{
-                          width: '100%', boxSizing: 'border-box',
                           background: '#0A1628', border: `1px solid ${meta.color}40`,
                           borderRadius: 4, color: meta.color,
                           padding: '8px 10px', fontSize: 12, fontWeight: 700,
+                          minWidth: 160,
                         }}
                       >
                         {STATUS_ORDER.map(s => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
                       </select>
                       {f.reviewedAt && (
-                        <div style={{ fontSize: 10, color: '#6B8299', marginTop: 6 }}>
+                        <span style={{ fontSize: 10, color: '#6B8299' }}>
                           Reviewed {new Date(f.reviewedAt).toLocaleDateString()}
-                        </div>
+                        </span>
                       )}
                       {f.closedAt && (
-                        <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2 }}>
+                        <span style={{ fontSize: 10, color: '#6B8299' }}>
                           Closed {new Date(f.closedAt).toLocaleDateString()}
-                        </div>
+                        </span>
                       )}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 4 }}>
-                        Response to agent (visible)
-                      </div>
-                      <textarea
-                        value={draftResponse}
-                        onChange={e => updateDraft(f.id, { responseToAgent: e.target.value })}
-                        rows={2}
-                        placeholder="What should the agent know? Even a one-liner makes them feel heard."
-                        style={{
-                          width: '100%', boxSizing: 'border-box',
-                          background: '#0A1628', border: '1px solid rgba(201,169,110,0.2)',
-                          borderRadius: 4, color: '#d1d9e2',
-                          padding: '8px 10px', fontSize: 12, fontFamily: 'inherit', resize: 'vertical',
-                        }}
-                      />
                     </div>
                   </div>
 
-                  {/* Admin-only notes - collapsed by default */}
-                  <details style={{ marginTop: 10 }}>
-                    <summary style={{ fontSize: 10, color: '#6B8299', cursor: 'pointer', userSelect: 'none' }}>
-                      Internal notes (admin-only)
-                    </summary>
-                    <textarea
-                      value={draftNotes}
-                      onChange={e => updateDraft(f.id, { adminNotes: e.target.value })}
-                      rows={2}
-                      placeholder="Anything the team needs to know that isn&apos;t for the agent."
-                      style={{
-                        width: '100%', boxSizing: 'border-box', marginTop: 6,
-                        background: '#0A1628', border: '1px solid rgba(255,255,255,0.05)',
-                        borderRadius: 4, color: '#9BB0C4',
-                        padding: '8px 10px', fontSize: 11, fontFamily: 'inherit', resize: 'vertical',
-                      }}
-                    />
-                  </details>
+                  {/* Threaded conversation: agent replies + admin
+                      visible posts + internal-only context, all in
+                      chronological order. Internal posts have a
+                      muted background + "Internal" badge. */}
+                  <FeedbackThread feedbackId={f.id} mode="admin" />
 
                   {/* Save */}
                   {dirty && (
@@ -324,6 +290,157 @@ export default function FeedbackPage() {
           </div>
         )
       }
+    </div>
+  )
+}
+
+// ─── Threaded notes ────────────────────────────────────────────────────
+// Renders a chronological conversation on a single feedback ticket and
+// a composer to add new replies. `mode="admin"` shows internal notes
+// inline (with a muted style + badge) and exposes a "Mark as internal"
+// toggle on the composer. The agent-side variant lives separately
+// (FeedbackButton.tsx) since it has different access rules.
+
+interface ThreadNote {
+  id: string
+  body: string
+  isInternal: boolean
+  createdAt: string
+  authorAdmin: { id: string; name: string } | null
+  authorAgentProfile: { id: string; firstName: string; lastName: string; agentCode?: string } | null
+}
+
+function FeedbackThread({ feedbackId, mode }: { feedbackId: string; mode: 'admin' }) {
+  const [notes, setNotes] = useState<ThreadNote[]>([])
+  const [loading, setLoading] = useState(true)
+  const [draft, setDraft] = useState('')
+  const [internal, setInternal] = useState(false)
+  const [posting, setPosting] = useState(false)
+
+  const load = useCallback(() => {
+    fetch(`/api/vault/feedback/${feedbackId}/notes`)
+      .then(r => r.ok ? r.json() : { notes: [] })
+      .then((d: { notes: ThreadNote[] }) => { setNotes(d.notes ?? []); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [feedbackId])
+
+  useEffect(() => { load() }, [load])
+
+  const post = async () => {
+    const body = draft.trim()
+    if (!body) return
+    setPosting(true)
+    try {
+      const res = await fetch(`/api/vault/feedback/${feedbackId}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body, isInternal: internal }),
+      })
+      if (res.ok) {
+        setDraft('')
+        setInternal(false)
+        load()
+      }
+    } finally { setPosting(false) }
+  }
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 8 }}>
+        Conversation
+      </div>
+      {loading ? (
+        <div style={{ fontSize: 11, color: '#6B8299' }}>Loading thread...</div>
+      ) : notes.length === 0 ? (
+        <div style={{ fontSize: 11, color: '#6B8299', fontStyle: 'italic', padding: '6px 0' }}>
+          No replies yet. Drop a note below to start the conversation.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {notes.map(n => {
+            const author = n.authorAdmin
+              ? n.authorAdmin.name
+              : n.authorAgentProfile
+                ? `${n.authorAgentProfile.firstName} ${n.authorAgentProfile.lastName}`
+                : 'Legacy entry'
+            const isAgentAuthor = !!n.authorAgentProfile
+            return (
+              <div key={n.id} style={{
+                padding: '10px 12px', borderRadius: 6,
+                background: n.isInternal
+                  ? 'rgba(255,255,255,0.03)'
+                  : isAgentAuthor
+                    ? 'rgba(96,165,250,0.06)'
+                    : 'rgba(201,169,110,0.06)',
+                border: `1px solid ${n.isInternal ? 'rgba(255,255,255,0.06)' : isAgentAuthor ? 'rgba(96,165,250,0.18)' : 'rgba(201,169,110,0.18)'}`,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: isAgentAuthor ? '#60A5FA' : '#C9A96E' }}>{author}</span>
+                  {n.isInternal && (
+                    <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', color: '#6B8299', background: 'rgba(255,255,255,0.04)', padding: '1px 6px', borderRadius: 3 }}>
+                      INTERNAL
+                    </span>
+                  )}
+                  <span style={{ fontSize: 10, color: '#6B8299', marginLeft: 'auto' }}>
+                    {new Date(n.createdAt).toLocaleString()}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: n.isInternal ? '#9BB0C4' : '#d1d9e2', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                  {n.body}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Composer */}
+      <div style={{ marginTop: 10, padding: 10, background: '#0A1628', borderRadius: 6, border: '1px solid rgba(201,169,110,0.15)' }}>
+        <textarea
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          rows={2}
+          placeholder={internal ? 'Internal note for the team...' : 'Reply to the agent...'}
+          style={{
+            width: '100%', boxSizing: 'border-box',
+            background: 'transparent', border: 'none', outline: 'none',
+            color: '#d1d9e2', fontSize: 12, fontFamily: 'inherit', resize: 'vertical',
+          }}
+          // Cmd/Ctrl+Enter posts so admins can shoot quick replies without
+          // reaching for the mouse.
+          onKeyDown={e => {
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); post() }
+          }}
+        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+          {mode === 'admin' && (
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 10, color: '#9BB0C4', cursor: 'pointer', userSelect: 'none' }}>
+              <input
+                type="checkbox"
+                checked={internal}
+                onChange={e => setInternal(e.target.checked)}
+                style={{ accentColor: '#C9A96E' }}
+              />
+              Internal only (not visible to agent)
+            </label>
+          )}
+          <button
+            onClick={post}
+            disabled={posting || draft.trim().length === 0}
+            style={{
+              marginLeft: 'auto',
+              background: internal ? 'rgba(255,255,255,0.06)' : '#C9A96E',
+              color: internal ? '#9BB0C4' : '#142D48',
+              border: 'none', borderRadius: 4,
+              padding: '7px 14px', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
+              cursor: posting || draft.trim().length === 0 ? 'not-allowed' : 'pointer',
+              opacity: posting || draft.trim().length === 0 ? 0.5 : 1,
+            }}
+          >
+            {posting ? 'Posting...' : internal ? 'Add internal note' : 'Reply'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
