@@ -505,7 +505,10 @@ function Matrix({
                     key={it.itemKey}
                     style={{
                       width: cellSize, height: headerHeight, flexShrink: 0,
-                      borderLeft: idx === 0 ? `2px solid ${PHASE_COLORS[ph]}` : '1px solid rgba(255,255,255,0.04)',
+                      // First-of-phase border bumped to a punchier 3px so phase
+                      // boundaries are unambiguous; everything else gets a
+                      // 1px hairline for column structure.
+                      borderLeft: idx === 0 ? `3px solid ${PHASE_COLORS[ph]}` : '1px solid rgba(255,255,255,0.04)',
                       position: 'relative',
                       background: isHovered ? `${PHASE_COLORS[ph]}18` : 'transparent',
                       transition: 'background 0.1s',
@@ -530,6 +533,19 @@ function Matrix({
                     }}>
                       {it.label}
                     </div>
+                    {/* Alignment tick — 1px vertical line at the column
+                        center, bottom 0 → up 6px. Small but enough to
+                        anchor the eye between the rotated label and the
+                        cells below. PowerBI / Tableau use this same
+                        pattern for narrow rotated-header columns. */}
+                    <div style={{
+                      position: 'absolute',
+                      bottom: 0, left: '50%',
+                      width: 1, height: 6,
+                      transform: 'translateX(-0.5px)',
+                      background: isHovered ? PHASE_COLORS[ph] : 'rgba(255,255,255,0.10)',
+                      transition: 'background 0.1s',
+                    }} />
                   </div>
                 )
               })}

@@ -296,7 +296,9 @@ function Matrix({
                     key={it.itemKey}
                     style={{
                       width: cellSize, height: headerHeight, flexShrink: 0,
-                      borderLeft: idx === 0 ? `2px solid ${PHASE_COLORS[ph]}` : '1px solid rgba(255,255,255,0.04)',
+                      // Punchier first-of-phase rule (3px) so the phase
+                      // boundaries are unambiguous; rest is a 1px hairline.
+                      borderLeft: idx === 0 ? `3px solid ${PHASE_COLORS[ph]}` : '1px solid rgba(255,255,255,0.04)',
                       position: 'relative',
                       background: isHovered ? `${PHASE_COLORS[ph]}18` : 'transparent',
                       transition: 'background 0.1s',
@@ -316,6 +318,18 @@ function Matrix({
                     }}>
                       {it.label}
                     </div>
+                    {/* Alignment tick anchoring the rotated label to its
+                        column body. 1px wide, 6px tall, faint. Lights up
+                        in the phase color on hover so eye-tracking is
+                        unambiguous. PowerBI / Tableau pattern. */}
+                    <div style={{
+                      position: 'absolute',
+                      bottom: 0, left: '50%',
+                      width: 1, height: 6,
+                      transform: 'translateX(-0.5px)',
+                      background: isHovered ? PHASE_COLORS[ph] : 'rgba(255,255,255,0.10)',
+                      transition: 'background 0.1s',
+                    }} />
                   </div>
                 )
               })}
