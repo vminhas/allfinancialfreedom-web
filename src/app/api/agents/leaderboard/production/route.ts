@@ -34,8 +34,15 @@ interface Row {
 
 interface Response {
   rows: Row[]
-  viewer: { agentProfileId: string; rank: number | null; value: number; previousValue: number }
+  viewer: {
+    agentProfileId: string
+    rank: number | null
+    value: number
+    previousValue: number
+    inVisibleRows: boolean
+  }
   totalCount: number
+  activeCount: number
   metric: Metric
   scope: Scope
   timeframe: Timeframe
@@ -110,7 +117,15 @@ export async function GET(req: Request) {
 
   let lastValue: number | null = null
   let lastRank = 0
-  const rows: Row[] = ranked.map((a, idx) => {
+  // Compute ranks across ALL roster members first so dense-rank ties are
+  // calculated correctly (rank #1 is whoever did most this period; an
+  // agent with value 0 is rank N+1 if everyone else has value > 0).
+  // Then drop the zero-value rows from the response — they didn't
+  // compete in this period and ranking 30 agents at "T-15 with zero
+  // submissions" is noise that crowds out the people who did. The
+  // viewer's standing banner still shows their rank/total via separate
+  // fields, so a zero-value viewer isn't left disoriented.
+  const allRankedRows: Row[] = ranked.map((a, idx) => {
     const rank = a.value === lastValue ? lastRank : idx + 1
     lastValue = a.value
     lastRank = rank
@@ -126,18 +141,40 @@ export async function GET(req: Request) {
       rank,
     }
   })
+  const rows = allRankedRows.filter(r => r.value > 0)
 
-  const viewerRow = rows.find(r => r.agentProfileId === me.profile!.id) ?? null
+  // Surface the viewer separately when their value is zero (and thus
+  // dropped from `rows`). Lets the UI render a pinned "you" row at the
+  // bottom of the table with their real rank in the full roster, so
+  // they can see what they're competing against without being forced
+  // to scroll past 40 zeros.
+  const viewerInRows = rows.find(r => r.agentProfileId === me.profile!.id) ?? null
+  const viewerFullRow = allRankedRows.find(r => r.agentProfileId === me.profile!.id) ?? null
+  const viewerRow = viewerInRows ?? viewerFullRow
 
   return NextResponse.json({
     rows,
     viewer: {
       agentProfileId: me.profile.id,
+      // Real rank in the full roster, NOT the filtered list — so a
+      // viewer at rank 43 with zero submissions still reads as "#43 of
+      // 57" not "unranked." rank stays null only when the viewer
+      // wasn't found in the roster at all (downline-empty edge case).
       rank: viewerRow?.rank ?? null,
       value: viewerRow?.value ?? 0,
       previousValue: previousValues.get(me.profile.id) ?? 0,
+      // Whether the viewer's own row appears in the visible (non-zero)
+      // list. Lets the UI decide whether to pin a "your row" sticky at
+      // the bottom of the table.
+      inVisibleRows: !!viewerInRows,
     },
-    totalCount: rows.length,
+    // totalCount = all roster members in scope (the size of the field).
+    // activeCount = those with non-zero value in the period (the people
+    // who actually competed). UI shows 'You're #5 of {totalCount}' for
+    // aspirational framing, while the visible-rows list only contains
+    // activeCount entries.
+    totalCount: allRankedRows.length,
+    activeCount: rows.length,
     metric, scope, timeframe,
   } satisfies Response)
 }
