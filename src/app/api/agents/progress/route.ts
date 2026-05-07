@@ -163,24 +163,27 @@ export async function PUT(req: NextRequest) {
         }
 
         if (def.postToAnnouncements) {
-          // Grand celebratory layout for the public broadcast: title
-          // flourish, header-styled agent name, contextual fields, and
-          // the agent's avatar as a thumbnail when one exists. No @ping
-          // here (we don't ping the admin in front of all agents; the
-          // activity-channel post handles personal notifications).
+          // Grand celebratory layout for the public broadcast — uses the
+          // shared achievement card factory so MILESTONE stays in lock-
+          // step with PROMOTION / NEW RECRUIT / etc. visually.
+          const { buildAchievementEmbed } = await import('@/lib/discord-card')
           const res = await sendChannelMessage(ANNOUNCEMENTS_CHANNEL, {
-            embeds: [{
-              title: '✦  M I L E S T O N E  ✦',
-              description: `# ${agentName}\nCompleted **${def.label}**`,
-              color: 0xC9A96E,
-              fields: [
-                { name: 'Phase',     value: PHASE_TITLES[phase] ?? `Phase ${phase}`, inline: true },
-                { name: 'Agent',     value: '`' + profile.agentCode + '`',           inline: true },
-              ],
-              thumbnail: profile.avatarUrl ? { url: profile.avatarUrl } : undefined,
-              footer: { text: 'All Financial Freedom · Way to go!' },
-              timestamp: new Date().toISOString(),
-            }],
+            embeds: [
+              buildAchievementEmbed({
+                flavor: 'MILESTONE',
+                protagonist: {
+                  firstName: profile.firstName,
+                  lastName: profile.lastName,
+                  agentCode: profile.agentCode,
+                  avatarUrl: profile.avatarUrl,
+                },
+                subline: `Completed **${def.label}**`,
+                fields: [
+                  { name: 'Phase', value: PHASE_TITLES[phase] ?? `Phase ${phase}`, inline: true },
+                  { name: 'Agent', value: '`' + profile.agentCode + '`',           inline: true },
+                ],
+              }),
+            ],
           })
           announcementMsgId = res.id
         }

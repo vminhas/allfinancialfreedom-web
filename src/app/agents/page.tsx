@@ -3081,6 +3081,14 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
   const [recentlyAddedCount, setRecentlyAddedCount] = useState(0)
   const [showReferForm, setShowReferForm] = useState(false)
   const [referForm, setReferForm] = useState({ firstName: '', lastName: '', email: '', phone: '', state: '', notes: '' })
+  // "Claim existing agent" picker. Opens the same RecruitClaimModal
+  // used on the Phase 2 checklist, but in team-only mode (itemKey=null)
+  // — picking an agent just sets recruiterId, no phase item is touched.
+  // Surfaces the recruit-claim feature where phase-5+ EMDs actually
+  // look (the Refer section), since they're past the direct_1/2/3
+  // checklist slots.
+  const [teamClaimOpen, setTeamClaimOpen] = useState(false)
+  const [claimToast, setClaimToast] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [referError, setReferError] = useState<string | null>(null)
   // Import flow: open modal → upload CSV → preview state → classify each row → commit.
@@ -3440,13 +3448,54 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Refer a New Agent */}
       <div style={{ ...card, padding: '20px 24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showReferForm || referrals.length > 0 ? 14 : 0 }}>
-          <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showReferForm || referrals.length > 0 ? 14 : 0, gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
             <div style={sectionLabel}>Refer a New Agent</div>
-            <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>Submit someone to join your team. The coordinator will review and send them an invite.</div>
+            <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>
+              Submit someone new to join your team, or claim an existing AFF agent you recruited.
+            </div>
           </div>
-          <button onClick={() => setShowReferForm(!showReferForm)} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>+ Refer</button>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setTeamClaimOpen(true)}
+              style={{ background: 'transparent', color: '#C9A96E', border: '1px solid rgba(201,169,110,0.4)', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+              title="Already recruited an agent who's in AFF? Claim them as part of your team."
+            >
+              Claim existing
+            </button>
+            <button onClick={() => setShowReferForm(!showReferForm)} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>+ Refer</button>
+          </div>
         </div>
+        {claimToast && (
+          <div style={{
+            margin: '0 0 10px', padding: '8px 12px',
+            background: 'rgba(74,222,128,0.08)',
+            border: '1px solid rgba(74,222,128,0.3)',
+            borderRadius: 4,
+            fontSize: 12, color: '#4ADE80',
+          }}>
+            {claimToast}
+          </div>
+        )}
+        {teamClaimOpen && (
+          <RecruitClaimModal
+            itemKey={null}
+            itemLabel="Add to your team"
+            previewToken={previewToken}
+            alreadyClaimedProfileIds={[]}
+            onClose={() => setTeamClaimOpen(false)}
+            onReferNew={() => { setShowReferForm(true) }}
+            onClaimed={result => {
+              setClaimToast(
+                result.conflict
+                  ? `${result.recruit.firstName} ${result.recruit.lastName} added — note: another recruiter (${result.conflict.existingRecruiterCode}) was already on file. An admin will reconcile.`
+                  : `${result.recruit.firstName} ${result.recruit.lastName} is now linked to your team.`
+              )
+              setTeamClaimOpen(false)
+              setTimeout(() => setClaimToast(null), 6000)
+            }}
+          />
+        )}
         {showReferForm && (
           <form onSubmit={handleRefer} style={{ marginBottom: 12, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10, padding: 16, background: 'rgba(201,169,110,0.03)', borderRadius: 6, border: '1px solid rgba(201,169,110,0.12)' }}>
             <div><label style={fieldLabel}>First Name *</label><input required style={inputStyle} value={referForm.firstName} onChange={e => setReferForm(f => ({ ...f, firstName: e.target.value }))} /></div>

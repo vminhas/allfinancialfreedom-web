@@ -28,7 +28,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const row = await db.recognitionMilestone.findUnique({
     where: { id },
-    include: { agentProfile: { select: { firstName: true, lastName: true, discordUserId: true } } },
+    include: { agentProfile: { select: { firstName: true, lastName: true, agentCode: true, avatarUrl: true, discordUserId: true } } },
   })
   if (!row) return NextResponse.json({ error: 'Milestone not found' }, { status: 404 })
   if (row.status !== 'PENDING_REVIEW') {

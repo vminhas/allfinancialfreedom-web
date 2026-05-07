@@ -28,7 +28,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   const submission = await db.newBusinessSubmission.findUnique({
     where: { id },
     include: {
-      agentProfile: { select: { id: true, firstName: true, lastName: true, agentCode: true, discordUserId: true } },
+      agentProfile: { select: { id: true, firstName: true, lastName: true, agentCode: true, avatarUrl: true, discordUserId: true } },
       splitWithAgent: { select: { id: true, firstName: true, lastName: true, agentCode: true } },
       assignedTo: { select: { id: true, name: true } },
       notes: {
@@ -122,6 +122,10 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     notifyIssued({
       agentDiscordUserId: existing.agentProfile.discordUserId,
       agentName,
+      agentFirstName: existing.agentProfile.firstName,
+      agentLastName: existing.agentProfile.lastName,
+      agentCode: existing.agentProfile.agentCode,
+      agentAvatarUrl: existing.agentProfile.avatarUrl,
       clientName,
       carrier: existing.carrier,
       policyType: existing.policyType,
