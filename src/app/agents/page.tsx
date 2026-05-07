@@ -1739,13 +1739,19 @@ function AgentDashboardInner() {
               }
               setData(prev => {
                 if (!prev) return prev
-                const idx = prev.phaseItems.findIndex(pi => pi.itemKey === result.itemKey && pi.phase === 2)
+                // This handler only runs from a direct_N phase-item
+                // claim — itemKey is always set here. Bail with no
+                // change in the team-only mode case (which doesn't
+                // route through this modal instance).
+                const claimedItemKey = result.itemKey
+                if (!claimedItemKey) return prev
+                const idx = prev.phaseItems.findIndex(pi => pi.itemKey === claimedItemKey && pi.phase === 2)
                 const next = [...prev.phaseItems]
                 const nowIso = new Date().toISOString()
                 if (idx >= 0) {
                   next[idx] = { ...next[idx], completed: true, completedAt: nowIso, linkedAgentProfileId: result.linkedAgentProfileId, linkedAgentProfile: linked }
                 } else {
-                  next.push({ phase: 2, itemKey: result.itemKey, completed: true, completedAt: nowIso, linkedAgentProfileId: result.linkedAgentProfileId, linkedAgentProfile: linked })
+                  next.push({ phase: 2, itemKey: claimedItemKey, completed: true, completedAt: nowIso, linkedAgentProfileId: result.linkedAgentProfileId, linkedAgentProfile: linked })
                 }
                 return { ...prev, phaseItems: next }
               })
