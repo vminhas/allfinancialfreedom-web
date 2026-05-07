@@ -64,6 +64,10 @@ export interface LicensingRequestModalProps {
   existingRequests: CallItem[]
   onClose: () => void
   onSubmitted: (newRequest: CallItem) => void
+  // Set when an admin/LC opens the agent portal in "view as agent"
+  // preview mode. Threaded through so the POST hits the agent endpoint
+  // with the preview token, which resolveAgentIdentity accepts.
+  previewToken?: string | null
 }
 
 export default function LicensingRequestModal({
@@ -73,6 +77,7 @@ export default function LicensingRequestModal({
   existingRequests,
   onClose,
   onSubmitted,
+  previewToken,
 }: LicensingRequestModalProps) {
   const isMobile = useIsMobile()
   const topic = defaultTopic
@@ -100,7 +105,10 @@ export default function LicensingRequestModal({
     setSubmitting(true)
     setError('')
     try {
-      const res = await fetch('/api/agents/coordinator-requests', {
+      const url = previewToken
+        ? `/api/agents/coordinator-requests?preview=${encodeURIComponent(previewToken)}`
+        : '/api/agents/coordinator-requests'
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phaseItemKey, topic, message }),
@@ -226,7 +234,7 @@ export default function LicensingRequestModal({
                 Your previous requests for this item
               </div>
               {existingRequests.map(r => (
-                <ExistingRequestCard key={r.id} req={r} />
+                <ExistingRequestCard key={r.id} req={r} previewToken={previewToken} />
               ))}
             </div>
           )}
@@ -367,7 +375,7 @@ function statusColor(s: string) {
 // inline reply input so the agent can keep the conversation going
 // without opening a separate ticket. Posts to
 // /api/agents/coordinator-requests/[id]/messages (no status change).
-function ExistingRequestCard({ req }: { req: CallItem }) {
+function ExistingRequestCard({ req, previewToken }: { req: CallItem; previewToken?: string | null }) {
   const [messages, setMessages] = useState<ThreadMessage[]>(req.messages ?? [])
   const [replyBody, setReplyBody] = useState('')
   const [sending, setSending] = useState(false)
@@ -378,7 +386,10 @@ function ExistingRequestCard({ req }: { req: CallItem }) {
     if (body.length === 0) return
     setSending(true)
     try {
-      const res = await fetch(`/api/agents/coordinator-requests/${req.id}/messages`, {
+      const url = previewToken
+        ? `/api/agents/coordinator-requests/${req.id}/messages?preview=${encodeURIComponent(previewToken)}`
+        : `/api/agents/coordinator-requests/${req.id}/messages`
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ body }),
