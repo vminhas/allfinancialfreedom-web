@@ -53,7 +53,16 @@ export async function PUT(req: NextRequest) {
   const denied = requireRole(session, 'admin')
   if (denied) return denied
 
-  const body = await req.json() as { id: string; label?: string; icon?: string; description?: string; showTrainer?: boolean }
+  const body = await req.json() as {
+    id: string
+    label?: string
+    icon?: string
+    description?: string
+    showTrainer?: boolean
+    // Banner videos shown at the top of this step on the agent
+    // dashboard. Same JSON shape as PhaseItemDefinition.videos.
+    videos?: Array<{ url: string; title?: string | null }>
+  }
   if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
   const data: Record<string, unknown> = {}
@@ -61,6 +70,11 @@ export async function PUT(req: NextRequest) {
   if (body.icon !== undefined) data.icon = body.icon
   if (body.description !== undefined) data.description = body.description
   if (body.showTrainer !== undefined) data.showTrainer = body.showTrainer
+  if (body.videos !== undefined) {
+    // Sanitize: drop entries without a url, keep title nullable.
+    data.videos = body.videos.filter(v => typeof v?.url === 'string' && v.url.trim().length > 0)
+      .map(v => ({ url: v.url.trim(), title: v.title?.toString().trim() || null }))
+  }
 
   const group = await db.phaseGroupDefinition.update({ where: { id: body.id }, data })
   return NextResponse.json(group)

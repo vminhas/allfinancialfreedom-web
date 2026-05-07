@@ -373,6 +373,11 @@ model PhaseGroupDefinition {
   description String?
   showTrainer Boolean @default(false)
   sortOrder   Int     @default(0)
+  // Optional banner videos shown at the top of this step on the agent
+  // dashboard. Same JSON shape as PhaseItemDefinition.videos:
+  // [{ url: string, title: string|null }, ...]. Used for Melinee's
+  // "Welcome to Step N" intro videos and any future per-step content.
+  videos      Json    @default("[]")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
