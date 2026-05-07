@@ -32,6 +32,11 @@ const PROGRESSION_OPTIONS = SYSTEM_PROGRESSIONS.map(p => ({ key: p.key, label: p
 interface PhaseGroupDef {
   id: string; phase: number; groupKey: string; label: string
   icon: string | null; description: string | null; showTrainer: boolean; sortOrder: number
+  // Banner videos shown at the top of this step on the agent dashboard.
+  // Each entry has a url + optional title. Stored as JSON array in the
+  // DB. UI supports a single video for now (Melinee's per-step intro);
+  // schema is array-shaped so we can add more without a migration.
+  videos?: Array<{ url: string; title: string | null }>
 }
 
 interface ProgressionDef {
@@ -635,22 +640,34 @@ function GroupsEditor({ groups, onRefresh, isMobile }: { groups: PhaseGroupDef[]
   const [activePhase, setActivePhase] = useState(1)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
-  const [form, setForm] = useState({ groupKey: '', label: '', icon: '', description: '', showTrainer: false })
+  const [form, setForm] = useState({ groupKey: '', label: '', icon: '', description: '', showTrainer: false, videoUrl: '', videoTitle: '' })
   const [saving, setSaving] = useState(false)
 
   const phaseGroups = groups.filter(g => g.phase === activePhase).sort((a, b) => a.sortOrder - b.sortOrder)
   const inp: React.CSSProperties = { width: '100%', padding: '8px 10px', fontSize: 13, background: '#0A1628', border: '1px solid rgba(201,169,110,0.2)', borderRadius: 4, color: '#ffffff', outline: 'none' }
   const lbl: React.CSSProperties = { fontSize: 9, fontWeight: 700, color: '#9BB0C4', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }
 
-  const resetForm = () => { setForm({ groupKey: '', label: '', icon: '', description: '', showTrainer: false }); setEditingId(null); setShowAdd(false) }
+  const resetForm = () => { setForm({ groupKey: '', label: '', icon: '', description: '', showTrainer: false, videoUrl: '', videoTitle: '' }); setEditingId(null); setShowAdd(false) }
 
   const handleSave = async () => {
     setSaving(true)
+    // Build the videos array from the URL + title fields. Empty URL
+    // means no video; we send an explicit empty array so unsetting
+    // a previously-saved video clears it from the DB.
+    const videos = form.videoUrl.trim()
+      ? [{ url: form.videoUrl.trim(), title: form.videoTitle.trim() || null }]
+      : []
     if (editingId) {
-      await fetch('/api/admin/phase-groups', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editingId, label: form.label, icon: form.icon || null, description: form.description || null, showTrainer: form.showTrainer }) })
+      await fetch('/api/admin/phase-groups', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editingId, label: form.label, icon: form.icon || null, description: form.description || null, showTrainer: form.showTrainer, videos }) })
     } else {
       const key = form.groupKey || form.label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
-      await fetch('/api/admin/phase-groups', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phase: activePhase, groupKey: key, label: form.label, icon: form.icon || undefined, description: form.description || undefined, showTrainer: form.showTrainer }) })
+      const created = await fetch('/api/admin/phase-groups', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phase: activePhase, groupKey: key, label: form.label, icon: form.icon || undefined, description: form.description || undefined, showTrainer: form.showTrainer }) })
+      // Group POST doesn't accept videos at create time (POST handler
+      // is minimal). Patch the new row with videos via PUT if we have any.
+      if (created.ok && videos.length > 0) {
+        const newGroup = await created.json() as { id: string }
+        await fetch('/api/admin/phase-groups', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: newGroup.id, videos }) })
+      }
     }
     resetForm(); setSaving(false); onRefresh()
   }
@@ -672,6 +689,27 @@ function GroupsEditor({ groups, onRefresh, isMobile }: { groups: PhaseGroupDef[]
             <div><div style={lbl}>Label *</div><input value={form.label} onChange={e => { setForm(f => ({ ...f, label: e.target.value, groupKey: editingId ? f.groupKey : e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '_') })) }} style={inp} /></div>
             <div><div style={lbl}>Icon</div><select value={form.icon} onChange={e => setForm(f => ({ ...f, icon: e.target.value }))} style={{ ...inp, cursor: 'pointer' }}><option value="">None</option>{AVAILABLE_ICONS.map(i => <option key={i} value={i}>{i}</option>)}</select></div>
             <div style={{ gridColumn: isMobile ? undefined : 'span 2' }}><div style={lbl}>Description</div><input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} style={inp} /></div>
+            <div style={{ gridColumn: isMobile ? undefined : 'span 2' }}>
+              <div style={lbl}>Banner Video URL</div>
+              <input
+                value={form.videoUrl}
+                onChange={e => setForm(f => ({ ...f, videoUrl: e.target.value }))}
+                placeholder="Loom share URL, Google Drive video, or Vercel Blob URL"
+                style={inp}
+              />
+              <div style={{ fontSize: 10, color: '#6B8299', marginTop: 4, lineHeight: 1.5 }}>
+                Optional. Shown at the top of this step on the agent dashboard. Leave blank for no video.
+              </div>
+            </div>
+            <div style={{ gridColumn: isMobile ? undefined : 'span 2' }}>
+              <div style={lbl}>Video Title</div>
+              <input
+                value={form.videoTitle}
+                onChange={e => setForm(f => ({ ...f, videoTitle: e.target.value }))}
+                placeholder='e.g. "Welcome to Step 1 with Melinee"'
+                style={inp}
+              />
+            </div>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#9BB0C4', cursor: 'pointer' }}><input type="checkbox" checked={form.showTrainer} onChange={e => setForm(f => ({ ...f, showTrainer: e.target.checked }))} /> Show trainer</label>
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
@@ -689,11 +727,26 @@ function GroupsEditor({ groups, onRefresh, isMobile }: { groups: PhaseGroupDef[]
                 <span style={{ fontSize: 13, fontWeight: 600, color: '#ffffff' }}>{g.label}</span>
                 {g.icon && <span style={{ fontSize: 9, color: '#C9A96E', padding: '1px 6px', background: 'rgba(201,169,110,0.08)', borderRadius: 3 }}>{g.icon}</span>}
                 {g.showTrainer && <span style={{ fontSize: 8, color: '#4ade80', padding: '1px 6px', background: 'rgba(74,222,128,0.08)', borderRadius: 3 }}>Trainer</span>}
+                {Array.isArray(g.videos) && g.videos.length > 0 && (
+                  <span title={g.videos[0].title ?? g.videos[0].url} style={{ fontSize: 8, color: '#60a5fa', padding: '1px 6px', background: 'rgba(96,165,250,0.10)', borderRadius: 3, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 700 }}>
+                    ▶ Video
+                  </span>
+                )}
               </div>
               {g.description && <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>{g.description}</div>}
               <div style={{ fontSize: 9, color: '#4B5563', marginTop: 2 }}>Key: {g.groupKey}</div>
             </div>
-            <button onClick={() => { setForm({ groupKey: g.groupKey, label: g.label, icon: g.icon ?? '', description: g.description ?? '', showTrainer: g.showTrainer }); setEditingId(g.id); setShowAdd(true) }} style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 11, cursor: 'pointer' }}>Edit</button>
+            <button onClick={() => {
+              const firstVideo = Array.isArray(g.videos) ? g.videos[0] : undefined
+              setForm({
+                groupKey: g.groupKey, label: g.label,
+                icon: g.icon ?? '', description: g.description ?? '',
+                showTrainer: g.showTrainer,
+                videoUrl: firstVideo?.url ?? '',
+                videoTitle: firstVideo?.title ?? '',
+              })
+              setEditingId(g.id); setShowAdd(true)
+            }} style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 11, cursor: 'pointer' }}>Edit</button>
             <button onClick={async () => { if (!confirm('Delete this group?')) return; await fetch(`/api/admin/phase-groups?id=${g.id}`, { method: 'DELETE' }); onRefresh() }} style={{ background: 'none', border: 'none', color: '#f87171', fontSize: 11, cursor: 'pointer' }}>Delete</button>
           </div>
         ))}

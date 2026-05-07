@@ -213,6 +213,14 @@ function AgentDashboardInner() {
   const [setupResources, setSetupResources] = useState<Record<string, string>>({})
   const [ftaModalKey, setFtaModalKey] = useState<string | null>(null)
   const [dbPhaseItems, setDbPhaseItems] = useState<Record<number, typeof PHASE_ITEMS[1]> | null>(null)
+  // Database-backed group definitions, keyed by phase. When the
+  // checklist editor has set up groups (and optionally banner videos),
+  // these override the bundled PHASE_GROUPS constants. Each entry
+  // mirrors the constant shape but with an extra `videos` array.
+  type GroupWithVideos = (typeof PHASE_GROUPS[1][number]) & {
+    videos: Array<{ url: string; title: string | null }>
+  }
+  const [dbPhaseGroups, setDbPhaseGroups] = useState<Record<number, GroupWithVideos[]> | null>(null)
   const [showPromotion, setShowPromotion] = useState<number | null>(null)
   const [highlightKey, setHighlightKey] = useState<string | null>(null)
   const [promotionRequestKey, setPromotionRequestKey] = useState<string | null>(null)
@@ -310,7 +318,11 @@ function AgentDashboardInner() {
   useEffect(() => {
     fetch('/api/agents/phase-items')
       .then(r => r.ok ? r.json() : null)
-      .then((d: { items: Record<string, { itemKey: string; label: string; description: string; duration?: string; groupKey?: string; adminOnly?: boolean; coordinatorTopic?: string; actionJson?: string; videoUrl?: string | null; videoTitle?: string | null; videos?: Array<{ url: string; title?: string | null }> | null }[]>; source: string } | null) => {
+      .then((d: {
+        items: Record<string, { itemKey: string; label: string; description: string; duration?: string; groupKey?: string; adminOnly?: boolean; coordinatorTopic?: string; actionJson?: string; videoUrl?: string | null; videoTitle?: string | null; videos?: Array<{ url: string; title?: string | null }> | null }[]>
+        groups?: Record<string, Array<{ key: string; label: string; icon?: string | null; description?: string | null; showTrainer?: boolean; videos?: Array<{ url: string; title: string | null }> }>>
+        source: string
+      } | null) => {
         if (d?.source === 'database' && d.items) {
           const mapped: Record<number, typeof PHASE_ITEMS[1]> = {}
           for (const [phase, phaseItems] of Object.entries(d.items)) {
@@ -335,9 +347,32 @@ function AgentDashboardInner() {
           }
           setDbPhaseItems(mapped)
         }
+        // Group definitions come back when the checklist editor has
+        // populated them. Each carries an optional banner-video array
+        // shown at the top of the step on this page.
+        if (d?.groups && !Array.isArray(d.groups)) {
+          const mappedGroups: Record<number, GroupWithVideos[]> = {}
+          for (const [phase, phaseGroups] of Object.entries(d.groups)) {
+            if (!Array.isArray(phaseGroups)) continue
+            mappedGroups[parseInt(phase)] = phaseGroups.map(g => ({
+              key: g.key,
+              label: g.label,
+              icon: g.icon ?? undefined,
+              description: g.description ?? undefined,
+              showTrainer: g.showTrainer ?? false,
+              videos: Array.isArray(g.videos)
+                ? g.videos.filter(v => v && typeof v.url === 'string' && v.url.length > 0)
+                  .map(v => ({ url: v.url, title: v.title ?? null }))
+                : [],
+            }) as GroupWithVideos)
+          }
+          if (Object.keys(mappedGroups).length > 0) setDbPhaseGroups(mappedGroups)
+        }
       })
       .catch(() => {})
   }, [])
+
+  const effectivePhaseGroups: Record<number, GroupWithVideos[] | typeof PHASE_GROUPS[1]> = dbPhaseGroups ?? PHASE_GROUPS
 
   const effectivePhaseItems = dbPhaseItems ?? PHASE_ITEMS
 
@@ -1090,10 +1125,10 @@ function AgentDashboardInner() {
               {/* Render items grouped by group key */}
               {(() => {
                 const allItems = effectivePhaseItems[activeChecklistPhase] ?? []
-                const groups = PHASE_GROUPS[activeChecklistPhase] ?? []
+                const groups = effectivePhaseGroups[activeChecklistPhase] ?? []
 
                 // Build ordered groups: items with matching group key, plus ungrouped items
-                const groupedItems: { group: typeof groups[0] | null; items: typeof allItems }[] = []
+                const groupedItems: { group: (typeof groups)[number] | null; items: typeof allItems }[] = []
                 const usedKeys = new Set<string>()
 
                 for (const g of groups) {
@@ -1196,6 +1231,23 @@ function AgentDashboardInner() {
                           requests={coordinatorRequests}
                           onRequestHelp={(itemKey) => setRequestModalItemKey(itemKey)}
                         />
+                      )}
+
+                      {/* Banner videos at the top of this step. Set by
+                          admins in /vault/checklist-editor — primarily
+                          Melinee's "Welcome to Step N" intros, but any
+                          per-step content can land here. Hidden when
+                          the group is collapsed so it doesn't compete
+                          with the closed-group summary line. */}
+                      {!isGroupCollapsed && group && 'videos' in group && Array.isArray((group as GroupWithVideos).videos) && (group as GroupWithVideos).videos.length > 0 && (
+                        <div style={{
+                          margin: '6px 0 10px',
+                          display: 'flex', flexDirection: 'column', gap: 8,
+                        }}>
+                          {(group as GroupWithVideos).videos.map((v, idx) => (
+                            <ChecklistItemVideo key={`${group.key}-video-${idx}`} videoUrl={v.url} videoTitle={v.title} />
+                          ))}
+                        </div>
                       )}
 
                       {/* Items in this group — hidden when collapsed */}
