@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useIsMobile } from '@/lib/useIsMobile'
+import ProductionLeaderboard from './ProductionLeaderboard'
+import { LeaderboardTabsBar, useTabFromHash } from './LeaderboardTabs'
 
 // Agent-facing leaderboard. Same matrix-style visualization the admin
 // uses at /vault/progress, but slimmed down for an agent audience:
@@ -42,7 +44,22 @@ const PHASE_TITLES: Record<number, string> = {
   1: 'Onboarding', 2: 'Training', 3: 'Advancement', 4: 'Leadership', 5: 'Mastery',
 }
 
+// Top-level page is now a tabbed shell: Production (the new
+// production-rankings view) is the default, and the original onboarding-
+// progression matrix is preserved as the second tab. The Shell
+// (header + back-to-portal + iOS safe-area handling) wraps both so we
+// don't duplicate the chrome between views.
 export default function LeaderboardPage() {
+  const [tab, setTab] = useTabFromHash('production')
+  return (
+    <Shell>
+      <LeaderboardTabsBar active={tab} setActive={setTab} />
+      {tab === 'production' ? <ProductionLeaderboard /> : <OnboardingProgressView />}
+    </Shell>
+  )
+}
+
+function OnboardingProgressView() {
   const isMobile = useIsMobile()
   const [data, setData] = useState<Payload | null>(null)
   const [loading, setLoading] = useState(true)
@@ -114,19 +131,19 @@ export default function LeaderboardPage() {
     return { rank: me.rank, of: ranked.length, done: s.done, total: s.total, ratio: s.ratio, agent: me.agent }
   }, [data, ranked, agentStats])
 
-  if (loading) return <Shell><Centered>Loading leaderboard...</Centered></Shell>
-  if (error) return <Shell><Centered tone="error">Couldn&apos;t load leaderboard: {error}</Centered></Shell>
-  if (!data) return <Shell>{null}</Shell>
+  if (loading) return <Centered>Loading leaderboard...</Centered>
+  if (error) return <Centered tone="error">Couldn&apos;t load leaderboard: {error}</Centered>
+  if (!data) return null
 
   return (
-    <Shell>
+    <>
       {/* Header + viewer's own headline card */}
       <div style={{ marginBottom: 16 }}>
         <p style={{ color: '#C9A96E', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 600, margin: '0 0 6px' }}>
-          Leaderboard
+          Onboarding Progress
         </p>
         <h1 style={{ color: '#ffffff', fontSize: isMobile ? 22 : 28, fontWeight: 300, margin: 0 }}>
-          Where you stand
+          Checklist completion across the team
         </h1>
         <p style={{ color: '#6B8299', fontSize: 12, margin: '8px 0 0', lineHeight: 1.5 }}>
           Every active AFF agent ranked by checklist completion. Your row is highlighted in gold.
@@ -174,7 +191,7 @@ export default function LeaderboardPage() {
           />
         )
       }
-    </Shell>
+    </>
   )
 }
 

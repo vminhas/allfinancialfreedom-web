@@ -297,6 +297,7 @@ model AgentProfile {
   resolvedOrphans       TrainingAttendanceOrphan[] @relation("OrphanResolved")
   zoomAliases           AgentZoomAlias[]
 
+  @@index([recruiterId])
   @@map("agent_profiles")
 }
 
