@@ -685,23 +685,32 @@ function AgentsTab({ refreshNonce }: { refreshNonce: number }) {
   const [needsAttention, setNeedsAttention] = useState(false)
   const [query, setQuery] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  // Pagination state — defaults match the API. Reset to page 1 when
+  // any filter changes so the LC isn't stuck on a stale page after
+  // toggling needsAttention or typing a search.
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const PAGE_SIZE = 25
+
+  useEffect(() => { setPage(1) }, [needsAttention, query])
 
   const load = useCallback(async () => {
     setLoading(true)
-    const params = new URLSearchParams()
+    const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) })
     if (needsAttention) params.set('needsAttention', '1')
     if (query.trim()) params.set('q', query.trim())
     const res = await fetch(`/api/vault/licensing-agents?${params}`)
     if (res.ok) {
-      const d = await res.json() as { agents: LicensingAgent[] }
+      const d = await res.json() as { agents: LicensingAgent[]; total?: number }
       // Sort needs-attention agents to the top so the LC opens the
       // Agents tab and immediately sees who needs them. Higher request
       // count wins; ties fall back to the API's createdAt-desc order.
       const sorted = [...(d.agents ?? [])].sort((a, b) => b.openRequestCount - a.openRequestCount)
       setAgents(sorted)
+      setTotal(d.total ?? sorted.length)
     }
     setLoading(false)
-  }, [needsAttention, query])
+  }, [needsAttention, query, page])
 
   useEffect(() => { load() }, [load, refreshNonce])
 
@@ -765,6 +774,7 @@ function AgentsTab({ refreshNonce }: { refreshNonce: number }) {
           ))}
         </div>
       )}
+      <PaginationControls page={page} total={total} pageSize={PAGE_SIZE} onPage={setPage} />
     </>
   )
 }
@@ -1466,6 +1476,13 @@ function ReferralsTab() {
   // Tracks the most-recent announce status per referral row so the
   // button can flash a brief "Sent ✓" without a layout shift.
   const [announceState, setAnnounceState] = useState<Record<string, 'sending' | 'sent' | 'error'>>({})
+  // Pagination + search. Default page size 25 mirrors the API default.
+  // Search hits the API (cross-field: recruit name, email, recruiter)
+  // so we don't have to load every page client-side to find someone.
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [search, setSearch] = useState('')
+  const PAGE_SIZE = 25
 
   const reannounce = async (id: string) => {
     setAnnounceState(s => ({ ...s, [id]: 'sending' }))
@@ -1478,14 +1495,23 @@ function ReferralsTab() {
     }
   }
 
+  // Reset to page 1 whenever filter or search changes — paginating to
+  // page 7 on PENDING and then flipping to ALL would otherwise show
+  // page 7 of ALL, which is rarely what you want.
+  useEffect(() => { setPage(1) }, [filter, search])
+
   useEffect(() => {
-    fetch(`/api/vault/referrals?status=${filter}`)
+    setLoading(true)
+    const params = new URLSearchParams({ status: filter, page: String(page), limit: String(PAGE_SIZE) })
+    if (search.trim().length >= 2) params.set('q', search.trim())
+    fetch(`/api/vault/referrals?${params}`)
       .then(r => r.json())
-      .then((d: { referrals: ReferralItem[] }) => {
+      .then((d: { referrals: ReferralItem[]; total?: number }) => {
         setReferrals(d.referrals ?? [])
+        setTotal(d.total ?? 0)
         setLoading(false)
       })
-  }, [filter])
+  }, [filter, page, search])
 
   useEffect(() => {
     fetch('/api/admin/trainers')
@@ -1527,7 +1553,7 @@ function ReferralsTab() {
 
   return (
     <div style={{ padding: '20px 0' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
         <div style={sLabel}>Agent Referrals</div>
         <div style={{ display: 'flex', gap: 4 }}>
           {(['PENDING', 'ALL'] as const).map(f => (
@@ -1540,9 +1566,23 @@ function ReferralsTab() {
           ))}
         </div>
       </div>
+      <div style={{ marginBottom: 16 }}>
+        <input
+          type="search"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search by name, email, or recruiter..."
+          style={{
+            width: '100%', boxSizing: 'border-box',
+            background: '#0A1628', border: '1px solid rgba(201,169,110,0.2)',
+            borderRadius: 4, color: '#d1d9e2',
+            padding: '8px 12px', fontSize: 12, fontFamily: 'inherit',
+          }}
+        />
+      </div>
 
       {loading ? <div style={{ color: '#6B8299', fontSize: 13 }}>Loading...</div> :
-        referrals.length === 0 ? <div style={{ color: '#4B5563', fontSize: 13 }}>No referrals {filter === 'PENDING' ? 'pending approval' : 'found'}.</div> :
+        referrals.length === 0 ? <div style={{ color: '#4B5563', fontSize: 13 }}>No referrals {filter === 'PENDING' ? 'pending approval' : 'found'}{search.trim() ? ` matching "${search.trim()}"` : ''}.</div> :
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {referrals.map(r => (
             <div key={r.id} style={{
@@ -1633,6 +1673,51 @@ function ReferralsTab() {
           ))}
         </div>
       }
+      <PaginationControls page={page} total={total} pageSize={PAGE_SIZE} onPage={setPage} />
+    </div>
+  )
+}
+
+// ─── Pagination ───────────────────────────────────────────────────────────────
+// Reusable controls for the long-list tabs (Referrals, Agents). Shows
+// "Showing X-Y of Z" + Prev/Next, and hides itself entirely when total
+// fits in one page so the empty bar doesn't take up space.
+function PaginationControls({
+  page, total, pageSize, onPage,
+}: {
+  page: number
+  total: number
+  pageSize: number
+  onPage: (p: number) => void
+}) {
+  if (total <= pageSize) return null
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const start = (page - 1) * pageSize + 1
+  const end = Math.min(total, page * pageSize)
+  const btnStyle = (disabled: boolean): React.CSSProperties => ({
+    padding: '6px 14px', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em',
+    background: 'transparent',
+    border: '1px solid rgba(201,169,110,0.25)',
+    color: disabled ? '#4B5563' : '#C9A96E',
+    borderRadius: 4, cursor: disabled ? 'not-allowed' : 'pointer',
+    textTransform: 'uppercase',
+  })
+  return (
+    <div style={{
+      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      marginTop: 16, padding: '12px 4px',
+      borderTop: '1px solid rgba(255,255,255,0.04)',
+    }}>
+      <div style={{ fontSize: 11, color: '#6B8299' }}>
+        Showing <span style={{ color: '#9BB0C4' }}>{start}</span>&ndash;<span style={{ color: '#9BB0C4' }}>{end}</span> of <span style={{ color: '#9BB0C4' }}>{total}</span>
+      </div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <button disabled={page <= 1} onClick={() => onPage(Math.max(1, page - 1))} style={btnStyle(page <= 1)}>← Prev</button>
+        <div style={{ fontSize: 11, color: '#6B8299', minWidth: 80, textAlign: 'center' }}>
+          Page <span style={{ color: '#9BB0C4', fontWeight: 700 }}>{page}</span> / {totalPages}
+        </div>
+        <button disabled={page >= totalPages} onClick={() => onPage(Math.min(totalPages, page + 1))} style={btnStyle(page >= totalPages)}>Next →</button>
+      </div>
     </div>
   )
 }
