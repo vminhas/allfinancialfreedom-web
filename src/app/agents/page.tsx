@@ -3524,13 +3524,13 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Refer a New Agent */}
+      {/* Build My Team — covers both refer-new and claim-existing in one section */}
       <div style={{ ...card, padding: '20px 24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showReferForm || referrals.length > 0 ? 14 : 0, gap: 12, flexWrap: 'wrap' }}>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={sectionLabel}>Refer a New Agent</div>
+            <div style={sectionLabel}>Build My Team</div>
             <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>
-              Submit someone new to join your team, or claim an existing AFF agent you recruited.
+              Refer someone new to join your team, or claim an existing AFF agent you recruited.
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>

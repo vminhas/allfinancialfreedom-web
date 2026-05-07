@@ -35,12 +35,25 @@ interface Row {
 
 interface Payload {
   rows: Row[]
-  viewer: { agentProfileId: string; rank: number | null; value: number; previousValue: number }
+  viewer: {
+    agentProfileId: string
+    rank: number | null
+    value: number
+    previousValue: number
+    inVisibleRows: boolean
+  }
   totalCount: number
+  activeCount: number
   metric: Metric
   scope: Scope
   timeframe: Timeframe
 }
+
+// How many rows the table shows by default (3 podium + 17 in the table =
+// the top 20). Past 20 the leaderboard stops being motivating and turns
+// into a wall, so we hide the rest behind a "Show all" toggle. Strava /
+// Spinify / Salesforce-reports all converge on this cap.
+const DEFAULT_VISIBLE = 20
 
 const PHASE_COLORS: Record<number, string> = {
   1: '#60a5fa', 2: '#4ade80', 3: '#C9A96E', 4: '#a78bfa', 5: '#f472b6',
@@ -128,7 +141,12 @@ export default function ProductionLeaderboard() {
           ) : (
             <>
               <Podium rows={data.rows.slice(0, 3)} viewerId={data.viewer.agentProfileId} metric={metric} isMobile={isMobile} />
-              <RankingTable rows={data.rows} viewerId={data.viewer.agentProfileId} metric={metric} isMobile={isNarrowForTable} />
+              <RankingTable
+                rows={data.rows}
+                viewer={data.viewer}
+                metric={metric}
+                isMobile={isNarrowForTable}
+              />
             </>
           )}
         </>
@@ -423,10 +441,36 @@ function PodiumCard({ row, viewerId, metric, isMobile }: { row: Row; viewerId: s
 
 // ─── Ranking table ────────────────────────────────────────────────────
 
-function RankingTable({ rows, viewerId, metric, isMobile }: { rows: Row[]; viewerId: string; metric: Metric; isMobile: boolean }) {
-  // Skip the top 3 — they're already in the podium. Show ranks 4+ here.
-  const tableRows = rows.length > 3 ? rows.slice(3) : []
-  if (tableRows.length === 0) return null
+function RankingTable({
+  rows, viewer, metric, isMobile,
+}: {
+  rows: Row[]
+  viewer: Payload['viewer']
+  metric: Metric
+  isMobile: boolean
+}) {
+  const [showAll, setShowAll] = useState(false)
+
+  // Skip the top 3 (already shown in the podium). Cap at the 17 below
+  // them so the table tops out at 20 visible names. The remainder is
+  // gated behind the "Show all" toggle.
+  const belowPodium = rows.length > 3 ? rows.slice(3) : []
+  const visibleCap = DEFAULT_VISIBLE - 3 // ranks 4-20 inclusive
+  const visibleRows = showAll ? belowPodium : belowPodium.slice(0, visibleCap)
+  const hiddenCount = Math.max(0, belowPodium.length - visibleRows.length)
+
+  // Pin the viewer's row at the bottom when their rank is past the cap
+  // AND they're not already in the visible slice. Pinning gives a #43
+  // viewer a place on the page without making them scroll past 30
+  // people they're behind. Only meaningful when the viewer has a
+  // non-zero value (otherwise inVisibleRows would be true / false but
+  // rank === null means they're not in any list anyway).
+  const viewerInVisible = visibleRows.some(r => r.agentProfileId === viewer.agentProfileId)
+  const pinnedViewer = !showAll && !viewerInVisible && viewer.inVisibleRows && viewer.rank !== null
+    ? rows.find(r => r.agentProfileId === viewer.agentProfileId) ?? null
+    : null
+
+  if (belowPodium.length === 0) return null
 
   return (
     <div style={{
@@ -451,9 +495,49 @@ function RankingTable({ rows, viewerId, metric, isMobile }: { rows: Row[]; viewe
           <div>Upline</div>
         </div>
       )}
-      {tableRows.map(row => (
-        <RankRow key={row.agentProfileId} row={row} viewerId={viewerId} metric={metric} isMobile={isMobile} />
+      {visibleRows.map(row => (
+        <RankRow key={row.agentProfileId} row={row} viewerId={viewer.agentProfileId} metric={metric} isMobile={isMobile} />
       ))}
+
+      {pinnedViewer && (
+        <>
+          {/* Visual gap so it's clear the pinned viewer row is a jump
+              past the cap, not a continuation of ranks 4-20. */}
+          <div style={{
+            padding: '8px 16px', textAlign: 'center',
+            color: '#3F4B5C', fontSize: 12, letterSpacing: '0.4em',
+            background: 'rgba(0,0,0,0.15)',
+            borderTop: '1px solid rgba(255,255,255,0.04)',
+            borderBottom: '1px solid rgba(255,255,255,0.04)',
+            userSelect: 'none',
+          }}>
+            · · ·
+          </div>
+          <RankRow row={pinnedViewer} viewerId={viewer.agentProfileId} metric={metric} isMobile={isMobile} />
+        </>
+      )}
+
+      {(hiddenCount > 0 || showAll) && (
+        <div style={{
+          padding: '10px 16px', textAlign: 'center',
+          background: 'rgba(0,0,0,0.15)',
+          borderTop: '1px solid rgba(201,169,110,0.08)',
+        }}>
+          <button
+            type="button"
+            onClick={() => setShowAll(s => !s)}
+            style={{
+              background: 'transparent', border: '1px solid rgba(201,169,110,0.3)',
+              color: '#C9A96E', borderRadius: 4,
+              padding: '6px 14px', fontSize: 11, fontWeight: 700,
+              letterSpacing: '0.1em', textTransform: 'uppercase',
+              cursor: 'pointer',
+            }}
+          >
+            {showAll ? `Show top ${DEFAULT_VISIBLE}` : `Show all ${belowPodium.length + 3}`}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
