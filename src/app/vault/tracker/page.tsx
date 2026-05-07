@@ -1452,6 +1452,12 @@ function AgentDrawer({
             Advance to Phase {agent.phase + 1} →
           </button>
         )}
+        {/* Re-announce the agent's current-phase promotion as a Discord
+            card. Useful for backfilling promotions that landed as plain
+            text under the old code path (anything pre-card-family).
+            Hidden for Phase 1 since there's no promotion to celebrate
+            from there. */}
+        {agent.phase > 1 && <PromotionReannounceButton agentId={agent.id} phase={agent.phase} />}
       </div>
 
       {/* Invite */}
@@ -2574,4 +2580,38 @@ function scoreColor(score: number) {
   if (score >= 80) return '#4ade80'
   if (score >= 60) return '#f59e0b'
   return '#f87171'
+}
+
+function PromotionReannounceButton({ agentId, phase }: { agentId: string; phase: number }) {
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle")
+  const click = async () => {
+    setState("sending")
+    try {
+      const res = await fetch(`/api/admin/agents/${agentId}/announce-promotion`, { method: "POST" })
+      setState(res.ok ? "sent" : "error")
+      setTimeout(() => setState("idle"), 4000)
+    } catch {
+      setState("error")
+    }
+  }
+  return (
+    <button
+      onClick={click}
+      disabled={state === "sending"}
+      title={`Post the PROMOTION card for Phase ${phase} to the Discord announcements channel`}
+      style={{
+        marginTop: 8, width: "100%",
+        background: state === "sent" ? "rgba(74,222,128,0.10)" : state === "error" ? "rgba(248,113,113,0.10)" : "transparent",
+        border: `1px solid ${state === "sent" ? "rgba(74,222,128,0.4)" : state === "error" ? "rgba(248,113,113,0.4)" : "rgba(155,109,255,0.3)"}`,
+        color: state === "sent" ? "#4ADE80" : state === "error" ? "#f87171" : "#9B6DFF",
+        borderRadius: 4, padding: "7px", fontSize: 10, fontWeight: 700,
+        cursor: state === "sending" ? "wait" : "pointer", letterSpacing: "0.08em", textTransform: "uppercase",
+      }}
+    >
+      {state === "sending" ? "Posting..."
+        : state === "sent" ? "✓ Card posted"
+        : state === "error" ? "Failed, retry"
+        : "Re-announce promotion to Discord"}
+    </button>
+  )
 }
