@@ -76,12 +76,7 @@ function aspectFor(orientation: 'landscape' | 'portrait') {
 }
 
 function LoomFrame({ url, orientation }: { url: string; orientation: 'landscape' | 'portrait' }) {
-  // autoplay so the user only taps once: tapping the wrapper button opens
-  // the iframe and Loom auto-starts the video. Without this, mobile users
-  // had to tap twice — once to expand, again on the play button inside.
-  // The wrapper button click counts as the user gesture so browsers allow
-  // it without forcing mute.
-  const embedUrl = loomEmbedUrl(url, { autoplay: true })
+  const embedUrl = loomEmbedUrl(url)
   if (!embedUrl) return <FallbackLink url={url} />
   return (
     <div style={{
@@ -103,7 +98,7 @@ function LoomFrame({ url, orientation }: { url: string; orientation: 'landscape'
 }
 
 function DriveFrame({ url, orientation }: { url: string; orientation: 'landscape' | 'portrait' }) {
-  const embedUrl = driveEmbedUrl(url, { autoplay: true })
+  const embedUrl = driveEmbedUrl(url)
   if (!embedUrl) return <FallbackLink url={url} />
   return (
     <div style={{
@@ -138,7 +133,6 @@ function NativeVideo({ url }: { url: string }) {
   return (
     <video
       controls
-      autoPlay
       preload="metadata"
       playsInline
       src={url}

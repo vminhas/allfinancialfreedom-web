@@ -38,30 +38,19 @@ export function detectEmbedKind(url: string | null | undefined): EmbedKind {
 
 // Convert a Loom share URL to its embeddable iframe URL. If already an embed
 // URL, return as-is. Returns null if the URL isn't a recognizable Loom URL.
-// `autoplay` appends Loom's autoplay flag so the video starts as soon as the
-// iframe loads — eliminates the second tap on mobile where today users have
-// to first expand the player and then press play inside the iframe.
-export function loomEmbedUrl(url: string, opts?: { autoplay?: boolean }): string | null {
+export function loomEmbedUrl(url: string): string | null {
   const share = url.match(LOOM_SHARE_RE)
-  let base: string | null = null
-  if (share) base = `https://www.loom.com/embed/${share[1]}`
-  else if (LOOM_EMBED_RE.test(url)) base = url
-  if (!base) return null
-  return opts?.autoplay ? `${base}?autoplay=1` : base
+  if (share) return `https://www.loom.com/embed/${share[1]}`
+  if (LOOM_EMBED_RE.test(url)) return url
+  return null
 }
 
 // Convert any Google Drive video URL to its embeddable /preview URL. The
 // file must be set to "Anyone with the link" in Drive's sharing settings
 // for the iframe to actually render the video; otherwise it shows an
 // access-required page.
-//
-// `autoplay` appends Drive's undocumented-but-honored autoplay param. Drive's
-// `/preview` accepts ?autoplay=1 in practice; if a future Drive change drops
-// it the worst case is the player loads paused (current behavior), not
-// broken playback.
-export function driveEmbedUrl(url: string, opts?: { autoplay?: boolean }): string | null {
+export function driveEmbedUrl(url: string): string | null {
   const m = url.match(DRIVE_FILE_RE) ?? url.match(DRIVE_QUERY_RE)
   if (!m) return null
-  const base = `https://drive.google.com/file/d/${m[1]}/preview`
-  return opts?.autoplay ? `${base}?autoplay=1` : base
+  return `https://drive.google.com/file/d/${m[1]}/preview`
 }
