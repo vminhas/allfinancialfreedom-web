@@ -373,10 +373,23 @@ export default function ProgressMatrixPage() {
             background: stuckOnly ? 'rgba(248,113,113,0.08)' : 'transparent',
             border: `1px solid ${stuckOnly ? 'rgba(248,113,113,0.3)' : 'transparent'}`,
           }}
-          title="Show only agents who have completed less than 50% of their current phase"
+          title="Stuck = less than 50% complete in their current phase. Surface them so you can check in proactively."
         >
           <input type="checkbox" checked={stuckOnly} onChange={e => setStuckOnly(e.target.checked)} />
           Stuck only
+          <span
+            aria-hidden="true"
+            title="Stuck = less than 50% complete in their current phase. Hover any STUCK badge in the matrix for that agent's specific %."
+            style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              width: 14, height: 14, borderRadius: '50%',
+              background: 'rgba(255,255,255,0.05)',
+              color: '#6B8299', fontSize: 9, fontWeight: 700,
+              cursor: 'help',
+            }}
+          >
+            ?
+          </span>
         </label>
         <button
           onClick={exportCsv}
@@ -686,11 +699,16 @@ function Matrix({
                     <div style={{ fontSize: 12, color: '#ffffff', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.15 }}>
                       {agent.firstName} {agent.lastName}
                     </div>
-                    <div style={{ fontSize: 9, color: '#6B8299', display: 'flex', gap: 6, marginTop: 1 }}>
+                    <div style={{ fontSize: 9, color: '#6B8299', display: 'flex', gap: 6, marginTop: 1, alignItems: 'center' }}>
                       <span>{agent.agentCode}</span>
                       <span style={{ color: PHASE_COLORS[agent.phase] }}>P{agent.phase}</span>
                       {(currentPhaseRatio.get(agent.id) ?? 1) < 0.5 && (
-                        <span style={{ color: '#f87171', fontWeight: 700 }}>STUCK</span>
+                        <span
+                          title={`STUCK: less than 50% complete in Phase ${agent.phase}. This agent may need a check-in. (${Math.round((currentPhaseRatio.get(agent.id) ?? 0) * 100)}% of current-phase items done)`}
+                          style={{ color: '#f87171', fontWeight: 700, cursor: 'help' }}
+                        >
+                          STUCK
+                        </span>
                       )}
                     </div>
                   </div>
