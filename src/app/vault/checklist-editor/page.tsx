@@ -33,10 +33,11 @@ interface PhaseGroupDef {
   id: string; phase: number; groupKey: string; label: string
   icon: string | null; description: string | null; showTrainer: boolean; sortOrder: number
   // Banner videos shown at the top of this step on the agent dashboard.
-  // Each entry has a url + optional title. Stored as JSON array in the
-  // DB. UI supports a single video for now (Melinee's per-step intro);
-  // schema is array-shaped so we can add more without a migration.
-  videos?: Array<{ url: string; title: string | null }>
+  // orientation defaults to 'landscape' but should be 'portrait' for
+  // phone-shot vertical recordings (Melinee's selfie intros from her
+  // phone) so the player doesn't letterbox them into a tiny center
+  // strip on mobile. Stored as JSON array in the DB.
+  videos?: Array<{ url: string; title: string | null; orientation?: 'landscape' | 'portrait' }>
 }
 
 interface ProgressionDef {
@@ -640,22 +641,22 @@ function GroupsEditor({ groups, onRefresh, isMobile }: { groups: PhaseGroupDef[]
   const [activePhase, setActivePhase] = useState(1)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
-  const [form, setForm] = useState({ groupKey: '', label: '', icon: '', description: '', showTrainer: false, videoUrl: '', videoTitle: '' })
+  const [form, setForm] = useState({ groupKey: '', label: '', icon: '', description: '', showTrainer: false, videoUrl: '', videoTitle: '', videoOrientation: 'landscape' as 'landscape' | 'portrait' })
   const [saving, setSaving] = useState(false)
 
   const phaseGroups = groups.filter(g => g.phase === activePhase).sort((a, b) => a.sortOrder - b.sortOrder)
   const inp: React.CSSProperties = { width: '100%', padding: '8px 10px', fontSize: 13, background: '#0A1628', border: '1px solid rgba(201,169,110,0.2)', borderRadius: 4, color: '#ffffff', outline: 'none' }
   const lbl: React.CSSProperties = { fontSize: 9, fontWeight: 700, color: '#9BB0C4', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }
 
-  const resetForm = () => { setForm({ groupKey: '', label: '', icon: '', description: '', showTrainer: false, videoUrl: '', videoTitle: '' }); setEditingId(null); setShowAdd(false) }
+  const resetForm = () => { setForm({ groupKey: '', label: '', icon: '', description: '', showTrainer: false, videoUrl: '', videoTitle: '', videoOrientation: 'landscape' }); setEditingId(null); setShowAdd(false) }
 
   const handleSave = async () => {
     setSaving(true)
-    // Build the videos array from the URL + title fields. Empty URL
-    // means no video; we send an explicit empty array so unsetting
-    // a previously-saved video clears it from the DB.
+    // Build the videos array from the URL + title + orientation fields.
+    // Empty URL means no video; we send an explicit empty array so
+    // unsetting a previously-saved video clears it from the DB.
     const videos = form.videoUrl.trim()
-      ? [{ url: form.videoUrl.trim(), title: form.videoTitle.trim() || null }]
+      ? [{ url: form.videoUrl.trim(), title: form.videoTitle.trim() || null, orientation: form.videoOrientation }]
       : []
     if (editingId) {
       await fetch('/api/admin/phase-groups', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editingId, label: form.label, icon: form.icon || null, description: form.description || null, showTrainer: form.showTrainer, videos }) })
@@ -701,14 +702,28 @@ function GroupsEditor({ groups, onRefresh, isMobile }: { groups: PhaseGroupDef[]
                 Optional. Shown at the top of this step on the agent dashboard. Leave blank for no video.
               </div>
             </div>
-            <div style={{ gridColumn: isMobile ? undefined : 'span 2' }}>
+            <div>
               <div style={lbl}>Video Title</div>
               <input
                 value={form.videoTitle}
                 onChange={e => setForm(f => ({ ...f, videoTitle: e.target.value }))}
-                placeholder='e.g. "Welcome to Step 1 with Melinee"'
+                placeholder='e.g. "Welcome to AFF"'
                 style={inp}
               />
+            </div>
+            <div>
+              <div style={lbl}>Orientation</div>
+              <select
+                value={form.videoOrientation}
+                onChange={e => setForm(f => ({ ...f, videoOrientation: e.target.value as 'landscape' | 'portrait' }))}
+                style={{ ...inp, cursor: 'pointer' }}
+              >
+                <option value="landscape">Landscape (16:9, desktop screen recording)</option>
+                <option value="portrait">Portrait (9:16, phone-shot selfie video)</option>
+              </select>
+              <div style={{ fontSize: 10, color: '#6B8299', marginTop: 4, lineHeight: 1.5 }}>
+                Pick portrait for vertical phone recordings so they don&rsquo;t letterbox on mobile.
+              </div>
             </div>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#9BB0C4', cursor: 'pointer' }}><input type="checkbox" checked={form.showTrainer} onChange={e => setForm(f => ({ ...f, showTrainer: e.target.checked }))} /> Show trainer</label>
           </div>
@@ -744,6 +759,7 @@ function GroupsEditor({ groups, onRefresh, isMobile }: { groups: PhaseGroupDef[]
                 showTrainer: g.showTrainer,
                 videoUrl: firstVideo?.url ?? '',
                 videoTitle: firstVideo?.title ?? '',
+                videoOrientation: firstVideo?.orientation === 'portrait' ? 'portrait' : 'landscape',
               })
               setEditingId(g.id); setShowAdd(true)
             }} style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 11, cursor: 'pointer' }}>Edit</button>
