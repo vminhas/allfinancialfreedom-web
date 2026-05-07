@@ -1463,6 +1463,20 @@ function ReferralsTab() {
   const [processingId, setProcessingId] = useState<string | null>(null)
   const [cftInput, setCftInput] = useState('')
   const [trainers, setTrainers] = useState<string[]>([])
+  // Tracks the most-recent announce status per referral row so the
+  // button can flash a brief "Sent ✓" without a layout shift.
+  const [announceState, setAnnounceState] = useState<Record<string, 'sending' | 'sent' | 'error'>>({})
+
+  const reannounce = async (id: string) => {
+    setAnnounceState(s => ({ ...s, [id]: 'sending' }))
+    try {
+      const res = await fetch(`/api/admin/referrals/${id}/announce`, { method: 'POST' })
+      setAnnounceState(s => ({ ...s, [id]: res.ok ? 'sent' : 'error' }))
+      setTimeout(() => setAnnounceState(s => { const n = { ...s }; delete n[id]; return n }), 3000)
+    } catch {
+      setAnnounceState(s => ({ ...s, [id]: 'error' }))
+    }
+  }
 
   useEffect(() => {
     fetch(`/api/vault/referrals?status=${filter}`)
@@ -1535,17 +1549,45 @@ function ReferralsTab() {
               padding: '16px 20px', borderRadius: 6,
               background: '#132238', border: '1px solid rgba(255,255,255,0.05)',
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8, gap: 8 }}>
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 600, color: '#ffffff' }}>{r.firstName} {r.lastName}</div>
                   <div style={{ fontSize: 11, color: '#9BB0C4', marginTop: 2 }}>{r.email}{r.phone ? ` · ${r.phone}` : ''}{r.state ? ` · ${r.state}` : ''}</div>
                 </div>
-                <span style={{
-                  fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
-                  color: REF_STATUS_COLORS[r.status] ?? '#6B8299',
-                  padding: '2px 8px', borderRadius: 10,
-                  background: r.status === 'PENDING' ? 'rgba(245,158,11,0.1)' : r.status === 'APPROVED' ? 'rgba(74,222,128,0.1)' : 'rgba(248,113,113,0.1)',
-                }}>{r.status}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                  {/* Re-announce on Discord. Lets admins backfill the
+                      NEW_RECRUIT card for referrals that landed as
+                      plain text under the old code path, or push an
+                      extra announcement if the original was missed. */}
+                  <button
+                    onClick={() => reannounce(r.id)}
+                    disabled={announceState[r.id] === 'sending'}
+                    title="Post the new-recruit card to the Discord announcements channel"
+                    style={{
+                      fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+                      padding: '4px 10px', borderRadius: 4,
+                      background: announceState[r.id] === 'sent'
+                        ? 'rgba(74,222,128,0.10)'
+                        : announceState[r.id] === 'error'
+                          ? 'rgba(248,113,113,0.10)'
+                          : 'transparent',
+                      border: `1px solid ${announceState[r.id] === 'sent' ? 'rgba(74,222,128,0.4)' : announceState[r.id] === 'error' ? 'rgba(248,113,113,0.4)' : 'rgba(201,169,110,0.3)'}`,
+                      color: announceState[r.id] === 'sent' ? '#4ADE80' : announceState[r.id] === 'error' ? '#f87171' : '#C9A96E',
+                      cursor: announceState[r.id] === 'sending' ? 'wait' : 'pointer',
+                    }}
+                  >
+                    {announceState[r.id] === 'sending' ? 'Posting...'
+                      : announceState[r.id] === 'sent' ? '✓ Sent'
+                      : announceState[r.id] === 'error' ? 'Failed'
+                      : 'Re-announce'}
+                  </button>
+                  <span style={{
+                    fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
+                    color: REF_STATUS_COLORS[r.status] ?? '#6B8299',
+                    padding: '2px 8px', borderRadius: 10,
+                    background: r.status === 'PENDING' ? 'rgba(245,158,11,0.1)' : r.status === 'APPROVED' ? 'rgba(74,222,128,0.1)' : 'rgba(248,113,113,0.1)',
+                  }}>{r.status}</span>
+                </div>
               </div>
               <div style={{ fontSize: 11, color: '#6B8299', marginBottom: 8 }}>
                 Referred by <span style={{ color: '#C9A96E' }}>{r.referringAgent.firstName} {r.referringAgent.lastName}</span> ({r.referringAgent.agentCode}) · {new Date(r.createdAt).toLocaleDateString()}
