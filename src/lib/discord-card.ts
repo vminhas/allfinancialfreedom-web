@@ -46,7 +46,12 @@ interface FlavorMeta {
 }
 
 const FLAVORS: Record<CardFlavor, FlavorMeta> = {
-  MILESTONE:     { title: '✦  M I L E S T O N E  ✦',       defaultAccent: 0xC9A96E, footerCloser: 'Way to go!' },
+  // MILESTONE used to default to gold (0xC9A96E), which collided with
+  // Phase-3 promotions (CFT advancement also renders gold). Switched
+  // to a soft platinum so milestone posts read as visually distinct
+  // from any phase-color promotion. Gold is now reserved for Phase-3
+  // promotions and the RECOGNITION (non-Elite milestone) flavor.
+  MILESTONE:     { title: '✦  M I L E S T O N E  ✦',       defaultAccent: 0xCBD5E1, footerCloser: 'Way to go!' },
   PROMOTION:     { title: '↑  P R O M O T I O N',           defaultAccent: 0xC9A96E, footerCloser: "Onward and upward!" },
   NEW_RECRUIT:   { title: '🎉  N E W   R E C R U I T',      defaultAccent: 0x4ADE80, footerCloser: 'Welcome to the family.' },
   RECOGNITION:   { title: '🏆  R E C O G N I T I O N',      defaultAccent: 0xC9A96E, footerCloser: 'Earned and well-deserved.' },
