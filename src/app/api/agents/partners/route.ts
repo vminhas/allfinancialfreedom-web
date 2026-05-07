@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { resolveAgentIdentity } from '@/lib/agent-identity'
+import { autoLinkAgentForBusinessPartner } from '@/lib/business-partner-link'
 
 export async function GET(req: NextRequest) {
   const id = await resolveAgentIdentity(req)
@@ -26,6 +27,14 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'asc' },
       skip,
       take: limit,
+      // Surface the NPN / license number from the linked AgentProfile when
+      // the BP is a recruit who's already onboarded. Lets the writing
+      // agent pull these for app submissions without DM'ing the recruit.
+      include: {
+        linkedAgentProfile: {
+          select: { id: true, agentCode: true, npn: true, licenseNumber: true },
+        },
+      },
     }),
     db.businessPartner.count({ where }),
   ])
@@ -84,6 +93,13 @@ export async function POST(req: NextRequest) {
       phaseItemKey: body.phaseItemKey,
     },
   })
+
+  // If the contact's email matches an existing AgentUser, link the rows
+  // immediately. Reverse direction (agent created → sweep BPs) handled
+  // in /api/admin/agents.
+  if (partner.email) {
+    await autoLinkAgentForBusinessPartner({ businessPartnerId: partner.id, email: partner.email })
+  }
 
   return NextResponse.json(partner)
 }

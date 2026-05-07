@@ -4,11 +4,12 @@ import { useEffect, useState } from 'react'
 import { TrophyIcon, ProgressIcon } from './leaderboard-icons'
 
 // Two-tab shell for /agents/leaderboard. Tab 1 ("Production") is the new
-// production-leaderboard view; Tab 2 ("Onboarding Progress") is the
-// existing checklist-completion matrix. State syncs to the URL hash so
-// refreshes and shared links preserve the active tab.
+// production-leaderboard view; Tab 2 ("Progression Matrix") is the
+// existing checklist-completion matrix (kept under that name because
+// it covers all phases, not just onboarding). State syncs to the URL
+// hash so refreshes and shared links preserve the active tab.
 
-export type LeaderboardTab = 'production' | 'onboarding'
+export type LeaderboardTab = 'production' | 'progression'
 
 export function LeaderboardTabsBar({
   active, setActive,
@@ -27,8 +28,8 @@ export function LeaderboardTabsBar({
       <TabButton active={active === 'production'} onClick={() => setActive('production')} icon={<TrophyIcon size={14} />}>
         Production
       </TabButton>
-      <TabButton active={active === 'onboarding'} onClick={() => setActive('onboarding')} icon={<ProgressIcon size={14} />}>
-        Onboarding Progress
+      <TabButton active={active === 'progression'} onClick={() => setActive('progression')} icon={<ProgressIcon size={14} />}>
+        Progression Matrix
       </TabButton>
     </div>
   )
@@ -72,7 +73,7 @@ export function useTabFromHash(defaultTab: LeaderboardTab = 'production') {
   useEffect(() => {
     const sync = () => {
       const h = typeof window !== 'undefined' ? window.location.hash.replace('#', '') : ''
-      if (h === 'onboarding' || h === 'production') setTab(h)
+      if (h === 'progression' || h === 'production') setTab(h)
     }
     sync()
     window.addEventListener('hashchange', sync)

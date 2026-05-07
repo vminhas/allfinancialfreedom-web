@@ -71,6 +71,11 @@ const PODIUM_ACCENT: Record<1 | 2 | 3, { ring: string; glow: string; gem: string
 
 export default function ProductionLeaderboard() {
   const isMobile = useIsMobile()
+  // The 6-column desktop ranking table needs ~900px of horizontal room
+  // before its fixed columns crowd the flex Agent/Upline columns into a
+  // smear. At 768-960px we switch the table (and only the table) to the
+  // mobile row layout so the page never shows a broken grid.
+  const isNarrowForTable = useIsMobile(960)
   const [metric, setMetric] = useState<Metric>('submissions')
   const [scope, setScope] = useState<Scope>('company')
   const [timeframe, setTimeframe] = useState<Timeframe>('month')
@@ -123,7 +128,7 @@ export default function ProductionLeaderboard() {
           ) : (
             <>
               <Podium rows={data.rows.slice(0, 3)} viewerId={data.viewer.agentProfileId} metric={metric} isMobile={isMobile} />
-              <RankingTable rows={data.rows} viewerId={data.viewer.agentProfileId} metric={metric} isMobile={isMobile} />
+              <RankingTable rows={data.rows} viewerId={data.viewer.agentProfileId} metric={metric} isMobile={isNarrowForTable} />
             </>
           )}
         </>
@@ -431,8 +436,9 @@ function RankingTable({ rows, viewerId, metric, isMobile }: { rows: Row[]; viewe
     }}>
       {!isMobile && (
         <div style={{
-          display: 'grid', gridTemplateColumns: '60px 1fr 100px 80px 110px 1fr',
-          padding: '10px 14px',
+          display: 'grid', gridTemplateColumns: '56px minmax(180px, 1.4fr) 90px 70px 110px minmax(140px, 1fr)',
+          columnGap: 14,
+          padding: '10px 16px',
           background: 'rgba(0,0,0,0.2)',
           borderBottom: '1px solid rgba(201,169,110,0.12)',
           fontSize: 9, letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 700, color: '#6B8299',
@@ -489,8 +495,9 @@ function RankRow({ row, viewerId, metric, isMobile }: { row: Row; viewerId: stri
 
   return (
     <div style={{
-      display: 'grid', gridTemplateColumns: '60px 1fr 100px 80px 110px 1fr',
-      padding: '10px 14px',
+      display: 'grid', gridTemplateColumns: '56px minmax(180px, 1.4fr) 90px 70px 110px minmax(140px, 1fr)',
+      columnGap: 14,
+      padding: '10px 16px',
       borderBottom: '1px solid rgba(255,255,255,0.04)',
       background: isYou ? 'rgba(201,169,110,0.08)' : 'transparent',
       borderLeft: isYou ? '3px solid #C9A96E' : '3px solid transparent',

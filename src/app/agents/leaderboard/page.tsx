@@ -54,12 +54,12 @@ export default function LeaderboardPage() {
   return (
     <Shell>
       <LeaderboardTabsBar active={tab} setActive={setTab} />
-      {tab === 'production' ? <ProductionLeaderboard /> : <OnboardingProgressView />}
+      {tab === 'production' ? <ProductionLeaderboard /> : <ProgressionMatrixView />}
     </Shell>
   )
 }
 
-function OnboardingProgressView() {
+function ProgressionMatrixView() {
   const isMobile = useIsMobile()
   const [data, setData] = useState<Payload | null>(null)
   const [loading, setLoading] = useState(true)
@@ -140,10 +140,10 @@ function OnboardingProgressView() {
       {/* Header + viewer's own headline card */}
       <div style={{ marginBottom: 16 }}>
         <p style={{ color: '#C9A96E', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 600, margin: '0 0 6px' }}>
-          Onboarding Progress
+          Progression Matrix
         </p>
         <h1 style={{ color: '#ffffff', fontSize: isMobile ? 22 : 28, fontWeight: 300, margin: 0 }}>
-          Checklist completion across the team
+          Where you stand
         </h1>
         <p style={{ color: '#6B8299', fontSize: 12, margin: '8px 0 0', lineHeight: 1.5 }}>
           Every active AFF agent ranked by checklist completion. Your row is highlighted in gold.

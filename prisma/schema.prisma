@@ -269,6 +269,11 @@ model AgentProfile {
   carrierAppointments   CarrierAppointment[]
   milestones            RecognitionMilestone[]
   businessPartners      BusinessPartner[]
+  // Inverse of BusinessPartner.linkedAgentProfile: every BP row pointing
+  // at this agent because the contact-list entry was them before they
+  // got onboarded. Multiple recruiters can have logged the same person,
+  // so this is one-to-many.
+  linkedFromBusinessPartners BusinessPartner[] @relation("BusinessPartnerLinkedAgent")
   policies              PolicyEntry[]    @relation("PolicyWriter")
   splitPolicies         PolicyEntry[]    @relation("PolicySplit")
   policyComments        PolicyComment[]
@@ -647,6 +652,13 @@ model BusinessPartner {
   // hidden from queue but kept so re-imports don't re-queue them.
   status          String       @default("PENDING")  // PENDING | NEW | CONTACTED | INTRO_SENT | BOOKED | CONVERTED | SKIPPED
   lastContactAt   DateTime?    // last meaningful action (call, email, intro)
+  // When a contact-list entry's email matches an AgentUser (the recruit
+  // got onboarded as an AFF agent), we eager-link the rows so the writing
+  // agent can pull the new agent's NPN / license number off the BP card
+  // for app submissions instead of texting them every time. Auto-set on
+  // both directions (BP create and Agent create) by lib/business-partner-link.
+  linkedAgentProfileId String?
+  linkedAgentProfile   AgentProfile? @relation("BusinessPartnerLinkedAgent", fields: [linkedAgentProfileId], references: [id], onDelete: SetNull)
   createdAt       DateTime     @default(now())
 
   // Reverse side of FieldTrainingAppointment.businessPartner relation. An
@@ -655,6 +667,7 @@ model BusinessPartner {
   ftaAppointments FieldTrainingAppointment[]
 
   @@index([agentProfileId, status])
+  @@index([linkedAgentProfileId])
   @@map("business_partners")
 }
 
