@@ -81,8 +81,14 @@ export async function GET(req: Request) {
   const rosterIds = roster.map(r => r.id)
   if (rosterIds.length === 0) {
     return NextResponse.json({
-      rows: [], viewer: { agentProfileId: me.profile.id, rank: null, value: 0, previousValue: 0 },
-      totalCount: 0, metric, scope, timeframe,
+      rows: [],
+      viewer: {
+        agentProfileId: me.profile.id,
+        rank: null, value: 0, previousValue: 0,
+        inVisibleRows: false,
+      },
+      totalCount: 0, activeCount: 0,
+      metric, scope, timeframe,
     } satisfies Response)
   }
 
