@@ -32,6 +32,11 @@ export interface CardData {
   totalSubmissions: number
   issuedClients: number
   totalTargetPremium: number | null
+  // Regulatory identifiers shown on the card so an agent can grab
+  // their NPN / license number while filling out an application
+  // without leaving the dashboard.
+  npn: string | null
+  licenseNumber: string | null
   milestoneBadges: { key: string; label: string }[]
   scope: 'admin' | 'lc' | 'peer_agent'
 }
@@ -318,6 +323,23 @@ export function AgentTradingCardModal({
                 )}
               </div>
 
+              {/* Regulatory identifiers — NPN + license number. Mercedes
+                  flagged that newly-licensed agents need quick access to
+                  these when filling out applications, so we surface them
+                  on the card with click-to-copy. Only renders when at
+                  least one is set; doesn't try to fake an empty state. */}
+              {(data.npn || data.licenseNumber) && (
+                <div style={{
+                  position: 'relative', padding: '10px 16px',
+                  borderTop: '1px solid rgba(201,169,110,0.10)',
+                  display: 'flex', gap: 18, flexWrap: 'wrap',
+                  fontSize: 11,
+                }}>
+                  {data.npn && <CopyableId label="NPN" value={data.npn} />}
+                  {data.licenseNumber && <CopyableId label="License" value={data.licenseNumber} />}
+                </div>
+              )}
+
               {/* Milestone badge row at the bottom (only if any earned) */}
               {data.milestoneBadges.length > 0 && (
                 <div style={{ position: 'relative', padding: '10px 16px 14px', borderTop: '1px solid rgba(201,169,110,0.15)', background: 'rgba(0,0,0,0.18)' }}>
@@ -386,6 +408,44 @@ export function AgentTradingCardModal({
         )}
       </div>
     </div>
+  )
+}
+
+// Click-to-copy chip for regulatory IDs (NPN, license number).
+// Shows "✓ copied" briefly on success so the user knows the click
+// landed even on touch devices where there's no cursor feedback.
+function CopyableId({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false)
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch { /* clipboard blocked, fall through */ }
+  }
+  return (
+    <button
+      onClick={copy}
+      title={`Click to copy ${label}`}
+      style={{
+        display: 'inline-flex', alignItems: 'baseline', gap: 6,
+        background: 'transparent', border: 'none', padding: 0,
+        cursor: 'pointer', fontFamily: 'inherit',
+      }}
+    >
+      <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#9BB0C4' }}>
+        {label}
+      </span>
+      <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#fff', letterSpacing: '0.04em' }}>
+        {value}
+      </span>
+      <span style={{
+        fontSize: 9, color: copied ? '#4ADE80' : '#6B8299',
+        transition: 'color 0.2s',
+      }}>
+        {copied ? '✓ copied' : '⧉'}
+      </span>
+    </button>
   )
 }
 
