@@ -168,9 +168,31 @@ export async function PUT(
     'isTest',
   ] as const
 
+  // Date-shaped columns that arrive as 'YYYY-MM-DD' from <input type="date">
+  // and need coercion to Date | null before Prisma will accept them. Without
+  // this, saving an unrelated checkbox (like isTest) fails because the form
+  // re-sends every field including the bare date strings.
+  const dateFields = new Set<string>([
+    'dateOfBirth', 'icaDate', 'phaseStartedAt', 'examDate',
+    'dateSubmittedToGfi', 'discordJoinDate', 'welcomeLetterSentAt',
+  ])
+
   const data: Record<string, unknown> = {}
   for (const key of allowed) {
-    if (key in body) data[key] = body[key]
+    if (!(key in body)) continue
+    const raw = body[key]
+    if (dateFields.has(key)) {
+      if (raw === null || raw === '' || raw === undefined) {
+        data[key] = null
+      } else if (raw instanceof Date) {
+        data[key] = raw
+      } else {
+        const parsed = new Date(raw as string)
+        data[key] = isNaN(parsed.getTime()) ? null : parsed
+      }
+    } else {
+      data[key] = raw
+    }
   }
 
   const updated = await db.agentProfile.update({ where: { id }, data })
