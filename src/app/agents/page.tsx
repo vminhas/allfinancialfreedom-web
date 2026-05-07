@@ -217,8 +217,9 @@ function AgentDashboardInner() {
   // checklist editor has set up groups (and optionally banner videos),
   // these override the bundled PHASE_GROUPS constants. Each entry
   // mirrors the constant shape but with an extra `videos` array.
+  type GroupVideo = { url: string; title: string | null; orientation: 'landscape' | 'portrait' }
   type GroupWithVideos = (typeof PHASE_GROUPS[1][number]) & {
-    videos: Array<{ url: string; title: string | null }>
+    videos: GroupVideo[]
   }
   const [dbPhaseGroups, setDbPhaseGroups] = useState<Record<number, GroupWithVideos[]> | null>(null)
   const [showPromotion, setShowPromotion] = useState<number | null>(null)
@@ -320,7 +321,7 @@ function AgentDashboardInner() {
       .then(r => r.ok ? r.json() : null)
       .then((d: {
         items: Record<string, { itemKey: string; label: string; description: string; duration?: string; groupKey?: string; adminOnly?: boolean; coordinatorTopic?: string; actionJson?: string; videoUrl?: string | null; videoTitle?: string | null; videos?: Array<{ url: string; title?: string | null }> | null }[]>
-        groups?: Record<string, Array<{ key: string; label: string; icon?: string | null; description?: string | null; showTrainer?: boolean; videos?: Array<{ url: string; title: string | null }> }>>
+        groups?: Record<string, Array<{ key: string; label: string; icon?: string | null; description?: string | null; showTrainer?: boolean; videos?: Array<{ url: string; title: string | null; orientation?: 'landscape' | 'portrait' }> }>>
         source: string
       } | null) => {
         if (d?.source === 'database' && d.items) {
@@ -362,7 +363,11 @@ function AgentDashboardInner() {
               showTrainer: g.showTrainer ?? false,
               videos: Array.isArray(g.videos)
                 ? g.videos.filter(v => v && typeof v.url === 'string' && v.url.length > 0)
-                  .map(v => ({ url: v.url, title: v.title ?? null }))
+                  .map(v => ({
+                    url: v.url,
+                    title: v.title ?? null,
+                    orientation: v.orientation === 'portrait' ? 'portrait' as const : 'landscape' as const,
+                  }))
                 : [],
             }) as GroupWithVideos)
           }
@@ -1245,7 +1250,12 @@ function AgentDashboardInner() {
                           display: 'flex', flexDirection: 'column', gap: 8,
                         }}>
                           {(group as GroupWithVideos).videos.map((v, idx) => (
-                            <ChecklistItemVideo key={`${group.key}-video-${idx}`} videoUrl={v.url} videoTitle={v.title} />
+                            <ChecklistItemVideo
+                              key={`${group.key}-video-${idx}`}
+                              videoUrl={v.url}
+                              videoTitle={v.title}
+                              orientation={v.orientation}
+                            />
                           ))}
                         </div>
                       )}

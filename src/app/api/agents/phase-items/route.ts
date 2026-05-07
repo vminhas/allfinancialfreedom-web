@@ -28,11 +28,11 @@ export async function GET() {
     icon: string | null
     description: string | null
     showTrainer: boolean
-    videos: Array<{ url: string; title: string | null }>
+    videos: Array<{ url: string; title: string | null; orientation?: 'landscape' | 'portrait' }>
   }>> = {}
   for (const g of dbGroups) {
     if (!groupsByPhase[g.phase]) groupsByPhase[g.phase] = []
-    const rawVideos = Array.isArray(g.videos) ? (g.videos as Array<{ url?: string; title?: string | null }>) : []
+    const rawVideos = Array.isArray(g.videos) ? (g.videos as Array<{ url?: string; title?: string | null; orientation?: string }>) : []
     groupsByPhase[g.phase].push({
       key: g.groupKey,
       label: g.label,
@@ -41,7 +41,11 @@ export async function GET() {
       showTrainer: g.showTrainer ?? false,
       videos: rawVideos
         .filter(v => v && typeof v.url === 'string' && v.url.length > 0)
-        .map(v => ({ url: v.url!, title: v.title ?? null })),
+        .map(v => ({
+          url: v.url!,
+          title: v.title ?? null,
+          orientation: v.orientation === 'portrait' ? 'portrait' as const : 'landscape' as const,
+        })),
     })
   }
 

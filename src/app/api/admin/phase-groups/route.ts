@@ -60,8 +60,10 @@ export async function PUT(req: NextRequest) {
     description?: string
     showTrainer?: boolean
     // Banner videos shown at the top of this step on the agent
-    // dashboard. Same JSON shape as PhaseItemDefinition.videos.
-    videos?: Array<{ url: string; title?: string | null }>
+    // dashboard. orientation defaults to landscape; phone-shot
+    // portrait recordings should be flagged so the player uses
+    // 9:16 instead of letterboxing them into a 16:9 box on mobile.
+    videos?: Array<{ url: string; title?: string | null; orientation?: 'landscape' | 'portrait' }>
   }
   if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
@@ -71,9 +73,14 @@ export async function PUT(req: NextRequest) {
   if (body.description !== undefined) data.description = body.description
   if (body.showTrainer !== undefined) data.showTrainer = body.showTrainer
   if (body.videos !== undefined) {
-    // Sanitize: drop entries without a url, keep title nullable.
+    // Sanitize: drop entries without a url, keep title nullable,
+    // normalize orientation to one of the two known values.
     data.videos = body.videos.filter(v => typeof v?.url === 'string' && v.url.trim().length > 0)
-      .map(v => ({ url: v.url.trim(), title: v.title?.toString().trim() || null }))
+      .map(v => ({
+        url: v.url.trim(),
+        title: v.title?.toString().trim() || null,
+        orientation: v.orientation === 'portrait' ? 'portrait' : 'landscape',
+      }))
   }
 
   const group = await db.phaseGroupDefinition.update({ where: { id: body.id }, data })

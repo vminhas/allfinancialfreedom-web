@@ -11,9 +11,13 @@ import { detectEmbedKind, loomEmbedUrl, driveEmbedUrl } from '@/lib/video-embed'
 interface Props {
   videoUrl: string
   videoTitle: string | null
+  // 'portrait' = vertical phone-shot videos (Melinee's selfie intros).
+  // 'landscape' = standard 16:9 (desktop screen recordings, etc.).
+  // Default landscape because that's what most checklist walkthroughs are.
+  orientation?: 'landscape' | 'portrait'
 }
 
-export default function ChecklistItemVideo({ videoUrl, videoTitle }: Props) {
+export default function ChecklistItemVideo({ videoUrl, videoTitle, orientation = 'landscape' }: Props) {
   const [open, setOpen] = useState(false)
   const kind = detectEmbedKind(videoUrl)
   const label = videoTitle?.trim() || 'Watch the walkthrough'
@@ -48,9 +52,9 @@ export default function ChecklistItemVideo({ videoUrl, videoTitle }: Props) {
       {open && (
         <div onClick={e => e.stopPropagation()} style={{ marginTop: 10 }}>
           {kind === 'loom' ? (
-            <LoomFrame url={videoUrl} />
+            <LoomFrame url={videoUrl} orientation={orientation} />
           ) : kind === 'drive' ? (
-            <DriveFrame url={videoUrl} />
+            <DriveFrame url={videoUrl} orientation={orientation} />
           ) : (
             <NativeVideo url={videoUrl} />
           )}
@@ -60,11 +64,29 @@ export default function ChecklistItemVideo({ videoUrl, videoTitle }: Props) {
   )
 }
 
-function LoomFrame({ url }: { url: string }) {
+// Loom + Drive iframes set aspect ratio from the orientation prop.
+// Without this, portrait phone-shot videos letterbox down to a tiny
+// center strip inside a 16:9 box (Melinee's welcome series ran into
+// this on mobile). Portrait videos use 9:16 so the actual content
+// fills the iframe naturally; landscape stays at 16:9. We cap at
+// 70vh on portrait so the player doesn't dominate tall mobile
+// viewports.
+function aspectFor(orientation: 'landscape' | 'portrait') {
+  return orientation === 'portrait' ? '9 / 16' : '16 / 9'
+}
+
+function LoomFrame({ url, orientation }: { url: string; orientation: 'landscape' | 'portrait' }) {
   const embedUrl = loomEmbedUrl(url)
   if (!embedUrl) return <FallbackLink url={url} />
   return (
-    <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden', borderRadius: 6, background: '#000' }}>
+    <div style={{
+      position: 'relative',
+      aspectRatio: aspectFor(orientation),
+      maxHeight: '70vh',
+      maxWidth: orientation === 'portrait' ? 400 : '100%',
+      margin: '0 auto',
+      overflow: 'hidden', borderRadius: 6, background: '#000',
+    }}>
       <iframe
         src={embedUrl}
         allow="autoplay; fullscreen; picture-in-picture"
@@ -75,11 +97,22 @@ function LoomFrame({ url }: { url: string }) {
   )
 }
 
-function DriveFrame({ url }: { url: string }) {
+function DriveFrame({ url, orientation }: { url: string; orientation: 'landscape' | 'portrait' }) {
   const embedUrl = driveEmbedUrl(url)
   if (!embedUrl) return <FallbackLink url={url} />
   return (
-    <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden', borderRadius: 6, background: '#000' }}>
+    <div style={{
+      position: 'relative',
+      aspectRatio: aspectFor(orientation),
+      maxHeight: '70vh',
+      // Portrait videos get a max-width cap so they don't blow up to
+      // full window-width on desktop (a phone-shot 9:16 video at full
+      // desktop width is over 800px tall, dominating the page). On
+      // mobile this cap is moot because viewport is narrower than 400.
+      maxWidth: orientation === 'portrait' ? 400 : '100%',
+      margin: '0 auto',
+      overflow: 'hidden', borderRadius: 6, background: '#000',
+    }}>
       <iframe
         src={embedUrl}
         allow="autoplay; fullscreen"
@@ -90,13 +123,29 @@ function DriveFrame({ url }: { url: string }) {
   )
 }
 
+// For directly-uploaded videos (Vercel Blob mp4/webm/mov) we let the
+// browser pick the natural aspect ratio of the file. The previous
+// `maxHeight: 480` cap letterboxed portrait phone-shot recordings
+// into a too-wide box on mobile (the agent's video looked tiny with
+// black bars). 70vh is generous on mobile (roughly 530px on iPhone)
+// while keeping the video from dominating tall desktop windows.
 function NativeVideo({ url }: { url: string }) {
   return (
     <video
       controls
       preload="metadata"
+      playsInline
       src={url}
-      style={{ width: '100%', maxHeight: 480, borderRadius: 6, background: '#000', display: 'block' }}
+      style={{
+        display: 'block',
+        width: '100%',
+        height: 'auto',
+        maxHeight: '70vh',
+        margin: '0 auto',
+        borderRadius: 6,
+        background: '#000',
+        objectFit: 'contain',
+      }}
     />
   )
 }
