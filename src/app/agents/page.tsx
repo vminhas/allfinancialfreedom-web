@@ -14,6 +14,7 @@ import CallReviewModal, { CallReviewData } from '@/components/CallReviewModal'
 import DatePicker from '@/components/DatePicker'
 import DateTimePicker from '@/components/DateTimePicker'
 import LicensingRequestModal, { type LicensingRequestTopic } from '@/components/LicensingRequestModal'
+import RecruitClaimModal from '@/components/RecruitClaimModal'
 import NotificationCenter from '@/components/NotificationCenter'
 import LicensingCoordinatorPanel from '@/components/LicensingCoordinatorPanel'
 import FTALogModal from '@/components/FTALogModal'
@@ -29,7 +30,24 @@ import AnnouncementBanner from '@/components/AnnouncementBanner'
 import { useIsMobile } from '@/lib/useIsMobile'
 
 interface PhaseProgress { phase: number; total: number; completed: number; pct: number }
-interface PhaseItem { phase: number; itemKey: string; completed: boolean; completedAt: string | null }
+interface PhaseItem {
+  phase: number
+  itemKey: string
+  completed: boolean
+  completedAt: string | null
+  // Set on direct_1/2/3 items when the recruiter claimed an existing
+  // agent. Drives the "Linked to: X" chip + means the picker should
+  // skip this person on other slots.
+  linkedAgentProfileId?: string | null
+  linkedAgentProfile?: {
+    id: string
+    firstName: string
+    lastName: string
+    agentCode: string
+    status: 'ACTIVE' | 'INACTIVE'
+    avatarUrl: string | null
+  } | null
+}
 interface CarrierAppointment { carrier: string; status: string; producerNumber: string | null }
 interface Milestone {
   milestone: string
@@ -234,6 +252,9 @@ function AgentDashboardInner() {
   }
   const [coordinatorRequests, setCoordinatorRequests] = useState<CoordinatorRequest[]>([])
   const [requestModalItemKey, setRequestModalItemKey] = useState<string | null>(null)
+  // Tracks which direct_N item is currently using the "Pick recruit"
+  // modal. Null = closed.
+  const [recruitClaimItemKey, setRecruitClaimItemKey] = useState<string | null>(null)
 
   const fetchCoordinatorRequests = useCallback(async () => {
     const res = await fetch('/api/agents/coordinator-requests')
@@ -1281,6 +1302,21 @@ function AgentDashboardInner() {
                           <Mail size={11} color="#C9A96E" /> Get Help
                         </button>
                       )}
+                      {phaseItem?.linkedAgentProfile && (
+                        <span
+                          title={`Linked to ${phaseItem.linkedAgentProfile.firstName} ${phaseItem.linkedAgentProfile.lastName} (${phaseItem.linkedAgentProfile.agentCode})${phaseItem.linkedAgentProfile.status === 'INACTIVE' ? ' · inactive' : ''}`}
+                          style={{
+                            fontSize: 10, fontWeight: 600, color: '#4ADE80',
+                            background: 'rgba(74,222,128,0.08)',
+                            border: '1px solid rgba(74,222,128,0.25)',
+                            padding: '2px 8px', borderRadius: 999, flexShrink: 0,
+                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 180,
+                            opacity: phaseItem.linkedAgentProfile.status === 'INACTIVE' ? 0.7 : 1,
+                          }}
+                        >
+                          &#10003; {phaseItem.linkedAgentProfile.firstName} {phaseItem.linkedAgentProfile.lastName}
+                        </span>
+                      )}
                       {phaseItem?.completedAt && (
                         <span style={{ fontSize: 10, color: '#4B5563', flexShrink: 0 }}>
                           {new Date(phaseItem.completedAt).toLocaleDateString()}
@@ -1315,6 +1351,15 @@ function AgentDashboardInner() {
                           </a>
                         )
                       })()}
+                      {item.action?.type === 'claim-recruit' && (
+                        <button
+                          onClick={e => { e.stopPropagation(); setRecruitClaimItemKey(item.key) }}
+                          style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 10, cursor: 'pointer', padding: '0 4px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 3 }}
+                          title={item.action.label ?? 'Pick recruit'}
+                        >
+                          {phaseItem?.linkedAgentProfile ? 'Change' : (item.action.label ?? 'Pick recruit')} <ArrowRight size={11} />
+                        </button>
+                      )}
                       {item.action?.type === 'inline-form' && (() => {
                         if (item.action!.modal === 'promotion-request') {
                           if (done) return <span style={{ fontSize: 10, color: '#4ade80', flexShrink: 0, padding: '2px 10px', background: 'rgba(74,222,128,0.1)', borderRadius: 10 }}>Approved</span>
@@ -1657,6 +1702,54 @@ function AgentDashboardInner() {
                 },
                 ...prev,
               ])
+            }}
+          />
+        )
+      })()}
+
+      {recruitClaimItemKey && (() => {
+        // Find the item def for the modal label.
+        const item = effectivePhaseItems[activeChecklistPhase]?.find(i => i.key === recruitClaimItemKey)
+          ?? Object.values(PHASE_ITEMS).flat().find(i => i.key === recruitClaimItemKey)
+        if (!item) return null
+        // Block double-claiming the same recruit across direct_1/2/3.
+        const otherClaimed = data.phaseItems
+          .filter(pi => pi.itemKey !== recruitClaimItemKey && pi.linkedAgentProfileId)
+          .map(pi => pi.linkedAgentProfileId as string)
+        return (
+          <RecruitClaimModal
+            itemKey={recruitClaimItemKey}
+            itemLabel={item.label}
+            previewToken={previewToken}
+            alreadyClaimedProfileIds={otherClaimed}
+            onClose={() => setRecruitClaimItemKey(null)}
+            onReferNew={() => { goToTab('partners') }}
+            onClaimed={result => {
+              // Optimistically reflect the claim into local state so the
+              // checkbox flips green and the chip appears without a full
+              // refetch. Replace the existing PhaseItem row if present,
+              // otherwise append.
+              const linked = {
+                id: result.recruit.id,
+                firstName: result.recruit.firstName,
+                lastName: result.recruit.lastName,
+                agentCode: result.recruit.agentCode,
+                status: result.recruit.status as 'ACTIVE' | 'INACTIVE',
+                avatarUrl: null,
+              }
+              setData(prev => {
+                if (!prev) return prev
+                const idx = prev.phaseItems.findIndex(pi => pi.itemKey === result.itemKey && pi.phase === 2)
+                const next = [...prev.phaseItems]
+                const nowIso = new Date().toISOString()
+                if (idx >= 0) {
+                  next[idx] = { ...next[idx], completed: true, completedAt: nowIso, linkedAgentProfileId: result.linkedAgentProfileId, linkedAgentProfile: linked }
+                } else {
+                  next.push({ phase: 2, itemKey: result.itemKey, completed: true, completedAt: nowIso, linkedAgentProfileId: result.linkedAgentProfileId, linkedAgentProfile: linked })
+                }
+                return { ...prev, phaseItems: next }
+              })
+              setRecruitClaimItemKey(null)
             }}
           />
         )
@@ -2338,6 +2431,11 @@ function ProfileTab({ data, onSaved, discordParam, discordUsername, isMobile }: 
       city: form.city,
       zip: form.zip,
       country: form.country,
+      // Mercedes (D2161) reported her Calendly link wasn't holding —
+      // the input updated form state, but the save payload silently
+      // dropped this field, so the PUT body never carried calendlyUrl
+      // and the server never wrote it. Include it explicitly.
+      calendlyUrl: form.calendlyUrl,
     }
     if (form.ssn.replace(/\D/g, '').length > 0) {
       payload.ssn = form.ssn
@@ -4493,7 +4591,7 @@ const RESOURCE_GROUPS: { key: string; label: string; icon: string }[] = [
 
 // ─── My Team Tab ──────────────────────────────────────────────────────────────
 
-type MemberStatus = 'ACTIVE' | 'INVITED' | 'PENDING'
+type MemberStatus = 'ACTIVE' | 'INVITED' | 'PENDING' | 'INACTIVE'
 
 interface TeamProgress {
   phase: number
@@ -4525,9 +4623,10 @@ interface TeamNode {
 }
 
 const MEMBER_STATUS_STYLE: Record<MemberStatus, { bg: string; border: string; fg: string; label: string }> = {
-  ACTIVE:  { bg: 'rgba(74,222,128,0.12)',  border: 'rgba(74,222,128,0.30)',  fg: '#4ADE80', label: 'Active' },
-  INVITED: { bg: 'rgba(96,165,250,0.12)',  border: 'rgba(96,165,250,0.30)',  fg: '#60A5FA', label: 'Invited' },
-  PENDING: { bg: 'rgba(245,158,11,0.12)',  border: 'rgba(245,158,11,0.30)',  fg: '#F59E0B', label: 'Pending Review' },
+  ACTIVE:   { bg: 'rgba(74,222,128,0.12)',  border: 'rgba(74,222,128,0.30)',  fg: '#4ADE80', label: 'Active' },
+  INVITED:  { bg: 'rgba(96,165,250,0.12)',  border: 'rgba(96,165,250,0.30)',  fg: '#60A5FA', label: 'Invited' },
+  PENDING:  { bg: 'rgba(245,158,11,0.12)',  border: 'rgba(245,158,11,0.30)',  fg: '#F59E0B', label: 'Pending Review' },
+  INACTIVE: { bg: 'rgba(107,130,153,0.10)', border: 'rgba(107,130,153,0.25)', fg: '#9BB0C4', label: 'Inactive' },
 }
 
 const TEAM_PHASE_COLORS: Record<number, string> = {
@@ -4586,6 +4685,11 @@ function TeamMemberNode({ node, depth, isMobile, onOpenCard }: { node: TeamNode;
   const color = TEAM_PHASE_COLORS[node.phase] ?? '#C9A96E'
   const statusStyle = MEMBER_STATUS_STYLE[node.memberStatus]
   const isInactive = node.memberStatus !== 'ACTIVE'
+  // INACTIVE is faded harder than INVITED/PENDING because the agent
+  // toggled their full team on specifically to see this — but the
+  // person is no longer producing, so they shouldn't compete with
+  // active recruits for visual attention.
+  const inactiveOpacity = node.memberStatus === 'INACTIVE' ? 0.55 : (isInactive ? 0.85 : 1)
   let descendants = 0
   function count(n: TeamNode) { for (const c of n.children) { descendants++; count(c) } }
   count(node)
@@ -4629,7 +4733,7 @@ function TeamMemberNode({ node, depth, isMobile, onOpenCard }: { node: TeamNode;
           borderRadius: 8,
           marginLeft: isMobile ? depth * 16 : depth * 32,
           cursor: node.children.length > 0 ? 'pointer' : 'default',
-          opacity: isInactive ? 0.85 : 1,
+          opacity: inactiveOpacity,
         }}
         onClick={() => node.children.length > 0 && setExpanded(!expanded)}
       >
@@ -4886,13 +4990,22 @@ function MyTeamTab({ isMobile, previewToken }: { isMobile: boolean; previewToken
   const [totalSize, setTotalSize] = useState(0)
   const [activeSize, setActiveSize] = useState(0)
   const [loading, setLoading] = useState(true)
+  // "See full team" toggle: default off (active producers only).
+  // Resets each visit by design — the optimistic frame is "look at
+  // your producing team," and we don't want a persisted preference
+  // landing the agent on the audit view by default.
+  const [showFullTeam, setShowFullTeam] = useState(false)
   // Trading-card modal: opened by clicking a team member's avatar/name.
   // Lifted to the tab so a single modal renders no matter which depth
   // of TeamMemberNode the click came from.
   const [cardCode, setCardCode] = useState<string | null>(null)
 
   useEffect(() => {
-    const url = previewToken ? `/api/agents/team?preview=${previewToken}` : '/api/agents/team'
+    const params = new URLSearchParams()
+    if (previewToken) params.set('preview', previewToken)
+    if (showFullTeam) params.set('includeInactive', '1')
+    const qs = params.toString()
+    const url = qs ? `/api/agents/team?${qs}` : '/api/agents/team'
     fetch(url)
       .then(r => { if (!r.ok) throw new Error(); return r.json() })
       .then((d: { team: TeamNode[]; totalTeamSize: number; activeTeamSize?: number }) => {
@@ -4902,7 +5015,7 @@ function MyTeamTab({ isMobile, previewToken }: { isMobile: boolean; previewToken
       })
       .catch(() => { /* no team data available */ })
       .finally(() => setLoading(false))
-  }, [])
+  }, [previewToken, showFullTeam])
 
   if (loading) return <div style={{ color: '#6B8299', fontSize: 13, padding: 40, textAlign: 'center' }}>Loading your team...</div>
 
@@ -4952,6 +5065,25 @@ function MyTeamTab({ isMobile, previewToken }: { isMobile: boolean; previewToken
             Direct
           </span>
         </div>
+        {/* "See full team" toggle: positively framed, defaults to OFF
+            so the team view leads with active producers. Pulled inactive
+            agents in via ?includeInactive=1 when toggled on. */}
+        <button
+          onClick={() => setShowFullTeam(v => !v)}
+          style={{
+            marginLeft: 'auto',
+            padding: '8px 14px',
+            background: showFullTeam ? 'rgba(201,169,110,0.10)' : 'transparent',
+            border: `1px solid ${showFullTeam ? 'rgba(201,169,110,0.4)' : 'rgba(255,255,255,0.1)'}`,
+            color: showFullTeam ? '#C9A96E' : '#9BB0C4',
+            borderRadius: 6, fontSize: 11, fontWeight: 700,
+            letterSpacing: '0.08em', textTransform: 'uppercase',
+            cursor: 'pointer',
+          }}
+          title={showFullTeam ? 'Show only active producers' : 'Include inactive agents you recruited'}
+        >
+          {showFullTeam ? 'Active only' : 'See full team'}
+        </button>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {team.map(node => (

@@ -24,15 +24,18 @@ const PHASE_ITEM_TOTALS: Record<number, number> = {
   5: PHASE_ITEMS[5]?.length ?? 0,
 }
 
-// memberStatus distinguishes the three lifecycle states a referred agent
-// passes through. The UI sorts ACTIVE → INVITED → PENDING and renders a
-// status pill on each row.
-//   ACTIVE  — accepted invite, password set, can log in
-//   INVITED — admin approved the referral, welcome email sent, hasn't
-//             activated the portal yet (agentUser.passwordHash is null)
-//   PENDING — referral submitted by the agent, awaiting admin approval;
-//             no AgentUser/AgentProfile row exists yet
-type MemberStatus = 'ACTIVE' | 'INVITED' | 'PENDING'
+// memberStatus distinguishes lifecycle states a referred agent passes
+// through. The UI sorts ACTIVE → INVITED → PENDING → INACTIVE and renders
+// a status pill on each row.
+//   ACTIVE   — accepted invite, password set, can log in, status=ACTIVE
+//   INVITED  — admin approved the referral, welcome email sent, hasn't
+//              activated the portal yet (agentUser.passwordHash is null)
+//   PENDING  — referral submitted by the agent, awaiting admin approval;
+//              no AgentUser/AgentProfile row exists yet
+//   INACTIVE — profile.status flipped to INACTIVE. Only surfaces in the
+//              response when ?includeInactive=1 is passed (the "See full
+//              team" toggle on the portal).
+type MemberStatus = 'ACTIVE' | 'INVITED' | 'PENDING' | 'INACTIVE'
 
 // Per-phase progress block. Populated only for ACTIVE members (the
 // upline is here to coach the people who already activated their portal,
@@ -124,8 +127,14 @@ export async function GET(req: NextRequest) {
     myProfileId = me.id
   }
 
+  // ?includeInactive=1 unlocks the "See full team" toggle on the agent
+  // portal. Default behavior (no flag) stays as today: only ACTIVE
+  // agents come back. Inactive recruits show as a separate visually
+  // de-emphasized group when the agent opts into the full view.
+  const includeInactive = new URL(req.url).searchParams.get('includeInactive') === '1'
+
   const allAgents = await db.agentProfile.findMany({
-    where: { status: 'ACTIVE' },
+    where: includeInactive ? {} : { status: 'ACTIVE' },
     select: {
       id: true,
       agentCode: true,
@@ -136,6 +145,7 @@ export async function GET(req: NextRequest) {
       state: true,
       avatarUrl: true,
       recruiterId: true,
+      status: true,
       // passwordHash drives the ACTIVE vs INVITED distinction. If null,
       // the agent was approved + emailed but never set their password.
       // email + inviteExpires let the upline see the invite status panel
@@ -230,7 +240,14 @@ export async function GET(req: NextRequest) {
 
   function buildNode(a: typeof allAgents[0]): TeamNode {
     const kids = childrenOf.get(a.agentCode) ?? []
-    const memberStatus: MemberStatus = a.agentUser?.passwordHash ? 'ACTIVE' : 'INVITED'
+    // INACTIVE profiles take precedence over the password-hash check; we
+    // care more that they're no longer producing than that they once
+    // logged in. Without this guard an inactive agent who set a password
+    // would still render as ACTIVE in the team view, which is wrong.
+    let memberStatus: MemberStatus
+    if (a.status === 'INACTIVE') memberStatus = 'INACTIVE'
+    else if (a.agentUser?.passwordHash) memberStatus = 'ACTIVE'
+    else memberStatus = 'INVITED'
     return {
       id: a.id,
       agentUserId: a.agentUser?.id ?? null,
@@ -290,7 +307,7 @@ export async function GET(req: NextRequest) {
   // Sort top-level: ACTIVE → INVITED → PENDING. Children stay in their
   // existing tree order (they're always ACTIVE — nobody can recruit while
   // their own profile is still inactive).
-  const STATUS_ORDER: Record<MemberStatus, number> = { ACTIVE: 0, INVITED: 1, PENDING: 2 }
+  const STATUS_ORDER: Record<MemberStatus, number> = { ACTIVE: 0, INVITED: 1, PENDING: 2, INACTIVE: 3 }
   const team: TeamNode[] = [...directNodes, ...pendingNodes].sort(
     (a, b) => STATUS_ORDER[a.memberStatus] - STATUS_ORDER[b.memberStatus]
   )

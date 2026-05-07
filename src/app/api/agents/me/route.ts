@@ -45,7 +45,16 @@ export async function GET(req: NextRequest) {
       include: {
         profile: {
           include: {
-            phaseItems: true,
+            // include the linked recruit relation so direct_N items
+            // can render "Linked to: Sarah Johnson" without a second
+            // round-trip per item.
+            phaseItems: {
+              include: {
+                linkedAgentProfile: {
+                  select: { id: true, firstName: true, lastName: true, agentCode: true, status: true, avatarUrl: true },
+                },
+              },
+            },
             carrierAppointments: { orderBy: { carrier: 'asc' } },
             milestones: { orderBy: { completedAt: 'desc' } },
             _count: { select: { businessPartners: true, callLogs: true } },
@@ -111,6 +120,7 @@ export async function GET(req: NextRequest) {
       ...(existingIdx >= 0 ? p.phaseItems[existingIdx] : {
         id: 'pending', agentProfileId: p.id, phase: 1, itemKey: 'connect_discord',
         activityMsgId: null, announcementMsgId: null,
+        linkedAgentProfileId: null, linkedAgentProfile: null,
       }),
       completed: true,
       completedAt: now,
@@ -230,7 +240,13 @@ function findAgentUser(agentUserId: string) {
     include: {
       profile: {
         include: {
-          phaseItems: true,
+          phaseItems: {
+            include: {
+              linkedAgentProfile: {
+                select: { id: true, firstName: true, lastName: true, agentCode: true, status: true, avatarUrl: true },
+              },
+            },
+          },
           carrierAppointments: { orderBy: { carrier: 'asc' } },
           milestones: { orderBy: { completedAt: 'desc' } },
           _count: { select: { businessPartners: true, callLogs: true } },

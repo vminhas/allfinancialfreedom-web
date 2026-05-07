@@ -14,7 +14,7 @@ export type LicensingCoordinatorTopic =
   | 'GENERAL'
 
 export interface PhaseItemAction {
-  type: 'navigate-tab' | 'resource-link' | 'inline-form'
+  type: 'navigate-tab' | 'resource-link' | 'inline-form' | 'claim-recruit'
   tab?: string
   modal?: string
   resourceKey?: string
@@ -128,13 +128,13 @@ export const PHASE_ITEMS: Record<number, PhaseItemDef[]> = {
     // Recruit & Onboard
     { key: 'direct_1', label: 'Recruit & Onboard Your 1st Agent', group: 'recruits',
       description: 'Sponsor and onboard your first direct agent. Someone you personally recruited who has joined AFF. Building your team starts here.',
-      action: { type: 'navigate-tab', tab: 'partners', label: 'Refer an agent' } },
+      action: { type: 'claim-recruit', label: 'Pick recruit' } },
     { key: 'direct_2', label: 'Recruit & Onboard Your 2nd Agent', group: 'recruits',
       description: 'Sponsor and onboard your second direct agent on your team.',
-      action: { type: 'navigate-tab', tab: 'partners', label: 'Refer an agent' } },
+      action: { type: 'claim-recruit', label: 'Pick recruit' } },
     { key: 'direct_3', label: 'Recruit & Onboard Your 3rd Agent', group: 'recruits',
       description: 'Sponsor and onboard your third direct agent. Three actives is the foundation of a growing agency.',
-      action: { type: 'navigate-tab', tab: 'partners', label: 'Refer an agent' } },
+      action: { type: 'claim-recruit', label: 'Pick recruit' } },
 
     // Field Training Appointments
     { key: 'fta_1', label: 'Field Training 1 (Spouse / Parents)', group: 'fta', duration: '1 Hour',

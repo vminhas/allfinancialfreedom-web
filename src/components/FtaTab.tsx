@@ -312,6 +312,19 @@ function FtaForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: () => void
     try {
       const body: Record<string, unknown> = { ...form }
       if (!body.businessPartnerId) delete body.businessPartnerId
+      // Auto-complete back-logged FTAs. If the agent picks an
+      // appointment date in the past, treat this as a record of a
+      // completed appointment, not a future booking. The server fires
+      // the same auto-tick on the Phase 2 fta_N checklist item that
+      // the PATCH-to-COMPLETED path does, so the checklist stays in
+      // sync without making the agent click "Mark completed" as a
+      // second step. Mercedes (D2161) flagged this on 2026-05-06.
+      if (typeof body.appointmentDate === 'string' && body.appointmentDate) {
+        const when = new Date(body.appointmentDate)
+        if (!isNaN(when.getTime()) && when.getTime() <= Date.now()) {
+          body.status = 'COMPLETED'
+        }
+      }
       for (const k of ['married', 'homeowner', 'occupation60kPlus']) {
         body[k] = form[k as keyof typeof form] === '' ? null : form[k as keyof typeof form] === 'yes'
       }
