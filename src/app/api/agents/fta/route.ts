@@ -2,12 +2,42 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
-import type { FtaCategory } from '@/generated/prisma/client'
+import type { FtaCategory, FtaStatus } from '@/generated/prisma/client'
 
 const VALID_CATEGORIES: FtaCategory[] = [
   'UNDER_50', 'FIFTY_PLUS', 'FIFTY_NINE_HALF_PLUS',
   'JUST_RETIRED', 'TRANSITIONING_JOBS', 'RECEIVED_INHERITANCE',
 ]
+
+const VALID_STATUSES: FtaStatus[] = [
+  'SCHEDULED', 'COMPLETED', 'RESCHEDULED', 'CANCELLED', 'NO_SHOW',
+]
+
+// Phase 2 checklist keys that mirror the FTA appointments. Mercedes
+// (D2161) reported that filling out FTAs from the tab didn't tick
+// the checklist — only the [id] PATCH had the auto-tick logic, and
+// the create endpoint defaulted everything to SCHEDULED. POST now
+// accepts status (typical for back-logging a past FTA) and fires the
+// same auto-tick when status comes in as COMPLETED.
+const FTA_PHASE_KEYS = [
+  'fta_1', 'fta_2', 'fta_3', 'fta_4', 'fta_5',
+  'fta_6', 'fta_7', 'fta_8', 'fta_9', 'fta_10',
+] as const
+
+async function tickNextFtaPhaseItem(profileId: string) {
+  const currentItems = await db.phaseItem.findMany({
+    where: { agentProfileId: profileId, phase: 2, itemKey: { in: FTA_PHASE_KEYS as unknown as string[] } },
+    select: { itemKey: true, completed: true },
+  })
+  const completedKeys = new Set(currentItems.filter(i => i.completed).map(i => i.itemKey))
+  const next = FTA_PHASE_KEYS.find(k => !completedKeys.has(k))
+  if (!next) return
+  await db.phaseItem.upsert({
+    where: { agentProfileId_phase_itemKey: { agentProfileId: profileId, phase: 2, itemKey: next } },
+    update: { completed: true, completedAt: new Date() },
+    create: { agentProfileId: profileId, phase: 2, itemKey: next, completed: true, completedAt: new Date() },
+  })
+}
 
 async function getAgentProfileId() {
   const session = await getServerSession(authOptions)
@@ -70,6 +100,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'name or businessPartnerId is required' }, { status: 400 })
   }
 
+  // Optional status on create lets the form back-log a past FTA in one
+  // step (SCHEDULED → COMPLETED would otherwise need a second PATCH and
+  // the agent had to remember to click "Mark completed").
+  let status: FtaStatus | undefined
+  if (typeof body.status === 'string' && body.status.length > 0) {
+    if (!VALID_STATUSES.includes(body.status as FtaStatus)) {
+      return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
+    }
+    status = body.status as FtaStatus
+  }
+
   const fta = await db.fieldTrainingAppointment.create({
     data: {
       agentProfileId: profileId,
@@ -85,7 +126,13 @@ export async function POST(req: NextRequest) {
       appointmentDate: new Date(body.appointmentDate as string),
       notes: (body.notes as string) || null,
       category,
+      ...(status ? { status, ...(status === 'COMPLETED' ? { completedAt: new Date() } : {}) } : {}),
     },
   })
+
+  if (status === 'COMPLETED') {
+    await tickNextFtaPhaseItem(profileId)
+  }
+
   return NextResponse.json({ fta })
 }

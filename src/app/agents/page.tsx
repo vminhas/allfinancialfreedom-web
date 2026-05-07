@@ -2431,6 +2431,11 @@ function ProfileTab({ data, onSaved, discordParam, discordUsername, isMobile }: 
       city: form.city,
       zip: form.zip,
       country: form.country,
+      // Mercedes (D2161) reported her Calendly link wasn't holding —
+      // the input updated form state, but the save payload silently
+      // dropped this field, so the PUT body never carried calendlyUrl
+      // and the server never wrote it. Include it explicitly.
+      calendlyUrl: form.calendlyUrl,
     }
     if (form.ssn.replace(/\D/g, '').length > 0) {
       payload.ssn = form.ssn
