@@ -12,18 +12,46 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const status = searchParams.get('status') ?? 'PENDING'
+  // Pagination: default page=1, limit=25. Tighten the page size so
+  // the Referrals tab doesn't scroll forever once historical referrals
+  // accumulate (the original "all" view returned every row ever).
+  // Search filter (?q=) hits across recruit name, email, and the
+  // referring agent's name/code so the LC can find anyone fast.
+  const page = Math.max(1, Number.parseInt(searchParams.get('page') ?? '1', 10) || 1)
+  const limit = Math.min(100, Math.max(1, Number.parseInt(searchParams.get('limit') ?? '25', 10) || 25))
+  const q = (searchParams.get('q') ?? '').trim()
 
-  const referrals = await db.agentReferral.findMany({
-    where: status === 'ALL' ? {} : { status: status as 'PENDING' | 'APPROVED' | 'REJECTED' },
-    orderBy: { createdAt: 'desc' },
-    include: {
-      referringAgent: {
-        select: { firstName: true, lastName: true, agentCode: true },
+  const baseWhere = status === 'ALL' ? {} : { status: status as 'PENDING' | 'APPROVED' | 'REJECTED' }
+  const where = q.length >= 2
+    ? {
+        ...baseWhere,
+        OR: [
+          { firstName: { contains: q, mode: 'insensitive' as const } },
+          { lastName:  { contains: q, mode: 'insensitive' as const } },
+          { email:     { contains: q, mode: 'insensitive' as const } },
+          { referringAgent: { firstName: { contains: q, mode: 'insensitive' as const } } },
+          { referringAgent: { lastName:  { contains: q, mode: 'insensitive' as const } } },
+          { referringAgent: { agentCode: { contains: q, mode: 'insensitive' as const } } },
+        ],
+      }
+    : baseWhere
+
+  const [referrals, total] = await Promise.all([
+    db.agentReferral.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+      include: {
+        referringAgent: {
+          select: { firstName: true, lastName: true, agentCode: true },
+        },
       },
-    },
-  })
+    }),
+    db.agentReferral.count({ where }),
+  ])
 
-  return NextResponse.json({ referrals })
+  return NextResponse.json({ referrals, page, limit, total })
 }
 
 export async function PATCH(req: NextRequest) {

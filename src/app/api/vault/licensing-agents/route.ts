@@ -18,6 +18,12 @@ export async function GET(req: NextRequest) {
   const needsAttention = searchParams.get('needsAttention') === '1'
   const phaseFilter = searchParams.get('phase')
   const q = searchParams.get('q')?.trim() ?? ''
+  // Pagination: default page=1, limit=25. The previous take:200 hard
+  // cap was effectively "load everything," which made the Agents tab
+  // scroll forever. Move filters to the DB layer so we can count +
+  // paginate accurately even when needsAttention is on.
+  const page = Math.max(1, Number.parseInt(searchParams.get('page') ?? '1', 10) || 1)
+  const limit = Math.min(100, Math.max(1, Number.parseInt(searchParams.get('limit') ?? '25', 10) || 25))
 
   // The Agents tab in the Licensing Inbox is the LC's "everyone I'm
   // responsible for" roster. Hardcoding status:ACTIVE caused INACTIVE
@@ -29,6 +35,9 @@ export async function GET(req: NextRequest) {
   // stay hidden via the new isTest flag.
   const where: Record<string, unknown> = { isTest: false }
   if (phaseFilter) where.phase = parseInt(phaseFilter)
+  if (needsAttention) {
+    where.coordinatorRequests = { some: { status: { in: ['OPEN', 'IN_PROGRESS'] } } }
+  }
   if (q) {
     where.OR = [
       { firstName: { contains: q, mode: 'insensitive' } },
@@ -39,38 +48,42 @@ export async function GET(req: NextRequest) {
     ]
   }
 
-  const profiles = await db.agentProfile.findMany({
-    where,
-    orderBy: { createdAt: 'desc' },
-    take: 200,
-    select: {
-      id: true,
-      agentCode: true,
-      firstName: true,
-      lastName: true,
-      state: true,
-      phase: true,
-      status: true,
-      phone: true,
-      examDate: true,
-      licenseNumber: true,
-      licenseLines: true,
-      npn: true,
-      dateSubmittedToGfi: true,
-      agentUser: { select: { email: true } },
-      carrierAppointments: { select: { status: true } },
-      // Pull the actual open requests (not just the count) so the
-      // agent card can answer "what does this person need?" without
-      // forcing the LC to expand the row first.
-      coordinatorRequests: {
-        where: { status: { in: ['OPEN', 'IN_PROGRESS'] } },
-        select: { id: true, topic: true, status: true, createdAt: true },
-        orderBy: { createdAt: 'desc' },
+  const [profiles, total] = await Promise.all([
+    db.agentProfile.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+      select: {
+        id: true,
+        agentCode: true,
+        firstName: true,
+        lastName: true,
+        state: true,
+        phase: true,
+        status: true,
+        phone: true,
+        examDate: true,
+        licenseNumber: true,
+        licenseLines: true,
+        npn: true,
+        dateSubmittedToGfi: true,
+        agentUser: { select: { email: true } },
+        carrierAppointments: { select: { status: true } },
+        // Pull the actual open requests (not just the count) so the
+        // agent card can answer "what does this person need?" without
+        // forcing the LC to expand the row first.
+        coordinatorRequests: {
+          where: { status: { in: ['OPEN', 'IN_PROGRESS'] } },
+          select: { id: true, topic: true, status: true, createdAt: true },
+          orderBy: { createdAt: 'desc' },
+        },
       },
-    },
-  })
+    }),
+    db.agentProfile.count({ where }),
+  ])
 
-  const shaped = profiles.map(p => ({
+  const agents = profiles.map(p => ({
     id: p.id,
     agentCode: p.agentCode,
     firstName: p.firstName,
@@ -91,9 +104,5 @@ export async function GET(req: NextRequest) {
     openRequests: p.coordinatorRequests,
   }))
 
-  const filtered = needsAttention
-    ? shaped.filter(a => a.openRequestCount > 0)
-    : shaped
-
-  return NextResponse.json({ agents: filtered })
+  return NextResponse.json({ agents, page, limit, total })
 }
