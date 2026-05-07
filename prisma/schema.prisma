@@ -285,6 +285,9 @@ model AgentProfile {
   pfr                   PersonalFinancialReview?
   feedback              AgentFeedback[]
   authoredFeedbackNotes AgentFeedbackNote[]
+  // Phase items where THIS agent was claimed as someone's recruit.
+  // Inverse of PhaseItem.linkedAgentProfile.
+  claimedAsRecruitItems PhaseItem[]              @relation("PhaseItemRecruitLink")
   announcementReads     AnnouncementRead[]
   submissions           NewBusinessSubmission[] @relation("SubmissionAgent")
   splitSubmissions      NewBusinessSubmission[] @relation("SplitPartner")
@@ -526,9 +529,19 @@ model PhaseItem {
   // completion happened before this column existed.
   activityMsgId       String?
   announcementMsgId   String?
+  // Optional link to a specific recruited agent. Only meaningful for
+  // the direct_1/2/3 "Recruit & Onboard Your Nth Agent" phase items —
+  // when the recruiter claims an existing AFF agent as their recruit,
+  // we record which agent fulfilled this checklist slot so the
+  // milestone has provenance and admins can audit who claimed whom.
+  // SetNull on delete so removing the recruited agent doesn't take
+  // the milestone with them.
+  linkedAgentProfileId String?
+  linkedAgentProfile   AgentProfile? @relation("PhaseItemRecruitLink", fields: [linkedAgentProfileId], references: [id], onDelete: SetNull)
   updatedAt      DateTime     @updatedAt
 
   @@unique([agentProfileId, phase, itemKey])
+  @@index([linkedAgentProfileId])
   @@map("phase_items")
 }
 
