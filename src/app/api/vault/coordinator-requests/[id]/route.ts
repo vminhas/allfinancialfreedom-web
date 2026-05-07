@@ -64,7 +64,12 @@ export async function PATCH(
 
   const existing = await db.coordinatorRequest.findUnique({
     where: { id },
-    select: { assignedToId: true },
+    select: {
+      assignedToId: true,
+      status: true,
+      topic: true,
+      agentProfile: { select: { firstName: true, lastName: true, agentCode: true } },
+    },
   })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -120,6 +125,21 @@ export async function PATCH(
       messages: { orderBy: { createdAt: 'asc' } },
     },
   })
+
+  // Admin-channel ping on real status moves. Assignment-only changes
+  // stay quiet (different signal, would just be noise in the feed).
+  if (body.status && body.status !== existing.status && existing.agentProfile) {
+    const actorName = (session!.user as { name?: string }).name ?? 'LC'
+    const { pingTicketStatusChange } = await import('@/lib/coordinator-discord')
+    pingTicketStatusChange({
+      requestId: id,
+      agent: existing.agentProfile,
+      topic: existing.topic,
+      oldStatus: existing.status,
+      newStatus: body.status,
+      actorName,
+    }).catch(err => console.warn('[coordinator-requests PATCH] admin ping failed:', err))
+  }
 
   return NextResponse.json({ request: updated })
 }

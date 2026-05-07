@@ -81,5 +81,22 @@ export async function POST(req: NextRequest) {
     },
   })
 
+  // Admin-channel ping so the LC queue sees it land without polling.
+  // Fire-and-forget; a Discord outage shouldn't block the response.
+  ;(async () => {
+    const profile = await db.agentProfile.findUnique({
+      where: { id: id.profileId },
+      select: { firstName: true, lastName: true, agentCode: true },
+    })
+    if (!profile) return
+    const { pingTicketCreated } = await import('@/lib/coordinator-discord')
+    await pingTicketCreated({
+      requestId: request.id,
+      agent: profile,
+      topic: request.topic,
+      message: request.message,
+    })
+  })().catch(err => console.warn('[coordinator-requests POST] admin ping failed:', err))
+
   return NextResponse.json({ request })
 }

@@ -37,7 +37,12 @@ export async function POST(
 
   const existing = await db.coordinatorRequest.findUnique({
     where: { id },
-    select: { id: true, status: true },
+    select: {
+      id: true,
+      status: true,
+      topic: true,
+      agentProfile: { select: { firstName: true, lastName: true, agentCode: true } },
+    },
   })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -81,6 +86,19 @@ export async function POST(
       },
     }),
   ])
+
+  // Admin-channel ping so the team sees the LC reply in the activity
+  // feed alongside status moves and new tickets.
+  if (existing.agentProfile) {
+    const { pingTicketStaffReply } = await import('@/lib/coordinator-discord')
+    pingTicketStaffReply({
+      requestId: id,
+      agent: existing.agentProfile,
+      topic: existing.topic,
+      reply: body.trim(),
+      actorName: fromName,
+    }).catch(err => console.warn('[coordinator-messages POST staff] admin ping failed:', err))
+  }
 
   return NextResponse.json({ request: updated })
 }

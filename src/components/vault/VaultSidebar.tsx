@@ -82,6 +82,7 @@ interface SidebarCounts {
   referralsPending: number
   newBusinessPending: number
   licensingOpen: number
+  feedbackOpen: number
   renewalsToSend: number
 }
 
@@ -92,6 +93,7 @@ const BADGE_FOR_HREF: Record<string, (c: SidebarCounts) => number> = {
   '/vault/new-business': c => c.newBusinessPending,
   '/vault/renewals':     c => c.renewalsToSend,
   '/vault/licensing':    c => c.licensingOpen + c.referralsPending,
+  '/vault/feedback':     c => c.feedbackOpen,
 }
 
 export default function VaultSidebar() {
@@ -107,7 +109,7 @@ export default function VaultSidebar() {
   const userName = (session?.user as { name?: string } | undefined)?.name
 
   const [counts, setCounts] = useState<SidebarCounts>({
-    referralsPending: 0, newBusinessPending: 0, licensingOpen: 0, renewalsToSend: 0,
+    referralsPending: 0, newBusinessPending: 0, licensingOpen: 0, feedbackOpen: 0, renewalsToSend: 0,
   })
 
   // Refresh counts on mount, on every navigation, and every 60s so the

@@ -30,7 +30,11 @@ export async function POST(
   // Ownership check: the request must belong to the calling agent.
   const existing = await db.coordinatorRequest.findUnique({
     where: { id },
-    select: { id: true, agentProfileId: true },
+    select: {
+      id: true,
+      agentProfileId: true,
+      topic: true,
+    },
   })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (existing.agentProfileId !== identity.profileId) {
@@ -39,7 +43,7 @@ export async function POST(
 
   const profile = await db.agentProfile.findUnique({
     where: { id: identity.profileId },
-    select: { firstName: true, lastName: true },
+    select: { firstName: true, lastName: true, agentCode: true },
   })
   const fromName = profile ? `${profile.firstName} ${profile.lastName}`.trim() : 'Agent'
 
@@ -59,6 +63,18 @@ export async function POST(
       messages: { orderBy: { createdAt: 'asc' } },
     },
   })
+
+  // Admin-channel ping symmetric with the LC-reply path so the team
+  // sees both sides of the ticket conversation in one feed.
+  if (profile) {
+    const { pingTicketAgentReply } = await import('@/lib/coordinator-discord')
+    pingTicketAgentReply({
+      requestId: id,
+      agent: { firstName: profile.firstName, lastName: profile.lastName, agentCode: profile.agentCode },
+      topic: existing.topic,
+      reply: body.trim(),
+    }).catch(err => console.warn('[coordinator-messages POST agent] admin ping failed:', err))
+  }
 
   return NextResponse.json({ request: updated })
 }
