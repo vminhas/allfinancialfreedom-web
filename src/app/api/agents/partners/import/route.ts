@@ -14,6 +14,7 @@ import { db } from '@/lib/db'
 import { parseCsv } from '@/lib/csv-parse'
 import { extractContactRow } from '@/lib/contact-csv'
 import { resolveAgentIdentity } from '@/lib/agent-identity'
+import { autoLinkAgentsForBusinessPartners } from '@/lib/business-partner-link'
 
 // Three-bucket model. life_market / rollover_market were retired in
 // favor of the simpler intent-based set (recruit, business_partner,
@@ -123,6 +124,14 @@ export async function POST(req: NextRequest) {
       where: { agentProfileId: profileId, source: 'csv_import' },
       orderBy: { createdAt: 'desc' },
       take: valid.length,
+    })
+
+    // Bulk auto-link any imported rows whose email matches an existing
+    // AgentUser, so already-onboarded recruits surface NPN / license
+    // immediately on the contact card.
+    await autoLinkAgentsForBusinessPartners({
+      agentProfileId: profileId,
+      emails: inserted.map(r => r.email),
     })
 
     return NextResponse.json({ inserted: inserted.length, partners: inserted })

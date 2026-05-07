@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import bcrypt from 'bcryptjs'
 import { randomUUID } from 'crypto'
 import { PHASE_ITEMS, CARRIERS } from '@/lib/agent-constants'
+import { autoLinkBusinessPartnersForAgent } from '@/lib/business-partner-link'
 
 // GET /api/admin/agents — list all agents with phase progress
 export async function GET(req: NextRequest) {
@@ -197,6 +198,17 @@ export async function POST(req: NextRequest) {
       },
       include: { profile: true },
     })
+
+    // Eager-link any BusinessPartner contact rows (across all recruiters'
+    // lists) whose email matches this new agent. The recruiter's BP card
+    // for this person can then surface the new agent's NPN / license
+    // automatically once they fill those fields in on their own profile.
+    if (agentUser.profile) {
+      await autoLinkBusinessPartnersForAgent({
+        agentProfileId: agentUser.profile.id,
+        email: agentUser.email,
+      })
+    }
 
     // Best-effort admin-channel ping so the team has visibility into
     // every new agent account, regardless of which path created it.

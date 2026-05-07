@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/permissions'
+import { autoLinkAgentForBusinessPartner } from '@/lib/business-partner-link'
 
 // POST /api/admin/partners
 //
@@ -81,6 +82,13 @@ export async function POST(req: NextRequest) {
       status: body.category ? 'NEW' : 'PENDING',
     },
   })
+
+  // Hand-offs from leadership often involve someone who's already a
+  // licensed AFF agent (warm intro to a colleague, etc.); link the BP
+  // to that AgentProfile if the email matches.
+  if (partner.email) {
+    await autoLinkAgentForBusinessPartner({ businessPartnerId: partner.id, email: partner.email })
+  }
 
   return NextResponse.json(partner)
 }

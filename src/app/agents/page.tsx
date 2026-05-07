@@ -2927,6 +2927,16 @@ interface Partner {
   status: string
   lastContactAt: string | null
   createdAt?: string
+  // Surfaced when a contact's email matches an AgentUser, i.e. the
+  // recruit got onboarded. Lets the writing agent grab their NPN /
+  // license from the BP card for app submissions instead of texting
+  // them every time.
+  linkedAgentProfile: {
+    id: string
+    agentCode: string
+    npn: string | null
+    licenseNumber: string | null
+  } | null
 }
 
 // Lanes within the contact pipeline. Two visible buckets, plus the queue
@@ -3797,11 +3807,11 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
                       <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(p.id)} />
                     </td>
                     <td
-                      onClick={() => startEdit(p)}
-                      title="Click to edit"
-                      style={{ ...tdStyle, ...truncStyle, color: '#ffffff', fontWeight: 500, cursor: 'pointer' }}
+                      title="Click name to edit"
+                      style={{ ...tdStyle, ...truncStyle, color: '#ffffff', fontWeight: 500 }}
                     >
-                      {p.name}
+                      <span onClick={() => startEdit(p)} style={{ cursor: 'pointer' }}>{p.name}</span>
+                      <LinkedAgentChips linked={p.linkedAgentProfile} />
                     </td>
                     <td style={{ ...tdStyle, ...truncStyle }} title={p.email ?? ''}>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -5209,6 +5219,50 @@ function MyTeamTab({ isMobile, previewToken }: { isMobile: boolean; previewToken
       </div>
       {cardCode && <AgentTradingCardModal agentCode={cardCode} onClose={() => setCardCode(null)} />}
     </div>
+  )
+}
+
+// Small NPN / license-number chips rendered next to a Business Partner's
+// name when the contact has been auto-linked to an AgentProfile (i.e.
+// the recruit got onboarded and filled in their NPN on their own
+// profile). Click to copy, so the writing agent can paste straight
+// into a carrier portal during an app submission.
+function LinkedAgentChips({ linked }: { linked: { npn: string | null; licenseNumber: string | null } | null }) {
+  const [copied, setCopied] = useState<string | null>(null)
+  if (!linked) return null
+  if (!linked.npn && !linked.licenseNumber) return null
+  const copy = async (label: string, value: string) => {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied(label)
+      setTimeout(() => setCopied(null), 1200)
+    } catch { /* clipboard blocked, ignore */ }
+  }
+  const chip = (label: string, value: string) => (
+    <button
+      key={label}
+      onClick={e => { e.stopPropagation(); copy(label, value) }}
+      title={`Click to copy ${label}: ${value}`}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 4,
+        marginLeft: 6, padding: '1px 6px',
+        background: copied === label ? 'rgba(74,222,128,0.15)' : 'rgba(201,169,110,0.10)',
+        border: `1px solid ${copied === label ? 'rgba(74,222,128,0.4)' : 'rgba(201,169,110,0.3)'}`,
+        borderRadius: 3, cursor: 'pointer',
+        fontSize: 9, fontWeight: 700, letterSpacing: '0.05em',
+        color: copied === label ? '#4ade80' : '#C9A96E',
+        fontFamily: 'inherit',
+      }}
+    >
+      <span style={{ opacity: 0.7 }}>{label}</span>
+      <span style={{ fontFamily: 'monospace', letterSpacing: '0.02em' }}>{copied === label ? '✓' : value}</span>
+    </button>
+  )
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap' }}>
+      {linked.npn && chip('NPN', linked.npn)}
+      {linked.licenseNumber && chip('LIC', linked.licenseNumber)}
+    </span>
   )
 }
 
