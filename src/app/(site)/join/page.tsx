@@ -127,10 +127,10 @@ const faqs = [
 
 // ─── Application Form ─────────────────────────────────────────────────────────
 function ApplicationForm() {
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', licensed: '', pathway: '', message: '' })
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', licensed: '', pathway: '', message: '', acknowledged1099: false })
   const [status, setStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle')
 
-  const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
+  const set = (k: string, v: string | boolean) => setForm(f => ({ ...f, [k]: v }))
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -185,12 +185,13 @@ function ApplicationForm() {
         <input required type="tel" style={inputStyle} value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="e.g. (555) 000-0000" />
       </div>
       <div>
-        <label style={labelStyle}>Are you currently licensed?</label>
-        <select style={{ ...inputStyle, color: form.licensed ? '#1A2B3C' : 'rgba(107,130,153,0.6)' }} value={form.licensed} onChange={e => set('licensed', e.target.value)}>
+        <label style={labelStyle}>Are you currently licensed in life insurance?</label>
+        <select required style={{ ...inputStyle, color: form.licensed ? '#1A2B3C' : 'rgba(107,130,153,0.6)' }} value={form.licensed} onChange={e => set('licensed', e.target.value)}>
           <option value="">Select one</option>
-          <option value="yes">Yes, I am licensed</option>
-          <option value="in-progress">In progress</option>
-          <option value="no">Not yet</option>
+          <option value="active">Yes, currently active</option>
+          <option value="lapsed">Previously licensed (lapsed or inactive)</option>
+          <option value="in_progress">In the process of getting licensed</option>
+          <option value="unlicensed">Not yet licensed</option>
         </select>
       </div>
       <div>
@@ -207,8 +208,33 @@ function ApplicationForm() {
         <label style={labelStyle}>Tell us about yourself and what you are looking for</label>
         <textarea rows={4} style={{ ...inputStyle, resize: 'vertical' }} value={form.message} onChange={e => set('message', e.target.value)} placeholder="Background, goals, questions..." />
       </div>
+      {/* 1099 acknowledgment — required, mirrors the GHL discovery
+          form so applicants make the same informed acknowledgment
+          regardless of which entry point they used. */}
+      <label style={{
+        display: 'flex', alignItems: 'flex-start', gap: '0.6rem',
+        fontSize: '0.78rem', color: '#3F5773', lineHeight: 1.55,
+        cursor: 'pointer', userSelect: 'none',
+        padding: '0.75rem 0.9rem',
+        background: 'rgba(201,169,110,0.05)',
+        border: '1px solid rgba(201,169,110,0.18)',
+        borderRadius: 4,
+      }}>
+        <input
+          type="checkbox"
+          required
+          checked={form.acknowledged1099}
+          onChange={e => set('acknowledged1099', e.target.checked)}
+          style={{ marginTop: 3, accentColor: '#C9A96E', flexShrink: 0 }}
+        />
+        <span>
+          I understand this opportunity is structured as a 1099 independent
+          contractor role with commission-based compensation, and I&rsquo;m
+          comfortable evaluating it on those terms.
+        </span>
+      </label>
       {status === 'error' && <p style={{ color: '#c0392b', fontSize: '0.8rem' }}>Something went wrong. Please email contact@allfinancialfreedom.com</p>}
-      <button type="submit" disabled={status === 'sending'} className="btn-gold" style={{ opacity: status === 'sending' ? 0.7 : 1 }}>
+      <button type="submit" disabled={status === 'sending' || !form.acknowledged1099} className="btn-gold" style={{ opacity: status === 'sending' || !form.acknowledged1099 ? 0.5 : 1 }}>
         {status === 'sending' ? 'Submitting...' : 'Submit Request'}
       </button>
       <p style={{ fontSize: '0.65rem', color: '#9BB0C4', textAlign: 'center', lineHeight: 1.6 }}>

@@ -198,7 +198,12 @@ export const PHASE_ITEMS: Record<number, PhaseItemDef[]> = {
     { key: 'cft_coordinator_signoff', label: 'CFT Coordinator Sign Off', group: 'signoffs',
       description: 'The CFT Coordinator, a senior AFF trainer, reviews your performance and approves your readiness for CFT designation.' },
     { key: 'emd_signoff', label: 'EMD Sign Off', group: 'signoffs',
-      description: 'The Executive Marketing Director reviews and signs off on your CFT designation. This is the final approval before you advance to Phase 4.' },
+      description: 'The Executive Marketing Director reviews and signs off on your CFT designation. This is the final approval before you advance to Phase 4.',
+      // Mirrors associate_promotion: agent can't self-tick this. They
+      // request the sign-off via the promotion-request modal, which
+      // creates a CoordinatorRequest the EMD reviews and approves in
+      // /vault/tracker. Approval marks this item complete.
+      adminOnly: true, action: { type: 'inline-form', modal: 'promotion-request', label: 'Request EMD Sign-Off' } },
 
     // Independent Skills
     { key: 'client_1st_apt', label: 'Solo Client 1st Appointment', group: 'skills',

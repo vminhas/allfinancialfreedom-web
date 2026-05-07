@@ -143,7 +143,7 @@ export default function TrackerPage() {
 
   // Trainer list for dropdowns
   const [trainers, setTrainers] = useState<string[]>([])
-  const [promotionRequests, setPromotionRequests] = useState<{ id: string; agentName: string; agentId: string; createdAt: string; status: string }[]>([])
+  const [promotionRequests, setPromotionRequests] = useState<{ id: string; agentName: string; agentId: string; createdAt: string; status: string; phaseItemKey: string | null }[]>([])
 
   // Team-wide call review stats
   const [reviewStats, setReviewStats] = useState<{ teamAvg30d: number | null; teamAvgPrior30d: number | null; delta: number | null; flaggedOpenCount: number; totalReviews: number; reviewedAgents30d: number } | null>(null)
@@ -778,7 +778,12 @@ export default function TrackerPage() {
               <div>
                 <span style={{ fontSize: 13, color: '#ffffff', fontWeight: 500 }}>{r.agentName}</span>
                 <span style={{ fontSize: 11, color: '#6B8299', marginLeft: 8 }}>
-                  Senior Associate Promotion · requested {new Date(r.createdAt).toLocaleDateString()}
+                  {r.phaseItemKey === 'emd_signoff'
+                    ? 'EMD Sign-Off'
+                    : r.phaseItemKey === 'associate_promotion'
+                      ? 'Senior Associate Promotion'
+                      : 'Promotion Request'}
+                  {' · requested '}{new Date(r.createdAt).toLocaleDateString()}
                 </span>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
