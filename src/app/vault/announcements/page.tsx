@@ -16,29 +16,6 @@ export default function AnnouncementsPage() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  // Portal-launch draft trigger state. Hits the dedicated endpoint that
-  // posts a multi-embed announcement preview to the admin Discord
-  // channel; admins iterate on the copy in code, re-trigger to see the
-  // updated draft, then post it wide when they're happy.
-  const [launchDraftBusy, setLaunchDraftBusy] = useState(false)
-  const [launchDraftStatus, setLaunchDraftStatus] = useState<string | null>(null)
-  const sendLaunchDraft = async () => {
-    setLaunchDraftBusy(true)
-    setLaunchDraftStatus(null)
-    try {
-      const res = await fetch('/api/admin/announcements/portal-launch-draft', { method: 'POST' })
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({})) as { error?: string }
-        throw new Error(d.error ?? `${res.status}`)
-      }
-      setLaunchDraftStatus('Posted to admin channel.')
-    } catch (err) {
-      setLaunchDraftStatus(err instanceof Error ? err.message : 'Failed to post draft.')
-    } finally {
-      setLaunchDraftBusy(false)
-      setTimeout(() => setLaunchDraftStatus(null), 5000)
-    }
-  }
   const [form, setForm] = useState({ title: '', message: '', targetPhase: '', scheduledFor: '', expiresAt: '' })
   const [saving, setSaving] = useState(false)
   // Inline edit state. editingId points at the row currently in edit mode;
@@ -137,37 +114,8 @@ export default function AnnouncementsPage() {
           <h1 style={{ fontSize: 18, fontWeight: 700, color: '#ffffff', margin: 0 }}>Announcements</h1>
           <p style={{ fontSize: 12, color: '#6B8299', marginTop: 4 }}>Send messages to agents. They appear as banners in the portal until dismissed or expired.</p>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <button
-            onClick={sendLaunchDraft}
-            disabled={launchDraftBusy}
-            title="Post the portal-launch announcement preview to the admin Discord channel."
-            style={{
-              background: 'transparent', color: '#C9A96E',
-              border: '1px solid rgba(201,169,110,0.4)', borderRadius: 4,
-              padding: '8px 14px', fontSize: 11, fontWeight: 700,
-              letterSpacing: '0.05em', textTransform: 'uppercase',
-              cursor: launchDraftBusy ? 'not-allowed' : 'pointer',
-              opacity: launchDraftBusy ? 0.6 : 1,
-            }}
-          >
-            {launchDraftBusy ? 'Sending...' : 'Preview Launch Draft'}
-          </button>
-          <button onClick={() => setShowForm(!showForm)} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '8px 20px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ New</button>
-        </div>
+        <button onClick={() => setShowForm(!showForm)} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '8px 20px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ New</button>
       </div>
-
-      {launchDraftStatus && (
-        <div style={{
-          padding: '8px 12px', marginBottom: 16,
-          background: launchDraftStatus.includes('Posted') ? 'rgba(74,222,128,0.08)' : 'rgba(248,113,113,0.08)',
-          border: `1px solid ${launchDraftStatus.includes('Posted') ? 'rgba(74,222,128,0.3)' : 'rgba(248,113,113,0.3)'}`,
-          borderRadius: 4, fontSize: 12,
-          color: launchDraftStatus.includes('Posted') ? '#86efac' : '#fca5a5',
-        }}>
-          {launchDraftStatus}
-        </div>
-      )}
 
       {showForm && (
         <div style={{ padding: 20, marginBottom: 16, background: '#132238', border: '1px solid rgba(201,169,110,0.15)', borderRadius: 6 }}>
