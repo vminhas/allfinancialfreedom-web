@@ -31,7 +31,7 @@ export async function GET() {
   const selfId = (session!.user as { id?: string }).id ?? null
 
   // Cheap snapshot counts in parallel.
-  const [referralsPending, newBusinessPending, licensingOpen, renewalCandidates] = await Promise.all([
+  const [referralsPending, newBusinessPending, licensingOpen, feedbackOpen, renewalCandidates] = await Promise.all([
     db.agentReferral.count({ where: { status: 'PENDING' } }),
     db.newBusinessSubmission.count({ where: { status: 'PENDING', assignedToId: null } }),
     db.coordinatorRequest.count({
@@ -39,6 +39,11 @@ export async function GET() {
         ? { status: 'OPEN', OR: [{ assignedToId: selfId }, { assignedToId: null }] }
         : { status: 'OPEN' },
     }),
+    // Open agent feedback. Only counts status=OPEN (not ACKNOWLEDGED
+    // or IN_PROGRESS) so the badge zeros out the moment the team
+    // triages the queue. ACKNOWLEDGED + IN_PROGRESS still render in
+    // the inbox; they just don't keep the menu pill flashing.
+    db.agentFeedback.count({ where: { status: 'OPEN' } }),
     // Renewals can't be filtered with a plain SQL count — anniversary
     // windowing needs JS. Pull the candidate set + reminder list and
     // bucket here. Keep the projection thin so we're not transferring
@@ -67,6 +72,7 @@ export async function GET() {
     referralsPending,
     newBusinessPending,
     licensingOpen,
+    feedbackOpen,
     renewalsToSend,
   })
 }

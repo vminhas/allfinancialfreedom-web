@@ -52,7 +52,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
   const existing = await db.newBusinessSubmission.findUnique({
     where: { id },
-    include: { agentProfile: { select: { firstName: true, lastName: true, discordUserId: true } } },
+    include: { agentProfile: { select: { firstName: true, lastName: true, agentCode: true, avatarUrl: true, discordUserId: true } } },
   })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
