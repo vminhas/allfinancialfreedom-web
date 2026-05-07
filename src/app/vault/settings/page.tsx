@@ -995,6 +995,20 @@ export default function SettingsPage() {
         </>
       )}
 
+      {/* Maintenance — one-shot admin fixers for data backfills.
+          Each entry is a single button that runs an idempotent
+          server-side script and reports a count. Add new ones here
+          as they come up; this card is intentionally low-key so
+          rare-use tools don't clutter the main settings flow. */}
+      {card(
+        <>
+          {cardHeader('Maintenance')}
+          <div style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <BackfillDiscordConnectRow />
+          </div>
+        </>
+      )}
+
       {/* Change Password */}
       {card(
         <>
@@ -1284,6 +1298,77 @@ function BookingPersonPicker({ link, onPick, onUnlink }: {
         Linking to a real user keeps their name &amp; headshot in sync automatically.
         Leave unlinked for external partners; you&rsquo;ll fill in name + photo manually below.
       </div>
+    </div>
+  )
+}
+
+// One-shot maintenance tool: backfills the connect_discord PhaseItem
+// for every agent who has discordUserId set on their profile but
+// missed the row because they linked Discord before the auto-tick was
+// shipped. Idempotent server-side; safe to click twice.
+function BackfillDiscordConnectRow() {
+  const [state, setState] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
+  const [result, setResult] = useState<{ scanned: number; alreadyComplete: number; fixed: number } | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const run = async () => {
+    setState('running')
+    setError(null)
+    try {
+      const res = await fetch('/api/admin/maintenance/backfill-discord-connect', { method: 'POST' })
+      const d = await res.json() as { ok?: boolean; error?: string; scanned?: number; alreadyComplete?: number; fixed?: number }
+      if (!res.ok || !d.ok) {
+        setError(d.error ?? 'Backfill failed')
+        setState('error')
+        return
+      }
+      setResult({ scanned: d.scanned ?? 0, alreadyComplete: d.alreadyComplete ?? 0, fixed: d.fixed ?? 0 })
+      setState('done')
+    } catch {
+      setError('Network error')
+      setState('error')
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
+      <div style={{ flex: 1, minWidth: 240 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#fff', marginBottom: 4 }}>
+          Backfill Discord-connected checkmarks
+        </div>
+        <div style={{ fontSize: 11, color: '#6B8299', lineHeight: 1.5 }}>
+          Marks the Phase 1 &ldquo;Connect Discord&rdquo; checklist item complete for every agent who already linked
+          Discord but is missing the row. Idempotent &middot; safe to run anytime.
+        </div>
+        {state === 'done' && result && (
+          <div style={{
+            marginTop: 8, fontSize: 11, color: '#4ADE80',
+            background: 'rgba(74,222,128,0.08)',
+            border: '1px solid rgba(74,222,128,0.25)',
+            padding: '6px 10px', borderRadius: 4,
+            display: 'inline-block',
+          }}>
+            Scanned {result.scanned} &middot; already complete {result.alreadyComplete} &middot; fixed {result.fixed}
+          </div>
+        )}
+        {state === 'error' && error && (
+          <div style={{ marginTop: 8, fontSize: 11, color: '#f87171' }}>{error}</div>
+        )}
+      </div>
+      <button
+        onClick={run}
+        disabled={state === 'running'}
+        style={{
+          padding: '8px 16px', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+          background: state === 'done' ? 'rgba(74,222,128,0.10)' : 'rgba(201,169,110,0.10)',
+          border: `1px solid ${state === 'done' ? 'rgba(74,222,128,0.4)' : 'rgba(201,169,110,0.35)'}`,
+          color: state === 'done' ? '#4ADE80' : '#C9A96E',
+          borderRadius: 4, cursor: state === 'running' ? 'wait' : 'pointer',
+          flexShrink: 0,
+        }}
+      >
+        {state === 'running' ? 'Running...' : state === 'done' ? 'Run again' : 'Run backfill'}
+      </button>
     </div>
   )
 }
