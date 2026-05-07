@@ -46,6 +46,12 @@ interface CardPayload {
   totalSubmissions: number
   issuedClients: number
   totalTargetPremium: number | null  // null when caller is a peer agent
+  // Regulatory identifiers — safe to surface to all card scopes
+  // (public via NIPR). Pulled up on the card so the agent can copy
+  // them when filling out applications without bouncing to /agents
+  // profile editor each time.
+  npn: string | null
+  licenseNumber: string | null
   // Milestones earned (badges)
   milestoneBadges: { key: string; label: string }[]
   // Caller scope (so the UI can choose which strip to render)
@@ -84,6 +90,12 @@ export async function GET(
       createdAt: true,
       cft: true,
       phone: true,
+      // Mercedes (D2161) flagged: agents need quick NPN + license-number
+      // lookup when filling out applications, especially right after
+      // they get licensed and don't have it memorized. Surface both on
+      // the trading card so it's one click from their dashboard.
+      npn: true,
+      licenseNumber: true,
       agentUser: { select: { email: true } },
       milestones: {
         where: { status: 'AWARDED' },
@@ -172,6 +184,10 @@ export async function GET(
     issuedClients,
     // Hide revenue numbers from peer agents.
     totalTargetPremium: scope === 'peer_agent' ? null : totalTargetPremium,
+    // NPN + license number are public regulatory identifiers (lookable
+    // in NIPR), so safe to surface to all card-viewing scopes.
+    npn: profile.npn,
+    licenseNumber: profile.licenseNumber,
     milestoneBadges,
     scope,
   }
