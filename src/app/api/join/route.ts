@@ -4,10 +4,17 @@ import { getSetting } from '@/lib/settings'
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const { firstName, lastName, email, licensed, pathway, message } = body
+  const { firstName, lastName, email, licensed, pathway, message, acknowledged1099 } = body
 
   if (!firstName || !lastName || !email) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+  }
+  // Enforce the 1099 acknowledgment server-side too. The client form
+  // already requires it via the checkbox, but never trust the client.
+  // Mirrors the GHL discovery-call form so every applicant has made
+  // the same informed acknowledgment regardless of entry point.
+  if (acknowledged1099 !== true) {
+    return NextResponse.json({ error: '1099 acknowledgment required' }, { status: 400 })
   }
 
   try {
@@ -31,11 +38,19 @@ export async function POST(req: NextRequest) {
         lastName,
         email,
         source: 'Join Form',
-        tags: ['join-applicant', licensed === 'yes' ? 'licensed' : 'unlicensed'],
+        // Tag using the new 4-state license values from the form. Old
+        // 'yes' tag (legacy) is preserved as a fallback so any
+        // automations matching on it keep firing for active licensees.
+        tags: [
+          'join-applicant',
+          `license:${licensed || 'unspecified'}`,
+          licensed === 'active' ? 'licensed' : 'unlicensed',
+        ],
         customFields: [
-          { key: 'licensed', field_value: licensed },
+          { key: 'license_status', field_value: licensed },
           { key: 'pathway', field_value: pathway },
           { key: 'join_message', field_value: message },
+          { key: 'acknowledged_1099_structure', field_value: acknowledged1099 ? 'true' : 'false' },
         ].filter(f => f.field_value),
       }),
     })
