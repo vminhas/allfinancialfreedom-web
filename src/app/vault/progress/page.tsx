@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useIsMobile } from '@/lib/useIsMobile'
+import { getAtRiskStatus, AT_RISK_THRESHOLDS } from '@/lib/agent-constants'
 
 // Adjacency-matrix style dashboard inspired by Bostock's Les Misérables
 // matrix (https://bost.ocks.org/mike/miserables/). One row per agent, one
@@ -25,6 +26,12 @@ interface Agent {
   avatarUrl: string | null
   state: string | null
   icaDate: string | null
+  // ISO timestamp of when the agent entered their current phase.
+  // Drives the time-aware "At Risk" badge: an agent in a fresh phase
+  // with low completion is normal, not a problem; an agent who's been
+  // in a phase past the expected duration with low completion is
+  // worth surfacing for a check-in.
+  phaseStartedAt: string | null
   lastLoginAt: string | null
 }
 
@@ -112,21 +119,27 @@ export default function ProgressMatrixPage() {
     return m
   }, [data, items])
 
-  // Per-agent ratio within their CURRENT phase, regardless of the matrix
-  // filter. Used by the "Stuck" toggle: an agent who has only done 20% of
-  // Phase 3 items but is in Phase 3 is stuck, even when the matrix is
-  // filtered to Phase 1.
-  const currentPhaseRatio = useMemo(() => {
-    if (!data) return new Map<string, number>()
-    const m = new Map<string, number>()
+  // Per-agent state combining current-phase completion ratio AND
+  // days-in-phase. Drives the "At Risk" badge + filter. Replaces the
+  // old simplistic <50% rule which mislabeled anyone in a fresh phase
+  // (low % is normal at the start, not a problem). Uses the shared
+  // AT_RISK_THRESHOLDS so admin/agent surfaces stay consistent.
+  const atRiskByAgent = useMemo(() => {
+    if (!data) return new Map<string, { status: 'on-track' | 'behind' | 'at-risk'; ratio: number; daysInPhase: number | null }>()
+    const m = new Map<string, { status: 'on-track' | 'behind' | 'at-risk'; ratio: number; daysInPhase: number | null }>()
     for (const a of data.agents) {
       const phaseItems = data.items.filter(it => it.phase === a.phase && (!hideAdminOnly || !it.adminOnly))
-      if (phaseItems.length === 0) { m.set(a.id, 1); continue }
-      const done = phaseItems.filter(it => data.completedAt[`${a.id}:${it.itemKey}`]).length
-      m.set(a.id, done / phaseItems.length)
+      const total = phaseItems.length
+      const done = total > 0 ? phaseItems.filter(it => data.completedAt[`${a.id}:${it.itemKey}`]).length : 0
+      const ratio = total > 0 ? done / total : 1
+      const startedAt = a.phaseStartedAt ? new Date(a.phaseStartedAt) : null
+      const status = getAtRiskStatus(a.phase, startedAt, done, total)
+      const daysInPhase = startedAt ? Math.floor((Date.now() - startedAt.getTime()) / 86_400_000) : null
+      m.set(a.id, { status, ratio, daysInPhase })
     }
     return m
   }, [data, hideAdminOnly])
+
 
   // Per-item completion rate across all currently-shown agents. Drives the
   // bar above each column so admins can spot bottleneck items at a glance.
@@ -152,8 +165,14 @@ export default function ProgressMatrixPage() {
         if (!hay.includes(q)) return false
       }
       if (stuckOnly) {
-        const r = currentPhaseRatio.get(a.id) ?? 1
-        if (r >= 0.5) return false
+        // "Stuck" filter now means "at risk of not finishing on time"
+        // — i.e. they've been in their phase past the expected
+        // duration AND are below the minimum completion threshold for
+        // that phase. Surfaces both `behind` and `at-risk` statuses
+        // so admins see anyone who needs a check-in, not just the
+        // worst cases.
+        const info = atRiskByAgent.get(a.id)
+        if (!info || info.status === 'on-track') return false
       }
       return true
     })
@@ -186,7 +205,7 @@ export default function ProgressMatrixPage() {
       return b.phase - a.phase
     })
     return arr
-  }, [data, agentSort, agentStats, search, stuckOnly, currentPhaseRatio])
+  }, [data, agentSort, agentStats, search, stuckOnly, atRiskByAgent])
 
   // Items grouped by phase for the column-header rendering. Each phase
   // gets a colored band above its column block.
@@ -373,13 +392,13 @@ export default function ProgressMatrixPage() {
             background: stuckOnly ? 'rgba(248,113,113,0.08)' : 'transparent',
             border: `1px solid ${stuckOnly ? 'rgba(248,113,113,0.3)' : 'transparent'}`,
           }}
-          title="Stuck = less than 50% complete in their current phase. Surface them so you can check in proactively."
+          title="At Risk = the agent has been in their phase longer than expected AND is below the minimum completion threshold for that phase. Time-aware, so a fresh-phase agent isn't flagged just because they're starting out."
         >
           <input type="checkbox" checked={stuckOnly} onChange={e => setStuckOnly(e.target.checked)} />
-          Stuck only
+          At Risk only
           <span
             aria-hidden="true"
-            title="Stuck = less than 50% complete in their current phase. Hover any STUCK badge in the matrix for that agent's specific %."
+            title="At Risk = days-in-phase past expected AND completion below the phase threshold. Hover any AT RISK badge in the matrix for that agent's specific days + %."
             style={{
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
               width: 14, height: 14, borderRadius: '50%',
@@ -435,7 +454,7 @@ export default function ProgressMatrixPage() {
             completedAt={data.completedAt}
             stats={agentStats}
             itemCompletionRate={itemCompletionRate}
-            currentPhaseRatio={currentPhaseRatio}
+            atRiskByAgent={atRiskByAgent}
             hover={hover}
             onHover={setHover}
             onMarkInactive={markInactive}
@@ -454,14 +473,14 @@ function escapeCsv(v: string): string {
 // ─── Desktop matrix ─────────────────────────────────────────────────────
 
 function Matrix({
-  agents, itemsByPhase, completedAt, stats, itemCompletionRate, currentPhaseRatio, hover, onHover, onMarkInactive,
+  agents, itemsByPhase, completedAt, stats, itemCompletionRate, atRiskByAgent, hover, onHover, onMarkInactive,
 }: {
   agents: Agent[]
   itemsByPhase: Record<number, ItemDef[]>
   completedAt: Record<string, string>
   stats: Map<string, { done: number; total: number; ratio: number }>
   itemCompletionRate: Map<string, number>
-  currentPhaseRatio: Map<string, number>
+  atRiskByAgent: Map<string, { status: 'on-track' | 'behind' | 'at-risk'; ratio: number; daysInPhase: number | null }>
   hover: { agentId: string; itemKey: string } | null
   onHover: (h: { agentId: string; itemKey: string } | null) => void
   onMarkInactive: (a: Agent) => void
@@ -702,14 +721,29 @@ function Matrix({
                     <div style={{ fontSize: 9, color: '#6B8299', display: 'flex', gap: 6, marginTop: 1, alignItems: 'center' }}>
                       <span>{agent.agentCode}</span>
                       <span style={{ color: PHASE_COLORS[agent.phase] }}>P{agent.phase}</span>
-                      {(currentPhaseRatio.get(agent.id) ?? 1) < 0.5 && (
-                        <span
-                          title={`STUCK: less than 50% complete in Phase ${agent.phase}. This agent may need a check-in. (${Math.round((currentPhaseRatio.get(agent.id) ?? 0) * 100)}% of current-phase items done)`}
-                          style={{ color: '#f87171', fontWeight: 700, cursor: 'help' }}
-                        >
-                          STUCK
-                        </span>
-                      )}
+                      {(() => {
+                        const info = atRiskByAgent.get(agent.id)
+                        if (!info || info.status === 'on-track') return null
+                        const threshold = AT_RISK_THRESHOLDS[agent.phase]
+                        const expectedDays = threshold?.days ?? 30
+                        const minPct = threshold ? Math.round(threshold.minPct * 100) : 50
+                        const isAtRisk = info.status === 'at-risk'
+                        const tip = isAtRisk
+                          ? `AT RISK: ${info.daysInPhase ?? '?'} days in Phase ${agent.phase} (expected ${expectedDays}) and only ${Math.round(info.ratio * 100)}% complete (target ${minPct}%). Worth a check-in.`
+                          : `BEHIND: ${info.daysInPhase ?? '?'} days in Phase ${agent.phase} (expected ${expectedDays}) and ${Math.round(info.ratio * 100)}% complete (target ${minPct}%). Trending late but not critical yet.`
+                        return (
+                          <span
+                            title={tip}
+                            style={{
+                              color: isAtRisk ? '#f87171' : '#F59E0B',
+                              fontWeight: 700, cursor: 'help',
+                              fontSize: 9, letterSpacing: '0.06em',
+                            }}
+                          >
+                            {isAtRisk ? 'AT RISK' : 'BEHIND'}
+                          </span>
+                        )
+                      })()}
                     </div>
                   </div>
                   {s && s.total > 0 && (

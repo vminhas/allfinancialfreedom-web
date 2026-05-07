@@ -26,6 +26,11 @@ export async function GET() {
         id: true, agentCode: true, firstName: true, lastName: true,
         phase: true, avatarUrl: true, state: true,
         icaDate: true,
+        // phaseStartedAt powers the time-aware "At Risk" calculation.
+        // Without it the only signal would be raw current-phase
+        // completion %, which mislabels anyone who just entered a new
+        // phase (low % is normal at the start, not a problem).
+        phaseStartedAt: true,
         // lastLoginAt lives on AgentUser (auth row), not the profile.
         // Pull it via the relation so the page can sort by recent
         // activity without a second query.
@@ -63,6 +68,7 @@ export async function GET() {
     avatarUrl: a.avatarUrl,
     state: a.state,
     icaDate: a.icaDate?.toISOString() ?? null,
+    phaseStartedAt: a.phaseStartedAt?.toISOString() ?? null,
     lastLoginAt: a.agentUser?.lastLoginAt?.toISOString() ?? null,
   }))
 
