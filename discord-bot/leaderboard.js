@@ -43,7 +43,8 @@ function updatedLine() {
 // Build the three embeds + detect phase movers from fetched data.
 // Returns { prodEmbed, recruitEmbed, moversEmbed | null, hasMoved }.
 function buildEmbeds(data) {
-  const { monthLabel, submissions, recruits, agents, totalSubmissions, activeSubmitters } = data;
+  const { submissions, recruits, agents, totalSubmissions, activeSubmitters } = data;
+  const monthLabel = data.monthLabel || data.weekLabel || 'This Month';
   const updatedAt = updatedLine();
 
   // Production
@@ -146,16 +147,16 @@ async function postLeaderboard(client) {
   }
 
   const { prodEmbed, recruitEmbed, moversEmbed, hasMoved } = buildEmbeds(data);
-  const components = [buildButtons('production', hasMoved)];
+  const components = [buildButtons('recruits', hasMoved)];
 
   const recent = await channel.messages.fetch({ limit: 20 });
   const existing = recent.find(m => m.author.id === client.user.id && m.embeds.length > 0);
 
   if (existing) {
-    await existing.edit({ embeds: [prodEmbed], components });
+    await existing.edit({ embeds: [recruitEmbed], components });
     console.log(`[Leaderboard] Updated monthly snapshot (${data.submissions.length} producers, ${data.recruits.length} recruiters)`);
   } else {
-    await channel.send({ embeds: [prodEmbed], components });
+    await channel.send({ embeds: [recruitEmbed], components });
     console.log(`[Leaderboard] Posted monthly snapshot (${data.submissions.length} producers, ${data.recruits.length} recruiters)`);
   }
 

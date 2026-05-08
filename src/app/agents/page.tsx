@@ -9,7 +9,7 @@ import {
   US_STATES, LC_CALENDAR_URL,
 } from '@/lib/agent-constants'
 import { GROUP_ICONS, PROGRESSION_ICONS, Mail, ChevronDown, ArrowRight, ExternalLink, UserCheck } from '@/lib/checklist-icons'
-import { Trophy, Users, BookOpen, Folder, CalendarDays, LogOut, Menu, X } from 'lucide-react'
+import { Trophy, Users, BookOpen, Folder, CalendarDays, LogOut, Menu, X, type LucideIcon } from 'lucide-react'
 import { formatPhoneAsTyped } from '@/lib/contact-validation'
 import CallReviewModal, { CallReviewData } from '@/components/CallReviewModal'
 import DatePicker from '@/components/DatePicker'
@@ -4906,7 +4906,7 @@ const TEAM_PHASE_COLORS: Record<number, string> = {
 
 // Top-nav link styled to read as a real navigation item rather than
 function NavbarLink({ href, Icon, label }: {
-  href: string; Icon: React.ComponentType<{ size?: number; color?: string }>; label: string
+  href: string; Icon: LucideIcon; label: string
 }) {
   return (
     <a
