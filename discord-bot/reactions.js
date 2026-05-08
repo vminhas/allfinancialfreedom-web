@@ -51,6 +51,13 @@ const REACTION_POOLS = {
     ['📅', '🔗'],
     ['🎥', '⏰'],
   ],
+  // Power hour gets the flex, period. Single emoji, single pool entry,
+  // no variation: the consistency is the visual signal. If a teammate
+  // says 'power hour in 45' three times in three channels, every one
+  // gets the same 💪 stamp.
+  power_hour: [
+    ['💪'],
+  ],
 };
 
 // Detection regexes ordered by priority. First match wins, so big-win
@@ -61,6 +68,14 @@ const PATTERNS = [
   {
     kind: 'big_win',
     re: /\bbusiness partner\b|\bonboarded\b|\bfirst (license|business|deal|app|client|policy)\b|\bcomma check\b|\bqualif(y|ier|ied)\b|\bnet licensed?\b|\b\d+ for the team\b|\b\d+ personal\b|moral authority|just got (their|his|her) first/i,
+  },
+  {
+    // Power hour announcements ('power hour starts in 45', '@everyone
+    // power hour', etc.). Word-bounded so we don't fire on 'powerful',
+    // 'powered up', 'willpower' or other accidental matches. The flex
+    // is the only reaction we want here so the visual is consistent.
+    kind: 'power_hour',
+    re: /\bpower\b/i,
   },
   {
     kind: 'congrats',
