@@ -35,6 +35,11 @@ export default function AdminCallReviewPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState<AnalyzeResult | null>(null)
+  // Persistent identifier for the saved AdminCallReview row. Set after
+  // analyze (from the response) and after openHistoryItem (from the id).
+  // Powers the in-modal outcome dropdown's PATCH path.
+  const [reviewId, setReviewId] = useState<string | null>(null)
+  const [reviewOutcome, setReviewOutcome] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [history, setHistory] = useState<HistoryRow[]>([])
   const [trend, setTrend] = useState<number | null>(null)
@@ -57,8 +62,10 @@ export default function AdminCallReviewPage() {
   const openHistoryItem = async (id: string) => {
     const res = await fetch(`/api/admin/call-review/${id}`)
     if (!res.ok) return
-    const d = await res.json() as { review: AnalyzeResult & { contactName: string | null; callDate: string; callTranscript: string } }
+    const d = await res.json() as { review: AnalyzeResult & { id?: string; contactName: string | null; callDate: string; callTranscript: string; outcome?: string | null } }
     setResult(d.review)
+    setReviewId(d.review.id ?? id)
+    setReviewOutcome(d.review.outcome ?? null)
     setContactName(d.review.contactName ?? '')
     setCallDate(d.review.callDate.slice(0, 10))
     setTranscript(d.review.callTranscript)
@@ -86,13 +93,15 @@ export default function AdminCallReviewPage() {
           callDate,
         }),
       })
-      const data = await res.json() as { result?: AnalyzeResult; error?: string }
+      const data = await res.json() as { result?: AnalyzeResult; reviewId?: string; error?: string }
       if (!res.ok || !data.result) {
         setError(data.error ?? 'Failed to analyze')
         setLoading(false)
         return
       }
       setResult(data.result)
+      setReviewId(data.reviewId ?? null)
+      setReviewOutcome(null)
       setShowModal(true)
       setLoading(false)
       // Refresh the history list so the new review appears immediately.
@@ -460,7 +469,26 @@ export default function AdminCallReviewPage() {
           } as CallReviewData}
           callDate={callDate}
           contactName={contactName || 'Your call'}
+          outcome={reviewOutcome}
           onClose={() => setShowModal(false)}
+          // Outcome editor is wired only when we have a saved review row
+          // (post-analyze or after openHistoryItem). Skipping it before
+          // save would PATCH a non-existent id.
+          onOutcomeChange={reviewId ? async (next) => {
+            const res = await fetch(`/api/admin/call-review/${reviewId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ outcome: next }),
+            })
+            if (!res.ok) {
+              const d = await res.json().catch(() => ({})) as { error?: string }
+              throw new Error(d.error ?? `${res.status}`)
+            }
+            setReviewOutcome(next)
+            // Refresh history so a flag (e.g. "RECRUITED") shows up
+            // alongside the historical row immediately.
+            loadHistory()
+          } : undefined}
         />
       )}
     </div>

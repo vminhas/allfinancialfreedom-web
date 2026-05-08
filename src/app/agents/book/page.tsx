@@ -130,9 +130,7 @@ function BookingCard({ link, accent }: { link: BookingLink; accent: string }) {
   const showIcon = !showAvatar && link.icon && link.icon.trim().length > 0
   return (
     <a
-      href={link.calendlyUrl}
-      target="_blank"
-      rel="noopener noreferrer"
+      href={`/agents/book/${link.id}`}
       style={{
         display: 'flex', flexDirection: 'column', gap: 10,
         padding: '16px 18px',

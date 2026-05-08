@@ -29,6 +29,9 @@ export async function POST(req: NextRequest) {
     transcriptText: string
     contactName?: string
     callDate?: string  // YYYY-MM-DD from the date input
+    // What actually happened on the call. Optional at create time;
+    // can be filled in later via PATCH /api/admin/call-review/[id].
+    outcome?: 'RECRUITED' | 'APPOINTMENT_BOOKED' | 'POLICY_CLOSED' | 'FOLLOW_UP_SCHEDULED' | 'NOT_INTERESTED' | 'NO_CONTACT' | null
   }
 
   if (!body.transcriptText || body.transcriptText.trim().length === 0) {
@@ -63,6 +66,7 @@ export async function POST(req: NextRequest) {
         nextSteps: result.nextSteps,
         summary: result.summary,
         scoreBoosters: result.scoreBoosters ?? undefined,
+        outcome: body.outcome ?? null,
         modelId: result.modelId,
         inputTokens: result.inputTokens,
         outputTokens: result.outputTokens,
