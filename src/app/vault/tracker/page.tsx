@@ -2315,7 +2315,29 @@ function AddAgentModal({ onClose, onCreated, trainers }: { onClose: () => void; 
             </div>
             <div><label style={fieldLabel}>Phone</label><input style={inputStyle} value={form.phone} onChange={set('phone')} /></div>
             <div><label style={fieldLabel}>ICA Date</label><DatePicker value={form.icaDate} onChange={v => setForm(f => ({ ...f, icaDate: v }))} /></div>
-            <div><label style={fieldLabel}>Recruiter Code</label><input style={inputStyle} value={form.recruiterId} onChange={set('recruiterId')} placeholder="e.g. B3570" /></div>
+            <div>
+              <label style={fieldLabel}>Recruiter Code</label>
+              <input
+                style={inputStyle}
+                value={form.recruiterId}
+                onChange={set('recruiterId')}
+                placeholder="Leave empty for Vick & Melinee (Leadership)"
+              />
+              {/* Real-time assignment preview so the admin sees where
+                  this recruit will land in the org tree before saving.
+                  Empty input rolls up under the Leadership card; any
+                  matching agent code routes the new agent under that
+                  agent's downline branch. */}
+              <div style={{
+                fontSize: 10, marginTop: 4, lineHeight: 1.5,
+                color: form.recruiterId.trim() ? '#9BB0C4' : '#C9A96E',
+              }}>
+                {form.recruiterId.trim()
+                  ? <>Will be assigned under recruiter <strong>{form.recruiterId.trim().toUpperCase()}</strong>. Verify the code matches an existing agent.</>
+                  : <>⚜ Will be assigned under <strong>Vick &amp; Melinee (Leadership)</strong>. This is the default for direct CEO/COO recruits.</>
+                }
+              </div>
+            </div>
             <div><label style={fieldLabel}>Trainer (CFT)</label>
               <select style={{ ...inputStyle, appearance: 'auto' }} value={form.cft} onChange={set('cft')}>
                 <option value="">Select trainer</option>
