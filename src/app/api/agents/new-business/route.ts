@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { uploadIllustrationToBlob, validateIllustration } from '@/lib/illustration-upload'
 import { notifySubmitted } from '@/lib/new-business-notifications'
@@ -8,6 +6,7 @@ import { validatePhone, validateEmail } from '@/lib/contact-validation'
 import { computeRenewalWindow, todayInEt } from '@/lib/renewals'
 import { createNotification } from '@/lib/notify'
 import { logSubmissionActivity } from '@/lib/submission-activity'
+import { resolveAgentIdentity } from '@/lib/agent-identity'
 import type { PolicyType } from '@/generated/prisma/client'
 
 const VALID_POLICY_TYPES: PolicyType[] = ['TERM', 'WHOLE_LIFE', 'IUL', 'ANNUITY', 'DISABILITY', 'LTC', 'OTHER']
@@ -16,20 +15,15 @@ const VALID_POLICY_TYPES: PolicyType[] = ['TERM', 'WHOLE_LIFE', 'IUL', 'ANNUITY'
 // they see a locked-state card. Was previously the dedicated Clients tab gate.
 const NEW_BUSINESS_MIN_PHASE = 4
 
-async function getAgentProfile() {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') return null
-  const email = session.user!.email
-  if (typeof email !== 'string' || email.trim().length === 0) return null
-  return db.agentProfile.findFirst({
-    where: { agentUser: { email: { equals: email, mode: 'insensitive' } } },
+export async function GET(req: NextRequest) {
+  const identity = await resolveAgentIdentity(req)
+  if ('error' in identity) return identity.error
+
+  const profile = await db.agentProfile.findUnique({
+    where: { id: identity.profileId },
     select: { id: true, firstName: true, lastName: true, phase: true },
   })
-}
-
-export async function GET() {
-  const profile = await getAgentProfile()
-  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
 
   const locked = profile.phase < NEW_BUSINESS_MIN_PHASE
 
@@ -105,8 +99,15 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const profile = await getAgentProfile()
-  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const identity = await resolveAgentIdentity(req)
+  if ('error' in identity) return identity.error
+  if (identity.previewing) return NextResponse.json({ error: 'Read-only preview' }, { status: 403 })
+
+  const profile = await db.agentProfile.findUnique({
+    where: { id: identity.profileId },
+    select: { id: true, firstName: true, lastName: true, phase: true },
+  })
+  if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
   if (profile.phase < NEW_BUSINESS_MIN_PHASE) {
     return NextResponse.json({ error: 'Locked', minPhase: NEW_BUSINESS_MIN_PHASE, phase: profile.phase }, { status: 403 })
   }
