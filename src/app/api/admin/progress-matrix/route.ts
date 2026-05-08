@@ -33,8 +33,10 @@ export async function GET() {
         phaseStartedAt: true,
         // lastLoginAt lives on AgentUser (auth row), not the profile.
         // Pull it via the relation so the page can sort by recent
-        // activity without a second query.
-        agentUser: { select: { lastLoginAt: true } },
+        // activity without a second query. Email comes along too so
+        // the per-column drawer can fire reminder emails to the
+        // "haven't completed this yet" subset without a second fetch.
+        agentUser: { select: { lastLoginAt: true, email: true } },
       },
       orderBy: [{ phase: 'desc' }, { agentCode: 'asc' }],
     }),
@@ -70,6 +72,7 @@ export async function GET() {
     icaDate: a.icaDate?.toISOString() ?? null,
     phaseStartedAt: a.phaseStartedAt?.toISOString() ?? null,
     lastLoginAt: a.agentUser?.lastLoginAt?.toISOString() ?? null,
+    email: a.agentUser?.email ?? null,
   }))
 
   return NextResponse.json({ agents: flatAgents, items, completedAt })

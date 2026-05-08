@@ -34,6 +34,7 @@ model AdminUser {
   reviewedMilestones   RecognitionMilestone[] @relation("MilestoneReviewer")
   callReviews          AdminCallReview[]
   authoredFeedbackNotes AgentFeedbackNote[]
+  sentPhaseItemReminders PhaseItemReminder[]   @relation("ReminderSender")
 
   @@map("admin_users")
 }
@@ -275,6 +276,7 @@ model AgentProfile {
   // got onboarded. Multiple recruiters can have logged the same person,
   // so this is one-to-many.
   linkedFromBusinessPartners BusinessPartner[] @relation("BusinessPartnerLinkedAgent")
+  receivedPhaseItemReminders PhaseItemReminder[] @relation("ReminderRecipient")
   policies              PolicyEntry[]    @relation("PolicyWriter")
   splitPolicies         PolicyEntry[]    @relation("PolicySplit")
   policyComments        PolicyComment[]
@@ -1374,4 +1376,37 @@ enum FtaStatus {
   RESCHEDULED
   CANCELLED
   NO_SHOW
+}
+
+// Audit log for "email-reminder" sends out of the Progression Matrix.
+// One row per recipient per send. Lets admins see what's been sent and
+// when, and lets the UI gate "you already nudged this agent today" if
+// we ever want a 24h cooldown. Subject + bodyPreview are saved (not the
+// full body) so a long template doesn't bloat the table; the full body
+// the admin typed is only ever ephemeral.
+model PhaseItemReminder {
+  id                       String       @id @default(cuid())
+  // Identifies the checklist item being reminded about. Stored as
+  // (phase, itemKey) since that's the natural composite key on
+  // PhaseItemDefinition; not a real FK because we want reminders to
+  // outlive the definition row if it's ever pruned.
+  phase                    Int
+  itemKey                  String
+  itemLabel                String       // snapshot at send time, in case the definition changes later
+  recipientAgentProfileId  String
+  recipientAgentProfile    AgentProfile @relation("ReminderRecipient", fields: [recipientAgentProfileId], references: [id], onDelete: Cascade)
+  sentByAdminId            String
+  sentByAdmin              AdminUser    @relation("ReminderSender", fields: [sentByAdminId], references: [id])
+  subject                  String
+  bodyPreview              String       @db.VarChar(500)
+  // 'sent' | 'failed' | 'skipped_no_email'. Keep as plain string so we
+  // can add states (e.g. 'queued', 'discord_dm_sent') without a migration.
+  status                   String
+  errorMessage             String?
+  ghlMessageId             String?
+  sentAt                   DateTime     @default(now())
+
+  @@index([phase, itemKey, sentAt])
+  @@index([recipientAgentProfileId, sentAt])
+  @@map("phase_item_reminders")
 }
