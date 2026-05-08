@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, Suspense } from 'react'
+import React, { useState, useEffect, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import {
@@ -9,6 +9,7 @@ import {
   US_STATES, LC_CALENDAR_URL,
 } from '@/lib/agent-constants'
 import { GROUP_ICONS, PROGRESSION_ICONS, Mail, ChevronDown, ArrowRight, ExternalLink, UserCheck } from '@/lib/checklist-icons'
+import { Trophy, Users, BookOpen, Folder, CalendarDays, LogOut, Menu, X } from 'lucide-react'
 import { formatPhoneAsTyped } from '@/lib/contact-validation'
 import CallReviewModal, { CallReviewData } from '@/components/CallReviewModal'
 import DatePicker from '@/components/DatePicker'
@@ -226,6 +227,7 @@ function AgentDashboardInner() {
   const [highlightKey, setHighlightKey] = useState<string | null>(null)
   const [promotionRequestKey, setPromotionRequestKey] = useState<string | null>(null)
   const [promotionRequesting, setPromotionRequesting] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   const toggleExpanded = (key: string) => {
     setExpandedItems(prev => {
@@ -591,28 +593,134 @@ function AgentDashboardInner() {
             flexShrink: 0,
           }}
         >
-          <NavbarLink href="/agents/leaderboard" icon="◑" label="Leaderboard" iconOnly={isMobile} />
-          <NavbarLink href="/agents/team" icon="◉" label="Photos" iconOnly={isMobile} />
-          <NavbarLink href="/agents/guide" icon="?" label="Guide" iconOnly={isMobile} />
-          <NavbarLink href="/agents/resources" icon="◈" label="Resources" iconOnly={isMobile} />
-          <NavbarLink href="/agents/book" icon="✦" label="Book" iconOnly={isMobile} />
-          <NotificationCenter />
-          <button
-            onClick={() => signOut({ callbackUrl: '/agents/login' })}
-            title="Sign out"
-            aria-label="Sign out"
+          {isMobile ? (
+            <>
+              <NotificationCenter />
+              <button
+                onClick={() => setMenuOpen(true)}
+                aria-label="Open menu"
+                style={{
+                  background: 'rgba(201,169,110,0.06)', border: '1px solid rgba(201,169,110,0.18)',
+                  color: '#C9A96E', cursor: 'pointer', borderRadius: 6,
+                  padding: '7px 9px', display: 'flex', alignItems: 'center', lineHeight: 1,
+                }}
+              >
+                <Menu size={18} />
+              </button>
+            </>
+          ) : (
+            <>
+              <NavbarLink href="/agents/leaderboard" Icon={Trophy} label="Leaderboard" />
+              <NavbarLink href="/agents/team" Icon={Users} label="Photos" />
+              <NavbarLink href="/agents/guide" Icon={BookOpen} label="Guide" />
+              <NavbarLink href="/agents/resources" Icon={Folder} label="Resources" />
+              <NavbarLink href="/agents/book" Icon={CalendarDays} label="Book" />
+              <NotificationCenter />
+              <button
+                onClick={() => signOut({ callbackUrl: '/agents/login' })}
+                title="Sign out"
+                aria-label="Sign out"
+                style={{
+                  background: 'none', border: 'none',
+                  color: '#6B8299', cursor: 'pointer',
+                  padding: '6px 8px', fontSize: 12,
+                  marginLeft: 4, lineHeight: 1,
+                }}
+              >
+                Sign out
+              </button>
+            </>
+          )}
+        </nav>
+
+        {/* Mobile full-screen nav menu */}
+        {isMobile && menuOpen && (
+          <div
+            onClick={() => setMenuOpen(false)}
             style={{
-              background: 'none', border: 'none',
-              color: '#6B8299', cursor: 'pointer',
-              padding: isMobile ? '6px 6px' : '6px 8px',
-              fontSize: isMobile ? 16 : 12,
-              marginLeft: isMobile ? 0 : 4,
-              lineHeight: 1,
+              position: 'fixed', inset: 0, zIndex: 200,
+              background: 'rgba(10,22,40,0.92)', backdropFilter: 'blur(8px)',
+              display: 'flex', flexDirection: 'column',
+              paddingTop: 'calc(24px + env(safe-area-inset-top))',
+              paddingBottom: 'calc(24px + env(safe-area-inset-bottom))',
             }}
           >
-            {isMobile ? '⏻' : 'Sign out'}
-          </button>
-        </nav>
+            {/* Close button */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 20px 20px' }}>
+              <button
+                onClick={() => setMenuOpen(false)}
+                style={{ background: 'none', border: 'none', color: '#C9A96E', cursor: 'pointer', padding: 4 }}
+                aria-label="Close menu"
+              >
+                <X size={22} />
+              </button>
+            </div>
+
+            {/* Nav items */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '0 16px' }}
+              onClick={e => e.stopPropagation()}
+            >
+              {[
+                { href: '/agents/leaderboard', Icon: Trophy, label: 'Leaderboard', desc: 'See top performers' },
+                { href: '/agents/team', Icon: Users, label: 'Team Photos', desc: 'Browse and save headshots' },
+                { href: '/agents/guide', Icon: BookOpen, label: 'Agent Guide', desc: 'Your step-by-step playbook' },
+                { href: '/agents/resources', Icon: Folder, label: 'Resources', desc: 'Tools and materials' },
+                { href: '/agents/book', Icon: CalendarDays, label: 'Book a Call', desc: 'Schedule time with leadership' },
+              ].map(({ href, Icon, label, desc }) => (
+                <a
+                  key={href}
+                  href={href}
+                  onClick={() => setMenuOpen(false)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 14,
+                    padding: '14px 16px', borderRadius: 10,
+                    background: 'rgba(201,169,110,0.04)',
+                    border: '1px solid rgba(201,169,110,0.1)',
+                    textDecoration: 'none',
+                  }}
+                >
+                  <div style={{
+                    width: 40, height: 40, borderRadius: 8,
+                    background: 'rgba(201,169,110,0.1)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0,
+                  }}>
+                    <Icon size={20} color="#C9A96E" />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>{label}</div>
+                    <div style={{ fontSize: 11, color: '#6B8299', marginTop: 1 }}>{desc}</div>
+                  </div>
+                </a>
+              ))}
+
+              {/* Sign out */}
+              <button
+                onClick={() => signOut({ callbackUrl: '/agents/login' })}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 14,
+                  padding: '14px 16px', borderRadius: 10, marginTop: 8,
+                  background: 'rgba(248,113,113,0.04)',
+                  border: '1px solid rgba(248,113,113,0.1)',
+                  cursor: 'pointer', width: '100%', textAlign: 'left',
+                }}
+              >
+                <div style={{
+                  width: 40, height: 40, borderRadius: 8,
+                  background: 'rgba(248,113,113,0.1)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  <LogOut size={20} color="#f87171" />
+                </div>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#f87171' }}>Sign Out</div>
+                  <div style={{ fontSize: 11, color: '#6B8299', marginTop: 1 }}>Return to login</div>
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Branded masthead strip */}
@@ -4797,31 +4905,24 @@ const TEAM_PHASE_COLORS: Record<number, string> = {
 }
 
 // Top-nav link styled to read as a real navigation item rather than
-// the original tiny gold link. Mobile-friendly: tappable target,
-// wraps cleanly when the row gets tight.
-function NavbarLink({ href, icon, label, iconOnly = false }: {
-  href: string; icon: string; label: string; iconOnly?: boolean
+function NavbarLink({ href, Icon, label }: {
+  href: string; Icon: React.ComponentType<{ size?: number; color?: string }>; label: string
 }) {
   return (
     <a
       href={href}
-      title={iconOnly ? label : undefined}
-      aria-label={iconOnly ? label : undefined}
       style={{
-        display: 'inline-flex', alignItems: 'center',
-        gap: iconOnly ? 0 : 6,
-        padding: iconOnly ? '6px 9px' : '6px 10px',
-        borderRadius: 4,
-        fontSize: iconOnly ? 13 : 12, fontWeight: 600, letterSpacing: '0.04em',
+        display: 'inline-flex', alignItems: 'center', gap: 5,
+        padding: '6px 10px', borderRadius: 4,
+        fontSize: 12, fontWeight: 600, letterSpacing: '0.04em',
         color: '#C9A96E', textDecoration: 'none',
         border: '1px solid rgba(201,169,110,0.18)',
         background: 'rgba(201,169,110,0.04)',
-        whiteSpace: 'nowrap',
-        lineHeight: 1,
+        whiteSpace: 'nowrap', lineHeight: 1,
       }}
     >
-      <span aria-hidden="true" style={{ fontSize: iconOnly ? 13 : 11, opacity: 0.85 }}>{icon}</span>
-      {!iconOnly && <span>{label}</span>}
+      <Icon size={13} color="#C9A96E" />
+      <span>{label}</span>
     </a>
   )
 }

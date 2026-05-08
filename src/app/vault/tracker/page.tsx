@@ -1217,7 +1217,7 @@ function AgentDrawer({
     firstName: agent.firstName,
     lastName: agent.lastName,
     email: agent.email,
-    phone: agent.phone ?? '',
+    phone: (agent.phone ?? '').replace(/\.0+$/, ''),
     state: agent.state ?? '',
     dateOfBirth: agent.dateOfBirth ? agent.dateOfBirth.split('T')[0] : '',
     npn: agent.npn ?? '',

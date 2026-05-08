@@ -190,6 +190,9 @@ export async function PUT(
         const parsed = new Date(raw as string)
         data[key] = isNaN(parsed.getTime()) ? null : parsed
       }
+    } else if (key === 'phone' && typeof raw === 'string') {
+      // Strip float suffix from CSV imports that stored phone as a number (e.g. "4696556307.0")
+      data[key] = raw.replace(/\.0+$/, '') || null
     } else {
       data[key] = raw
     }

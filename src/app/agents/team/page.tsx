@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { AgentTradingCardModal } from '@/components/AgentTradingCard'
 import { useIsMobile } from '@/lib/useIsMobile'
 
-interface TeamMember {
+interface DirectoryAgent {
   id: string
   agentCode: string
   firstName: string
@@ -13,87 +13,74 @@ interface TeamMember {
   avatarUrl: string | null
   phase: number
   title: string
-  memberStatus: string
-  children: TeamMember[]
-}
-
-interface TeamResponse {
-  team: TeamMember[]
-  totalTeamSize: number
-  activeTeamSize: number
-}
-
-function flatten(nodes: TeamMember[]): TeamMember[] {
-  const result: TeamMember[] = []
-  for (const node of nodes) {
-    if (node.memberStatus === 'ACTIVE') result.push(node)
-    if (node.children.length > 0) result.push(...flatten(node.children))
-  }
-  return result
+  state: string | null
 }
 
 const PHASE_COLORS: Record<number, string> = {
   1: '#6B8299', 2: '#9B6DFF', 3: '#C9A96E', 4: '#3b82f6', 5: '#4ade80',
 }
 
-function Avatar({ member, size }: { member: TeamMember; size: number }) {
-  if (member.avatarUrl) {
+function SilhouettePlaceholder({ size }: { size: number }) {
+  return (
+    <svg
+      width={size} height={size}
+      viewBox="0 0 100 100"
+      style={{ display: 'block', borderRadius: '50%' }}
+    >
+      <rect width="100" height="100" fill="#1F3757" />
+      <circle cx="50" cy="36" r="18" fill="#2D4A6E" />
+      <ellipse cx="50" cy="82" rx="28" ry="22" fill="#2D4A6E" />
+    </svg>
+  )
+}
+
+function Avatar({ agent, size }: { agent: DirectoryAgent; size: number }) {
+  if (agent.avatarUrl) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={member.avatarUrl}
-        alt={`${member.firstName} ${member.lastName}`}
+        src={agent.avatarUrl}
+        alt={`${agent.firstName} ${agent.lastName}`}
         style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', display: 'block' }}
       />
     )
   }
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: '50%',
-      background: 'linear-gradient(135deg, #1F3757 0%, #2D4A6E 100%)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: size * 0.3, fontWeight: 700, color: '#C9A96E', flexShrink: 0,
-    }}>
-      {member.firstName[0]}{member.lastName[0]}
-    </div>
-  )
+  return <SilhouettePlaceholder size={size} />
 }
 
 export default function TeamPhotosPage() {
   const router = useRouter()
   const isMobile = useIsMobile()
-  const [members, setMembers] = useState<TeamMember[]>([])
+  const [agents, setAgents] = useState<DirectoryAgent[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [cardCode, setCardCode] = useState<string | null>(null)
   const [downloading, setDownloading] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/agents/team')
+    fetch('/api/agents/directory')
       .then(r => r.json())
-      .then((data: TeamResponse) => {
-        setMembers(flatten(data.team))
-      })
+      .then((data: { agents: DirectoryAgent[] }) => setAgents(data.agents ?? []))
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
 
-  const filtered = members.filter(m => {
+  const filtered = agents.filter(a => {
     if (!search.trim()) return true
     const q = search.toLowerCase()
-    return `${m.firstName} ${m.lastName}`.toLowerCase().includes(q)
+    return `${a.firstName} ${a.lastName}`.toLowerCase().includes(q)
   })
 
-  const downloadHeadshot = useCallback(async (member: TeamMember) => {
-    if (!member.avatarUrl) return
-    setDownloading(member.agentCode)
+  const downloadHeadshot = useCallback(async (agent: DirectoryAgent) => {
+    if (!agent.avatarUrl) return
+    setDownloading(agent.agentCode)
     try {
-      const ext = (member.avatarUrl.match(/\.([a-zA-Z0-9]{3,4})(?:\?|#|$)/) ?? [])[1]?.toLowerCase() ?? 'jpg'
-      const filename = `${member.firstName}-${member.lastName}-headshot.${ext}`.toLowerCase().replace(/\s+/g, '-')
+      const ext = (agent.avatarUrl.match(/\.([a-zA-Z0-9]{3,4})(?:\?|#|$)/) ?? [])[1]?.toLowerCase() ?? 'jpg'
+      const filename = `${agent.firstName}-${agent.lastName}-headshot.${ext}`.toLowerCase().replace(/\s+/g, '-')
 
       let blob: Blob | null = null
       try {
-        const res = await fetch(member.avatarUrl, { mode: 'cors' })
+        const res = await fetch(agent.avatarUrl, { mode: 'cors' })
         if (res.ok) blob = await res.blob()
       } catch { /* CORS fallback below */ }
 
@@ -101,7 +88,7 @@ export default function TeamPhotosPage() {
         const file = new File([blob], filename, { type: blob.type || 'image/jpeg' })
         const nav = navigator as Navigator & { canShare?: (d: { files: File[] }) => boolean; share?: (d: { files: File[]; title?: string }) => Promise<void> }
         if (nav.share && nav.canShare && nav.canShare({ files: [file] })) {
-          try { await nav.share({ files: [file], title: `${member.firstName} ${member.lastName}` }); return }
+          try { await nav.share({ files: [file], title: `${agent.firstName} ${agent.lastName}` }); return }
           catch (err) { if ((err as Error).name === 'AbortError') return }
         }
         const url = URL.createObjectURL(blob)
@@ -112,7 +99,7 @@ export default function TeamPhotosPage() {
         return
       }
 
-      window.open(member.avatarUrl, '_blank', 'noopener,noreferrer')
+      window.open(agent.avatarUrl, '_blank', 'noopener,noreferrer')
     } finally { setDownloading(null) }
   }, [])
 
@@ -174,9 +161,9 @@ export default function TeamPhotosPage() {
             gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
             gap: 16,
           }}>
-            {filtered.map(member => (
+            {filtered.map(agent => (
               <div
-                key={member.agentCode}
+                key={agent.agentCode}
                 style={{
                   background: '#132238',
                   border: '1px solid rgba(201,169,110,0.08)',
@@ -185,45 +172,51 @@ export default function TeamPhotosPage() {
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
                 }}
               >
-                {/* Avatar — click opens trading card */}
+                {/* Avatar */}
                 <div
-                  onClick={() => setCardCode(member.agentCode)}
-                  style={{ cursor: 'pointer', borderRadius: '50%', overflow: 'hidden', border: `2px solid ${PHASE_COLORS[member.phase] ?? '#4B5563'}` }}
+                  onClick={() => setCardCode(agent.agentCode)}
+                  style={{
+                    cursor: 'pointer', borderRadius: '50%', overflow: 'hidden',
+                    border: `2px solid ${PHASE_COLORS[agent.phase] ?? '#4B5563'}`,
+                    flexShrink: 0,
+                  }}
                 >
-                  <Avatar member={member} size={88} />
+                  <Avatar agent={agent} size={88} />
                 </div>
 
-                {/* Name */}
+                {/* Name + title */}
                 <div
-                  onClick={() => setCardCode(member.agentCode)}
+                  onClick={() => setCardCode(agent.agentCode)}
                   style={{ cursor: 'pointer', textAlign: 'center', lineHeight: 1.3 }}
                 >
                   <div style={{ fontSize: 12, fontWeight: 600, color: '#fff' }}>
-                    {member.firstName} {member.lastName}
+                    {agent.firstName} {agent.lastName}
                   </div>
-                  <div style={{ fontSize: 10, color: PHASE_COLORS[member.phase] ?? '#6B8299', fontWeight: 600, marginTop: 2 }}>
-                    {member.title}
+                  <div style={{ fontSize: 10, color: PHASE_COLORS[agent.phase] ?? '#6B8299', fontWeight: 600, marginTop: 2 }}>
+                    {agent.title}
                   </div>
                 </div>
 
-                {/* Download button */}
-                {member.avatarUrl ? (
+                {/* Download or pending notice */}
+                {agent.avatarUrl ? (
                   <button
-                    onClick={() => downloadHeadshot(member)}
-                    disabled={downloading === member.agentCode}
+                    onClick={() => downloadHeadshot(agent)}
+                    disabled={downloading === agent.agentCode}
                     style={{
                       background: 'rgba(201,169,110,0.1)', border: '1px solid rgba(201,169,110,0.3)',
                       color: '#C9A96E', borderRadius: 4, padding: '4px 12px',
                       fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
-                      cursor: downloading === member.agentCode ? 'wait' : 'pointer',
-                      opacity: downloading === member.agentCode ? 0.6 : 1,
+                      cursor: downloading === agent.agentCode ? 'wait' : 'pointer',
+                      opacity: downloading === agent.agentCode ? 0.6 : 1,
                       width: '100%',
                     }}
                   >
-                    {downloading === member.agentCode ? 'Saving...' : '↓ Save Photo'}
+                    {downloading === agent.agentCode ? 'Saving...' : 'Save Photo'}
                   </button>
                 ) : (
-                  <div style={{ fontSize: 10, color: '#4B5563', fontStyle: 'italic' }}>No photo yet</div>
+                  <div style={{ fontSize: 9, color: '#4B5563', fontStyle: 'italic', textAlign: 'center', lineHeight: 1.3 }}>
+                    Photo not uploaded yet
+                  </div>
                 )}
               </div>
             ))}
