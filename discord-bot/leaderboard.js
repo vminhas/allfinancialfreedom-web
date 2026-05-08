@@ -80,7 +80,7 @@ function buildEmbeds(data) {
   }
   savePhasesCache(newCache);
 
-  let moversEmbed = null;
+  let moversEmbed;
   if (movers.length > 0) {
     const moverLines = movers.map(m => {
       const emoji = PHASE_UP_EMOJI[m.phase] ?? '⬆️';
@@ -91,13 +91,19 @@ function buildEmbeds(data) {
       .setTitle(`🌱  Phase Movers · ${monthLabel}`)
       .setDescription(moverLines)
       .setFooter({ text: `Updated ${updatedAt} ET` });
+  } else {
+    moversEmbed = new EmbedBuilder()
+      .setColor(COLORS.NAVY)
+      .setTitle(`🌱  Phase Movers · ${monthLabel}`)
+      .setDescription('_No phase changes recorded yet this month._')
+      .setFooter({ text: `Updated ${updatedAt} ET` });
   }
 
-  return { prodEmbed, recruitEmbed, moversEmbed, hasMoved: movers.length > 0 };
+  return { prodEmbed, recruitEmbed, moversEmbed };
 }
 
 // Build the tab button row. activeView: 'production' | 'recruits' | 'movers'
-function buildButtons(activeView, hasMoers) {
+function buildButtons(activeView) {
   const row = new ActionRowBuilder();
 
   row.addComponents(
@@ -112,8 +118,7 @@ function buildButtons(activeView, hasMoers) {
     new ButtonBuilder()
       .setCustomId('lb_movers')
       .setLabel('🌱 Phase Movers')
-      .setStyle(activeView === 'movers' ? ButtonStyle.Primary : ButtonStyle.Secondary)
-      .setDisabled(!hasMoers),
+      .setStyle(activeView === 'movers' ? ButtonStyle.Primary : ButtonStyle.Secondary),
   );
 
   return row;
@@ -146,8 +151,8 @@ async function postLeaderboard(client) {
     return;
   }
 
-  const { prodEmbed, recruitEmbed, moversEmbed, hasMoved } = buildEmbeds(data);
-  const components = [buildButtons('recruits', hasMoved)];
+  const { prodEmbed, recruitEmbed, moversEmbed } = buildEmbeds(data);
+  const components = [buildButtons('recruits')];
 
   const recent = await channel.messages.fetch({ limit: 20 });
   const existing = recent.find(m => m.author.id === client.user.id && m.embeds.length > 0);
@@ -161,7 +166,7 @@ async function postLeaderboard(client) {
   }
 
   // Store embeds on client so button handler can access them without re-fetching
-  client._leaderboardCache = { prodEmbed, recruitEmbed, moversEmbed, hasMoved };
+  client._leaderboardCache = { prodEmbed, recruitEmbed, moversEmbed };
 }
 
 // Button interaction handler — call this from bot.js interactionCreate.
@@ -182,14 +187,14 @@ async function handleLeaderboardButton(interaction) {
     return true;
   }
 
-  const { prodEmbed, recruitEmbed, moversEmbed, hasMoved } = buildEmbeds(data);
+  const { prodEmbed, recruitEmbed, moversEmbed } = buildEmbeds(data);
 
   const view = id === 'lb_production' ? 'production' : id === 'lb_recruits' ? 'recruits' : 'movers';
-  const embed = view === 'production' ? prodEmbed : view === 'recruits' ? recruitEmbed : (moversEmbed ?? prodEmbed);
+  const embed = view === 'production' ? prodEmbed : view === 'recruits' ? recruitEmbed : moversEmbed;
 
   await interaction.editReply({
     embeds: [embed],
-    components: [buildButtons(view, hasMoved)],
+    components: [buildButtons(view)],
   });
 
   return true;
