@@ -38,3 +38,4 @@ next-env.d.ts
 
 .vercel
 generated_imgs/
+discord-bot/phases-cache.json

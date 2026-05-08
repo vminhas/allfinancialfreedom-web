@@ -5,6 +5,7 @@ const {
 } = require('discord.js');
 const { GUILD_ID, CHANNELS, ROLES, COLORS, EDITORS } = require('./config');
 const { maybeReactToMessage } = require('./reactions');
+const { postWeeklyLeaderboard } = require('./leaderboard');
 
 const client = new Client({
   intents: [
@@ -465,6 +466,28 @@ client.on(Events.MessageCreate, async (message) => {
 // ─── Ready ───────────────────────────────────────────────────────────────────
 client.once(Events.ClientReady, (c) => {
   console.log(`✅ AFF Concierge online as ${c.user.tag}`);
+  startLeaderboardSchedule(c);
 });
+
+// ─── Weekly leaderboard schedule ─────────────────────────────────────────────
+// Fires Monday 9 AM ET. Checked every 15 minutes so we never miss the window
+// by more than a quarter-hour, and the "already fired today" guard prevents
+// duplicate posts within the same day.
+let leaderboardLastFiredDate = null;
+
+function startLeaderboardSchedule(c) {
+  function check() {
+    const etNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+    const isMonday = etNow.getDay() === 1;
+    const isAfter9AM = etNow.getHours() >= 9;
+    const todayKey = etNow.toDateString();
+    if (isMonday && isAfter9AM && leaderboardLastFiredDate !== todayKey) {
+      leaderboardLastFiredDate = todayKey;
+      postWeeklyLeaderboard(c).catch(err => console.error('[Leaderboard] Post failed:', err));
+    }
+  }
+  check();
+  setInterval(check, 15 * 60 * 1000);
+}
 
 client.login(process.env.DISCORD_BOT_TOKEN);
