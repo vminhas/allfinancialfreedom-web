@@ -65,13 +65,42 @@ const OUTCOME_OPTIONS: Array<{ value: string; label: string }> = [
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
+// Rubric descriptions written for the agent / admin reading the
+// review — same NEPQ vocabulary the SYSTEM_PROMPT uses, so the model's
+// scoreBoosters and the user's mental model line up perfectly. Each
+// dimension includes what scores high, what scores low, and the NEPQ
+// technique name to look up if you want to study it.
 const RUBRIC = [
-  { key: 'opening',    label: 'Opening & Rapport',    desc: 'Status-quo questions, no early pitch, curiosity over talking' },
-  { key: 'discovery',  label: 'Discovery & Needs',    desc: 'NEPQ layers: Problem Awareness, Solution Awareness, Consequence' },
-  { key: 'product',    label: 'Product Knowledge',    desc: 'Presented only after discovery, tied to their stated problem' },
-  { key: 'objections', label: 'Objection Handling',   desc: 'Clarifying questions, never reframed or argued' },
-  { key: 'closing',    label: 'Closing & Next Steps', desc: 'Earned close through discovery, question-based not pressure' },
-  { key: 'tone',       label: 'Tone & Empathy',       desc: 'Word choice, question style, pacing cues, echoing their language' },
+  {
+    key: 'opening',
+    label: 'Opening & Rapport',
+    desc: 'NEPQ Stage 1: Connection. The first 7-12 seconds. Disarms the prospect with calm, curious tone and a Connection Question ("have you found what you\'re looking for?", "what attracted your attention?"). High score: "I just had time to get back to you... I\'m not sure we can even help yet." Low score: pitching, "I noticed you filled out a form", or steamrolling ("Hi, do you have 2 minutes?").',
+  },
+  {
+    key: 'discovery',
+    label: 'Discovery & Needs',
+    desc: 'NEPQ Stage 2: Engagement. Five layers in order: Situation → Problem-Awareness → Solution-Awareness → Consequence → Qualifying. High score: identity frame ("some people don\'t mind putting that stress on family"), "forced" framing, slow ellipsis pauses on heavy questions. Low score: surface-level fact questions ("any active policies?"), skipping straight to product, asking the prospect to commit before pain is built.',
+  },
+  {
+    key: 'product',
+    label: 'Product Knowledge',
+    desc: 'NEPQ Stage 4: Presentation. "Present without presenting" — every feature ties back to a specific problem the prospect raised in discovery. Should be <10% of the call. High score: "Remember how you mentioned [their problem]? The way we solve that for clients in your situation is [specific feature]." Low score: feature-dumping, generic talking points, "we\'ve been in business 30 years", premature numbers (price before pain).',
+  },
+  {
+    key: 'objections',
+    label: 'Objection Handling',
+    desc: 'NEPQ method: never reframe, never rebut. Get behind the concern with a clarifying question and let the prospect talk themselves through it. High score: "What makes you feel that way?" / "Help me understand what\'s holding you back." Low score: "I understand, but...", arguing, scarcity ("this rate is going up"), or steamrolling past the concern.',
+  },
+  {
+    key: 'closing',
+    label: 'Closing & Next Steps',
+    desc: 'NEPQ Stage 5: Commitment + Stage 3: Transition. The close is a question, not a statement. NEPQ Commitment Questions: "Which option would you possibly lean towards?" → "How come that one, just so I understand?". The Transition formula bridges discovery to presentation: "Based on what you told me, you said [their want] + [their problem], and that\'s making you feel [their emotion]." Low score: trial closes early, pressure, assumptive close before discovery is complete.',
+  },
+  {
+    key: 'tone',
+    label: 'Tone & Empathy',
+    desc: 'JLM tonality + verbal cues. High score: curious-frame questions ("I\'m just curious...", "just so I understand..."), echoing the prospect\'s exact words back, ellipsis pauses on heavy moments, bridging cues ("aww, ok", "got it") between questions so it doesn\'t feel scripted. Low score: certainty statements ("you need..."), pushy phrases ("real quick", "you should"), clinical language ("per our conversation"), missing pace shifts.',
+  },
 ] as const
 
 const POSITIVE_OUTCOME_KEYS = new Set(['RECRUITED', 'APPOINTMENT_BOOKED', 'POLICY_CLOSED'])
