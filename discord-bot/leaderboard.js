@@ -75,7 +75,7 @@ async function postWeeklyLeaderboard(client) {
     .setColor(COLORS.GOLD)
     .setTitle(`🏆  Weekly Production · ${weekLabel}`)
     .setDescription(subLines || '_No submissions this week._')
-    .setFooter({ text: `${submissionSummary} · Updated ${updatedAt} ET` });
+    .setFooter({ text: `${submissionSummary} · Updated ${updatedAt} ET · allfinancialfreedom.com/agents/leaderboard` });
 
   // ── Recruits embed ──────────────────────────────────────────────────────────
   const recLines = recruits.map((r, i) => rankLine(i, `${r.firstName} ${r.lastName}`, r.value, 'recruit')).join('\n');
@@ -116,15 +116,17 @@ async function postWeeklyLeaderboard(client) {
     embeds.push(moversEmbed);
   }
 
-  // Delete previous bot embed messages so old snapshots don't pile up
+  // Edit the existing bot message if one exists, otherwise post fresh
   const recent = await channel.messages.fetch({ limit: 20 });
-  const botMsgs = recent.filter(m => m.author.id === client.user.id && m.embeds.length > 0);
-  for (const msg of botMsgs.values()) {
-    await msg.delete().catch(() => {});
-  }
+  const existing = recent.find(m => m.author.id === client.user.id && m.embeds.length > 0);
 
-  await channel.send({ embeds });
-  console.log(`[Leaderboard] Posted weekly snapshot for ${weekLabel} (${submissions.length} top producers, ${recruits.length} top recruiters, ${movers.length} phase movers)`);
+  if (existing) {
+    await existing.edit({ embeds });
+    console.log(`[Leaderboard] Updated snapshot for ${weekLabel} (${submissions.length} top producers, ${recruits.length} top recruiters, ${movers.length} phase movers)`);
+  } else {
+    await channel.send({ embeds });
+    console.log(`[Leaderboard] Posted snapshot for ${weekLabel} (${submissions.length} top producers, ${recruits.length} top recruiters, ${movers.length} phase movers)`);
+  }
 }
 
 module.exports = { postWeeklyLeaderboard };
