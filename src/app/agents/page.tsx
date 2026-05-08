@@ -537,61 +537,81 @@ function AgentDashboardInner() {
           <button onClick={() => window.close()} style={{ background: 'rgba(155,109,255,0.15)', border: '1px solid rgba(155,109,255,0.3)', color: '#9B6DFF', borderRadius: 4, padding: '4px 10px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>Close</button>
         </div>
       )}
-      {/* Top nav */}
+      {/* Top nav. Mobile gets a deliberately tighter treatment: the
+          "Agent Portal" subtitle disappears, the avatar drops the name
+          chip, the four quick-link pills become icon-only squares, and
+          'Sign out' becomes a single arrow glyph. Desktop keeps full
+          labels because there's room for them. */}
       <div style={{
         borderBottom: '1px solid rgba(201,169,110,0.1)',
-        padding: '14px clamp(16px, 4vw, 32px)',
-        paddingTop: 'calc(14px + env(safe-area-inset-top))',
+        padding: isMobile ? '10px 14px' : '14px clamp(16px, 4vw, 32px)',
+        paddingTop: `calc(${isMobile ? 10 : 14}px + env(safe-area-inset-top))`,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        gap: 12, flexWrap: 'wrap',
+        gap: isMobile ? 8 : 12, flexWrap: 'nowrap',
         background: '#0A1628', position: 'sticky', top: 0, zIndex: 10,
       }}>
-        <div>
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C9A96E' }}>
-            All Financial Freedom
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12, minWidth: 0, flexShrink: 1 }}>
+          <span style={{
+            fontSize: isMobile ? 9 : 10, fontWeight: 700,
+            letterSpacing: '0.18em', textTransform: 'uppercase', color: '#C9A96E',
+            whiteSpace: 'nowrap',
+          }}>
+            {isMobile ? 'AFF' : 'All Financial Freedom'}
           </span>
-          <span style={{ marginLeft: 12, fontSize: 11, color: '#4B5563' }}>Agent Portal</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{
-              width: 30, height: 30, borderRadius: '50%',
-              background: data.avatarUrl ? 'transparent' : 'rgba(201,169,110,0.15)',
-              border: '1px solid rgba(201,169,110,0.3)',
-              overflow: 'hidden', flexShrink: 0,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              {data.avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={data.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              ) : (
-                <span style={{ fontSize: 11, color: '#C9A96E', fontWeight: 700 }}>
-                  {data.firstName.charAt(0)}{data.lastName.charAt(0)}
-                </span>
-              )}
-            </div>
-            <span style={{ fontSize: 12, color: '#6B8299' }}>{data.firstName} {data.lastName} · {data.agentCode}</span>
+          {!isMobile && (
+            <span style={{ fontSize: 11, color: '#4B5563' }}>Agent Portal</span>
+          )}
+          <div style={{
+            width: isMobile ? 26 : 30, height: isMobile ? 26 : 30, borderRadius: '50%',
+            background: data.avatarUrl ? 'transparent' : 'rgba(201,169,110,0.15)',
+            border: '1px solid rgba(201,169,110,0.3)',
+            overflow: 'hidden', flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            marginLeft: isMobile ? 4 : 6,
+          }}>
+            {data.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={data.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <span style={{ fontSize: 10, color: '#C9A96E', fontWeight: 700 }}>
+                {data.firstName.charAt(0)}{data.lastName.charAt(0)}
+              </span>
+            )}
           </div>
-          <nav
-            aria-label="Quick links"
+          {!isMobile && (
+            <span style={{ fontSize: 12, color: '#6B8299', whiteSpace: 'nowrap' }}>
+              {data.firstName} {data.lastName} &middot; {data.agentCode}
+            </span>
+          )}
+        </div>
+        <nav
+          aria-label="Quick links"
+          style={{
+            display: 'flex', alignItems: 'center', gap: isMobile ? 4 : 6,
+            flexShrink: 0,
+          }}
+        >
+          <NavbarLink href="/agents/leaderboard" icon="◑" label="Leaderboard" iconOnly={isMobile} />
+          <NavbarLink href="/agents/guide" icon="?" label="Guide" iconOnly={isMobile} />
+          <NavbarLink href="/agents/resources" icon="◈" label="Resources" iconOnly={isMobile} />
+          <NavbarLink href="/agents/book" icon="✦" label="Book" iconOnly={isMobile} />
+          <NotificationCenter />
+          <button
+            onClick={() => signOut({ callbackUrl: '/agents/login' })}
+            title="Sign out"
+            aria-label="Sign out"
             style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              flexWrap: 'wrap',
+              background: 'none', border: 'none',
+              color: '#6B8299', cursor: 'pointer',
+              padding: isMobile ? '6px 6px' : '6px 8px',
+              fontSize: isMobile ? 16 : 12,
+              marginLeft: isMobile ? 0 : 4,
+              lineHeight: 1,
             }}
           >
-            <NavbarLink href="/agents/leaderboard" icon="◑" label="Leaderboard" />
-            <NavbarLink href="/agents/guide" icon="?" label="Guide" />
-            <NavbarLink href="/agents/resources" icon="◈" label="Resources" />
-            <NavbarLink href="/agents/book" icon="✦" label="Book" />
-            <NotificationCenter />
-            <button
-              onClick={() => signOut({ callbackUrl: '/agents/login' })}
-              style={{ background: 'none', border: 'none', color: '#6B8299', fontSize: 12, cursor: 'pointer', padding: '6px 8px', marginLeft: 4 }}
-            >
-              Sign out
-            </button>
-          </nav>
-        </div>
+            {isMobile ? '⏻' : 'Sign out'}
+          </button>
+        </nav>
       </div>
 
       {/* Branded masthead strip */}
@@ -4763,22 +4783,29 @@ const TEAM_PHASE_COLORS: Record<number, string> = {
 // Top-nav link styled to read as a real navigation item rather than
 // the original tiny gold link. Mobile-friendly: tappable target,
 // wraps cleanly when the row gets tight.
-function NavbarLink({ href, icon, label }: { href: string; icon: string; label: string }) {
+function NavbarLink({ href, icon, label, iconOnly = false }: {
+  href: string; icon: string; label: string; iconOnly?: boolean
+}) {
   return (
     <a
       href={href}
+      title={iconOnly ? label : undefined}
+      aria-label={iconOnly ? label : undefined}
       style={{
-        display: 'inline-flex', alignItems: 'center', gap: 6,
-        padding: '6px 10px', borderRadius: 4,
-        fontSize: 12, fontWeight: 600, letterSpacing: '0.04em',
+        display: 'inline-flex', alignItems: 'center',
+        gap: iconOnly ? 0 : 6,
+        padding: iconOnly ? '6px 9px' : '6px 10px',
+        borderRadius: 4,
+        fontSize: iconOnly ? 13 : 12, fontWeight: 600, letterSpacing: '0.04em',
         color: '#C9A96E', textDecoration: 'none',
         border: '1px solid rgba(201,169,110,0.18)',
         background: 'rgba(201,169,110,0.04)',
         whiteSpace: 'nowrap',
+        lineHeight: 1,
       }}
     >
-      <span aria-hidden="true" style={{ fontSize: 11, opacity: 0.85 }}>{icon}</span>
-      <span>{label}</span>
+      <span aria-hidden="true" style={{ fontSize: iconOnly ? 13 : 11, opacity: 0.85 }}>{icon}</span>
+      {!iconOnly && <span>{label}</span>}
     </a>
   )
 }
