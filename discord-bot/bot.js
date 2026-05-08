@@ -88,6 +88,23 @@ function buildWelcomeEmbed(member) {
     .setTimestamp();
 }
 
+// Companion to the DM welcome. Lighter, more celebratory: no
+// onboarding links (those clutter the channel and don't apply to
+// teammates seeing the post), just a "say hi" prompt and the new
+// member's avatar so faces register. Mirrors how Slack / Linear /
+// Notion handle public team-join cards.
+function buildPublicWelcomeEmbed(member) {
+  const name = member.displayName || member.user?.username || 'friend'
+  const avatar = member.user?.displayAvatarURL?.({ size: 128, extension: 'png' })
+  return new EmbedBuilder()
+    .setColor(COLORS.GOLD)
+    .setTitle('🎉 New teammate just joined')
+    .setDescription(`Everyone, please welcome **${name}** to the All Financial Freedom family.\n\nDrop a wave, say hi, share something useful — that's how we roll.`)
+    .setThumbnail(avatar ?? null)
+    .setFooter({ text: 'All Financial Freedom · Wealth · Protection · Legacy' })
+    .setTimestamp();
+}
+
 // ─── Phase DM embed ──────────────────────────────────────────────────────────
 function buildPhaseEmbed(phaseData) {
   const embed = new EmbedBuilder()
@@ -106,14 +123,36 @@ function buildPhaseEmbed(phaseData) {
 
 // ─── Events ──────────────────────────────────────────────────────────────────
 
-// New member joins — DM-only welcome. No channel post, so the welcome
-// doesn't push active announcements (training reminders, weekly roundup,
-// etc.) out of view in the #welcome channel.
+// New member joins — sends both a DM (with onboarding links) and a
+// public welcome card to #announcements (so the team can say hi and
+// the new agent's first impression isn't an empty channel). Skips
+// bot accounts so a future integration joining doesn't trigger a
+// fake party.
 client.on(Events.GuildMemberAdd, async (member) => {
+  if (member.user?.bot) return;
+
+  // 1. Personal DM with onboarding links. Member may have DMs
+  //    disabled; nothing we can do if so, fall through silently.
   try {
     await member.send({ embeds: [buildWelcomeEmbed(member)] });
-  } catch {
-    // Member may have DMs disabled — nothing we can do. That's okay.
+  } catch {}
+
+  // 2. Public "say hi" card in announcements. Tags the new member
+  //    in the message content so they get pinged into the thread
+  //    and existing teammates see who to greet. Best-effort: if
+  //    the bot lacks send permission in announcements, log and
+  //    move on rather than crash the join handler.
+  try {
+    const announcements = member.guild.channels.cache.get(CHANNELS.ANNOUNCEMENTS);
+    if (announcements) {
+      await announcements.send({
+        content: `<@${member.id}>`,
+        embeds: [buildPublicWelcomeEmbed(member)],
+        allowedMentions: { users: [member.id] },
+      });
+    }
+  } catch (err) {
+    console.warn('[GuildMemberAdd] announcements post failed:', err?.message ?? err);
   }
 });
 
