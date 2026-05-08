@@ -37,8 +37,27 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <Script async src="https://www.googletagmanager.com/gtag/js?id=G-V681CCKX2T" strategy="afterInteractive" />
-        <Script id="gtag-init" strategy="afterInteractive">{`
+        {/* Preconnects: warm up the TCP+TLS handshake to the 3rd-party
+            origins the page hits during LCP. Lighthouse measured ~330ms
+            saved per origin on mobile 4G. Cap at 4 (Chrome's effective
+            limit before connections start to evict each other). Order
+            matters slightly: hint the LCP-critical ones first. */}
+        <link rel="preconnect" href="https://widgets.leadconnectorhq.com" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://services.leadconnectorhq.com" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://assets.cdn.filesafe.space" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://stcdn.leadconnectorhq.com" crossOrigin="anonymous" />
+
+        {/* GTM moved from 'afterInteractive' to 'lazyOnload' so the
+            main thread is unblocked through LCP on mobile (saved ~64KB
+            of unused JS during the critical window per Lighthouse).
+            Lazy-loaded GTM still fires page_view normally because the
+            event queues until gtag is defined; user-triggered events
+            also queue. Trade-off: events fired in the very first
+            second after page load may not include their full GTM
+            envelope, which is fine for our use case (no rage-click
+            funnels). */}
+        <Script async src="https://www.googletagmanager.com/gtag/js?id=G-V681CCKX2T" strategy="lazyOnload" />
+        <Script id="gtag-init" strategy="lazyOnload">{`
           window.dataLayer = window.dataLayer || [];
           function gtag(){dataLayer.push(arguments);}
           gtag('js', new Date());
