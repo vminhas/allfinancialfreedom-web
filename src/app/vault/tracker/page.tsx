@@ -2244,6 +2244,11 @@ function AddAgentModal({ onClose, onCreated, trainers }: { onClose: () => void; 
     state: '', phone: '', icaDate: '', recruiterId: '',
     cft: '', goal: '', initialPointOfContact: '',
   })
+  // Tracking-only mode: creates the agent as INACTIVE for historical
+  // downline visibility without seeding onboarding, sending an invite,
+  // or pinging Discord. For ex-agents who left before the portal
+  // existed and need to appear in someone's tree.
+  const [trackingOnly, setTrackingOnly] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -2257,15 +2262,20 @@ function AddAgentModal({ onClose, onCreated, trainers }: { onClose: () => void; 
     const res = await fetch('/api/admin/agents', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+      body: JSON.stringify({ ...form, trackingOnly }),
     })
     const data = await res.json() as { ok?: boolean; error?: string; agentUserId?: string }
     if (!res.ok) { setError(data.error ?? 'Failed'); setLoading(false); return }
-    await fetch('/api/admin/agents/invite', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agentUserId: data.agentUserId }),
-    })
+    // Skip the invite send for tracking-only profiles. They have a
+    // synthetic email and no inviteToken; calling invite would either
+    // 404 or send to nowhere.
+    if (!trackingOnly) {
+      await fetch('/api/admin/agents/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentUserId: data.agentUserId }),
+      })
+    }
     onCreated()
   }
 
@@ -2302,10 +2312,51 @@ function AddAgentModal({ onClose, onCreated, trainers }: { onClose: () => void; 
         </div>
 
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Tracking-only toggle: when checked, the new profile is
+              created as INACTIVE for historical / downline visibility
+              only — no onboarding seeded, no invite email, no Discord
+              ping. Used for ex-agents who left before the portal
+              existed (or whose original record was lost) and need to
+              appear in someone's tree. */}
+          <label style={{
+            display: 'flex', alignItems: 'flex-start', gap: 10,
+            padding: '10px 12px',
+            background: trackingOnly ? 'rgba(201,169,110,0.10)' : 'rgba(255,255,255,0.03)',
+            border: `1px solid ${trackingOnly ? 'rgba(201,169,110,0.4)' : 'rgba(255,255,255,0.08)'}`,
+            borderRadius: 5,
+            cursor: 'pointer',
+            transition: 'background 0.12s',
+          }}>
+            <input
+              type="checkbox"
+              checked={trackingOnly}
+              onChange={e => setTrackingOnly(e.target.checked)}
+              style={{ accentColor: '#C9A96E', marginTop: 2 }}
+            />
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: trackingOnly ? '#E0C485' : '#d1d9e2' }}>
+                Tracking only (no onboarding, no invite)
+              </div>
+              <div style={{ fontSize: 10, color: '#6B8299', marginTop: 3, lineHeight: 1.5 }}>
+                For ex-agents who left before the portal existed. Adds them as <strong>INACTIVE</strong> in the org tree, skips onboarding seeding, and sends no email or Discord ping.
+              </div>
+            </div>
+          </label>
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div><label style={fieldLabel}>First Name *</label><input required style={inputStyle} value={form.firstName} onChange={set('firstName')} /></div>
             <div><label style={fieldLabel}>Last Name *</label><input required style={inputStyle} value={form.lastName} onChange={set('lastName')} /></div>
-            <div><label style={fieldLabel}>Email *</label><input required type="email" style={inputStyle} value={form.email} onChange={set('email')} /></div>
+            <div>
+              <label style={fieldLabel}>Email {trackingOnly ? '' : '*'}</label>
+              <input
+                required={!trackingOnly}
+                type="email"
+                style={inputStyle}
+                value={form.email}
+                onChange={set('email')}
+                placeholder={trackingOnly ? 'Leave blank to auto-generate' : ''}
+              />
+            </div>
             <div><label style={fieldLabel}>Agent Code *</label><input required style={inputStyle} value={form.agentCode} onChange={set('agentCode')} placeholder="e.g. F2030" /></div>
             <div><label style={fieldLabel}>State</label>
               <select style={{ ...inputStyle, appearance: 'auto' }} value={form.state} onChange={set('state')}>

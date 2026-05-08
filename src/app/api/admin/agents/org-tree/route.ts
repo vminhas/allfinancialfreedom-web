@@ -33,8 +33,15 @@ export async function GET() {
   const denied = requireRole(session, 'admin')
   if (denied) return denied
 
+  // Include INACTIVE agents in the tree so tracking-only / former
+  // teammates remain visible in their recruiter's branch. They render
+  // with a distinct muted treatment on the client (border opacity
+  // dropped + a small FORMER pill) so the tree still feels alive
+  // while telling the truth about who's who. Active agents come
+  // first in sort order so the live roster reads cleanly above the
+  // alumni layer.
   const agents = await db.agentProfile.findMany({
-    where: { status: 'ACTIVE', isTest: false },
+    where: { status: { in: ['ACTIVE', 'INACTIVE'] }, isTest: false },
     select: {
       id: true,
       agentCode: true,
@@ -47,7 +54,7 @@ export async function GET() {
       recruiterId: true,
       cft: true,
     },
-    orderBy: [{ phase: 'desc' }, { firstName: 'asc' }],
+    orderBy: [{ status: 'asc' }, { phase: 'desc' }, { firstName: 'asc' }],
   })
 
   const byCode = new Map<string, typeof agents[0]>()
