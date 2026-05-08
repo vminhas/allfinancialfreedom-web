@@ -4373,13 +4373,35 @@ const OUTCOME_LABEL: Record<string, string> = {
 }
 const POSITIVE_OUTCOMES = new Set(['RECRUITED', 'APPOINTMENT_BOOKED', 'POLICY_CLOSED'])
 
+const CALL_TYPE_LABEL: Record<string, string> = {
+  RECRUIT:            'Recruit',
+  FOLLOW_UP:          'Follow-up',
+  CLIENT_APPOINTMENT: 'Client Appointment',
+  OTHER:              'Other',
+}
+
+// Resolves the call's intent/category for display in the list and
+// detail views. OTHER falls back to whatever the agent typed in the
+// callTypeOther free-text field. Returns null if the row predates the
+// callType columns and only carries the deprecated free-form result.
+function formatCallType(call: { callType: string | null; callTypeOther: string | null }): string | null {
+  if (!call.callType) return null
+  if (call.callType === 'OTHER' && call.callTypeOther?.trim()) return call.callTypeOther.trim()
+  return CALL_TYPE_LABEL[call.callType] ?? call.callType
+}
+
 interface CallLogRow {
   id: string
   callDate: string
   contactName: string
   phoneNumber: string | null
   subject: string | null
+  // Deprecated, surfaced from the row only for back-compat with old
+  // entries that used the free-form Result field. New rows leave it
+  // null and use callType/callTypeOther instead.
   result: string | null
+  callType: string | null
+  callTypeOther: string | null
   outcome: string | null
   followUpNeeded: boolean
   review: {
@@ -4400,7 +4422,8 @@ function CallLogsTab() {
     contactName: '',
     phoneNumber: '',
     subject: '',
-    result: '',
+    callType: '',
+    callTypeOther: '',
     outcome: '',
     followUpNeeded: false,
     transcriptText: '',
@@ -4472,7 +4495,8 @@ function CallLogsTab() {
       setCalls(prev => [newCall, ...prev])
       setForm({
         callDate: new Date().toISOString().split('T')[0],
-        contactName: '', phoneNumber: '', subject: '', result: '',
+        contactName: '', phoneNumber: '', subject: '',
+        callType: '', callTypeOther: '',
         outcome: '', followUpNeeded: false, transcriptText: '',
       })
       setShowForm(false)
@@ -4616,31 +4640,52 @@ function CallLogsTab() {
                 />
               </div>
             </div>
-            <div>
-              <label style={fieldLabel}>Result</label>
-              <input
-                style={inputStyle}
-                placeholder="e.g. scheduled follow-up, client signed, not interested"
-                value={form.result}
-                onChange={e => setForm(f => ({ ...f, result: e.target.value }))}
-              />
+            <div style={formRow}>
+              <div>
+                <label style={fieldLabel}>Call Type</label>
+                <select
+                  value={form.callType}
+                  onChange={e => setForm(f => ({ ...f, callType: e.target.value, callTypeOther: e.target.value === 'OTHER' ? f.callTypeOther : '' }))}
+                  style={{ ...inputStyle, appearance: 'none' as const }}
+                >
+                  <option value="">Select type (optional)</option>
+                  <option value="RECRUIT">Recruit</option>
+                  <option value="FOLLOW_UP">Follow-up</option>
+                  <option value="CLIENT_APPOINTMENT">Client Appointment / Close</option>
+                  <option value="OTHER">Other...</option>
+                </select>
+              </div>
+              <div>
+                <label style={fieldLabel}>Outcome</label>
+                <select
+                  value={form.outcome}
+                  onChange={e => setForm(f => ({ ...f, outcome: e.target.value }))}
+                  style={{ ...inputStyle, appearance: 'none' as const }}
+                >
+                  <option value="">Select outcome (optional)</option>
+                  <option value="RECRUITED">Recruited</option>
+                  <option value="APPOINTMENT_BOOKED">Appointment Booked</option>
+                  <option value="POLICY_CLOSED">Policy Closed</option>
+                  <option value="FOLLOW_UP_SCHEDULED">Follow-up Scheduled</option>
+                  <option value="NOT_INTERESTED">Not Interested</option>
+                  <option value="NO_CONTACT">No Contact / No Answer</option>
+                </select>
+              </div>
             </div>
-            <div>
-              <label style={fieldLabel}>Outcome</label>
-              <select
-                value={form.outcome}
-                onChange={e => setForm(f => ({ ...f, outcome: e.target.value }))}
-                style={{ ...inputStyle, appearance: 'none' as const }}
-              >
-                <option value="">Select outcome (optional)</option>
-                <option value="RECRUITED">Recruited</option>
-                <option value="APPOINTMENT_BOOKED">Appointment Booked</option>
-                <option value="POLICY_CLOSED">Policy Closed</option>
-                <option value="FOLLOW_UP_SCHEDULED">Follow-up Scheduled</option>
-                <option value="NOT_INTERESTED">Not Interested</option>
-                <option value="NO_CONTACT">No Contact / No Answer</option>
-              </select>
-            </div>
+            {/* Free-text label for OTHER call types so an agent can
+                tag an ad-hoc call ('underwriting check-in', etc.)
+                without polluting the dropdown with rare cases. */}
+            {form.callType === 'OTHER' && (
+              <div>
+                <label style={fieldLabel}>Other (specify)</label>
+                <input
+                  style={inputStyle}
+                  placeholder="e.g. underwriting check-in, carrier callback"
+                  value={form.callTypeOther}
+                  onChange={e => setForm(f => ({ ...f, callTypeOther: e.target.value }))}
+                />
+              </div>
+            )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 32 }}>
               <input
                 type="checkbox" id="fu"
@@ -4752,7 +4797,7 @@ function CallLogsTab() {
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', minWidth: 720, borderCollapse: 'collapse' }}>
               <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                {['Date', 'Contact', 'Subject', 'Result', 'Outcome', 'AI Review'].map(h => (
+                {['Date', 'Contact', 'Subject', 'Call Type', 'Outcome', 'AI Review'].map(h => (
                   <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#C9A96E' }}>{h}</th>
                 ))}
               </tr></thead>
@@ -4762,7 +4807,7 @@ function CallLogsTab() {
                     <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{new Date(c.callDate).toLocaleDateString()}</td>
                     <td style={{ padding: '10px 12px', fontSize: 12, color: '#ffffff' }}>{c.contactName}</td>
                     <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{c.subject ?? '—'}</td>
-                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{c.result ?? '—'}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{formatCallType(c) ?? c.result ?? '—'}</td>
                     <td style={{ padding: '10px 12px' }}>
                       {c.outcome && OUTCOME_LABEL[c.outcome] ? (
                         <span style={{
@@ -4850,8 +4895,8 @@ function CallRowMobile({ call, analyzing, onViewReview }: { call: CallLogRow; an
           <div style={{ fontSize: 10, color: '#6B8299' }}>
             {new Date(call.callDate).toLocaleDateString()} {call.subject ? `· ${call.subject}` : ''}
           </div>
-          {call.result && (
-            <div style={{ fontSize: 11, color: '#9BB0C4', marginTop: 6 }}>{call.result}</div>
+          {(formatCallType(call) || call.result) && (
+            <div style={{ fontSize: 11, color: '#9BB0C4', marginTop: 6 }}>{formatCallType(call) ?? call.result}</div>
           )}
         </div>
         {analyzing ? (
