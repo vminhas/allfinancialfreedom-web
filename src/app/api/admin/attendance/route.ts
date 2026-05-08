@@ -56,6 +56,7 @@ export async function GET(req: NextRequest) {
   })
 
   const agents = await db.agentProfile.findMany({
+    where: { isTest: false },
     select: {
       id: true,
       agentCode: true,
