@@ -50,7 +50,7 @@ const PHASE_TITLES: Record<number, string> = {
 // (header + back-to-portal + iOS safe-area handling) wraps both so we
 // don't duplicate the chrome between views.
 export default function LeaderboardPage() {
-  const [tab, setTab] = useTabFromHash('production')
+  const [tab, setTab] = useTabFromHash('progression')
   return (
     <Shell>
       <LeaderboardTabsBar active={tab} setActive={setTab} />
