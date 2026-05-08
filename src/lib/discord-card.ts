@@ -114,5 +114,5 @@ export const PHASE_ACCENT: Record<number, number> = {
 }
 
 export const PHASE_TITLE: Record<number, string> = {
-  1: 'Agent', 2: 'Associate', 3: 'Certified Field Trainer', 4: 'Marketing Director', 5: 'Executive Marketing Director',
+  1: 'Agent', 2: 'Associate', 3: 'Senior Associate', 4: 'Marketing Director', 5: 'Executive Marketing Director',
 }

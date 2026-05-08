@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { PHASE_ITEMS } from '@/lib/agent-constants'
 import { requireRole } from '@/lib/permissions'
+import { recomputeBadges, CFT_GATE_ITEM_KEYS } from '@/lib/agent-badges'
 
 // PUT /api/admin/agents/[id]/progress — admin toggles a phase item on behalf of an agent
 export async function PUT(
@@ -55,6 +56,17 @@ export async function PUT(
       completedAt: completed ? new Date() : null,
     },
   })
+
+  // If the toggled item is one of the four CFT-gating signoffs,
+  // recompute auto-managed badges so the CFT chip lights up the
+  // moment the last signoff lands (and turns off if any signoff is
+  // unchecked later). Non-blocking: a recompute failure shouldn't
+  // unwind the toggle the admin just made.
+  if ((CFT_GATE_ITEM_KEYS as unknown as string[]).includes(itemKey) && phase === 3) {
+    recomputeBadges(id).catch(err =>
+      console.warn('[progress PUT] recomputeBadges failed:', err),
+    )
+  }
 
   return NextResponse.json(item)
 }

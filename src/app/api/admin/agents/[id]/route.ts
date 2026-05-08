@@ -166,6 +166,9 @@ export async function PUT(
     'discordUserId', 'welcomeLetterSentAt', 'clientProduct', 'licenseProcess', 'notes',
     'addressLine1', 'addressLine2', 'city', 'zip', 'country', 'avatarUrl',
     'isTest',
+    // Earned-recognition list. Manual override path; auto-managed
+    // updates flow through recomputeBadges() in lib/agent-badges.
+    'badges',
   ] as const
 
   // Date-shaped columns that arrive as 'YYYY-MM-DD' from <input type="date">

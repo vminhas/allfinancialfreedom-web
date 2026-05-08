@@ -10,6 +10,7 @@ import {
   TrendUpIcon, TrendDownIcon, DashIcon,
   EmptyChartIcon,
 } from './leaderboard-icons'
+import AgentBadges from '@/components/AgentBadges'
 
 // Production leaderboard. Premium-themed counterpart to the existing
 // onboarding-progress matrix. Three metrics, two scopes, five timeframes.
@@ -31,6 +32,7 @@ interface Row {
   upline: string | null
   value: number
   rank: number
+  badges: string[]
 }
 
 interface Payload {
@@ -62,7 +64,7 @@ const PHASE_COLORS: Record<number, string> = {
 // Title = the rank earned by completing the PREVIOUS phase. Phase-1 agents
 // default to 'Agent' (no prior phase). Mirrors the directory API logic.
 const PHASE_TITLES: Record<number, string> = {
-  1: 'Agent', 2: 'Associate', 3: 'Certified Field Trainer',
+  1: 'Agent', 2: 'Associate', 3: 'Senior Associate',
   4: 'Marketing Director', 5: 'Executive Marketing Director',
 }
 const PHASE_ABBREV: Record<number, string> = {
@@ -435,8 +437,9 @@ function PodiumCard({ row, viewerId, metric, isMobile }: { row: Row; viewerId: s
           {row.firstName} {row.lastName}
           {isYou && <YouBadge />}
         </div>
-        <div style={{ fontSize: 10, color: '#6B8299', letterSpacing: '0.05em', marginBottom: 10 }}>
-          {row.agentCode} &middot; <span style={{ color: PHASE_COLORS[row.phase] ?? '#6B8299' }}>{agentTitle(row.phase)}</span>
+        <div style={{ fontSize: 10, color: '#6B8299', letterSpacing: '0.05em', marginBottom: 10, display: 'inline-flex', alignItems: 'center', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <span>{row.agentCode} &middot; <span style={{ color: PHASE_COLORS[row.phase] ?? '#6B8299' }}>{agentTitle(row.phase)}</span></span>
+          <AgentBadges badges={row.badges} variant="pill" size="sm" />
         </div>
 
         <div style={{
@@ -576,8 +579,9 @@ function RankRow({ row, viewerId, metric, isMobile }: { row: Row; viewerId: stri
         </div>
         <Avatar firstName={row.firstName} lastName={row.lastName} avatarUrl={row.avatarUrl} size={32} ringColor={isYou ? '#C9A96E' : 'transparent'} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: isYou ? 700 : 500, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {row.firstName} {row.lastName}
+          <div style={{ fontSize: 13, fontWeight: isYou ? 700 : 500, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.firstName} {row.lastName}</span>
+            <AgentBadges badges={row.badges} variant="star" size="sm" />
             {isYou && <YouBadge />}
           </div>
           <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2 }}>
@@ -610,8 +614,9 @@ function RankRow({ row, viewerId, metric, isMobile }: { row: Row; viewerId: stri
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
         <Avatar firstName={row.firstName} lastName={row.lastName} avatarUrl={row.avatarUrl} size={28} ringColor={isYou ? '#C9A96E' : 'transparent'} />
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: isYou ? 700 : 500, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {row.firstName} {row.lastName}
+          <div style={{ fontSize: 13, fontWeight: isYou ? 700 : 500, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.firstName} {row.lastName}</span>
+            <AgentBadges badges={row.badges} variant="star" size="sm" />
             {isYou && <YouBadge />}
           </div>
         </div>

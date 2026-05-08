@@ -240,6 +240,12 @@ model AgentProfile {
   // leaderboard, future aggregate dashboards). Test agents keep all
   // login + flow capabilities so we can exercise the agent UX as them.
   isTest                Boolean     @default(false) @map("is_test")
+  // Earned recognitions that aren't a phase rank. CFT is the first;
+  // others (EliteCFT, TopRecruiter, FoundersCircle) plug in here
+  // without a migration. Auto-managed by recomputeBadges() when the
+  // four Phase-3 CFT signoff items toggle, with admin manual
+  // override on the agent edit drawer.
+  badges                String[]    @default([])
   phase                 Int         @default(1)
   phaseStartedAt        DateTime?   // when they entered current phase
   goal                  String?     // "MD", "EMD", etc.

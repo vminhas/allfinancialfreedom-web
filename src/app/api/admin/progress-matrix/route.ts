@@ -25,7 +25,7 @@ export async function GET() {
       select: {
         id: true, agentCode: true, firstName: true, lastName: true,
         phase: true, avatarUrl: true, state: true,
-        icaDate: true,
+        icaDate: true, badges: true,
         // phaseStartedAt powers the time-aware "At Risk" calculation.
         // Without it the only signal would be raw current-phase
         // completion %, which mislabels anyone who just entered a new
@@ -73,6 +73,7 @@ export async function GET() {
     phaseStartedAt: a.phaseStartedAt?.toISOString() ?? null,
     lastLoginAt: a.agentUser?.lastLoginAt?.toISOString() ?? null,
     email: a.agentUser?.email ?? null,
+    badges: a.badges ?? [],
   }))
 
   return NextResponse.json({ agents: flatAgents, items, completedAt })
