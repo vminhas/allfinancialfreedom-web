@@ -9,6 +9,7 @@ import {
 import { PHASE_LABELS, CARRIERS, getAtRiskStatus, PHASE_ITEMS, PHASE_GROUPS } from '@/lib/agent-constants'
 import { GROUP_ICONS, ChevronDown } from '@/lib/checklist-icons'
 import CallReviewModal, { CallReviewData } from '@/components/CallReviewModal'
+import AgentTypeahead from '@/components/AgentTypeahead'
 import DatePicker from '@/components/DatePicker'
 import { AgentTradingCardModal } from '@/components/AgentTradingCard'
 import { CallButton, EmailButton } from '@/components/ContactActions'
@@ -2012,21 +2013,26 @@ function AgentDrawer({
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
               <div>
                 <label style={lStyle}>Trainer (CFT)</label>
-                <select value={editForm.cft} onChange={set('cft')} style={{ ...iStyle, appearance: 'auto' }}>
-                  <option value="">Select trainer</option>
-                  {trainers.map(t => <option key={t} value={t}>{t}</option>)}
-                  {editForm.cft && !trainers.includes(editForm.cft) && (
-                    <option value={editForm.cft}>{editForm.cft}</option>
-                  )}
-                </select>
+                <AgentTypeahead
+                  value={editForm.cft}
+                  valueField="displayName"
+                  placeholder="Search trainers..."
+                  minPhase={3}
+                  onChange={name => setEditForm(f => ({ ...f, cft: name }))}
+                />
               </div>
               <div>
                 <label style={lStyle}>Goal</label>
                 <input value={editForm.goal} onChange={set('goal')} placeholder="MD, EMD…" style={iStyle} />
               </div>
               <div>
-                <label style={lStyle}>Recruiter Code</label>
-                <input value={editForm.recruiterId} onChange={set('recruiterId')} placeholder="Agent code" style={iStyle} />
+                <label style={lStyle}>Recruiter</label>
+                <AgentTypeahead
+                  value={editForm.recruiterId}
+                  valueField="agentCode"
+                  placeholder="Search by name..."
+                  onChange={code => setEditForm(f => ({ ...f, recruiterId: code }))}
+                />
               </div>
             </div>
 
@@ -2367,33 +2373,30 @@ function AddAgentModal({ onClose, onCreated, trainers }: { onClose: () => void; 
             <div><label style={fieldLabel}>Phone</label><input style={inputStyle} value={form.phone} onChange={set('phone')} /></div>
             <div><label style={fieldLabel}>ICA Date</label><DatePicker value={form.icaDate} onChange={v => setForm(f => ({ ...f, icaDate: v }))} /></div>
             <div>
-              <label style={fieldLabel}>Recruiter Code</label>
-              <input
-                style={inputStyle}
+              <label style={fieldLabel}>Recruiter</label>
+              <AgentTypeahead
                 value={form.recruiterId}
-                onChange={set('recruiterId')}
-                placeholder="Leave empty for Vick & Melinee (Leadership)"
-              />
-              {/* Real-time assignment preview so the admin sees where
-                  this recruit will land in the org tree before saving.
-                  Empty input rolls up under the Leadership card; any
-                  matching agent code routes the new agent under that
-                  agent's downline branch. */}
-              <div style={{
-                fontSize: 10, marginTop: 4, lineHeight: 1.5,
-                color: form.recruiterId.trim() ? '#9BB0C4' : '#C9A96E',
-              }}>
-                {form.recruiterId.trim()
-                  ? <>Will be assigned under recruiter <strong>{form.recruiterId.trim().toUpperCase()}</strong>. Verify the code matches an existing agent.</>
-                  : <>⚜ Will be assigned under <strong>Vick &amp; Melinee (Leadership)</strong>. This is the default for direct CEO/COO recruits.</>
+                valueField="agentCode"
+                placeholder="Search by name (or leave empty for Vick & Melinee)"
+                includeFormer={trackingOnly}
+                onChange={code => setForm(f => ({ ...f, recruiterId: code }))}
+                helperText={
+                  form.recruiterId.trim()
+                    ? <>Will be assigned under recruiter <strong style={{ color: '#C9A96E' }}>{form.recruiterId.trim().toUpperCase()}</strong>.</>
+                    : <span style={{ color: '#C9A96E' }}>⚜ Will be assigned under <strong>Vick &amp; Melinee (Leadership)</strong>. This is the default for direct CEO/COO recruits.</span>
                 }
-              </div>
+              />
             </div>
-            <div><label style={fieldLabel}>Trainer (CFT)</label>
-              <select style={{ ...inputStyle, appearance: 'auto' }} value={form.cft} onChange={set('cft')}>
-                <option value="">Select trainer</option>
-                {trainers.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
+            <div>
+              <label style={fieldLabel}>Trainer (CFT)</label>
+              <AgentTypeahead
+                value={form.cft}
+                valueField="displayName"
+                placeholder="Search trainers..."
+                minPhase={3}
+                onChange={name => setForm(f => ({ ...f, cft: name }))}
+                helperText={<>Phase 3+ agents only (CFT, MD, EMD).</>}
+              />
             </div>
             <div><label style={fieldLabel}>Goal</label>
               <select style={{ ...inputStyle }} value={form.goal} onChange={set('goal')}>
