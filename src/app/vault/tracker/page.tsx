@@ -181,9 +181,14 @@ export default function TrackerPage() {
   const fetchAgents = useCallback(async () => {
     setLoading(true)
     const params = new URLSearchParams({ page: String(page), limit: '50' })
+    // When a search query is active, ignore the active/inactive filter
+    // so admins can find someone by name regardless of status. Without
+    // this, looking up an inactive agent's phone forced you to flip
+    // them to ACTIVE first, which was a real footgun.
+    const searchActive = debouncedSearch.trim().length > 0
     if (!readyToPromoteOnly) {
       if (phaseFilter) params.set('phase', phaseFilter)
-      if (statusFilter) params.set('status', statusFilter)
+      if (statusFilter && !searchActive) params.set('status', statusFilter)
       if (newThisMonthOnly) {
         // Rolling 30-day window so the click-to-filter result matches
         // the dashboard stat exactly. Calendar-month boundary made

@@ -3,12 +3,22 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 
+// Known categories with curated icons + labels. Anything else from
+// the admin /vault/setup page that isn't in this map still renders,
+// in its own section, with a default icon — so a new category
+// added in vault auto-appears on the agent side without a code
+// change.
 const RESOURCE_GROUPS: { key: string; label: string; icon: string }[] = [
   { key: 'videos',    label: 'Videos',    icon: '▶' },
   { key: 'books',     label: 'Books',     icon: '◈' },
+  { key: 'training',  label: 'Training',  icon: '◐' },
+  { key: 'scripts',   label: 'Scripts',   icon: '✎' },
   { key: 'tools',     label: 'Tools',     icon: '⚙' },
+  { key: 'forms',     label: 'Forms',     icon: '◫' },
   { key: 'general',   label: 'General',   icon: '↗' },
 ]
+
+const DEFAULT_GROUP_META = { icon: '↗', labelFromKey: (k: string) => k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) }
 
 interface Resource { key: string; label: string; url: string; category: string }
 
@@ -29,10 +39,22 @@ export default function ResourcesPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  const grouped = RESOURCE_GROUPS.map(g => ({
-    ...g,
-    items: resources.filter(r => r.category === g.key),
-  })).filter(g => g.items.length > 0)
+  // Build groups in the curated order first, then append any unknown
+  // categories the admin created in vault that aren't in
+  // RESOURCE_GROUPS so they still surface (just without a hand-tuned
+  // icon).
+  const knownKeys = new Set(RESOURCE_GROUPS.map(g => g.key))
+  const grouped = [
+    ...RESOURCE_GROUPS.map(g => ({ ...g, items: resources.filter(r => r.category === g.key) })),
+    ...Array.from(new Set(resources.map(r => r.category)))
+      .filter(c => c && !knownKeys.has(c))
+      .map(c => ({
+        key: c,
+        label: DEFAULT_GROUP_META.labelFromKey(c),
+        icon: DEFAULT_GROUP_META.icon,
+        items: resources.filter(r => r.category === c),
+      })),
+  ].filter(g => g.items.length > 0)
 
   return (
     <div style={{ minHeight: '100vh', background: '#0A1628', color: '#fff' }}>
