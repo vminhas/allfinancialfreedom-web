@@ -166,7 +166,7 @@ export async function GET(
     state: profile.state,
     avatarUrl: profile.avatarUrl,
     phase: profile.phase,
-    phaseLabel: PHASE_TITLES[profile.phase] ?? `Phase ${profile.phase}`,
+    phaseLabel: PHASE_TITLES[profile.phase - 1] ?? 'Agent',
     trainerName: profile.cft,
     // Phone + email leak agents' personal contact info, so we only
     // surface them to admin/lc -- peer agents looking at teammates

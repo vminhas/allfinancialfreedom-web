@@ -74,7 +74,7 @@ export async function GET() {
       firstName: a.firstName,
       lastName: a.lastName,
       phase: a.phase,
-      title: PHASE_TITLES[a.phase] ?? `Phase ${a.phase}`,
+      title: PHASE_TITLES[a.phase - 1] ?? 'Agent',
       state: a.state,
       avatarUrl: a.avatarUrl,
       status: a.status,

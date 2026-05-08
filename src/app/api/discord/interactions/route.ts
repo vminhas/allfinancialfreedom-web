@@ -97,6 +97,9 @@ export async function POST(req: NextRequest) {
       const [, agentProfileId] = customId.split(':')
       return openSearchModal(agentProfileId)
     }
+    if (customId.startsWith('lb_')) {
+      return handleLeaderboardTab(customId)
+    }
   }
 
   // Modal submissions (manual Discord search).
@@ -363,6 +366,124 @@ async function handleSearchSubmit(interaction: DiscordInteraction, agentProfileI
         })),
       }],
     },
+  })
+}
+
+// Leaderboard tab buttons (lb_production, lb_recruits, lb_movers).
+// These are posted by the bot process but handled here because Discord
+// routes all button interactions to the Interactions Endpoint URL, not
+// the WebSocket bot. We query the DB directly to avoid an internal HTTP
+// round-trip.
+async function handleLeaderboardTab(customId: string) {
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0)
+  const monthLabel = now.toLocaleDateString('en-US', {
+    month: 'long', year: 'numeric', timeZone: 'America/New_York',
+  })
+
+  const roster = await db.agentProfile.findMany({
+    where: { status: 'ACTIVE', isTest: false },
+    select: { id: true, agentCode: true, firstName: true, lastName: true },
+  }) as Array<{ id: string; agentCode: string; firstName: string; lastName: string }>
+  const rosterIds = roster.map(r => r.id)
+  const idSet = new Set(rosterIds)
+
+  let subLines = '_No submissions this month._'
+  let submissionSummary = 'No submissions recorded this month.'
+  let recLines = '_No new recruits this month._'
+
+  if (rosterIds.length > 0) {
+    const subs = await db.newBusinessSubmission.findMany({
+      where: {
+        applicationDate: { gte: monthStart, lte: now },
+        OR: [{ agentProfileId: { in: rosterIds } }, { splitWithAgentId: { in: rosterIds } }],
+      },
+      select: { agentProfileId: true, splitWithAgentId: true },
+    })
+
+    const subCounts = new Map<string, number>()
+    for (const s of subs) {
+      if (idSet.has(s.agentProfileId)) subCounts.set(s.agentProfileId, (subCounts.get(s.agentProfileId) ?? 0) + 1)
+      if (s.splitWithAgentId && idSet.has(s.splitWithAgentId)) subCounts.set(s.splitWithAgentId, (subCounts.get(s.splitWithAgentId) ?? 0) + 1)
+    }
+
+    const newAgents = await db.agentProfile.findMany({
+      where: { isTest: false, recruiterId: { not: null }, createdAt: { gte: monthStart, lte: now } },
+      select: { recruiterId: true },
+    }) as Array<{ recruiterId: string | null }>
+    const codeToId = new Map(roster.map(r => [r.agentCode, r.id]))
+    const recruitCounts = new Map<string, number>()
+    for (const a of newAgents) {
+      if (!a.recruiterId) continue
+      const id = codeToId.get(a.recruiterId)
+      if (id) recruitCounts.set(id, (recruitCounts.get(id) ?? 0) + 1)
+    }
+
+    const toName = (id: string) => { const a = roster.find(r => r.id === id); return a ? `${a.firstName} ${a.lastName}` : id }
+    const MEDAL_EMOJI = ['🥇', '🥈', '🥉']
+    const rankLine = (i: number, name: string, value: number, unit: string) => {
+      const prefix = i < 3 ? MEDAL_EMOJI[i] : `${i + 1}.`
+      const padded = name.length > 22 ? name.slice(0, 21) + '…' : name.padEnd(22)
+      const plural = value !== 1 ? unit + 's' : unit
+      return `${prefix}  \`${padded}\`  **${value}** ${plural}`
+    }
+
+    const topSubs = [...subCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10)
+    if (topSubs.length > 0) {
+      subLines = topSubs.map(([id, v], i) => rankLine(i, toName(id), v, 'app')).join('\n')
+      const total = [...subCounts.values()].reduce((a, b) => a + b, 0)
+      submissionSummary = `${total} total app${total !== 1 ? 's' : ''} · ${subCounts.size} active agent${subCounts.size !== 1 ? 's' : ''}`
+    }
+
+    const topRec = [...recruitCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10)
+    if (topRec.length > 0) {
+      recLines = topRec.map(([id, v], i) => rankLine(i, toName(id), v, 'recruit')).join('\n')
+    }
+  }
+
+  const updatedAt = new Date().toLocaleString('en-US', {
+    timeZone: 'America/New_York', month: 'short', day: 'numeric',
+    hour: 'numeric', minute: '2-digit', hour12: true,
+  })
+
+  const view = customId === 'lb_production' ? 'production' : customId === 'lb_recruits' ? 'recruits' : 'movers'
+
+  let embed: Record<string, unknown>
+  if (view === 'production') {
+    embed = {
+      color: 0xC9A84C,
+      title: `\u{1F3C6}  Monthly Production · ${monthLabel}`,
+      description: subLines,
+      footer: { text: `${submissionSummary}\nUpdated ${updatedAt} ET · allfinancialfreedom.com/agents/leaderboard` },
+    }
+  } else if (view === 'recruits') {
+    embed = {
+      color: 0x1a2744,
+      title: `\u{1F91D}  Top Recruiters · ${monthLabel}`,
+      description: recLines,
+      footer: { text: `Updated ${updatedAt} ET · allfinancialfreedom.com/agents/leaderboard` },
+    }
+  } else {
+    embed = {
+      color: 0x1a2744,
+      title: `\u{1F331}  Phase Movers · ${monthLabel}`,
+      description: '_Phase change tracking is refreshed by the daily bot post. Check back after the next update._',
+      footer: { text: `Updated ${updatedAt} ET` },
+    }
+  }
+
+  const buttons = {
+    type: 1,
+    components: [
+      { type: 2, style: view === 'production' ? 1 : 2, label: '\u{1F3C6} Production', custom_id: 'lb_production' },
+      { type: 2, style: view === 'recruits'   ? 1 : 2, label: '\u{1F91D} Recruits',   custom_id: 'lb_recruits' },
+      { type: 2, style: view === 'movers'     ? 1 : 2, label: '\u{1F331} Phase Movers', custom_id: 'lb_movers' },
+    ],
+  }
+
+  return NextResponse.json({
+    type: InteractionResponseType.UPDATE_MESSAGE,
+    data: { embeds: [embed], components: [buttons] },
   })
 }
 

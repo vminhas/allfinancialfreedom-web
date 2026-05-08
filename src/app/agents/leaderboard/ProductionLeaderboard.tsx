@@ -130,7 +130,7 @@ export default function ProductionLeaderboard() {
 
   return (
     <div>
-      <Header metric={metric} timeframe={timeframe} scope={scope} />
+      <Header metric={metric} timeframe={timeframe} scope={scope} isMobile={isMobile} />
       <FilterBar
         metric={metric} setMetric={setMetric}
         scope={scope} setScope={setScope}
@@ -173,7 +173,7 @@ export default function ProductionLeaderboard() {
 
 // ─── Header ───────────────────────────────────────────────────────────
 
-function Header({ metric, timeframe, scope }: { metric: Metric; timeframe: Timeframe; scope: Scope }) {
+function Header({ metric, timeframe, scope, isMobile }: { metric: Metric; timeframe: Timeframe; scope: Scope; isMobile: boolean }) {
   return (
     <div style={{ marginBottom: 18 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
@@ -184,7 +184,7 @@ function Header({ metric, timeframe, scope }: { metric: Metric; timeframe: Timef
           Production Leaderboard
         </span>
       </div>
-      <h1 style={{ color: '#ffffff', fontSize: 28, fontWeight: 300, margin: 0, lineHeight: 1.1 }}>
+      <h1 style={{ color: '#ffffff', fontSize: isMobile ? 20 : 28, fontWeight: 300, margin: 0, lineHeight: 1.1 }}>
         {METRIC_LABEL[metric]} <span style={{ color: '#6B8299', fontWeight: 200 }}>&middot; {TIMEFRAME_LABEL[timeframe]}</span>
       </h1>
       <p style={{ color: '#6B8299', fontSize: 12, margin: '8px 0 0', lineHeight: 1.5 }}>

@@ -530,7 +530,7 @@ function EditPanel({ node, allAgents, onSave, onClose, onDeactivate, onAddRecrui
               {/* filter blocked legitimate reassignment cases (e.g. Sadie entered */}
               {/* a referral but Morgan actually recruited the person). */}
               {allAgents.filter(a => a.agentCode !== node.agentCode).map(a => (
-                <option key={a.agentCode} value={a.agentCode}>{a.firstName} {a.lastName} ({PHASE_TITLES[a.phase]})</option>
+                <option key={a.agentCode} value={a.agentCode}>{a.firstName} {a.lastName} ({PHASE_TITLES[a.phase - 1] ?? 'Agent'})</option>
               ))}
             </select>
             <div style={{ fontSize: 10, color: '#6B8299', marginTop: 4 }}>
@@ -546,7 +546,7 @@ function EditPanel({ node, allAgents, onSave, onClose, onDeactivate, onAddRecrui
               <option value="Melinee Minhas">Melinee Minhas — COO</option>
               {trainers.map(a => (
                 <option key={a.agentCode} value={`${a.firstName} ${a.lastName}`}>
-                  {a.firstName} {a.lastName} — {PHASE_TITLES[a.phase]}
+                  {a.firstName} {a.lastName} — {PHASE_TITLES[a.phase - 1] ?? 'Agent'}
                 </option>
               ))}
             </select>
