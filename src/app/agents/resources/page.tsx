@@ -90,10 +90,52 @@ export default function ResourcesPage() {
           </p>
         </div>
 
+        {/* Featured: NEPQ Playbook. Always shown at the top regardless
+            of admin-managed setup. This is the methodology our call
+            reviews grade against, so every agent should be able to
+            find it immediately. */}
+        <Link
+          href="/agents/resources/coaching/nepq"
+          style={{
+            display: 'block', marginBottom: 20,
+            padding: '20px 24px',
+            background: 'linear-gradient(135deg, rgba(201,169,110,0.12) 0%, rgba(201,169,110,0.04) 100%)',
+            border: '1px solid rgba(201,169,110,0.35)', borderRadius: 8,
+            textDecoration: 'none', color: 'inherit',
+            position: 'relative', overflow: 'hidden',
+          }}
+        >
+          <div style={{
+            position: 'absolute', right: -30, bottom: -30, width: 180, height: 180,
+            background: 'radial-gradient(circle, rgba(201,169,110,0.18) 0%, transparent 70%)',
+            pointerEvents: 'none',
+          }} />
+          <div style={{ position: 'relative', display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+            <div style={{
+              width: 38, height: 38, borderRadius: 8, flexShrink: 0,
+              background: 'rgba(201,169,110,0.2)', color: '#C9A96E',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 16,
+            }}>◐</div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 4 }}>
+                Coaching Methodology
+              </div>
+              <div style={{ fontSize: 17, fontWeight: 500, color: '#ffffff', marginBottom: 4, lineHeight: 1.2 }}>
+                The NEPQ Playbook
+              </div>
+              <div style={{ fontSize: 12, color: '#9BB0C4', lineHeight: 1.55 }}>
+                What our AI grades your calls on. The 5 stages, all named techniques, and every anti-pattern. Built from the source books.
+              </div>
+            </div>
+            <span style={{ color: '#C9A96E', fontSize: 18, flexShrink: 0 }}>→</span>
+          </div>
+        </Link>
+
         {loading ? (
           <div style={{ color: '#6B8299', fontSize: 13 }}>Loading resources...</div>
         ) : grouped.length === 0 ? (
-          <div style={{ color: '#4B5563', fontSize: 13 }}>No resources available yet.</div>
+          <div style={{ color: '#4B5563', fontSize: 13 }}>No additional resources available yet.</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {grouped.map(g => (

@@ -105,6 +105,19 @@ const RUBRIC = [
 
 const POSITIVE_OUTCOME_KEYS = new Set(['RECRUITED', 'APPOINTMENT_BOOKED', 'POLICY_CLOSED'])
 
+// Maps the 6 rubric dimensions to anchor IDs on the in-portal NEPQ
+// playbook page (/agents/resources/coaching/nepq#<id>). Lets the
+// per-dimension chip drop the user into the exact stage of the
+// playbook that explains the technique they're being scored on.
+const RUBRIC_PLAYBOOK_ANCHOR: Record<string, string> = {
+  opening:    'connection',
+  discovery:  'engagement',
+  product:    'presentation',
+  objections: 'objections',
+  closing:    'commitment',
+  tone:       'tone',
+}
+
 function scoreColor(score: number) {
   if (score >= 80) return '#4ade80' // green
   if (score >= 60) return '#f59e0b' // amber
@@ -355,7 +368,7 @@ export default function CallReviewModal({
             )}
           </div>
 
-          {/* ── What this is (explainer) ─────────── */}
+          {/* ── What this is (explainer + playbook link) ──── */}
           <div style={{
             marginBottom: 20,
             padding: '12px 14px',
@@ -366,10 +379,26 @@ export default function CallReviewModal({
             color: '#9BB0C4',
             lineHeight: 1.55,
           }}>
-            {adminMode
-              ? <>Claude reviewed this call transcript against the AFF methodology. Scores show how the agent performed on each dimension. Use the sections below to understand strengths, gaps, and what to coach on.</>
-              : <>Your call was reviewed against the AFF playbook. Use this feedback to plan your next call. Scores help you track your growth over time — no one else is &quot;grading&quot; you.</>
-            }
+            <div style={{ marginBottom: 8 }}>
+              {adminMode
+                ? <>Claude reviewed this call against the <strong style={{ color: '#C9A96E' }}>NEPQ playbook</strong> AFF coaches against (Connection &middot; Engagement &middot; Transition &middot; Presentation &middot; Commitment). Scores show how the agent performed on each dimension. Use the sections below for strengths, gaps, and coaching tips referencing specific NEPQ techniques.</>
+                : <>Your call was graded against the <strong style={{ color: '#C9A96E' }}>NEPQ playbook</strong> (Connection &middot; Engagement &middot; Transition &middot; Presentation &middot; Commitment). Coaching tips reference specific NEPQ techniques. Tap any rubric dimension below to learn the playbook for that stage.</>
+              }
+            </div>
+            <a
+              href="/agents/resources/coaching/nepq"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                color: '#C9A96E', fontSize: 10, fontWeight: 700,
+                letterSpacing: '0.1em', textTransform: 'uppercase',
+                textDecoration: 'none',
+                padding: '4px 10px', borderRadius: 3,
+                border: '1px solid rgba(201,169,110,0.4)',
+                background: 'rgba(201,169,110,0.08)',
+              }}
+            >◐ Read the NEPQ Playbook ↗</a>
           </div>
 
           {/* ── Rubric bars ────────────────────────── */}
@@ -380,12 +409,31 @@ export default function CallReviewModal({
                 const score = review.rubricScores[dim.key]
                 const color = scoreColor(score)
                 const booster = review.scoreBoosters?.[dim.key]
+                const anchor = RUBRIC_PLAYBOOK_ANCHOR[dim.key]
                 return (
                   <div key={dim.key}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4, gap: 8 }}>
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ fontSize: 12, fontWeight: 500, color: '#ffffff' }}>{dim.label}</div>
-                        <div style={{ fontSize: 10, color: '#6B8299', marginTop: 1 }}>{dim.desc}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <div style={{ fontSize: 12, fontWeight: 500, color: '#ffffff' }}>{dim.label}</div>
+                          {anchor && (
+                            <a
+                              href={`/agents/resources/coaching/nepq#${anchor}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title={`Open the NEPQ playbook section for ${dim.label}`}
+                              style={{
+                                fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
+                                color: '#C9A96E', textDecoration: 'none',
+                                padding: '2px 7px', borderRadius: 999,
+                                border: '1px solid rgba(201,169,110,0.3)',
+                                background: 'rgba(201,169,110,0.06)',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >Playbook ↗</a>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 10, color: '#6B8299', marginTop: 3, lineHeight: 1.5 }}>{dim.desc}</div>
                       </div>
                       <div style={{ fontSize: 14, fontWeight: 700, color, flexShrink: 0 }}>{score}</div>
                     </div>
