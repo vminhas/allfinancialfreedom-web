@@ -67,7 +67,11 @@ function TabButton({ active, onClick, icon, children }: {
 // what the word "leaderboard" implies to most agents (production
 // rankings, not onboarding completion). The onboarding view is still
 // one click away.
-export function useTabFromHash(defaultTab: LeaderboardTab = 'production') {
+// Default tab is Progression Matrix because that's what's most useful
+// to the average agent on a daily basis (where am I in my checklist?
+// what's left to hit MD?). Production rankings are one click away for
+// agents who want to compete and a different mental mode anyway.
+export function useTabFromHash(defaultTab: LeaderboardTab = 'progression') {
   const [tab, setTab] = useState<LeaderboardTab>(defaultTab)
 
   useEffect(() => {
