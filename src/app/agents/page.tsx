@@ -592,6 +592,7 @@ function AgentDashboardInner() {
           }}
         >
           <NavbarLink href="/agents/leaderboard" icon="◑" label="Leaderboard" iconOnly={isMobile} />
+          <NavbarLink href="/agents/team" icon="◉" label="Photos" iconOnly={isMobile} />
           <NavbarLink href="/agents/guide" icon="?" label="Guide" iconOnly={isMobile} />
           <NavbarLink href="/agents/resources" icon="◈" label="Resources" iconOnly={isMobile} />
           <NavbarLink href="/agents/book" icon="✦" label="Book" iconOnly={isMobile} />
@@ -3434,7 +3435,12 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'classify', category }),
     })
-    if (!res.ok) setPartners(prev)
+    if (!res.ok) { setPartners(prev); return }
+    if (category === 'business_partner') {
+      import('canvas-confetti').then(({ default: confetti }) => {
+        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 }, colors: ['#C9A96E', '#4ade80', '#60a5fa', '#ffffff'] })
+      })
+    }
   }
 
   const skipOne = async (id: string) => {
@@ -3764,6 +3770,16 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
             <div><label style={fieldLabel}>1st Call</label><DatePicker value={form.firstCallDate} onChange={v => setForm(f => ({ ...f, firstCallDate: v }))} /></div>
             <div><label style={fieldLabel}>2nd Call</label><DatePicker value={form.secondCallDate} onChange={v => setForm(f => ({ ...f, secondCallDate: v }))} /></div>
             <div style={{ gridColumn: isMobile ? undefined : 'span 3' }}><label style={fieldLabel}>Notes</label><input style={inputStyle} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
+            {editingId && (() => {
+              const linked = partners.find(p => p.id === editingId)?.linkedAgentProfile
+              if (!linked?.npn && !linked?.licenseNumber) return null
+              return (
+                <div style={{ gridColumn: isMobile ? undefined : 'span 3', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6B8299' }}>Agent Info:</span>
+                  <LinkedAgentChips linked={linked} />
+                </div>
+              )
+            })()}
             <div style={{ gridColumn: isMobile ? undefined : 'span 3', display: 'flex', gap: 8, alignItems: 'center' }}>
               <button type="submit" disabled={saving} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>{saving ? 'Saving...' : editingId ? 'Update' : 'Save & add another'}</button>
               <button type="button" onClick={() => { resetForm(); setRecentlyAddedCount(0) }} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#6B8299', borderRadius: 4, padding: '6px 14px', fontSize: 11, cursor: 'pointer' }}>{editingId ? 'Cancel' : 'Done'}</button>

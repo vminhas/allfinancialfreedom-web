@@ -83,5 +83,25 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   }
 
   const updated = await db.businessPartner.update({ where: { id }, data })
+
+  // Fire-and-forget Discord announcement when a contact becomes a Business Partner
+  if (body.action === 'classify' && body.category === 'business_partner') {
+    db.agentProfile.findUnique({
+      where: { id: existing.agentProfileId },
+      select: { firstName: true, lastName: true, agentCode: true, avatarUrl: true },
+    }).then(agent => {
+      if (!agent) return
+      import('@/lib/business-partner-announce').then(({ announceBPWelcome }) =>
+        announceBPWelcome({
+          agentFirstName: agent.firstName,
+          agentLastName: agent.lastName,
+          agentCode: agent.agentCode,
+          agentAvatarUrl: agent.avatarUrl,
+          bpName: updated.name,
+        })
+      )
+    }).catch(() => {})
+  }
+
   return NextResponse.json(updated)
 }

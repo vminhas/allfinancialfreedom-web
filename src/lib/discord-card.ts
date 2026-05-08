@@ -24,12 +24,13 @@
 import type { DiscordEmbed } from './discord'
 
 export type CardFlavor =
-  | 'MILESTONE'         // phase-item announcement (the prototype)
-  | 'PROMOTION'         // phase change
-  | 'NEW_RECRUIT'       // referral submitted
-  | 'RECOGNITION'       // RecognitionMilestone awarded (non-Elite)
-  | 'ELITE_TRAINER'     // Elite Trainer milestone (bespoke header copy)
-  | 'POLICY_ISSUED'     // first / new policy issued
+  | 'MILESTONE'             // phase-item announcement (the prototype)
+  | 'PROMOTION'             // phase change
+  | 'NEW_RECRUIT'           // referral submitted
+  | 'RECOGNITION'           // RecognitionMilestone awarded (non-Elite)
+  | 'ELITE_TRAINER'         // Elite Trainer milestone (bespoke header copy)
+  | 'POLICY_ISSUED'         // first / new policy issued
+  | 'NEW_BUSINESS_PARTNER'  // contact classified as Business Partner
 
 interface FlavorMeta {
   // Header label rendered as the embed title — kept short and visually
@@ -51,12 +52,13 @@ const FLAVORS: Record<CardFlavor, FlavorMeta> = {
   // to a soft platinum so milestone posts read as visually distinct
   // from any phase-color promotion. Gold is now reserved for Phase-3
   // promotions and the RECOGNITION (non-Elite milestone) flavor.
-  MILESTONE:     { title: '✦  M I L E S T O N E  ✦',       defaultAccent: 0xCBD5E1, footerCloser: 'Way to go!' },
-  PROMOTION:     { title: '↑  P R O M O T I O N',           defaultAccent: 0xC9A96E, footerCloser: "Onward and upward!" },
-  NEW_RECRUIT:   { title: '🎉  N E W   R E C R U I T',      defaultAccent: 0x4ADE80, footerCloser: 'Welcome to the family.' },
-  RECOGNITION:   { title: '🏆  R E C O G N I T I O N',      defaultAccent: 0xC9A96E, footerCloser: 'Earned and well-deserved.' },
-  ELITE_TRAINER: { title: '✨  E L I T E   T R A I N E R  ✨', defaultAccent: 0xE6C26F, footerCloser: 'A rare achievement.' },
-  POLICY_ISSUED: { title: '📈  P O L I C Y   I S S U E D',   defaultAccent: 0x4ADE80, footerCloser: 'Another family helped.' },
+  MILESTONE:             { title: '✦  M I L E S T O N E  ✦',         defaultAccent: 0xCBD5E1, footerCloser: 'Way to go!' },
+  PROMOTION:             { title: '↑  P R O M O T I O N',             defaultAccent: 0xC9A96E, footerCloser: "Onward and upward!" },
+  NEW_RECRUIT:           { title: '🎉  N E W   R E C R U I T',        defaultAccent: 0x4ADE80, footerCloser: 'Welcome to the family.' },
+  RECOGNITION:           { title: '🏆  R E C O G N I T I O N',        defaultAccent: 0xC9A96E, footerCloser: 'Earned and well-deserved.' },
+  ELITE_TRAINER:         { title: '✨  E L I T E   T R A I N E R  ✨', defaultAccent: 0xE6C26F, footerCloser: 'A rare achievement.' },
+  POLICY_ISSUED:         { title: '📈  P O L I C Y   I S S U E D',     defaultAccent: 0x4ADE80, footerCloser: 'Another family helped.' },
+  NEW_BUSINESS_PARTNER:  { title: '🤝  N E W   P A R T N E R',         defaultAccent: 0x4ADE80, footerCloser: 'Welcome to the team.' },
 }
 
 export interface AchievementProtagonist {
