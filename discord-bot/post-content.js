@@ -15,25 +15,18 @@ const CHANNEL_POSTS = {
   // ── RULES ────────────────────────────────────────────────────────────────────
   [CHANNELS.RULES]: [
     new EmbedBuilder()
-      .setColor(COLORS.GOLD)
-      .setTitle('Community Standards')
-      .setDescription('This server is a professional workspace and community. We are here to grow together, support each other, and build businesses that change lives.\n\n**Our Mission: No Family Left Behind.**')
-      .addFields(
-        { name: '💬 Golden Rule', value: 'All official communication happens in Discord. Text messages, personal calls, and external platforms are not recognized during work hours.' },
-        { name: '🪪 Display Name Format', value: '`First Name Last Name - AgentID`\nPlease update your nickname to match this format.' },
-        { name: '⚠️ Consequences', value: '3 warnings before removal. Disrespect or rule violations will result in a kick or ban.' },
-      )
-      .setFooter({ text: 'All Financial Freedom · Wealth · Protection · Legacy' }),
-    new EmbedBuilder()
       .setColor(COLORS.NAVY)
-      .setTitle('Team Guidelines')
+      .setTitle('All Financial Freedom · Community Standards')
+      .setDescription('We\'re building something real here. This server is your home base for training, resources, and team culture. Show up like it.')
       .addFields(
-        { name: '🚫 No Self-Promotion', value: 'No promotion of outside businesses, services, or Discord servers.' },
-        { name: '📌 Post in the Right Channel', value: 'Keep conversations relevant to the channel topic.' },
-        { name: '🤝 Stay Professional', value: 'We are a positive, growth-focused environment. Respect everyone at all times.' },
-        { name: '🚫 No Spam', value: 'No gibberish, custom code requests, or off-topic flooding.' },
+        { name: '🤝 Respect Everyone', value: 'Lift each other up. We are a team of professionals serving families — lead with that energy in every conversation.' },
+        { name: '💪 Look Out for Each Other', value: 'If someone\'s stuck, help them. If someone wins, celebrate them. The fastest way to grow your business is to grow the people around you.' },
+        { name: '🪪 Display Name Format', value: '`First Name Last Name - AgentID`\nKeep your nickname updated so teammates know who they\'re talking to.' },
+        { name: '🚀 Get Started', value: 'Everything you need is in your [Agent Portal](https://allfinancialfreedom.com/agents) — checklists, training materials, and orientation calls.' },
+        { name: '📌 Stay on Topic', value: 'Keep posts relevant to the channel. No spam, no self-promotion of outside businesses or services.' },
+        { name: '⚠️ Violations', value: '3 warnings before removal. Disrespect or repeated rule-breaking results in a kick or ban.' },
       )
-      .setFooter({ text: 'All Financial Freedom · Wealth · Protection · Legacy' }),
+      .setFooter({ text: 'All Financial Freedom · No Family Left Behind.' }),
   ],
 
   // ── BUSINESS TOOLS ───────────────────────────────────────────────────────────
