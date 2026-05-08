@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { getAtRiskStatus, AT_RISK_THRESHOLDS } from '@/lib/agent-constants'
+import PhaseItemDrawer, { type SelectedItem } from './PhaseItemDrawer'
 
 // Adjacency-matrix style dashboard inspired by Bostock's Les Misérables
 // matrix (https://bost.ocks.org/mike/miserables/). One row per agent, one
@@ -33,6 +34,7 @@ interface Agent {
   // worth surfacing for a check-in.
   phaseStartedAt: string | null
   lastLoginAt: string | null
+  email: string | null
 }
 
 interface ItemDef {
@@ -70,6 +72,9 @@ export default function ProgressMatrixPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [hover, setHover] = useState<{ agentId: string; itemKey: string } | null>(null)
+  // Column header click → opens the drawer with completed/pending lists
+  // for that item, plus a "send reminder email" composer.
+  const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null)
   const [phaseFilter, setPhaseFilter] = useState<number | 'all'>('all')
   const [agentSort, setAgentSort] = useState<'progress' | 'phase' | 'name' | 'joined' | 'active'>('progress')
   const [hideAdminOnly, setHideAdminOnly] = useState(true)
@@ -458,8 +463,24 @@ export default function ProgressMatrixPage() {
             hover={hover}
             onHover={setHover}
             onMarkInactive={markInactive}
+            onSelectItem={setSelectedItem}
           />
         )
+      )}
+
+      {/* Drawer that opens when a column header is clicked. Reuses the
+          page's already-loaded data so we don't refetch the matrix. */}
+      {selectedItem && data && (
+        <PhaseItemDrawer
+          selectedItem={selectedItem}
+          agents={data.agents.map(a => ({
+            id: a.id, agentCode: a.agentCode,
+            firstName: a.firstName, lastName: a.lastName,
+            phase: a.phase, email: a.email, lastLoginAt: a.lastLoginAt,
+          }))}
+          completedAt={data.completedAt}
+          onClose={() => setSelectedItem(null)}
+        />
       )}
     </div>
   )
@@ -473,7 +494,7 @@ function escapeCsv(v: string): string {
 // ─── Desktop matrix ─────────────────────────────────────────────────────
 
 function Matrix({
-  agents, itemsByPhase, completedAt, stats, itemCompletionRate, atRiskByAgent, hover, onHover, onMarkInactive,
+  agents, itemsByPhase, completedAt, stats, itemCompletionRate, atRiskByAgent, hover, onHover, onMarkInactive, onSelectItem,
 }: {
   agents: Agent[]
   itemsByPhase: Record<number, ItemDef[]>
@@ -484,6 +505,7 @@ function Matrix({
   hover: { agentId: string; itemKey: string } | null
   onHover: (h: { agentId: string; itemKey: string } | null) => void
   onMarkInactive: (a: Agent) => void
+  onSelectItem: (s: SelectedItem) => void
 }) {
   const phases = Object.keys(itemsByPhase).map(Number).sort((a, b) => a - b)
   // Bigger cell with internal padding so completed cells render as
@@ -535,6 +557,7 @@ function Matrix({
                 return (
                   <div
                     key={it.itemKey}
+                    onClick={() => onSelectItem({ phase: ph, itemKey: it.itemKey, label: it.label })}
                     style={{
                       width: cellSize, height: headerHeight, flexShrink: 0,
                       // First-of-phase border bumped to a punchier 3px so phase
@@ -544,8 +567,9 @@ function Matrix({
                       position: 'relative',
                       background: isHovered ? `${PHASE_COLORS[ph]}18` : 'transparent',
                       transition: 'background 0.1s',
+                      cursor: 'pointer',
                     }}
-                    title={`Phase ${ph} · ${it.label}`}
+                    title={`Click to see who's completed "${it.label}" — and send a reminder to who hasn't`}
                   >
                     <div style={{
                       position: 'absolute',
