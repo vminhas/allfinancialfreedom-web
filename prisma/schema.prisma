@@ -830,6 +830,18 @@ enum CallOutcome {
   NO_CONTACT
 }
 
+// Intent / category of the call when it was made. Pairs with
+// CallOutcome (what actually happened). E.g. CallType=RECRUIT +
+// CallOutcome=RECRUITED is a successful recruit call. CallType=
+// CLIENT_APPOINTMENT + CallOutcome=POLICY_CLOSED is a closed client.
+// OTHER + callTypeOther free-text covers anything ad-hoc.
+enum CallType {
+  RECRUIT
+  FOLLOW_UP
+  CLIENT_APPOINTMENT
+  OTHER
+}
+
 model CallLog {
   id               String                @id @default(cuid())
   agentProfileId   String
@@ -839,7 +851,17 @@ model CallLog {
   phoneNumber      String?
   subject          String?
   notes            String?
+  // Deprecated: free-form result field. Kept for back-compat with
+  // historical rows; new submissions use callType + outcome instead
+  // (the outcome IS the result, the callType captures intent).
   result           String?
+  // What the agent set out to do on this call. Recruit a new agent,
+  // follow up on a prior touch, close a client appointment, or other.
+  // Pairs with outcome (what actually happened) so reporting can ask
+  // "of recruit calls, what % converted?" etc.
+  callType         CallType?
+  // Free-text label when callType=OTHER. Null otherwise.
+  callTypeOther    String?
   outcome          CallOutcome?
   followUpNeeded   Boolean               @default(false)
   createdAt        DateTime              @default(now())

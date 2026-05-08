@@ -55,6 +55,9 @@ export async function POST(req: NextRequest) {
     'RECRUITED', 'APPOINTMENT_BOOKED', 'POLICY_CLOSED',
     'FOLLOW_UP_SCHEDULED', 'NOT_INTERESTED', 'NO_CONTACT',
   ])
+  const VALID_CALL_TYPES = new Set([
+    'RECRUIT', 'FOLLOW_UP', 'CLIENT_APPOINTMENT', 'OTHER',
+  ])
 
   const body = await req.json() as {
     callDate: string
@@ -62,7 +65,8 @@ export async function POST(req: NextRequest) {
     phoneNumber?: string
     subject?: string
     notes?: string
-    result?: string
+    callType?: string
+    callTypeOther?: string
     outcome?: string
     followUpNeeded?: boolean
     transcriptText?: string
@@ -74,6 +78,12 @@ export async function POST(req: NextRequest) {
   }
 
   const outcome = body.outcome && VALID_OUTCOMES.has(body.outcome) ? body.outcome : undefined
+  const callType = body.callType && VALID_CALL_TYPES.has(body.callType) ? body.callType : undefined
+  // Only persist the OTHER label when callType actually is OTHER —
+  // prevents stale free-text from a user toggling away from OTHER.
+  const callTypeOther = callType === 'OTHER' && body.callTypeOther?.trim()
+    ? body.callTypeOther.trim()
+    : undefined
 
   const hasTranscript = body.transcriptText && body.transcriptText.trim().length > 0
 
@@ -85,7 +95,8 @@ export async function POST(req: NextRequest) {
       phoneNumber: body.phoneNumber,
       subject: body.subject,
       notes: body.notes,
-      result: body.result,
+      callType: callType as never,
+      callTypeOther,
       outcome: outcome as never,
       followUpNeeded: body.followUpNeeded ?? false,
       transcriptText: hasTranscript ? body.transcriptText : null,
