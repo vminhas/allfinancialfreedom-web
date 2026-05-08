@@ -323,28 +323,28 @@ export default function CallReviewModal({
           </ReviewSection>
 
           {/* ── Strengths ──────────────────────────── */}
-          {review.strengths.length > 0 && (
+          {Array.isArray(review.strengths) && review.strengths.length > 0 && (
             <ReviewSection label="What went well" color="#4ade80" icon="✓">
               <BulletList items={review.strengths} color="#4ade80" />
             </ReviewSection>
           )}
 
           {/* ── Weaknesses ─────────────────────────── */}
-          {review.weaknesses.length > 0 && (
+          {Array.isArray(review.weaknesses) && review.weaknesses.length > 0 && (
             <ReviewSection label="Areas to improve" color="#f59e0b" icon="→">
               <BulletList items={review.weaknesses} color="#f59e0b" />
             </ReviewSection>
           )}
 
           {/* ── Coaching tips ──────────────────────── */}
-          {review.coachingTips.length > 0 && (
+          {Array.isArray(review.coachingTips) && review.coachingTips.length > 0 && (
             <ReviewSection label="Try this next time" color="#C9A96E" icon="◆">
               <BulletList items={review.coachingTips} color="#C9A96E" />
             </ReviewSection>
           )}
 
           {/* ── Next steps ─────────────────────────── */}
-          {review.nextSteps.length > 0 && (
+          {Array.isArray(review.nextSteps) && review.nextSteps.length > 0 && (
             <ReviewSection label="Next steps with this prospect" color="#9B6DFF" icon="▶">
               <BulletList items={review.nextSteps} color="#9B6DFF" />
             </ReviewSection>
@@ -494,9 +494,13 @@ function ReviewSection({ label, color, icon, children }: {
 }
 
 function BulletList({ items, color }: { items: string[]; color: string }) {
+  // Belt-and-suspenders: callers already gate on Array.isArray, but keep
+  // BulletList itself defensive so a stray non-array doesn't blank out
+  // the whole modal with an uncaught error.
+  const list = Array.isArray(items) ? items : []
   return (
     <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {items.map((item, i) => (
+      {list.map((item, i) => (
         <li key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
           <span style={{ color, flexShrink: 0, marginTop: 2, fontSize: 10 }}>●</span>
           <span style={{ fontSize: 13, color: '#d1d9e2', lineHeight: 1.55 }}>{item}</span>

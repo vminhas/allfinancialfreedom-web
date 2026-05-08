@@ -44,9 +44,12 @@ export default function AdminCallReviewPage() {
   const loadHistory = useCallback(async () => {
     const res = await fetch('/api/admin/call-review/history')
     if (!res.ok) return
-    const d = await res.json() as { reviews: HistoryRow[]; trend: number | null }
-    setHistory(d.reviews)
-    setTrend(d.trend)
+    const d = await res.json().catch(() => null) as { reviews?: unknown; trend?: unknown } | null
+    // Defensive: if the response body is malformed (or older deploys
+    // returned a different shape), fall back to an empty list rather
+    // than crashing the page on history.map below.
+    setHistory(Array.isArray(d?.reviews) ? (d!.reviews as HistoryRow[]) : [])
+    setTrend(typeof d?.trend === 'number' ? d!.trend as number : null)
   }, [])
 
   useEffect(() => { loadHistory() }, [loadHistory])
@@ -371,7 +374,7 @@ export default function AdminCallReviewPage() {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {history.map(h => {
+              {(Array.isArray(history) ? history : []).map(h => {
                 const d = new Date(h.callDate)
                 const dateStr = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
                 const scoreColor = h.overallScore >= 80 ? '#4ade80' : h.overallScore >= 60 ? '#FBBF24' : '#f87171'

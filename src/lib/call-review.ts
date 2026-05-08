@@ -228,14 +228,23 @@ ${transcriptText}
     cache_read_input_tokens?: number
   }
 
+  // Coerce list-shaped fields to clean string arrays at the boundary.
+  // Anthropic's tool schema requires arrays and normally returns them,
+  // but a malformed response (string instead of array, or single-string
+  // wrapper) would otherwise crash the modal at render time on .map.
+  // Normalize here so every consumer (admin route, agent route, future
+  // callers) writes sane data into Prisma's Json columns.
+  const arrify = (v: unknown): string[] =>
+    Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x.trim().length > 0) : []
+
   return {
     overallScore,
     rubricScores: input.rubricScores,
-    strengths: input.strengths,
-    weaknesses: input.weaknesses,
-    coachingTips: input.coachingTips,
-    nextSteps: input.nextSteps,
-    summary: input.summary,
+    strengths: arrify(input.strengths),
+    weaknesses: arrify(input.weaknesses),
+    coachingTips: arrify(input.coachingTips),
+    nextSteps: arrify(input.nextSteps),
+    summary: typeof input.summary === 'string' ? input.summary : '',
     scoreBoosters: input.scoreBoosters,
     flaggedForCoaching,
     modelId: MODEL_ID,
