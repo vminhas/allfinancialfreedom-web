@@ -34,7 +34,7 @@ export async function GET() {
   if (denied) return denied
 
   const agents = await db.agentProfile.findMany({
-    where: { status: 'ACTIVE' },
+    where: { status: 'ACTIVE', isTest: false },
     select: {
       id: true,
       agentCode: true,
