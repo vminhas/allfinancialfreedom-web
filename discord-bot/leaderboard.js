@@ -116,6 +116,13 @@ async function postWeeklyLeaderboard(client) {
     embeds.push(moversEmbed);
   }
 
+  // Delete previous bot embed messages so old snapshots don't pile up
+  const recent = await channel.messages.fetch({ limit: 20 });
+  const botMsgs = recent.filter(m => m.author.id === client.user.id && m.embeds.length > 0);
+  for (const msg of botMsgs.values()) {
+    await msg.delete().catch(() => {});
+  }
+
   await channel.send({ embeds });
   console.log(`[Leaderboard] Posted weekly snapshot for ${weekLabel} (${submissions.length} top producers, ${recruits.length} top recruiters, ${movers.length} phase movers)`);
 }
