@@ -108,8 +108,18 @@ export async function POST(req: NextRequest) {
     })
     const titleN = norm(ev.title)
     const streamIdN = norm(ev.streamId)
-    const dup = candidates.find(c => norm(c.title) === titleN
-      || (streamIdN && norm(c.streamId) === streamIdN))
+    const dup = candidates.find(c => {
+      const ct = norm(c.title)
+      const cs = norm(c.streamId)
+      // Zoom meeting ID is the strongest signal — same ID in the window = same event
+      if (streamIdN && cs && streamIdN === cs) return true
+      // Exact title match
+      if (ct === titleN) return true
+      // Fuzzy title: one is a substring of the other (handles "GFI Systems Training"
+      // vs "Systems Training" across different flyers advertising the same meeting)
+      if (titleN.length >= 8 && ct.length >= 8 && (titleN.includes(ct) || ct.includes(titleN))) return true
+      return false
+    })
     if (dup) {
       duplicates++
       created.push({
