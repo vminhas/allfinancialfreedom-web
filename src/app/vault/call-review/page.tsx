@@ -470,6 +470,12 @@ export default function AdminCallReviewPage() {
           callDate={callDate}
           contactName={contactName || 'Your call'}
           outcome={reviewOutcome}
+          // adminMode toggles the explainer copy ("Claude reviewed this
+          // call..." instead of "Your call was graded...") and exposes
+          // future admin-only sections. The vault call-review page is
+          // admin-by-definition; agent portal uses its own (without
+          // this flag).
+          adminMode={true}
           onClose={() => setShowModal(false)}
           // Outcome editor is wired only when we have a saved review row
           // (post-analyze or after openHistoryItem). Skipping it before
