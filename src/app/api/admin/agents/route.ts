@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import bcrypt from 'bcryptjs'
-import { randomUUID } from 'crypto'
+import { randomUUID, randomBytes } from 'crypto'
 import { PHASE_ITEMS, CARRIERS } from '@/lib/agent-constants'
 import { autoLinkBusinessPartnersForAgent } from '@/lib/business-partner-link'
 
@@ -149,19 +149,38 @@ export async function POST(req: NextRequest) {
     cft?: string
     goal?: string
     initialPointOfContact?: string
+    // Tracking-only mode: creates the AgentProfile as INACTIVE for
+    // historical/downline visibility without seeding onboarding,
+    // sending an invite, or pinging Discord. For ex-agents who left
+    // before the portal existed (or whose original record was lost)
+    // and need to appear in someone's downline view.
+    trackingOnly?: boolean
   }
 
-  if (!body.firstName || !body.lastName || !body.email || !body.agentCode) {
-    return NextResponse.json({ error: 'firstName, lastName, email, agentCode required' }, { status: 400 })
+  // Email is required only for real agents. Tracking-only mode
+  // auto-generates a placeholder so the unique constraint is still
+  // honored. The .local TLD is reserved + non-routable, so a typo
+  // can never resolve to a real inbox.
+  if (!body.firstName || !body.lastName || !body.agentCode) {
+    return NextResponse.json({ error: 'firstName, lastName, agentCode required' }, { status: 400 })
+  }
+  if (!body.trackingOnly && !body.email) {
+    return NextResponse.json({ error: 'email required (or check Tracking only)' }, { status: 400 })
   }
 
-  const inviteToken = randomUUID()
-  const inviteExpires = new Date(Date.now() + 72 * 60 * 60 * 1000) // 72 hours
+  const trackingOnly = body.trackingOnly === true
+
+  const finalEmail = body.email && body.email.trim()
+    ? body.email.toLowerCase().trim()
+    : `alumni-${randomBytes(3).toString('hex')}@aff.local`
+
+  const inviteToken = trackingOnly ? null : randomUUID()
+  const inviteExpires = trackingOnly ? null : new Date(Date.now() + 72 * 60 * 60 * 1000) // 72 hours
 
   try {
     const agentUser = await db.agentUser.create({
       data: {
-        email: body.email.toLowerCase(),
+        email: finalEmail,
         inviteToken,
         inviteExpires,
         profile: {
@@ -178,21 +197,29 @@ export async function POST(req: NextRequest) {
             initialPointOfContact: body.initialPointOfContact,
             phase: 1,
             phaseStartedAt: new Date(),
-            // Seed phase 1 items
-            phaseItems: {
-              create: PHASE_ITEMS[1].map(item => ({
-                phase: 1,
-                itemKey: item.key,
-                completed: false,
-              })),
-            },
-            // Seed all carrier appointments
-            carrierAppointments: {
-              create: CARRIERS.map(carrier => ({
-                carrier,
-                status: 'NOT_STARTED',
-              })),
-            },
+            // Tracking-only profiles ship in as INACTIVE so they're
+            // excluded from leaderboards / progression-matrix /
+            // active-agent counts automatically. Real agents start
+            // ACTIVE (the schema default).
+            status: trackingOnly ? 'INACTIVE' : 'ACTIVE',
+            // Skip onboarding seed for tracking-only profiles —
+            // the items are irrelevant for someone who already left
+            // and just pollute the matrix view.
+            ...(trackingOnly ? {} : {
+              phaseItems: {
+                create: PHASE_ITEMS[1].map(item => ({
+                  phase: 1,
+                  itemKey: item.key,
+                  completed: false,
+                })),
+              },
+              carrierAppointments: {
+                create: CARRIERS.map(carrier => ({
+                  carrier,
+                  status: 'NOT_STARTED',
+                })),
+              },
+            }),
           },
         },
       },
@@ -203,7 +230,9 @@ export async function POST(req: NextRequest) {
     // lists) whose email matches this new agent. The recruiter's BP card
     // for this person can then surface the new agent's NPN / license
     // automatically once they fill those fields in on their own profile.
-    if (agentUser.profile) {
+    // Skipped for tracking-only profiles — they have a synthetic email
+    // that won't match any BP contact's real email.
+    if (!trackingOnly && agentUser.profile) {
       await autoLinkBusinessPartnersForAgent({
         agentProfileId: agentUser.profile.id,
         email: agentUser.email,
@@ -213,8 +242,9 @@ export async function POST(req: NextRequest) {
     // Best-effort admin-channel ping so the team has visibility into
     // every new agent account, regardless of which path created it.
     // Activation pings live in /api/agents/set-password; this is the
-    // create-side event.
-    if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_ADMIN_CHANNEL_ID) {
+    // create-side event. Skipped for tracking-only profiles since this
+    // isn't a real new teammate.
+    if (!trackingOnly && process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_ADMIN_CHANNEL_ID) {
       try {
         const { sendChannelMessage } = await import('@/lib/discord')
         const creatorEmail = (session?.user as { email?: string } | undefined)?.email ?? 'admin'

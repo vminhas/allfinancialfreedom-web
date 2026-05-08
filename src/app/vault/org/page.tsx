@@ -177,6 +177,11 @@ function TreeNode({ node, depth, onSelect, showTrainers, expandedSet, onAvatarUp
   const descendantCount = countDescendants(node)
   const isMobile = useIsMobile()
   const isLeadership = node.id.startsWith('_')
+  // Inactive (former / tracking-only) agents render with a muted
+  // tone but the same card geometry, so the org tree still feels
+  // alive — distinct, not a tombstone. A small FORMER pill below
+  // the name carries the truth.
+  const isFormer = node.status === 'INACTIVE'
   const avatarFileRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
 
@@ -207,14 +212,15 @@ function TreeNode({ node, depth, onSelect, showTrainers, expandedSet, onAvatarUp
           style={{
             display: 'flex', alignItems: 'center', gap: 14,
             padding: '10px 14px',
-            background: '#132238',
-            border: `1px solid ${color}25`,
+            background: isFormer ? 'rgba(19,34,56,0.55)' : '#132238',
+            border: `1px solid ${color}${isFormer ? '15' : '25'}`,
             borderRadius: 10,
             cursor: 'pointer',
             minWidth: isMobile ? 180 : 220,
             maxWidth: 280,
+            opacity: isFormer ? 0.78 : 1,
             transition: 'border-color 0.15s, background 0.15s',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            boxShadow: isFormer ? 'none' : '0 2px 8px rgba(0,0,0,0.15)',
           }}
           onClick={e => { e.stopPropagation(); onSelect(node) }}
         >
@@ -261,7 +267,7 @@ function TreeNode({ node, depth, onSelect, showTrainers, expandedSet, onAvatarUp
             <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {node.firstName} {node.lastName}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
               <span style={{
                 fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
                 padding: '2px 7px', borderRadius: 3,
@@ -269,6 +275,16 @@ function TreeNode({ node, depth, onSelect, showTrainers, expandedSet, onAvatarUp
               }}>
                 {node.title}
               </span>
+              {isFormer && (
+                <span title="Former teammate — tracking only" style={{
+                  fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
+                  padding: '2px 7px', borderRadius: 3,
+                  background: 'rgba(155,176,196,0.10)', border: '1px solid rgba(155,176,196,0.3)',
+                  color: '#9BB0C4',
+                }}>
+                  Former
+                </span>
+              )}
               {node.state && <span style={{ fontSize: 10, color: '#6B8299' }}>{node.state}</span>}
             </div>
             {showTrainers && node.cft && (
