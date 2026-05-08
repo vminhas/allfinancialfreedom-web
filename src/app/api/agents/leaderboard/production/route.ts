@@ -30,6 +30,7 @@ interface Row {
   upline: string | null
   value: number
   rank: number
+  badges: string[]
 }
 
 interface Response {
@@ -145,6 +146,7 @@ export async function GET(req: Request) {
       upline: a.recruiterId ? (recruiterByCode.get(a.recruiterId) ?? null) : null,
       value: a.value,
       rank,
+      badges: a.badges ?? [],
     }
   })
   const rows = allRankedRows.filter(r => r.value > 0)
@@ -195,13 +197,15 @@ interface RosterAgent {
   avatarUrl: string | null
   phase: number
   recruiterId: string | null
+  badges: string[]
 }
 
 async function rosterAll(): Promise<RosterAgent[]> {
-  return db.agentProfile.findMany({
+  const rows = await db.agentProfile.findMany({
     where: { status: 'ACTIVE', isTest: false },
-    select: { id: true, agentCode: true, firstName: true, lastName: true, avatarUrl: true, phase: true, recruiterId: true },
+    select: { id: true, agentCode: true, firstName: true, lastName: true, avatarUrl: true, phase: true, recruiterId: true, badges: true },
   })
+  return rows.map(r => ({ ...r, badges: r.badges ?? [] }))
 }
 
 // Recursive descendants of `rootCode`, keyed by agent_profiles.recruiterId
@@ -210,23 +214,24 @@ async function rosterAll(): Promise<RosterAgent[]> {
 // downline is empty. Bounded to 10 levels of depth as a safety belt
 // against any cyclic data; AFF's tree is realistically <6 levels deep.
 async function rosterDownline(rootCode: string, viewerId: string): Promise<RosterAgent[]> {
-  const rows = await db.$queryRaw<Array<RosterAgent & { is_test: boolean; status: string }>>`
+  const rows = await db.$queryRaw<Array<RosterAgent & { is_test: boolean; status: string; badges: string[] | null }>>`
     WITH RECURSIVE downline AS (
-      SELECT id, "agentCode", "firstName", "lastName", "avatarUrl", phase, "recruiterId", "is_test", status, 0 AS depth
+      SELECT id, "agentCode", "firstName", "lastName", "avatarUrl", phase, "recruiterId", badges, "is_test", status, 0 AS depth
         FROM agent_profiles WHERE id = ${viewerId}
       UNION ALL
-      SELECT a.id, a."agentCode", a."firstName", a."lastName", a."avatarUrl", a.phase, a."recruiterId", a."is_test", a.status, d.depth + 1
+      SELECT a.id, a."agentCode", a."firstName", a."lastName", a."avatarUrl", a.phase, a."recruiterId", a.badges, a."is_test", a.status, d.depth + 1
         FROM agent_profiles a
         JOIN downline d ON a."recruiterId" = d."agentCode"
        WHERE d.depth < 10
     )
-    SELECT id, "agentCode", "firstName", "lastName", "avatarUrl", phase, "recruiterId", "is_test", status FROM downline
+    SELECT id, "agentCode", "firstName", "lastName", "avatarUrl", phase, "recruiterId", badges, "is_test", status FROM downline
   `
   return rows
     .filter(r => r.status === 'ACTIVE' && !r.is_test)
     .map(r => ({
       id: r.id, agentCode: r.agentCode, firstName: r.firstName, lastName: r.lastName,
       avatarUrl: r.avatarUrl, phase: r.phase, recruiterId: r.recruiterId,
+      badges: r.badges ?? [],
     }))
 }
 

@@ -8,7 +8,7 @@ import { PHASE_ITEMS } from '@/lib/agent-constants'
 const PHASE_TITLES: Record<number, string> = {
   1: 'Agent',
   2: 'Associate',
-  3: 'Certified Field Trainer',
+  3: 'Senior Associate',
   4: 'Marketing Director',
   5: 'Executive Marketing Director',
 }

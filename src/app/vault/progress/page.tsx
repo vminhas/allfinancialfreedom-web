@@ -329,6 +329,8 @@ export default function ProgressMatrixPage() {
         </p>
       </div>
 
+      <ColumnHeaderHint />
+
       {/* Summary cards: roster-wide totals at a glance. Sit above the
           controls so they read first. */}
       <div style={{
@@ -571,6 +573,22 @@ function Matrix({
                     }}
                     title={`Click to see who's completed "${it.label}" — and send a reminder to who hasn't`}
                   >
+                    {/* Click affordance: tiny chevron on hover so the
+                        admin knows the rotated label is interactive
+                        before they have to mouse over for the
+                        tooltip. Lights up gold on hover, neutral
+                        otherwise. Position is "above" the rotated
+                        label since the label reads bottom-to-top. */}
+                    <div style={{
+                      position: 'absolute',
+                      top: 6, left: '50%',
+                      transform: 'translateX(-50%)',
+                      fontSize: 10,
+                      color: isHovered ? '#C9A96E' : 'rgba(155,176,196,0.35)',
+                      transition: 'color 0.1s',
+                      pointerEvents: 'none',
+                      lineHeight: 1,
+                    }}>›</div>
                     <div style={{
                       position: 'absolute',
                       bottom: 8, left: '50%',
@@ -584,7 +602,7 @@ function Matrix({
                       fontSize: 10, lineHeight: 1,
                       color: isHovered ? '#ffffff' : '#9BB0C4',
                       fontWeight: isHovered ? 600 : 400,
-                      maxHeight: headerHeight - 20,
+                      maxHeight: headerHeight - 30,
                       overflow: 'hidden', textOverflow: 'ellipsis',
                     }}>
                       {it.label}
@@ -1016,5 +1034,46 @@ function Centered({ children, tone }: { children: React.ReactNode; tone?: 'error
       padding: 32, color: tone === 'error' ? '#f87171' : '#6B8299',
       fontSize: 13, textAlign: 'center',
     }}>{children}</div>
+  )
+}
+
+// Discoverability hint: tells the admin the column headers are
+// clickable and what happens when they click. Dismisses to
+// localStorage so it disappears once and stays gone. The chevron
+// glyph on hover is the always-on affordance; this banner is the
+// first-time orientation.
+function ColumnHeaderHint() {
+  const [dismissed, setDismissed] = useState(true)
+  useEffect(() => {
+    const v = typeof window !== 'undefined' ? window.localStorage.getItem('aff-progress-column-hint-dismissed') : '1'
+    setDismissed(v === '1')
+  }, [])
+  if (dismissed) return null
+  const dismiss = () => {
+    setDismissed(true)
+    try { window.localStorage.setItem('aff-progress-column-hint-dismissed', '1') } catch {}
+  }
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      gap: 12, marginBottom: 14, padding: '10px 14px',
+      background: 'linear-gradient(90deg, rgba(201,169,110,0.10) 0%, rgba(201,169,110,0.04) 100%)',
+      border: '1px solid rgba(201,169,110,0.25)', borderRadius: 6,
+      fontSize: 12, color: '#E0C485',
+    }}>
+      <span>
+        <strong>New:</strong> click any column header to see who&apos;s completed an item, and email a reminder to who hasn&apos;t.
+      </span>
+      <button
+        onClick={dismiss}
+        title="Got it"
+        style={{
+          background: 'transparent', border: '1px solid rgba(201,169,110,0.4)',
+          color: '#C9A96E', padding: '3px 10px', borderRadius: 3,
+          fontSize: 10, fontWeight: 700, cursor: 'pointer',
+          letterSpacing: '0.08em', textTransform: 'uppercase',
+        }}
+      >Got it</button>
+    </div>
   )
 }
