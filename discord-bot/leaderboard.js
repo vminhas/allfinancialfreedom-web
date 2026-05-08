@@ -58,9 +58,16 @@ async function postWeeklyLeaderboard(client) {
 
   const { weekLabel, submissions, recruits, agents, totalSubmissions, activeSubmitters } = data;
 
+  const updatedAt = new Date().toLocaleString('en-US', {
+    timeZone: 'America/New_York',
+    month: 'short', day: 'numeric',
+    hour: 'numeric', minute: '2-digit',
+    hour12: true,
+  });
+
   // ── Production embed ────────────────────────────────────────────────────────
   const subLines = submissions.map((r, i) => rankLine(i, `${r.firstName} ${r.lastName}`, r.value, 'app')).join('\n');
-  const footer = totalSubmissions > 0
+  const submissionSummary = totalSubmissions > 0
     ? `${totalSubmissions} total app${totalSubmissions !== 1 ? 's' : ''} · ${activeSubmitters} active agent${activeSubmitters !== 1 ? 's' : ''}`
     : 'No submissions recorded this week.';
 
@@ -68,7 +75,7 @@ async function postWeeklyLeaderboard(client) {
     .setColor(COLORS.GOLD)
     .setTitle(`🏆  Weekly Production · ${weekLabel}`)
     .setDescription(subLines || '_No submissions this week._')
-    .setFooter({ text: footer });
+    .setFooter({ text: `${submissionSummary} · Updated ${updatedAt} ET` });
 
   // ── Recruits embed ──────────────────────────────────────────────────────────
   const recLines = recruits.map((r, i) => rankLine(i, `${r.firstName} ${r.lastName}`, r.value, 'recruit')).join('\n');
@@ -76,7 +83,8 @@ async function postWeeklyLeaderboard(client) {
   const recruitEmbed = new EmbedBuilder()
     .setColor(COLORS.NAVY)
     .setTitle(`🤝  Top Recruiters · ${weekLabel}`)
-    .setDescription(recLines || '_No new recruits this week._');
+    .setDescription(recLines || '_No new recruits this week._')
+    .setFooter({ text: `Updated ${updatedAt} ET` });
 
   // ── Phase movers embed ──────────────────────────────────────────────────────
   const cachedPhases = loadPhasesCache();

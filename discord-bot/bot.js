@@ -469,19 +469,18 @@ client.once(Events.ClientReady, (c) => {
   startLeaderboardSchedule(c);
 });
 
-// ─── Weekly leaderboard schedule ─────────────────────────────────────────────
-// Fires Monday 9 AM ET. Checked every 15 minutes so we never miss the window
-// by more than a quarter-hour, and the "already fired today" guard prevents
-// duplicate posts within the same day.
+// ─── Daily leaderboard schedule ──────────────────────────────────────────────
+// Fires every day at 9 AM ET. Checked every 15 minutes so we never miss the
+// window by more than a quarter-hour. The "already fired today" guard prevents
+// duplicate posts if the bot restarts mid-morning.
 let leaderboardLastFiredDate = null;
 
 function startLeaderboardSchedule(c) {
   function check() {
     const etNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
-    const isMonday = etNow.getDay() === 1;
     const isAfter9AM = etNow.getHours() >= 9;
     const todayKey = etNow.toDateString();
-    if (isMonday && isAfter9AM && leaderboardLastFiredDate !== todayKey) {
+    if (isAfter9AM && leaderboardLastFiredDate !== todayKey) {
       leaderboardLastFiredDate = todayKey;
       postWeeklyLeaderboard(c).catch(err => console.error('[Leaderboard] Post failed:', err));
     }
