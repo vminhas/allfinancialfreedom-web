@@ -44,6 +44,12 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       callDate: row.callDate.toISOString(),
       reviewedAt: row.reviewedAt.toISOString(),
       callTranscript: row.callTranscript,
+      // Parity fields with agent-side call log
+      phoneNumber: row.phoneNumber,
+      subject: row.subject,
+      callType: row.callType,
+      callTypeOther: row.callTypeOther,
+      followUpNeeded: row.followUpNeeded,
       overallScore: row.overallScore,
       rubricScores: row.rubricScores,
       strengths: row.strengths,

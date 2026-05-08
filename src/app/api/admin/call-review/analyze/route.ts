@@ -29,8 +29,13 @@ export async function POST(req: NextRequest) {
     transcriptText: string
     contactName?: string
     callDate?: string  // YYYY-MM-DD from the date input
-    // What actually happened on the call. Optional at create time;
-    // can be filled in later via PATCH /api/admin/call-review/[id].
+    // Parity with the agent-side call log form. All optional at
+    // create time; can be edited later via PATCH /api/admin/call-review/[id].
+    phoneNumber?: string
+    subject?: string
+    callType?: 'RECRUIT' | 'FOLLOW_UP' | 'CLIENT_APPOINTMENT' | 'OTHER' | null
+    callTypeOther?: string
+    followUpNeeded?: boolean
     outcome?: 'RECRUITED' | 'APPOINTMENT_BOOKED' | 'POLICY_CLOSED' | 'FOLLOW_UP_SCHEDULED' | 'NOT_INTERESTED' | 'NO_CONTACT' | null
   }
 
@@ -45,6 +50,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid callDate' }, { status: 400 })
   }
 
+  // Validate the new enums against the same value sets used by the
+  // agent-side calls API so the schemas stay aligned.
+  const VALID_CALL_TYPES = new Set(['RECRUIT', 'FOLLOW_UP', 'CLIENT_APPOINTMENT', 'OTHER'])
+  const callType = body.callType && VALID_CALL_TYPES.has(body.callType) ? body.callType : null
+  const callTypeOther = callType === 'OTHER' && body.callTypeOther?.trim()
+    ? body.callTypeOther.trim()
+    : null
+
   try {
     const result = await reviewTranscript({
       transcriptText: body.transcriptText,
@@ -57,6 +70,11 @@ export async function POST(req: NextRequest) {
         adminUserId,
         contactName: body.contactName?.trim() || null,
         callDate,
+        phoneNumber: body.phoneNumber?.trim() || null,
+        subject: body.subject?.trim() || null,
+        callType,
+        callTypeOther,
+        followUpNeeded: body.followUpNeeded === true,
         callTranscript: body.transcriptText,
         overallScore: result.overallScore,
         rubricScores: result.rubricScores,
