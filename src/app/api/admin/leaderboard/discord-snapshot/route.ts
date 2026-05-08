@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
 // GET /api/admin/leaderboard/discord-snapshot
-// Returns weekly production snapshot for the Discord leaderboard bot post.
+// Returns monthly production snapshot for the Discord leaderboard bot post.
 // Auth: x-cron-secret header only (no session required).
 
 interface AgentRow {
@@ -13,7 +13,7 @@ interface AgentRow {
 }
 
 interface SnapshotResponse {
-  weekLabel: string
+  monthLabel: string
   submissions: AgentRow[]
   recruits: AgentRow[]
   agents: Array<{ agentCode: string; firstName: string; lastName: string; phase: number }>
@@ -28,8 +28,8 @@ export async function GET(req: NextRequest) {
   }
 
   const now = new Date()
-  const weekStart = startOfWeek(now)
-  const weekLabel = formatWeekLabel(weekStart, now)
+  const monthStart = startOfMonth(now)
+  const monthLabel = formatMonthLabel(now)
 
   const roster = await db.agentProfile.findMany({
     where: { status: 'ACTIVE', isTest: false },
@@ -40,15 +40,15 @@ export async function GET(req: NextRequest) {
 
   if (rosterIds.length === 0) {
     return NextResponse.json({
-      weekLabel, submissions: [], recruits: [],
+      monthLabel, submissions: [], recruits: [],
       agents: [], totalSubmissions: 0, activeSubmitters: 0,
     } satisfies SnapshotResponse)
   }
 
-  // Submissions this week — writing agent and split partner each get full credit
+  // Submissions this month — writing agent and split partner each get full credit
   const subs = await db.newBusinessSubmission.findMany({
     where: {
-      applicationDate: { gte: weekStart, lte: now },
+      applicationDate: { gte: monthStart, lte: now },
       OR: [
         { agentProfileId: { in: rosterIds } },
         { splitWithAgentId: { in: rosterIds } },
@@ -63,12 +63,12 @@ export async function GET(req: NextRequest) {
     if (s.splitWithAgentId && idSet.has(s.splitWithAgentId)) subCounts.set(s.splitWithAgentId, (subCounts.get(s.splitWithAgentId) ?? 0) + 1)
   }
 
-  // Recruits this week — agents whose profile was created this week, keyed by recruiter
+  // Recruits this month — agents whose profile was created this month, keyed by recruiter
   const newAgents = await db.agentProfile.findMany({
     where: {
       isTest: false,
       recruiterId: { not: null },
-      createdAt: { gte: weekStart, lte: now },
+      createdAt: { gte: monthStart, lte: now },
     },
     select: { recruiterId: true },
   })
@@ -108,20 +108,14 @@ export async function GET(req: NextRequest) {
   }))
 
   return NextResponse.json({
-    weekLabel, submissions, recruits, agents, totalSubmissions, activeSubmitters,
+    monthLabel, submissions, recruits, agents, totalSubmissions, activeSubmitters,
   } satisfies SnapshotResponse)
 }
 
-function startOfWeek(d: Date): Date {
-  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate())
-  x.setDate(x.getDate() - x.getDay())
-  x.setHours(0, 0, 0, 0)
-  return x
+function startOfMonth(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0)
 }
 
-function formatWeekLabel(start: Date, end: Date): string {
-  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', timeZone: 'America/New_York' }
-  const s = start.toLocaleDateString('en-US', opts)
-  const e = end.toLocaleDateString('en-US', opts)
-  return `${s} – ${e}`
+function formatMonthLabel(d: Date): string {
+  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'America/New_York' })
 }

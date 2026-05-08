@@ -1,14 +1,14 @@
 // Run once: node discord-bot/post-leaderboard.js
 require('./load-env');
 const { Client, GatewayIntentBits } = require('discord.js');
-const { postWeeklyLeaderboard } = require('./leaderboard');
+const { postLeaderboard } = require('./leaderboard');
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 client.once('ready', async () => {
   console.log(`Logged in as ${client.user.tag}`);
   try {
-    await postWeeklyLeaderboard(client);
+    await postLeaderboard(client);
   } finally {
     client.destroy();
     process.exit(0);
