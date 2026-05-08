@@ -18,55 +18,50 @@ const client = new Client({
 // ─── Phase onboarding content ────────────────────────────────────────────────
 const PHASE_CONTENT = {
   [ROLES.PHASE_1_STEP_1]: {
-    title: 'Welcome to Phase 1 — Step 1: Setup & Foundation',
-    description: 'This is your official starting point. Get set up, plugged in, and ready to build with clarity.',
+    title: 'Welcome to Phase 1, Step 1: Setup & Foundation',
+    description: 'This is your official starting point. Your checklist, resources, and next steps are all in your Agent Portal.',
     fields: [
-      { name: '📋 Your First Steps', value: 'Locate your Agent Portal (APT) and get familiar with the platform.' },
-      { name: '📚 Product Clarity Videos', value: '[IUL Basics](https://www.youtube.com/watch?v=wX89Rk5pr6A)\n[Million Dollar Baby Policy](https://www.youtube.com/watch?v=gI_QpwKjOyM)' },
-      { name: '🗓️ Need Help?', value: '[Book a Licensing Orientation](https://calendly.com/empower-licensing-gfi/licensing-orientation-empower-team)' },
-      { name: '📁 Phase 1 Resources Folder', value: 'Check `#phase-1-step-1` in the server for all links and tools.' },
+      { name: '🚀 Your Agent Portal', value: '[allfinancialfreedom.com/agents](https://allfinancialfreedom.com/agents)\nLog in to access your Phase 1 checklist, orientation calls, and training materials.' },
+      { name: '📋 First Priority', value: 'Check your welcome email for login instructions, then complete your checklist items in order.' },
+      { name: '❓ Need Help?', value: 'Reach out to your trainer or post in the server. Your team is here.' },
     ],
   },
   [ROLES.PHASE_1_STEP_2]: {
-    title: 'Congratulations — Phase 1, Step 2: Execution & Momentum',
-    description: 'You\'ve completed your foundation. Now it\'s time to take action and build momentum.',
+    title: 'Phase 1, Step 2: Execution & Momentum',
+    description: 'You have completed your foundation. Now shift into action and build momentum.',
     fields: [
-      { name: '🎯 Your Focus', value: 'Start executing on what you\'ve learned. Your activity drives your results.' },
-      { name: '📹 Step 2 Training Video', value: '[Watch Phase 1 Part 2](https://drive.google.com/file/d/1oxyju_RlNVAayEm2UUQqJPV1_lAY8ILB/view?usp=drive_link)' },
-      { name: '📁 Resources', value: 'Check `#phase-1-step-2` in the server for all materials.' },
+      { name: '🚀 Your Agent Portal', value: '[allfinancialfreedom.com/agents](https://allfinancialfreedom.com/agents)\nYour Step 2 checklist and training video are waiting for you.' },
+      { name: '🎯 Your Focus', value: 'Pass your state exam (if not yet licensed) or complete post-licensing onboarding. Show up to weekly trainings.' },
     ],
   },
   [ROLES.PHASE_1_STEP_3]: {
-    title: 'Congratulations on Passing Your Exam — Phase 1, Step 3: Preparation & Confidence',
-    description: 'Huge milestone — you\'re licensed! Now let\'s get you polished and confident.',
+    title: 'Phase 1, Step 3: Preparation & Confidence',
+    description: 'Congratulations on passing your exam! This step gets you polished and ready for live field training.',
     fields: [
-      { name: '📹 Step 3 Training Video', value: '[Watch Phase 1 Part 3](https://drive.google.com/file/d/1YAzXzHwrY9Z7H82NJtYJ4Mi7tBiGTjU8/view?usp=drive_link)' },
-      { name: '📅 CFT Sign-Off Calendly', value: '[Book Your CFT Sign-Off](https://calendly.com/vickminhas/cft_signoff)' },
-      { name: '📁 Resources', value: 'Check `#phase-1-step-3` in the server for all materials.' },
+      { name: '🚀 Your Agent Portal', value: '[allfinancialfreedom.com/agents](https://allfinancialfreedom.com/agents)\nYour Step 3 checklist, scripts, and CFT sign-off booking are all in the portal.' },
+      { name: '📅 Book Your CFT Sign-Off', value: '[Schedule with Vick](https://calendly.com/vickminhas/cft_signoff)' },
     ],
   },
   [ROLES.PHASE_2]: {
     title: 'Welcome to Phase 2: Field Training & First Promotion',
-    description: 'Great job completing Phase 1! You\'re now moving into field training and working toward your first promotion.',
+    description: 'Great job completing Phase 1. Your focus now shifts to real experience, income, and your first promotion.',
     fields: [
-      { name: '📹 Phase 2 Training Video', value: '[Watch Phase 2](https://drive.google.com/file/d/1GwKHOZuOcRmYx7DpggraxNmriiGOmD7R/view?usp=drive_link)' },
-      { name: '📁 Resources', value: 'Check `#phase-2-focus` in the server for all materials.' },
+      { name: '🚀 Your Agent Portal', value: '[allfinancialfreedom.com/agents](https://allfinancialfreedom.com/agents)\nAccess your Phase 2 checklist, FTA resources, and training schedule.' },
+      { name: '🏆 Phase 2 Goals', value: 'Become Net Licensed, hit Senior Associate within 30 days, and begin your path to Certified Field Trainer.' },
     ],
   },
   [ROLES.PHASE_3]: {
     title: 'Welcome to Phase 3: Becoming a Certified Field Trainer',
-    description: 'During Phase 3 you\'ll complete the steps to become a CFT. CFTs can run all appointments independently and take agents from Day 1.',
+    description: 'CFTs run all appointments independently and can take an agent from Day 1 to CFT on their own.',
     fields: [
-      { name: '📋 Onboarding Slides', value: '[Onboarding 1](https://www.canva.com/design/DAHBs1bvFlY/rkmCnggXCSkMJm5R4uaAXA/edit)\n[Onboarding 2](https://www.canva.com/design/DAHBtbkxu5Y/1JS_VCJqSei87LETffiMHw/edit)' },
-      { name: '📁 Resources', value: 'Check `#phase-3-focus` in the server for all materials.' },
+      { name: '🚀 Your Agent Portal', value: '[allfinancialfreedom.com/agents](https://allfinancialfreedom.com/agents)\nYour Phase 3 checklist, onboarding decks, and presentation materials are in the portal.' },
     ],
   },
   [ROLES.PHASE_4]: {
-    title: 'Welcome to Phase 4: Final Phase Before EMD',
-    description: 'Congratulations on making it to the final phase before becoming an Executive Marketing Director!',
+    title: 'Welcome to Phase 4: Marketing Director',
+    description: 'Congratulations on reaching the final phase before Executive Marketing Director. This phase is about cultivating your business and developing your leadership.',
     fields: [
-      { name: '🎯 Your Goal', value: 'Complete the steps to become a Marketing Director.' },
-      { name: '📁 Resources', value: 'Check `#phase-4-focus` in the server for all materials.' },
+      { name: '🚀 Your Agent Portal', value: '[allfinancialfreedom.com/agents](https://allfinancialfreedom.com/agents)\nYour Phase 4 checklist and leadership resources are in the portal.' },
     ],
   },
 };
@@ -84,9 +79,9 @@ function buildWelcomeEmbed(member) {
     .setTitle('Welcome to All Financial Freedom')
     .setDescription(`Hey **${name}**, we're thrilled to have you on the team.\n\n*Wealth · Protection · Legacy*`)
     .addFields(
-      { name: '📋 Get Started', value: `Read <#${CHANNELS.RULES}> to understand our community standards.`, inline: false },
-      { name: '🚀 Your Journey', value: 'Your leader will assign your Phase 1 role to unlock your onboarding materials.', inline: false },
-      { name: '🌐 Our Website', value: '[allfinancialfreedom.com](https://allfinancialfreedom.com) — articles, resources, and tools.', inline: false },
+      { name: '📋 Get Started', value: `Read <#${CHANNELS.RULES}> to understand our team standards.`, inline: false },
+      { name: '🚀 Your Agent Portal', value: '[allfinancialfreedom.com/agents](https://allfinancialfreedom.com/agents) — your checklist, training materials, and resources are all here.', inline: false },
+      { name: '🌐 Our Website', value: '[allfinancialfreedom.com](https://allfinancialfreedom.com) — insights, tools, and resources for your clients.', inline: false },
     )
     .setFooter({ text: 'All Financial Freedom — Building a future you feel confident in.' })
     .setTimestamp();
@@ -130,25 +125,12 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
     if (!phaseContent) continue;
 
     try {
-      await newMember.send({
-        embeds: [
-          buildPhaseEmbed(phaseContent),
-        ],
-      });
+      await newMember.send({ embeds: [buildPhaseEmbed(phaseContent)] });
     } catch {
-      // DMs disabled — post in the relevant phase channel instead
-      const phaseChannelMap = {
-        [ROLES.PHASE_1_STEP_1]: CHANNELS.PHASE_1_STEP_1,
-        [ROLES.PHASE_1_STEP_2]: CHANNELS.PHASE_1_STEP_2,
-        [ROLES.PHASE_1_STEP_3]: CHANNELS.PHASE_1_STEP_3,
-        [ROLES.PHASE_2]:        CHANNELS.PHASE_2,
-        [ROLES.PHASE_3]:        CHANNELS.PHASE_3,
-        [ROLES.PHASE_4]:        CHANNELS.PHASE_4,
-      };
-      const channelId = phaseChannelMap[roleId];
-      if (channelId) {
-        const channel = newMember.guild.channels.cache.get(channelId);
-        if (channel) await channel.send({ content: `${newMember}`, embeds: [buildPhaseEmbed(phaseContent)] });
+      // DMs disabled — post in announcements as a fallback mention
+      const announcements = newMember.guild.channels.cache.get(CHANNELS.ANNOUNCEMENTS);
+      if (announcements) {
+        await announcements.send({ content: `${newMember}`, embeds: [buildPhaseEmbed(phaseContent)] });
       }
     }
   }
