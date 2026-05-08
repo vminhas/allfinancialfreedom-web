@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
         coachingTips: result.coachingTips,
         nextSteps: result.nextSteps,
         summary: result.summary,
-        scoreBoosters: result.scoreBoosters ?? null,
+        scoreBoosters: result.scoreBoosters ?? undefined,
         modelId: result.modelId,
         inputTokens: result.inputTokens,
         outputTokens: result.outputTokens,
