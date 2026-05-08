@@ -46,7 +46,22 @@ export interface CallReviewModalProps {
   onClose: () => void
   /** Called when admin edits notes/discussed/flag — receives only the updated fields */
   onAdminUpdate?: (patch: Partial<Pick<CallReviewData, 'adminNotes' | 'discussedAt' | 'flaggedForCoaching'>>) => Promise<void>
+  /**
+   * If provided, renders an outcome dropdown next to the score so the admin
+   * can record what actually happened on the call (recruited, appointment
+   * booked, etc.) after running the review. Returns once persisted.
+   */
+  onOutcomeChange?: (next: string | null) => Promise<void>
 }
+
+const OUTCOME_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'RECRUITED',          label: '🎉 Recruited' },
+  { value: 'APPOINTMENT_BOOKED', label: '📅 Appointment booked' },
+  { value: 'POLICY_CLOSED',      label: '✅ Policy closed' },
+  { value: 'FOLLOW_UP_SCHEDULED',label: '↻ Follow-up scheduled' },
+  { value: 'NOT_INTERESTED',     label: '✕ Not interested' },
+  { value: 'NO_CONTACT',         label: '— No contact' },
+]
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -84,11 +99,32 @@ export default function CallReviewModal({
   adminMode = false,
   onClose,
   onAdminUpdate,
+  onOutcomeChange,
 }: CallReviewModalProps) {
   const isMobile = useIsMobile()
   const [adminNotes, setAdminNotes] = useState(review.adminNotes ?? '')
   const [saving, setSaving] = useState(false)
   const [adminSectionOpen, setAdminSectionOpen] = useState(false)
+  // Tracks pending outcome changes so the dropdown can show a saving
+  // indicator and disable itself mid-write.
+  const [outcomeSaving, setOutcomeSaving] = useState(false)
+  const [currentOutcome, setCurrentOutcome] = useState<string | null>(outcome ?? null)
+  useEffect(() => { setCurrentOutcome(outcome ?? null) }, [outcome])
+
+  async function handleOutcomeChange(next: string) {
+    if (!onOutcomeChange) return
+    const value = next === '' ? null : next
+    setOutcomeSaving(true)
+    setCurrentOutcome(value)
+    try {
+      await onOutcomeChange(value)
+    } catch {
+      // Revert on failure so the dropdown reflects DB state.
+      setCurrentOutcome(outcome ?? null)
+    } finally {
+      setOutcomeSaving(false)
+    }
+  }
 
   // Lock body scroll
   useEffect(() => {
@@ -207,7 +243,7 @@ export default function CallReviewModal({
             <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>
               {formattedDate} · AI coaching review
             </div>
-            {outcome && OUTCOME_LABELS[outcome] && (
+            {outcome && OUTCOME_LABELS[outcome] && !onOutcomeChange && (
               <div style={{
                 display: 'inline-flex', alignItems: 'center', gap: 5,
                 marginTop: 6, padding: '4px 10px', borderRadius: 999,
@@ -217,6 +253,36 @@ export default function CallReviewModal({
                 <span style={{ fontSize: 10, fontWeight: 700, color: POSITIVE_OUTCOME_KEYS.has(outcome) ? '#4ade80' : '#9BB0C4' }}>
                   {POSITIVE_OUTCOME_KEYS.has(outcome) ? '✓' : '→'} {OUTCOME_LABELS[outcome]}
                 </span>
+              </div>
+            )}
+            {/* Editable outcome dropdown when onOutcomeChange is wired
+                (vault admin call-review flow). Replaces the read-only
+                pill above so the user has one source of truth for
+                "what happened on this call." */}
+            {onOutcomeChange && (
+              <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#9BB0C4' }}>
+                  Outcome
+                </span>
+                <select
+                  value={currentOutcome ?? ''}
+                  disabled={outcomeSaving}
+                  onChange={e => handleOutcomeChange(e.target.value)}
+                  style={{
+                    background: currentOutcome && POSITIVE_OUTCOME_KEYS.has(currentOutcome) ? 'rgba(74,222,128,0.1)' : 'rgba(107,130,153,0.12)',
+                    color: currentOutcome && POSITIVE_OUTCOME_KEYS.has(currentOutcome) ? '#4ade80' : '#d1d9e2',
+                    border: `1px solid ${currentOutcome && POSITIVE_OUTCOME_KEYS.has(currentOutcome) ? 'rgba(74,222,128,0.4)' : 'rgba(107,130,153,0.3)'}`,
+                    borderRadius: 999, padding: '4px 12px',
+                    fontSize: 11, fontWeight: 600, cursor: outcomeSaving ? 'not-allowed' : 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  <option value="">— Not recorded</option>
+                  {OUTCOME_OPTIONS.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+                {outcomeSaving && <span style={{ fontSize: 10, color: '#6B8299' }}>saving...</span>}
               </div>
             )}
           </div>

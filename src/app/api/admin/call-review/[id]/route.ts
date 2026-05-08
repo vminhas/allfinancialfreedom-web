@@ -8,10 +8,16 @@ import { db } from '@/lib/db'
 //   review in the modal. Scoped to the calling admin's own reviews.
 //
 // PATCH /api/admin/call-review/[id]
-//   Update the free-form notes field after the fact.
+//   Update the free-form notes field and/or the recorded call outcome
+//   after the fact.
 //
 // DELETE /api/admin/call-review/[id]
 //   Permanently remove a saved review.
+
+const VALID_OUTCOMES = new Set([
+  'RECRUITED', 'APPOINTMENT_BOOKED', 'POLICY_CLOSED',
+  'FOLLOW_UP_SCHEDULED', 'NOT_INTERESTED', 'NO_CONTACT',
+])
 
 async function requireAdmin() {
   const session = await getServerSession(authOptions)
@@ -46,6 +52,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       nextSteps: row.nextSteps,
       summary: row.summary,
       notes: row.notes,
+      outcome: row.outcome,
     },
   })
 }
@@ -60,11 +67,26 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  const body = await req.json() as { notes?: string | null }
-  await db.adminCallReview.update({
-    where: { id },
-    data: { notes: body.notes?.trim() || null },
-  })
+  const body = await req.json() as { notes?: string | null; outcome?: string | null }
+
+  const update: Record<string, unknown> = {}
+  if ('notes' in body) {
+    update.notes = body.notes?.trim() || null
+  }
+  // Outcome is optional and nullable; an empty string or null clears
+  // the field. Anything not in the enum is rejected to keep the row
+  // queryable for reporting later.
+  if ('outcome' in body) {
+    if (body.outcome === null || body.outcome === '') {
+      update.outcome = null
+    } else if (typeof body.outcome === 'string' && VALID_OUTCOMES.has(body.outcome)) {
+      update.outcome = body.outcome
+    } else {
+      return NextResponse.json({ error: 'Invalid outcome' }, { status: 400 })
+    }
+  }
+
+  await db.adminCallReview.update({ where: { id }, data: update })
   return NextResponse.json({ ok: true })
 }
 

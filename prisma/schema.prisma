@@ -72,6 +72,12 @@ model AdminCallReview {
   // tip on the next call, worked great").
   notes              String?
 
+  // What actually happened on the call. Mirrors the agent-side
+  // CallReview.outcome field; null until the admin records it.
+  // Used to track the AFF-real-world impact of the coaching rubric:
+  // are admin reviewers' calls actually closing recruits / clients?
+  outcome            CallOutcome?
+
   modelId            String
   inputTokens        Int
   outputTokens       Int
