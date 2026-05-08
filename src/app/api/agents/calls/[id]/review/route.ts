@@ -5,6 +5,11 @@ import { db } from '@/lib/db'
 import { reviewTranscript, TranscriptTooShortError } from '@/lib/call-review'
 import { getAgentProfileIdFromEmail as getProfileId } from '@/lib/agent-identity'
 
+// AI call may push past Vercel's default 60s function timeout on long
+// transcripts. Mirror the admin analyze route's 5-min ceiling so the
+// agent-side review surfaces the same way.
+export const maxDuration = 300
+
 // GET /api/agents/calls/[id]/review — fetch review for a call
 export async function GET(
   _req: NextRequest,
