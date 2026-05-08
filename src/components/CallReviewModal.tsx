@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import { useIsMobile } from '@/lib/useIsMobile'
-import { OUTCOME_LABELS } from '@/lib/call-review'
+const OUTCOME_LABELS: Record<string, string> = {
+  RECRUITED:           'Recruited',
+  APPOINTMENT_BOOKED:  'Appointment Booked',
+  POLICY_CLOSED:       'Policy Closed',
+  FOLLOW_UP_SCHEDULED: 'Follow-up Scheduled',
+  NOT_INTERESTED:      'Not Interested',
+  NO_CONTACT:          'No Contact / No Answer',
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -27,10 +34,6 @@ export interface CallReviewData {
   adminNotes?: string | null
   discussedAt?: string | null
   reviewedAt: string
-}
-
-export interface CallWithOutcome {
-  outcome?: string | null
 }
 
 export interface CallReviewModalProps {

@@ -59,6 +59,22 @@ const PHASE_COLORS: Record<number, string> = {
   1: '#60a5fa', 2: '#4ade80', 3: '#C9A96E', 4: '#a78bfa', 5: '#f472b6',
 }
 
+// Title = the rank earned by completing the PREVIOUS phase. Phase-1 agents
+// default to 'Agent' (no prior phase). Mirrors the directory API logic.
+const PHASE_TITLES: Record<number, string> = {
+  1: 'Agent', 2: 'Associate', 3: 'Certified Field Trainer',
+  4: 'Marketing Director', 5: 'Executive Marketing Director',
+}
+const PHASE_ABBREV: Record<number, string> = {
+  1: 'Agent', 2: 'Associate', 3: 'CFT', 4: 'MD', 5: 'EMD',
+}
+function agentTitle(phase: number): string {
+  return PHASE_TITLES[phase - 1] ?? 'Agent'
+}
+function agentAbbrev(phase: number): string {
+  return PHASE_ABBREV[phase - 1] ?? 'Agent'
+}
+
 const METRIC_LABEL: Record<Metric, string> = {
   submissions: 'Submissions',
   recruits: 'Recruits',
@@ -420,7 +436,7 @@ function PodiumCard({ row, viewerId, metric, isMobile }: { row: Row; viewerId: s
           {isYou && <YouBadge />}
         </div>
         <div style={{ fontSize: 10, color: '#6B8299', letterSpacing: '0.05em', marginBottom: 10 }}>
-          {row.agentCode} &middot; <span style={{ color: PHASE_COLORS[row.phase] ?? '#6B8299' }}>Phase {row.phase}</span>
+          {row.agentCode} &middot; <span style={{ color: PHASE_COLORS[row.phase] ?? '#6B8299' }}>{agentTitle(row.phase)}</span>
         </div>
 
         <div style={{
@@ -565,7 +581,7 @@ function RankRow({ row, viewerId, metric, isMobile }: { row: Row; viewerId: stri
             {isYou && <YouBadge />}
           </div>
           <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2 }}>
-            <span style={{ color: phaseColor }}>Phase {row.phase}</span> &middot; {row.agentCode}
+            <span style={{ color: phaseColor }}>{agentTitle(row.phase)}</span> &middot; {row.agentCode}
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
@@ -605,9 +621,10 @@ function RankRow({ row, viewerId, metric, isMobile }: { row: Row; viewerId: stri
         <span style={{
           display: 'inline-block', padding: '2px 8px', borderRadius: 3,
           background: `${phaseColor}18`, border: `1px solid ${phaseColor}40`,
-          fontSize: 10, fontWeight: 700, color: phaseColor, letterSpacing: '0.05em',
+          fontSize: 9, fontWeight: 700, color: phaseColor, letterSpacing: '0.05em',
+          whiteSpace: 'nowrap',
         }}>
-          {row.phase}
+          {agentAbbrev(row.phase)}
         </span>
       </div>
       <div style={{ textAlign: 'right', fontSize: 16, fontWeight: 700, color: '#C9A96E', fontVariantNumeric: 'tabular-nums' }}>

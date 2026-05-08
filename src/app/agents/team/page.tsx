@@ -125,7 +125,7 @@ export default function TeamPhotosPage() {
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#C9A96E' }}>
             All Financial Freedom
           </div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginTop: 1 }}>Team Photos</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginTop: 1 }}>Team Directory</div>
         </div>
       </div>
 

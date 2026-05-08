@@ -3,6 +3,9 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 
+// Key = the phase NUMBER, value = the title earned on COMPLETING that phase.
+// An agent in phase N has completed phase N-1, so their display title is
+// PHASE_TITLES[N - 1]. Phase-1 agents default to 'Agent'.
 const PHASE_TITLES: Record<number, string> = {
   1: 'Agent',
   2: 'Associate',
@@ -14,10 +17,11 @@ const PHASE_TITLES: Record<number, string> = {
 // GET /api/agents/directory
 //
 // Company-wide photo directory. Returns all active, non-test agents
-// for the team photo grid. Auth: any agent session.
+// for the team photo grid. Auth: agent session OR admin/LC session.
 export async function GET() {
   const session = await getServerSession(authOptions)
-  if (!session?.user || (session.user as { role?: string }).role !== 'agent') {
+  const role = (session?.user as { role?: string } | undefined)?.role
+  if (!session?.user || (role !== 'agent' && role !== 'admin' && role !== 'licensing_coordinator')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -43,7 +47,7 @@ export async function GET() {
       lastName: a.lastName,
       avatarUrl: a.avatarUrl,
       phase: a.phase,
-      title: PHASE_TITLES[a.phase] ?? `Phase ${a.phase}`,
+      title: PHASE_TITLES[a.phase - 1] ?? 'Agent',
       state: a.state,
     })),
   })
