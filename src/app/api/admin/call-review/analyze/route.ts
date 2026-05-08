@@ -4,6 +4,12 @@ import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { reviewTranscript, TranscriptTooShortError } from '@/lib/call-review'
 
+// Long transcripts + an Anthropic call can blow past Vercel's default
+// 60s function timeout. Bump to 5 minutes; the AI call itself rarely
+// takes more than 60s but we don't want a heavy transcript to surface
+// as 'page couldn't load' for the admin.
+export const maxDuration = 300
+
 // POST /api/admin/call-review/analyze
 // Admin-facing transcript analysis. Persists the result so the admin
 // can build a coaching history over time -- same 6-dimension AFF
