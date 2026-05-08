@@ -2359,6 +2359,7 @@ interface AdminReview {
   coachingTips: string[]
   nextSteps: string[]
   summary: string
+  scoreBoosters?: Partial<Record<'opening' | 'discovery' | 'product' | 'objections' | 'closing' | 'tone', string>> | null
   flaggedForCoaching: boolean
   adminNotes: string | null
   discussedAt: string | null
@@ -2369,6 +2370,7 @@ interface AdminReview {
     contactName: string
     subject: string | null
     transcriptText: string | null
+    outcome?: string | null
   }
 }
 
@@ -2534,6 +2536,7 @@ function CallReviewsDrawerTab({ agentProfileId, agentName }: { agentProfileId: s
             coachingTips: viewing.coachingTips,
             nextSteps: viewing.nextSteps,
             summary: viewing.summary,
+            scoreBoosters: viewing.scoreBoosters,
             flaggedForCoaching: viewing.flaggedForCoaching,
             adminNotes: viewing.adminNotes,
             discussedAt: viewing.discussedAt,
@@ -2541,6 +2544,7 @@ function CallReviewsDrawerTab({ agentProfileId, agentName }: { agentProfileId: s
           } as CallReviewData}
           callDate={viewing.callLog.callDate}
           contactName={viewing.callLog.contactName}
+          outcome={viewing.callLog.outcome}
           adminMode
           onClose={() => setViewing(null)}
           onAdminUpdate={async (patch) => {

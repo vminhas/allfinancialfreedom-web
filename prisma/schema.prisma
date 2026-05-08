@@ -65,6 +65,7 @@ model AdminCallReview {
   coachingTips       Json
   nextSteps          Json
   summary            String
+  scoreBoosters      Json?
 
   // Free-form note the admin can add after the fact (e.g. "tried the
   // tip on the next call, worked great").
@@ -806,6 +807,15 @@ model PolicyView {
   @@map("policy_views")
 }
 
+enum CallOutcome {
+  RECRUITED
+  APPOINTMENT_BOOKED
+  POLICY_CLOSED
+  FOLLOW_UP_SCHEDULED
+  NOT_INTERESTED
+  NO_CONTACT
+}
+
 model CallLog {
   id               String                @id @default(cuid())
   agentProfileId   String
@@ -816,6 +826,7 @@ model CallLog {
   subject          String?
   notes            String?
   result           String?
+  outcome          CallOutcome?
   followUpNeeded   Boolean               @default(false)
   createdAt        DateTime              @default(now())
 
@@ -847,6 +858,7 @@ model CallReview {
   coachingTips       Json
   nextSteps          Json
   summary            String
+  scoreBoosters      Json?
 
   flaggedForCoaching Boolean      @default(false)
   adminNotes         String?

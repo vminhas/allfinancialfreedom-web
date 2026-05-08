@@ -4363,6 +4363,16 @@ function ScheduleFtaModal({
 
 // ─── Call Logs Tab ─────────────────────────────────────────────────────────────
 
+const OUTCOME_LABEL: Record<string, string> = {
+  RECRUITED:           'Recruited',
+  APPOINTMENT_BOOKED:  'Appt Booked',
+  POLICY_CLOSED:       'Policy Closed',
+  FOLLOW_UP_SCHEDULED: 'Follow-up',
+  NOT_INTERESTED:      'Not Interested',
+  NO_CONTACT:          'No Contact',
+}
+const POSITIVE_OUTCOMES = new Set(['RECRUITED', 'APPOINTMENT_BOOKED', 'POLICY_CLOSED'])
+
 interface CallLogRow {
   id: string
   callDate: string
@@ -4370,6 +4380,7 @@ interface CallLogRow {
   phoneNumber: string | null
   subject: string | null
   result: string | null
+  outcome: string | null
   followUpNeeded: boolean
   review: {
     id: string
@@ -4390,6 +4401,7 @@ function CallLogsTab() {
     phoneNumber: '',
     subject: '',
     result: '',
+    outcome: '',
     followUpNeeded: false,
     transcriptText: '',
   })
@@ -4461,7 +4473,7 @@ function CallLogsTab() {
       setForm({
         callDate: new Date().toISOString().split('T')[0],
         contactName: '', phoneNumber: '', subject: '', result: '',
-        followUpNeeded: false, transcriptText: '',
+        outcome: '', followUpNeeded: false, transcriptText: '',
       })
       setShowForm(false)
       setSubmitting(false)
@@ -4613,6 +4625,22 @@ function CallLogsTab() {
                 onChange={e => setForm(f => ({ ...f, result: e.target.value }))}
               />
             </div>
+            <div>
+              <label style={fieldLabel}>Outcome</label>
+              <select
+                value={form.outcome}
+                onChange={e => setForm(f => ({ ...f, outcome: e.target.value }))}
+                style={{ ...inputStyle, appearance: 'none' as const }}
+              >
+                <option value="">Select outcome (optional)</option>
+                <option value="RECRUITED">Recruited</option>
+                <option value="APPOINTMENT_BOOKED">Appointment Booked</option>
+                <option value="POLICY_CLOSED">Policy Closed</option>
+                <option value="FOLLOW_UP_SCHEDULED">Follow-up Scheduled</option>
+                <option value="NOT_INTERESTED">Not Interested</option>
+                <option value="NO_CONTACT">No Contact / No Answer</option>
+              </select>
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 32 }}>
               <input
                 type="checkbox" id="fu"
@@ -4724,7 +4752,7 @@ function CallLogsTab() {
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', minWidth: 720, borderCollapse: 'collapse' }}>
               <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                {['Date', 'Contact', 'Subject', 'Result', 'Follow Up', 'AI Review'].map(h => (
+                {['Date', 'Contact', 'Subject', 'Result', 'Outcome', 'AI Review'].map(h => (
                   <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#C9A96E' }}>{h}</th>
                 ))}
               </tr></thead>
@@ -4735,7 +4763,22 @@ function CallLogsTab() {
                     <td style={{ padding: '10px 12px', fontSize: 12, color: '#ffffff' }}>{c.contactName}</td>
                     <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{c.subject ?? '—'}</td>
                     <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{c.result ?? '—'}</td>
-                    <td style={{ padding: '10px 12px', fontSize: 12, color: c.followUpNeeded ? '#f59e0b' : '#4B5563' }}>{c.followUpNeeded ? 'Yes' : 'No'}</td>
+                    <td style={{ padding: '10px 12px' }}>
+                      {c.outcome && OUTCOME_LABEL[c.outcome] ? (
+                        <span style={{
+                          fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                          color: POSITIVE_OUTCOMES.has(c.outcome) ? '#4ade80' : '#9BB0C4',
+                          padding: '3px 8px', borderRadius: 3,
+                          background: POSITIVE_OUTCOMES.has(c.outcome) ? 'rgba(74,222,128,0.1)' : 'rgba(107,130,153,0.12)',
+                          border: `1px solid ${POSITIVE_OUTCOMES.has(c.outcome) ? 'rgba(74,222,128,0.25)' : 'rgba(107,130,153,0.25)'}`,
+                          display: 'inline-block',
+                        }}>
+                          {OUTCOME_LABEL[c.outcome]}
+                        </span>
+                      ) : (
+                        <span style={{ color: '#4B5563', fontSize: 12 }}>—</span>
+                      )}
+                    </td>
                     <td style={{ padding: '10px 12px' }}>
                       <ReviewCell call={c} analyzing={analyzingCallIds.has(c.id)} onClick={() => openReview(c)} />
                     </td>
@@ -4752,6 +4795,7 @@ function CallLogsTab() {
           review={viewingReview.review}
           callDate={viewingReview.call.callDate}
           contactName={viewingReview.call.contactName}
+          outcome={viewingReview.call.outcome}
           onClose={() => setViewingReview(null)}
         />
       )}
@@ -4833,17 +4877,29 @@ function CallRowMobile({ call, analyzing, onViewReview }: { call: CallLogRow; an
           </button>
         ) : null}
       </div>
-      {call.followUpNeeded && (
-        <div style={{
-          marginTop: 8, display: 'inline-block',
-          fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
-          color: '#f59e0b',
-          padding: '3px 8px', borderRadius: 3,
-          background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)',
-        }}>
-          Follow-up needed
-        </div>
-      )}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+        {call.outcome && OUTCOME_LABEL[call.outcome] && (
+          <span style={{
+            fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+            color: POSITIVE_OUTCOMES.has(call.outcome) ? '#4ade80' : '#9BB0C4',
+            padding: '3px 8px', borderRadius: 3,
+            background: POSITIVE_OUTCOMES.has(call.outcome) ? 'rgba(74,222,128,0.1)' : 'rgba(107,130,153,0.12)',
+            border: `1px solid ${POSITIVE_OUTCOMES.has(call.outcome) ? 'rgba(74,222,128,0.25)' : 'rgba(107,130,153,0.25)'}`,
+          }}>
+            {OUTCOME_LABEL[call.outcome]}
+          </span>
+        )}
+        {call.followUpNeeded && (
+          <span style={{
+            fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+            color: '#f59e0b',
+            padding: '3px 8px', borderRadius: 3,
+            background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)',
+          }}>
+            Follow-up needed
+          </span>
+        )}
+      </div>
     </div>
   )
 }

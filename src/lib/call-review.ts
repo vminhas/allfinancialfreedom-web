@@ -2,20 +2,29 @@ import Anthropic from '@anthropic-ai/sdk'
 import { getSetting } from './settings'
 
 // ─── Rubric definition ────────────────────────────────────────────────────────
-// Six dimensions, weighted average → overall score.
-// Claude grades each on a 0-100 scale against the AFF sales methodology.
 
 export const RUBRIC_DIMENSIONS = [
-  { key: 'opening',    label: 'Opening & Rapport',  weight: 0.15 },
-  { key: 'discovery',  label: 'Discovery & Needs',  weight: 0.20 },
-  { key: 'product',    label: 'Product Knowledge',  weight: 0.15 },
-  { key: 'objections', label: 'Objection Handling', weight: 0.15 },
+  { key: 'opening',    label: 'Opening & Rapport',    weight: 0.15 },
+  { key: 'discovery',  label: 'Discovery & Needs',    weight: 0.20 },
+  { key: 'product',    label: 'Product Knowledge',    weight: 0.15 },
+  { key: 'objections', label: 'Objection Handling',   weight: 0.15 },
   { key: 'closing',    label: 'Closing & Next Steps', weight: 0.20 },
-  { key: 'tone',       label: 'Tone & Empathy',     weight: 0.15 },
+  { key: 'tone',       label: 'Tone & Empathy',       weight: 0.15 },
 ] as const
 
 export type RubricKey = typeof RUBRIC_DIMENSIONS[number]['key']
 export type RubricScores = Record<RubricKey, number>
+
+export const OUTCOME_LABELS: Record<string, string> = {
+  RECRUITED:           'Recruited',
+  APPOINTMENT_BOOKED:  'Appointment Booked',
+  POLICY_CLOSED:       'Policy Closed',
+  FOLLOW_UP_SCHEDULED: 'Follow-up Scheduled',
+  NOT_INTERESTED:      'Not Interested',
+  NO_CONTACT:          'No Contact / No Answer',
+}
+
+const POSITIVE_OUTCOMES = new Set(['RECRUITED', 'APPOINTMENT_BOOKED', 'POLICY_CLOSED'])
 
 export interface CallReviewResult {
   overallScore: number
@@ -25,6 +34,7 @@ export interface CallReviewResult {
   coachingTips: string[]
   nextSteps: string[]
   summary: string
+  scoreBoosters?: Partial<Record<RubricKey, string>>
   flaggedForCoaching: boolean
   modelId: string
   inputTokens: number
@@ -36,36 +46,58 @@ export interface CallReviewResult {
 const MODEL_ID = 'claude-sonnet-4-5-20250929'
 const MIN_TRANSCRIPT_WORDS = 100
 
-// System prompt is marked for prompt caching — it's identical on every call and
-// typically ~1.5k tokens, so caching drops cost ~85% on repeat requests.
-const SYSTEM_PROMPT = `You are a senior sales coach for All Financial Freedom (AFF), a financial services company recruiting and training licensed insurance agents. You review recorded sales calls and give agents clear, actionable coaching based on the AFF methodology.
+// System prompt cached on every call (~2k tokens, same across all requests).
+const SYSTEM_PROMPT = `You are a senior sales coach for All Financial Freedom (AFF), a financial services company training licensed insurance agents. You review recorded sales calls and give agents precise, actionable coaching grounded in the Jeremy Lee Miner / NEPQ (Neuro-Emotional Persuasion Questioning) methodology.
 
-AFF sales methodology (the standard you're grading against):
-- Calls should open with warm rapport, not a pitch. The first 2 minutes establish trust.
-- Discovery is the heart of the call: open-ended questions about family, money goals, current financial picture, and pain points. Agents should understand the client's "why" before presenting anything.
-- Product presentation must be accurate, confident, and tied to the client's stated needs. Never oversell. Never guess at numbers.
-- Objections are opportunities. Great agents acknowledge, empathize, reframe — they never argue or get defensive.
-- Every call ends with a clear next step: scheduled follow-up, homework assigned, or a confirmed decision. "I'll get back to you" is NOT a next step.
-- Tone should be warm, patient, genuine. Not scripted, not pushy, not robotic.
+## The NEPQ framework (the standard you grade against)
 
-You grade each call on six dimensions (0-100 each). Use the full range — a typical call scores 55-75. Reserve 85+ for genuinely excellent work and sub-50 for calls with serious issues.
+**Opening (first 2-3 minutes):**
+Open with a status-quo question that invites the prospect to describe their current situation in their own words. "What made you decide to reach out today?" or "Walk me through what you're currently doing for life insurance." Do NOT pitch anything. Do NOT explain who you are beyond a brief introduction. Rapport builds through curiosity, not talking about yourself.
 
-Dimensions:
-1. opening (weight 15%): Professional greeting, built trust early, avoided pitching too soon.
-2. discovery (weight 20%): Asked open-ended questions, uncovered real goals and concerns, listened actively.
-3. product (weight 15%): Accurate explanations, tied to client needs, confident without overselling.
-4. objections (weight 15%): Handled concerns with empathy, did not get defensive, reframed constructively.
-5. closing (weight 20%): Clear ask, scheduled next step, confirmed action items.
-6. tone (weight 15%): Warm, patient, genuine, matched the client's energy.
+**Discovery (the heart of every call):**
+Move through three layers in order. Never skip ahead.
+1. Problem Awareness Questions: Help the prospect articulate the problem themselves. "What's been your biggest challenge with your current coverage?" "What made you start thinking about this now?" The prospect must say the problem out loud, in their own words, before you can help them solve it.
+2. Solution Awareness Questions: Help the prospect visualize the future. "What would it mean for your family if you had the right coverage in place?" "If we could solve that, what would that change for you?" The agent does NOT present solutions here.
+3. Consequence Questions: Surface the cost of inaction. "What happens if things stay the same six months from now?" "How long have you been dealing with this?" The prospect must feel the gap between where they are and where they want to be before they'll listen to a solution.
 
-You will also produce:
-- strengths: 2-4 specific things the agent did well, each 1 sentence, citing actual moments if possible.
-- weaknesses: 2-4 specific gaps, each 1 sentence, non-judgmental phrasing.
-- coachingTips: 2-4 concrete actions the agent can try on their next call. Not generic advice — tied to what actually happened.
-- nextSteps: 1-3 follow-up items the agent should take from THIS call with THIS prospect.
-- summary: 2-3 sentences recapping what happened on the call, neutral tone.
+NEVER present a product until the prospect has articulated their problem AND expressed desire for a solution. The rule is: they pull, you don't push.
 
-Be direct but encouraging. Agents will read this feedback immediately after their call. The goal is improvement, not judgment.
+**Product (present only after discovery is complete):**
+"Based on everything you've told me..." Tie every feature to what the prospect said in discovery. Position the product as the answer to their stated problem, not a thing you're selling. Never oversell. Never guess at numbers. If you don't know, say so.
+
+**Objections (NEPQ method):**
+An objection means the prospect still has an unresolved concern. Do NOT reframe. Do NOT say "I understand, but...". Ask a clarifying question that gets them to say more: "What makes you feel that way?" "Help me understand — what's holding you back?" Let them talk themselves through it. Agreement comes when the prospect talks themselves into the decision.
+
+**Closing (earn it through discovery, not pressure):**
+End with a question, not a statement. "Based on everything you've told me today, does this feel like it makes sense for you?" If yes, walk them through next steps calmly. Never ask "Are you ready to sign?" or apply any pressure. A close that comes from good discovery never feels like a close.
+
+**Tone & Empathy (what the text actually reveals):**
+Tone scoring in a text review is based on what the words themselves signal:
+- Word choice: empathetic ("I hear you", "that makes sense") vs clinical ("per our conversation", "as I mentioned") vs pushy ("you really should", "don't wait")
+- Question style: open questions invite elaboration. Closed questions ("did you want...?", "can I send you...?") signal impatience.
+- Pacing cues: phrases like "let me just quickly show you", "real fast", or rushing past objections signal the agent is prioritizing the sale over the conversation.
+- Use of client's own language: great agents echo the prospect's exact words back to them. It's the clearest signal of active listening.
+- JLM tonality principle expressed in language: curious questions ("I'm wondering...") vs certainty statements ("You need..."). The best calls read like a conversation between two people solving a problem together, not an agent pitching at a prospect.
+
+## Grading
+
+Use the full 0-100 range. A typical call scores 55-75. Reserve 85+ for genuinely excellent NEPQ execution. Sub-50 for serious structural problems (e.g., pitching before discovery, arguing with objections).
+
+## Output fields
+
+- rubricScores: one integer (0-100) per dimension
+- strengths: 2-4 specific things done well, citing actual moments from the transcript
+- weaknesses: 2-4 specific gaps, non-judgmental phrasing
+- coachingTips: 2-4 concrete NEPQ techniques tied to what actually happened on this call
+- nextSteps: 1-3 follow-up items for THIS prospect from THIS call
+- summary: 2-3 neutral sentences recapping the call
+- scoreBoosters: for each dimension that scored below 80, write 1-2 sentences describing exactly what would have raised that score, citing specific moments or phrasing from the transcript. Omit dimensions that scored 80 or above.
+
+## Outcome-aware tone
+
+If a successful outcome is reported (recruited, policy closed, appointment booked): lead feedback with what the agent did well in the context of that result. Reinforce the technique that produced the outcome. Frame improvements as ways to become even more consistent.
+
+If the outcome was unsuccessful or not reported: lead with what needs to change. Be direct but constructive. Every critique should come with a specific NEPQ alternative.
 
 Output via the submit_review tool only.`
 
@@ -80,8 +112,9 @@ export async function reviewTranscript(params: {
   transcriptText: string
   agentContext?: { firstName: string; lastName: string; phase: number; goal?: string | null }
   contactName?: string
+  outcome?: string | null
 }): Promise<CallReviewResult> {
-  const { transcriptText, agentContext, contactName } = params
+  const { transcriptText, agentContext, contactName, outcome } = params
 
   const wordCount = transcriptText.trim().split(/\s+/).length
   if (wordCount < MIN_TRANSCRIPT_WORDS) {
@@ -97,8 +130,13 @@ export async function reviewTranscript(params: {
     ? `Agent: ${agentContext.firstName} ${agentContext.lastName} (Phase ${agentContext.phase}${agentContext.goal ? `, Goal: ${agentContext.goal}` : ''})`
     : 'Agent: (anonymous)'
 
+  const outcomeLine = outcome && OUTCOME_LABELS[outcome]
+    ? `Reported outcome: ${OUTCOME_LABELS[outcome]}${POSITIVE_OUTCOMES.has(outcome) ? ' (successful)' : ''}`
+    : ''
+
   const userMessage = `${agentLine}
 ${contactName ? `Prospect: ${contactName}` : ''}
+${outcomeLine ? outcomeLine : ''}
 
 Review the following call transcript and produce a coaching review via the submit_review tool.
 
@@ -141,6 +179,18 @@ ${transcriptText}
             coachingTips: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 4 },
             nextSteps:    { type: 'array', items: { type: 'string' }, minItems: 0, maxItems: 3 },
             summary:      { type: 'string' },
+            scoreBoosters: {
+              type: 'object',
+              description: 'For each dimension that scored below 80, write 1-2 sentences explaining what specifically would have raised that score, citing actual moments from the transcript. Omit dimensions at 80 or above.',
+              properties: {
+                opening:    { type: 'string' },
+                discovery:  { type: 'string' },
+                product:    { type: 'string' },
+                objections: { type: 'string' },
+                closing:    { type: 'string' },
+                tone:       { type: 'string' },
+              },
+            },
           },
         },
       },
@@ -161,6 +211,7 @@ ${transcriptText}
     coachingTips: string[]
     nextSteps: string[]
     summary: string
+    scoreBoosters?: Partial<Record<RubricKey, string>>
   }
 
   // Weighted overall score
@@ -185,6 +236,7 @@ ${transcriptText}
     coachingTips: input.coachingTips,
     nextSteps: input.nextSteps,
     summary: input.summary,
+    scoreBoosters: input.scoreBoosters,
     flaggedForCoaching,
     modelId: MODEL_ID,
     inputTokens: usage.input_tokens,

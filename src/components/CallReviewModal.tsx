@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useIsMobile } from '@/lib/useIsMobile'
+import { OUTCOME_LABELS } from '@/lib/call-review'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -21,16 +22,22 @@ export interface CallReviewData {
   coachingTips: string[]
   nextSteps: string[]
   summary: string
+  scoreBoosters?: Partial<Record<'opening' | 'discovery' | 'product' | 'objections' | 'closing' | 'tone', string>> | null
   flaggedForCoaching: boolean
   adminNotes?: string | null
   discussedAt?: string | null
   reviewedAt: string
 }
 
+export interface CallWithOutcome {
+  outcome?: string | null
+}
+
 export interface CallReviewModalProps {
   review: CallReviewData
   callDate: string
   contactName: string
+  outcome?: string | null
   /** Admin mode shows the admin actions section (notes, mark discussed, un/flag) */
   adminMode?: boolean
   onClose: () => void
@@ -41,13 +48,15 @@ export interface CallReviewModalProps {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const RUBRIC = [
-  { key: 'opening',    label: 'Opening & Rapport',    desc: 'Built trust in the first 2 minutes' },
-  { key: 'discovery',  label: 'Discovery & Needs',    desc: 'Asked open questions, understood goals' },
-  { key: 'product',    label: 'Product Knowledge',    desc: 'Accurate, confident, tied to client needs' },
-  { key: 'objections', label: 'Objection Handling',   desc: 'Empathized, reframed, never defensive' },
-  { key: 'closing',    label: 'Closing & Next Steps', desc: 'Clear ask, scheduled follow-up' },
-  { key: 'tone',       label: 'Tone & Empathy',       desc: 'Warm, patient, genuine' },
+  { key: 'opening',    label: 'Opening & Rapport',    desc: 'Status-quo questions, no early pitch, curiosity over talking' },
+  { key: 'discovery',  label: 'Discovery & Needs',    desc: 'NEPQ layers: Problem Awareness, Solution Awareness, Consequence' },
+  { key: 'product',    label: 'Product Knowledge',    desc: 'Presented only after discovery, tied to their stated problem' },
+  { key: 'objections', label: 'Objection Handling',   desc: 'Clarifying questions, never reframed or argued' },
+  { key: 'closing',    label: 'Closing & Next Steps', desc: 'Earned close through discovery, question-based not pressure' },
+  { key: 'tone',       label: 'Tone & Empathy',       desc: 'Word choice, question style, pacing cues, echoing their language' },
 ] as const
+
+const POSITIVE_OUTCOME_KEYS = new Set(['RECRUITED', 'APPOINTMENT_BOOKED', 'POLICY_CLOSED'])
 
 function scoreColor(score: number) {
   if (score >= 80) return '#4ade80' // green
@@ -68,6 +77,7 @@ export default function CallReviewModal({
   review,
   callDate,
   contactName,
+  outcome,
   adminMode = false,
   onClose,
   onAdminUpdate,
@@ -194,6 +204,18 @@ export default function CallReviewModal({
             <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>
               {formattedDate} · AI coaching review
             </div>
+            {outcome && OUTCOME_LABELS[outcome] && (
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                marginTop: 6, padding: '4px 10px', borderRadius: 999,
+                background: POSITIVE_OUTCOME_KEYS.has(outcome) ? 'rgba(74,222,128,0.1)' : 'rgba(107,130,153,0.15)',
+                border: `1px solid ${POSITIVE_OUTCOME_KEYS.has(outcome) ? 'rgba(74,222,128,0.3)' : 'rgba(107,130,153,0.3)'}`,
+              }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: POSITIVE_OUTCOME_KEYS.has(outcome) ? '#4ade80' : '#9BB0C4' }}>
+                  {POSITIVE_OUTCOME_KEYS.has(outcome) ? '✓' : '→'} {OUTCOME_LABELS[outcome]}
+                </span>
+              </div>
+            )}
           </div>
           <button onClick={onClose} aria-label="Close" style={closeBtnStyle}>✕</button>
         </div>
@@ -259,6 +281,7 @@ export default function CallReviewModal({
               {RUBRIC.map(dim => {
                 const score = review.rubricScores[dim.key]
                 const color = scoreColor(score)
+                const booster = review.scoreBoosters?.[dim.key]
                 return (
                   <div key={dim.key}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4, gap: 8 }}>
@@ -275,6 +298,16 @@ export default function CallReviewModal({
                         transition: 'width 0.6s ease',
                       }} />
                     </div>
+                    {booster && score < 80 && (
+                      <div style={{
+                        marginTop: 6, paddingLeft: 10,
+                        borderLeft: '2px solid rgba(245,158,11,0.4)',
+                        display: 'flex', gap: 6, alignItems: 'flex-start',
+                      }}>
+                        <span style={{ color: '#f59e0b', fontSize: 10, flexShrink: 0, marginTop: 1 }}>↑</span>
+                        <span style={{ fontSize: 11, color: '#9BB0C4', lineHeight: 1.5 }}>{booster}</span>
+                      </div>
+                    )}
                   </div>
                 )
               })}

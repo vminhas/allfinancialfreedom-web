@@ -28,6 +28,7 @@ export async function GET(
           contactName: true,
           subject: true,
           transcriptText: true,
+          outcome: true,
         },
       },
     },

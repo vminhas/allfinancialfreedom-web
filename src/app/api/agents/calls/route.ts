@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
           },
         },
       },
+      // outcome returned for display in call log list
     }),
     db.callLog.count({ where: { agentProfileId: profileId } }),
   ])
@@ -50,6 +51,11 @@ export async function POST(req: NextRequest) {
   const profileId = await getProfileId(session.user!.email!)
   if (!profileId) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
 
+  const VALID_OUTCOMES = new Set([
+    'RECRUITED', 'APPOINTMENT_BOOKED', 'POLICY_CLOSED',
+    'FOLLOW_UP_SCHEDULED', 'NOT_INTERESTED', 'NO_CONTACT',
+  ])
+
   const body = await req.json() as {
     callDate: string
     contactName: string
@@ -57,6 +63,7 @@ export async function POST(req: NextRequest) {
     subject?: string
     notes?: string
     result?: string
+    outcome?: string
     followUpNeeded?: boolean
     transcriptText?: string
     durationSeconds?: number
@@ -65,6 +72,8 @@ export async function POST(req: NextRequest) {
   if (!body.callDate || !body.contactName) {
     return NextResponse.json({ error: 'callDate and contactName required' }, { status: 400 })
   }
+
+  const outcome = body.outcome && VALID_OUTCOMES.has(body.outcome) ? body.outcome : undefined
 
   const hasTranscript = body.transcriptText && body.transcriptText.trim().length > 0
 
@@ -77,6 +86,7 @@ export async function POST(req: NextRequest) {
       subject: body.subject,
       notes: body.notes,
       result: body.result,
+      outcome: outcome as never,
       followUpNeeded: body.followUpNeeded ?? false,
       transcriptText: hasTranscript ? body.transcriptText : null,
       transcriptSource: hasTranscript ? 'MANUAL_PASTE' : null,

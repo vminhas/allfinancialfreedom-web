@@ -57,6 +57,7 @@ export async function POST(
       review: true,
       agentProfile: { select: { id: true, firstName: true, lastName: true, phase: true, goal: true } },
     },
+    // include outcome so it can be forwarded to the AI for tone calibration
   })
   if (!call) return NextResponse.json({ error: 'Call not found' }, { status: 404 })
 
@@ -89,6 +90,7 @@ export async function POST(
         goal: call.agentProfile.goal,
       },
       contactName: call.contactName,
+      outcome: call.outcome,
     })
 
     const review = await db.callReview.upsert({
@@ -103,6 +105,7 @@ export async function POST(
         coachingTips: result.coachingTips,
         nextSteps: result.nextSteps,
         summary: result.summary,
+        scoreBoosters: result.scoreBoosters ?? null,
         flaggedForCoaching: result.flaggedForCoaching,
         modelId: result.modelId,
         inputTokens: result.inputTokens,
@@ -118,6 +121,7 @@ export async function POST(
         coachingTips: result.coachingTips,
         nextSteps: result.nextSteps,
         summary: result.summary,
+        scoreBoosters: result.scoreBoosters ?? null,
         flaggedForCoaching: result.flaggedForCoaching,
         modelId: result.modelId,
         inputTokens: result.inputTokens,

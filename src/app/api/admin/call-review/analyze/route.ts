@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
         coachingTips: result.coachingTips,
         nextSteps: result.nextSteps,
         summary: result.summary,
+        scoreBoosters: result.scoreBoosters ?? null,
         modelId: result.modelId,
         inputTokens: result.inputTokens,
         outputTokens: result.outputTokens,
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest) {
     })
 
     return NextResponse.json({
-      result,
+      result: { ...result, scoreBoosters: result.scoreBoosters ?? null },
       reviewId: saved.id,
       reviewedAt: saved.reviewedAt.toISOString(),
     })
