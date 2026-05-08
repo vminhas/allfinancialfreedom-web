@@ -43,7 +43,7 @@ export interface CallReviewResult {
   cacheCreateTokens: number
 }
 
-const MODEL_ID = 'claude-sonnet-4-5-20250929'
+const MODEL_ID = 'claude-sonnet-4-6'
 const MIN_TRANSCRIPT_WORDS = 100
 
 // System prompt cached on every call (~2k tokens, same across all requests).
