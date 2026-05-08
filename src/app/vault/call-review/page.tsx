@@ -32,6 +32,14 @@ export default function AdminCallReviewPage() {
   const [transcript, setTranscript] = useState('')
   const [contactName, setContactName] = useState('')
   const [callDate, setCallDate] = useState(new Date().toISOString().split('T')[0])
+  // Parity with the agent-side call log form. Every admin-side review
+  // can now capture the same context an agent would log from the field
+  // (phone, subject, type, follow-up flag).
+  const [phoneNumber, setPhoneNumber] = useState('')
+  const [subject, setSubject] = useState('')
+  const [callType, setCallType] = useState('')
+  const [callTypeOther, setCallTypeOther] = useState('')
+  const [followUpNeeded, setFollowUpNeeded] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState<AnalyzeResult | null>(null)
@@ -62,13 +70,31 @@ export default function AdminCallReviewPage() {
   const openHistoryItem = async (id: string) => {
     const res = await fetch(`/api/admin/call-review/${id}`)
     if (!res.ok) return
-    const d = await res.json() as { review: AnalyzeResult & { id?: string; contactName: string | null; callDate: string; callTranscript: string; outcome?: string | null } }
+    const d = await res.json() as { review: AnalyzeResult & {
+      id?: string
+      contactName: string | null
+      callDate: string
+      callTranscript: string
+      outcome?: string | null
+      phoneNumber?: string | null
+      subject?: string | null
+      callType?: string | null
+      callTypeOther?: string | null
+      followUpNeeded?: boolean
+    } }
     setResult(d.review)
     setReviewId(d.review.id ?? id)
     setReviewOutcome(d.review.outcome ?? null)
     setContactName(d.review.contactName ?? '')
     setCallDate(d.review.callDate.slice(0, 10))
     setTranscript(d.review.callTranscript)
+    // Hydrate the parity fields so the form reflects the saved row
+    // and re-analyze keeps them attached.
+    setPhoneNumber(d.review.phoneNumber ?? '')
+    setSubject(d.review.subject ?? '')
+    setCallType(d.review.callType ?? '')
+    setCallTypeOther(d.review.callTypeOther ?? '')
+    setFollowUpNeeded(d.review.followUpNeeded === true)
     setShowModal(true)
   }
 
@@ -91,6 +117,12 @@ export default function AdminCallReviewPage() {
           transcriptText: transcript,
           contactName: contactName || 'Prospect',
           callDate,
+          phoneNumber: phoneNumber.trim() || undefined,
+          subject: subject.trim() || undefined,
+          callType: callType || null,
+          callTypeOther: callType === 'OTHER' ? callTypeOther.trim() || undefined : undefined,
+          followUpNeeded,
+          outcome: reviewOutcome || undefined,
         }),
       })
       const data = await res.json() as { result?: AnalyzeResult; reviewId?: string; error?: string }
@@ -116,6 +148,13 @@ export default function AdminCallReviewPage() {
     setTranscript('')
     setContactName('')
     setCallDate(new Date().toISOString().split('T')[0])
+    setPhoneNumber('')
+    setSubject('')
+    setCallType('')
+    setCallTypeOther('')
+    setFollowUpNeeded(false)
+    setReviewOutcome(null)
+    setReviewId(null)
     setResult(null)
     setShowModal(false)
     setError('')
@@ -208,7 +247,86 @@ export default function AdminCallReviewPage() {
                 <label style={labelStyle}>Call date</label>
                 <DatePicker value={callDate} onChange={setCallDate} max={new Date().toISOString().slice(0, 10)} />
               </div>
+              <div>
+                <label style={labelStyle}>Phone</label>
+                <input
+                  style={inputStyle}
+                  value={phoneNumber}
+                  onChange={e => setPhoneNumber(e.target.value)}
+                  inputMode="tel"
+                  placeholder="Optional"
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Subject</label>
+                <input
+                  style={inputStyle}
+                  value={subject}
+                  onChange={e => setSubject(e.target.value)}
+                  placeholder="Optional"
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Call type</label>
+                <select
+                  value={callType}
+                  onChange={e => {
+                    const next = e.target.value
+                    setCallType(next)
+                    if (next !== 'OTHER') setCallTypeOther('')
+                  }}
+                  style={{ ...inputStyle, appearance: 'none' as const }}
+                >
+                  <option value="">Select type (optional)</option>
+                  <option value="RECRUIT">Recruit</option>
+                  <option value="FOLLOW_UP">Follow-up</option>
+                  <option value="CLIENT_APPOINTMENT">Client Appointment / Close</option>
+                  <option value="OTHER">Other...</option>
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>Outcome (optional)</label>
+                <select
+                  value={reviewOutcome ?? ''}
+                  onChange={e => setReviewOutcome(e.target.value || null)}
+                  style={{ ...inputStyle, appearance: 'none' as const }}
+                >
+                  <option value="">Set after analyze</option>
+                  <option value="RECRUITED">🎉 Recruited</option>
+                  <option value="APPOINTMENT_BOOKED">📅 Appointment booked</option>
+                  <option value="POLICY_CLOSED">✅ Policy closed</option>
+                  <option value="FOLLOW_UP_SCHEDULED">↻ Follow-up scheduled</option>
+                  <option value="NOT_INTERESTED">✕ Not interested</option>
+                  <option value="NO_CONTACT">— No contact</option>
+                </select>
+              </div>
             </div>
+
+            {callType === 'OTHER' && (
+              <div>
+                <label style={labelStyle}>Other (specify)</label>
+                <input
+                  style={inputStyle}
+                  value={callTypeOther}
+                  onChange={e => setCallTypeOther(e.target.value)}
+                  placeholder="e.g. underwriting check-in, carrier callback"
+                />
+              </div>
+            )}
+
+            <label style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              fontSize: 12, color: '#9BB0C4', cursor: 'pointer',
+              padding: '4px 0',
+            }}>
+              <input
+                type="checkbox"
+                checked={followUpNeeded}
+                onChange={e => setFollowUpNeeded(e.target.checked)}
+                style={{ accentColor: '#C9A96E', width: 16, height: 16 }}
+              />
+              Follow-up needed
+            </label>
 
             <div>
               <label style={labelStyle}>Call transcript *</label>

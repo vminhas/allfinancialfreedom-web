@@ -54,6 +54,16 @@ model AdminCallReview {
   // is required so the history list has something to sort/filter on.
   contactName        String?
   callDate           DateTime
+  // Parity with CallLog (the agent-side call entry table). Lets
+  // admins capture the same context an agent would log, so reviewing
+  // your own calls in the vault has the same data shape as agents
+  // logging from the field. Reporting can later UNION the two tables
+  // for a unified call history.
+  phoneNumber        String?
+  subject            String?
+  callType           CallType?
+  callTypeOther      String?
+  followUpNeeded     Boolean    @default(false)
   // Full transcript saved so the admin can re-read it later or run a
   // re-analysis with a tweaked prompt without having to keep the
   // text around in their notes app.
