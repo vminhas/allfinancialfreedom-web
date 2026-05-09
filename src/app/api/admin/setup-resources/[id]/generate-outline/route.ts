@@ -41,6 +41,109 @@ async function requireAdmin() {
   return (session.user as { id?: string }).id ?? null
 }
 
+// Try to extract plain-text content from a public resource URL.
+// Supports Google Docs and Google Slides via the /export?format=txt
+// public endpoint (no auth needed if the doc is shared with anyone-
+// with-the-link). Generic URLs are fetched and stripped of HTML.
+//
+// Returns null when the URL is recognizable as something we can't
+// read (Canva, anything JS-rendered, anything auth-walled). The
+// caller surfaces a clear error so the admin can either change the
+// hosting OR fall back to pasting the content.
+async function extractFromUrl(rawUrl: string): Promise<{ text: string; source: string } | { error: string }> {
+  let url: URL
+  try {
+    url = new URL(rawUrl)
+  } catch {
+    return { error: 'Resource URL is not valid' }
+  }
+
+  const host = url.hostname.toLowerCase()
+
+  // Canva: design pages are JS-rendered, no public text export. Tell
+  // the admin clearly rather than fetching a useless HTML shell.
+  if (host.endsWith('canva.com')) {
+    return {
+      error: "Canva doesn't expose deck text to outside tools. Either re-host the script as a Google Doc/Slides (anyone-with-the-link) and update the URL, or paste the deck content manually as a fallback.",
+    }
+  }
+
+  // Google Docs: /document/d/{id}/...  → /document/d/{id}/export?format=txt
+  // Google Slides: /presentation/d/{id}/... → /presentation/d/{id}/export?format=txt
+  if (host === 'docs.google.com') {
+    const docMatch = url.pathname.match(/^\/document\/d\/([a-zA-Z0-9_-]+)/)
+    const slideMatch = url.pathname.match(/^\/presentation\/d\/([a-zA-Z0-9_-]+)/)
+    const sheetMatch = url.pathname.match(/^\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/)
+    if (docMatch) {
+      return fetchExport(`https://docs.google.com/document/d/${docMatch[1]}/export?format=txt`, 'Google Docs')
+    }
+    if (slideMatch) {
+      return fetchExport(`https://docs.google.com/presentation/d/${slideMatch[1]}/export?format=txt`, 'Google Slides')
+    }
+    if (sheetMatch) {
+      return fetchExport(`https://docs.google.com/spreadsheets/d/${sheetMatch[1]}/export?format=csv`, 'Google Sheets')
+    }
+  }
+
+  // Generic web pages: fetch, strip HTML, hope for the best.
+  return fetchAndStripHtml(url.toString())
+}
+
+async function fetchExport(exportUrl: string, source: string): Promise<{ text: string; source: string } | { error: string }> {
+  try {
+    const res = await fetch(exportUrl, { redirect: 'follow' })
+    if (!res.ok) {
+      // 401/403 means the doc isn't publicly shared.
+      if (res.status === 401 || res.status === 403) {
+        return { error: `${source} doc isn't shared publicly. Open the doc, click Share, set 'Anyone with the link can view', then try again.` }
+      }
+      return { error: `${source} export failed (${res.status}). Make sure the doc is shared publicly.` }
+    }
+    const text = (await res.text()).trim()
+    if (text.length < 50) {
+      return { error: `${source} doc looks empty. Make sure it has script content before generating.` }
+    }
+    return { text, source }
+  } catch (err) {
+    return { error: `Failed to fetch ${source}: ${err instanceof Error ? err.message : 'unknown error'}` }
+  }
+}
+
+async function fetchAndStripHtml(url: string): Promise<{ text: string; source: string } | { error: string }> {
+  try {
+    const res = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0 AFF-Coaching-Bot' } })
+    if (!res.ok) {
+      return { error: `Couldn't read URL (${res.status}). The resource might be auth-walled or JS-rendered.` }
+    }
+    const html = await res.text()
+    // Crude HTML strip: kill scripts/styles, strip tags, collapse whitespace.
+    // Good enough for static pages, blog posts, etc. Anything dynamic
+    // ends up as gibberish, which the AI will flag back to the admin.
+    const text = html
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/\s+/g, ' ')
+      .trim()
+    if (text.length < 100) {
+      return { error: "Page has almost no text content. Likely JS-rendered or auth-walled. Re-host as Google Docs/Slides or paste manually." }
+    }
+    return { text, source: 'web page' }
+  } catch (err) {
+    return { error: `Failed to fetch URL: ${err instanceof Error ? err.message : 'unknown error'}` }
+  }
+}
+
+// Cap fetched content sent to Claude. Keeps token cost predictable
+// and stops a 100-page Google Doc from blowing past max-tokens. The
+// outline generator only needs the first ~50k chars (roughly 12k
+// tokens) to do a credible job.
+const MAX_RAW_CHARS = 50_000
+
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const adminId = await requireAdmin()
   if (!adminId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -53,7 +156,23 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   }
 
   const body = await req.json().catch(() => ({})) as { rawScriptContent?: string }
-  const raw = (body.rawScriptContent ?? resource.rawScriptContent ?? '').trim()
+  // Resolution order:
+  //  1. rawScriptContent in the request body (manual fallback for
+  //     Canva / auth-walled URLs)
+  //  2. Auto-fetched from the resource URL
+  //  3. Previously-stored rawScriptContent (re-generate from cache)
+  let raw = body.rawScriptContent?.trim() ?? ''
+  let extractedSource: string | null = null
+  if (!raw && resource.url) {
+    const extracted = await extractFromUrl(resource.url)
+    if ('error' in extracted) {
+      return NextResponse.json({ error: extracted.error, autoFetchFailed: true }, { status: 422 })
+    }
+    raw = extracted.text
+    extractedSource = extracted.source
+  }
+  if (!raw) raw = (resource.rawScriptContent ?? '').trim()
+  if (raw.length > MAX_RAW_CHARS) raw = raw.slice(0, MAX_RAW_CHARS)
   if (raw.length < 100) {
     return NextResponse.json(
       { error: 'Need at least ~100 characters of script content to generate a useful outline' },
@@ -107,6 +226,7 @@ Produce the structured outline now.`
   })
   return NextResponse.json({
     resource: updated,
+    extractedSource,
     inputTokens: message.usage.input_tokens,
     outputTokens: message.usage.output_tokens,
   })
