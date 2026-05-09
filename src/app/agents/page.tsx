@@ -107,6 +107,28 @@ interface AgentData {
 }
 
 // Compute which System Progressions are achieved
+// Pre-emptive heads-up shown next to every Connect Discord button.
+// Discord rejects OAuth authorization (specifically the guilds.join
+// scope we use) for accounts that don't have a verified email or
+// phone number. Agents have hit this in the wild and we want them to
+// hear about the fix BEFORE they smack into the error wall.
+function DiscordVerifyHint() {
+  return (
+    <div style={{
+      marginTop: 10, padding: '10px 12px',
+      background: 'rgba(201,169,110,0.05)',
+      border: '1px solid rgba(201,169,110,0.18)',
+      borderRadius: 6, fontSize: 11, color: '#9BB0C4', lineHeight: 1.55,
+      maxWidth: 480,
+    }}>
+      <div style={{ color: '#C9A96E', fontWeight: 700, marginBottom: 4, letterSpacing: '0.04em' }}>
+        Heads up: Discord email verification
+      </div>
+      Your Discord account needs a verified email or phone number, otherwise Discord will block the connect. To check: open Discord &rarr; <strong style={{ color: '#fff' }}>User Settings &rarr; My Account</strong>, and click <strong style={{ color: '#fff' }}>Verify</strong> next to your email. Then come back here.
+    </div>
+  )
+}
+
 function computeProgressions(data: AgentData): Record<string, boolean> {
   const has = (key: string, phase: number) =>
     data.phaseItems.some(i => i.itemKey === key && i.phase === phase && i.completed)
@@ -169,6 +191,7 @@ function AgentDashboardInner() {
   const isMobile = useIsMobile()
   const searchParams = useSearchParams()
   const discordParam = searchParams.get('discord')
+  const discordReason = searchParams.get('reason')
   const discordUsername = searchParams.get('username')
   const previewToken = searchParams.get('preview')
   // Notification deep-link plumbing: `?tab=new-business&submission=<id>`
@@ -1800,6 +1823,7 @@ function AgentDashboardInner() {
                                   Connect Discord
                                 </a>
                               )}
+                              {!data.discordUserId && <DiscordVerifyHint />}
                             </div>
                           )}
 
@@ -1857,6 +1881,7 @@ function AgentDashboardInner() {
             data={data}
             onSaved={fetchData}
             discordParam={discordParam}
+            discordReason={discordReason}
             discordUsername={discordUsername}
             isMobile={isMobile}
           />
@@ -2555,7 +2580,7 @@ function CarriersTab({
 
 // ─── Profile Tab ───────────────────────────────────────────────────────────────
 
-function ProfileTab({ data, onSaved, discordParam, discordUsername, isMobile }: { data: AgentData; onSaved: () => void; discordParam: string | null; discordUsername: string | null; isMobile: boolean }) {
+function ProfileTab({ data, onSaved, discordParam, discordReason, discordUsername, isMobile }: { data: AgentData; onSaved: () => void; discordParam: string | null; discordReason: string | null; discordUsername: string | null; isMobile: boolean }) {
   const [form, setForm] = useState({
     phone: data.phone ?? '',
     state: data.state ?? '',
@@ -2986,10 +3011,25 @@ function ProfileTab({ data, onSaved, discordParam, discordUsername, isMobile }: 
         )}
         {discordParam === 'error' && (
           <div style={{
-            marginBottom: 16, padding: '10px 14px', borderRadius: 6, fontSize: 12,
+            marginBottom: 16, padding: '12px 16px', borderRadius: 6, fontSize: 12,
             color: '#f87171', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)',
+            lineHeight: 1.6,
           }}>
-            Something went wrong connecting Discord. Please try again.
+            {discordReason === 'unverified' || discordReason === 'cancelled' ? (
+              <>
+                <div style={{ fontWeight: 700, marginBottom: 6, color: '#fca5a5' }}>
+                  Discord wouldn&apos;t let you authorize.
+                </div>
+                <div style={{ color: '#d4d4d4', marginBottom: 8 }}>
+                  Most often this means your Discord account doesn&apos;t have a verified email or phone number on file. Discord requires one before it&apos;ll let you join a new server through OAuth.
+                </div>
+                <div style={{ color: '#d4d4d4' }}>
+                  <strong style={{ color: '#fff' }}>How to fix it:</strong> open Discord &rarr; User Settings &rarr; My Account, and click <strong style={{ color: '#fff' }}>Verify</strong> next to your email (Discord sends a confirmation link). Or add and verify a phone number. Then come back and click Connect Discord again.
+                </div>
+              </>
+            ) : (
+              <>Something went wrong connecting Discord. Please try again, and if it keeps failing, message your trainer.</>
+            )}
           </div>
         )}
 
@@ -3011,6 +3051,11 @@ function ProfileTab({ data, onSaved, discordParam, discordUsername, isMobile }: 
           </svg>
           {data.discordUserId ? 'Reconnect Discord' : 'Connect Discord'}
         </a>
+        {!data.discordUserId && (
+          <div style={{ marginTop: 12 }}>
+            <DiscordVerifyHint />
+          </div>
+        )}
 
         {/* Current role + username */}
         {(data.discordRoleName || data.discordUserId) && (

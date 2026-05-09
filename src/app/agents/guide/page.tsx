@@ -30,7 +30,7 @@ export default function AgentGuidePage() {
           </GuideStep>
 
           <GuideStep number={2} title="Connect Discord">
-            Join the AFF Discord server for training channels, weekly reminders, and team resources. You can connect from the Account Setup section of your checklist. Once connected, you&apos;ll get access to your phase-specific training channels.
+            Join the AFF Discord server for training channels, weekly reminders, and team resources. You can connect from the Account Setup section of your checklist. Once connected, you&apos;ll get access to your phase-specific training channels. <strong style={{ color: '#fff' }}>Heads up:</strong> Discord requires a verified email or phone number on your account before it&apos;ll let you authorize. If you hit a &ldquo;You need a verified e-mail or phone number&rdquo; wall, open Discord &rarr; User Settings &rarr; My Account, click <strong style={{ color: '#fff' }}>Verify</strong> on your email, then come back and connect.
           </GuideStep>
 
           <GuideStep number={3} title="Meet Your Trainer">
@@ -155,7 +155,7 @@ export default function AgentGuidePage() {
           </GuideStep>
 
           <GuideStep number={3} title="Connect Discord">
-            If you haven&apos;t connected yet, you can do it from the Profile tab or from the Account Setup checklist item. Connecting gives you access to phase-specific training channels.
+            If you haven&apos;t connected yet, you can do it from the Profile tab or from the Account Setup checklist item. Connecting gives you access to phase-specific training channels. Discord requires your account to have a verified email or phone (Discord User Settings &rarr; My Account &rarr; Verify) before it&apos;ll authorize, so handle that first if you haven&apos;t.
           </GuideStep>
         </GuideSection>
       </div>
