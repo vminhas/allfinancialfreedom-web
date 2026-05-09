@@ -73,28 +73,47 @@ export default function SetupDashboard() {
     setOutlineRaw('')
     setOutlineDraft('')
     setOutlineError('')
+    setAutoFetchFailed(false)
+    setAutoFetchSource(null)
   }
 
-  const generateOutline = async () => {
+  // generateOutline can be called in two modes:
+  //   - 'auto'   — server-side fetches the resource URL and reads it
+  //                (the default; the whole point of associating a URL).
+  //   - 'manual' — admin pasted content into the fallback textarea
+  //                (used when auto-fetch fails, e.g. Canva).
+  const [autoFetchFailed, setAutoFetchFailed] = useState(false)
+  const [autoFetchSource, setAutoFetchSource] = useState<string | null>(null)
+  const generateOutline = async (mode: 'auto' | 'manual' = 'auto') => {
     if (!outlineFor) return
-    if (outlineRaw.trim().length < 100) {
+    if (mode === 'manual' && outlineRaw.trim().length < 100) {
       setOutlineError('Paste at least ~100 characters of script content first.')
       return
     }
     setOutlineGenerating(true)
     setOutlineError('')
+    setAutoFetchFailed(false)
     try {
       const res = await fetch(`/api/admin/setup-resources/${outlineFor.id}/generate-outline`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rawScriptContent: outlineRaw }),
+        body: JSON.stringify(
+          mode === 'manual' ? { rawScriptContent: outlineRaw } : {}
+        ),
       })
-      const data = await res.json() as { resource?: SetupResource; error?: string }
+      const data = await res.json() as {
+        resource?: SetupResource
+        error?: string
+        autoFetchFailed?: boolean
+        extractedSource?: string | null
+      }
       if (!res.ok || !data.resource) {
         setOutlineError(data.error ?? 'Failed to generate outline')
+        if (data.autoFetchFailed) setAutoFetchFailed(true)
       } else {
         setOutlineDraft(data.resource.aiScriptOutline ?? '')
         setOutlineFor(data.resource)
+        setAutoFetchSource(data.extractedSource ?? null)
         fetchResources()
       }
     } finally {
@@ -217,7 +236,7 @@ export default function SetupDashboard() {
   }
 
   return (
-    <div style={{ padding: '24px 32px', maxWidth: 900, margin: '0 auto' }}>
+    <div style={{ padding: '24px 32px', maxWidth: 1200, margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
           <h1 style={{ fontSize: 18, fontWeight: 700, color: '#ffffff', margin: 0, letterSpacing: '0.05em' }}>
@@ -344,8 +363,8 @@ export default function SetupDashboard() {
       )}
 
       {/* Resources table */}
-      <div style={{ borderRadius: 6, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <div style={{ borderRadius: 6, overflowX: 'auto', border: '1px solid rgba(255,255,255,0.05)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 920 }}>
           <thead>
             <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
               {['Label', 'Key', 'Category', 'Script for', 'URL', ''].map(h => (
@@ -395,12 +414,13 @@ export default function SetupDashboard() {
                     {r.url.replace(/^https?:\/\//, '').slice(0, 40)}
                   </a>
                 </td>
-                <td style={{ padding: '10px 14px', textAlign: 'right' }}>
+                <td style={{ padding: '10px 14px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                   {r.callType && (
                     <button onClick={() => openOutline(r)} style={{
                       background: 'none', border: 'none',
                       color: r.aiScriptOutline ? '#4ade80' : '#C9A96E',
                       fontSize: 11, cursor: 'pointer', marginRight: 8,
+                      whiteSpace: 'nowrap',
                     }}>
                       {r.aiScriptOutline ? 'AI outline ✓' : 'AI coaching'}
                     </button>
@@ -506,7 +526,7 @@ export default function SetupDashboard() {
                 </div>
                 <div style={{ fontSize: 16, fontWeight: 500, color: '#fff', marginTop: 4 }}>{outlineFor.label}</div>
                 <div style={{ fontSize: 11, color: '#6B8299', marginTop: 4, lineHeight: 1.55 }}>
-                  Paste the deck text or script content. Claude will produce a structured outline + JLM coaching guidance, cached on every analyze call so token cost stays flat after the first run.
+                  Click <strong style={{ color: '#fff' }}>Generate from resource</strong> below: Claude will read the resource URL ({outlineFor.url ? new URL(outlineFor.url).hostname : 'no URL'}) and produce a structured NEPQ-mapped outline plus JLM coaching guidance. Cached on every analyze call so token cost stays flat.
                 </div>
               </div>
               <button onClick={closeOutline} style={{
@@ -516,60 +536,86 @@ export default function SetupDashboard() {
               }}>✕</button>
             </div>
 
-            <div style={{ marginBottom: 14 }}>
-              <div style={labelStyle}>Raw deck / script content</div>
-              <textarea
-                value={outlineRaw}
-                onChange={e => setOutlineRaw(e.target.value)}
-                placeholder="Paste the AFF Hiring deck text, FTA Field Visit deck, etc. Slide notes, talking points, the whole presentation pasted as-is..."
-                style={{
-                  ...inputStyle,
-                  minHeight: 180, fontFamily: 'ui-monospace, SFMono-Regular, monospace',
-                  fontSize: 12, lineHeight: 1.55, resize: 'vertical',
-                }}
-              />
-              <div style={{ fontSize: 11, color: '#6B8299', marginTop: 4 }}>
-                {outlineRaw.trim().length} characters
-              </div>
-            </div>
-
             {outlineError && (
               <div style={{
-                marginBottom: 12, padding: '8px 12px', borderRadius: 4,
+                marginBottom: 12, padding: '10px 14px', borderRadius: 4,
                 background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.3)',
-                color: '#f87171', fontSize: 12,
+                color: '#f87171', fontSize: 12, lineHeight: 1.55,
               }}>
                 {outlineError}
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
               <button
-                onClick={generateOutline}
-                disabled={outlineGenerating || outlineRaw.trim().length < 100}
+                onClick={() => generateOutline('auto')}
+                disabled={outlineGenerating}
                 style={{
                   background: '#C9A96E', color: '#142D48', border: 'none',
                   borderRadius: 4, padding: '10px 18px', fontSize: 11, fontWeight: 700,
                   letterSpacing: '0.1em', textTransform: 'uppercase',
                   cursor: outlineGenerating ? 'wait' : 'pointer',
-                  opacity: outlineGenerating || outlineRaw.trim().length < 100 ? 0.55 : 1,
+                  opacity: outlineGenerating ? 0.55 : 1,
                 }}
               >
-                {outlineGenerating ? 'Generating...' : outlineFor.aiScriptOutline ? 'Re-generate outline' : 'Generate outline'}
+                {outlineGenerating ? 'Generating...' : outlineFor.aiScriptOutline ? 'Re-generate from resource' : 'Generate from resource'}
               </button>
+              {autoFetchSource && !outlineGenerating && (
+                <span style={{ fontSize: 11, color: '#4ade80' }}>
+                  ✓ Read from {autoFetchSource}
+                </span>
+              )}
               {outlineFor.outlineGeneratedAt && (
-                <span style={{ fontSize: 11, color: '#6B8299', alignSelf: 'center' }}>
+                <span style={{ fontSize: 11, color: '#6B8299' }}>
                   Last generated {new Date(outlineFor.outlineGeneratedAt).toLocaleString()}
                 </span>
               )}
             </div>
+
+            {autoFetchFailed && (
+              <div style={{ marginBottom: 16, padding: '12px 14px', borderRadius: 4, background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.25)' }}>
+                <div style={{ fontSize: 11, color: '#f59e0b', fontWeight: 700, marginBottom: 6, letterSpacing: '0.04em' }}>
+                  Auto-fetch failed &middot; manual fallback
+                </div>
+                <div style={{ fontSize: 11, color: '#9BB0C4', marginBottom: 10, lineHeight: 1.5 }}>
+                  Couldn&apos;t read this URL automatically. Paste the deck content below as a one-time fallback, or update the resource to a Google Doc/Slides URL (anyone-with-the-link sharing) and try Generate from resource again.
+                </div>
+                <textarea
+                  value={outlineRaw}
+                  onChange={e => setOutlineRaw(e.target.value)}
+                  placeholder="Paste deck text here as fallback..."
+                  style={{
+                    ...inputStyle,
+                    minHeight: 140, fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+                    fontSize: 12, lineHeight: 1.55, resize: 'vertical',
+                  }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                  <div style={{ fontSize: 11, color: '#6B8299' }}>{outlineRaw.trim().length} characters</div>
+                  <button
+                    onClick={() => generateOutline('manual')}
+                    disabled={outlineGenerating || outlineRaw.trim().length < 100}
+                    style={{
+                      background: 'transparent', color: '#C9A96E',
+                      border: '1px solid rgba(201,169,110,0.4)',
+                      borderRadius: 4, padding: '8px 14px', fontSize: 11, fontWeight: 700,
+                      letterSpacing: '0.1em', textTransform: 'uppercase',
+                      cursor: outlineGenerating || outlineRaw.trim().length < 100 ? 'not-allowed' : 'pointer',
+                      opacity: outlineGenerating || outlineRaw.trim().length < 100 ? 0.55 : 1,
+                    }}
+                  >
+                    Generate from pasted text
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div style={{ marginBottom: 16 }}>
               <div style={labelStyle}>AI-generated outline (editable)</div>
               <textarea
                 value={outlineDraft}
                 onChange={e => setOutlineDraft(e.target.value)}
-                placeholder="Click 'Generate outline' above to produce one from the raw content. You can also edit it manually after generation."
+                placeholder="Click 'Generate from resource' above to produce one. You can also edit the result by hand after."
                 style={{
                   ...inputStyle,
                   minHeight: 280, fontFamily: 'ui-monospace, SFMono-Regular, monospace',
