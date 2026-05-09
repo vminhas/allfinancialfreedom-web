@@ -324,3 +324,46 @@
     padding-top: env(safe-area-inset-top) !important;
   }
 }
+
+/* ─── The Climb ────────────────────────────────────────────────────── */
+/* Animations for the points/milestone rewards system. Used by
+   src/components/climb/*. Honor prefers-reduced-motion at the
+   call-site (component checks the media query and skips animations). */
+
+@keyframes climb-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 var(--climb-accent, #C9A96E)88;
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 12px transparent;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes climb-tick {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.22); }
+  70%  { transform: scale(0.96); }
+  100% { transform: scale(1); }
+}
+
+@keyframes climb-particle-drift {
+  0%   { transform: translateY(0) translateX(0); opacity: 0; }
+  10%  { opacity: 0.7; }
+  90%  { opacity: 0.6; }
+  100% { transform: translateY(-180px) translateX(20px); opacity: 0; }
+}
+
+@keyframes climb-modal-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Strip the busy animations; the layout stays, color stays. */
+  [class*="climb"] *,
+  [data-climb] * {
+    animation: none !important;
+  }
+}

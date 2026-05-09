@@ -12,6 +12,7 @@ import { GROUP_ICONS, PROGRESSION_ICONS, Mail, ChevronDown, ArrowRight, External
 import { Trophy, Users, BookOpen, Folder, CalendarDays, LogOut, Menu, X, type LucideIcon } from 'lucide-react'
 import { formatPhoneAsTyped } from '@/lib/contact-validation'
 import CallReviewModal, { CallReviewData } from '@/components/CallReviewModal'
+import ClimbTab from '@/components/climb/ClimbTab'
 import DatePicker from '@/components/DatePicker'
 import DateTimePicker from '@/components/DateTimePicker'
 import Spinner from '@/components/Spinner'
@@ -204,12 +205,13 @@ function AgentDashboardInner() {
 
   const [data, setData] = useState<AgentData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'checklist' | 'licensing' | 'carriers' | 'partners' | 'fta' | 'new-business' | 'calls' | 'team' | 'profile'>(
+  const [activeTab, setActiveTab] = useState<'checklist' | 'licensing' | 'carriers' | 'partners' | 'fta' | 'new-business' | 'calls' | 'climb' | 'team' | 'profile'>(
     discordParam ? 'profile'
     : tabParam === 'new-business' ? 'new-business'
     : tabParam === 'partners' ? 'partners'
     : tabParam === 'fta' ? 'fta'
     : tabParam === 'calls' ? 'calls'
+    : tabParam === 'climb' ? 'climb'
     : tabParam === 'team' ? 'team'
     : tabParam === 'profile' ? 'profile'
     : tabParam === 'licensing' ? 'licensing'
@@ -547,6 +549,7 @@ function AgentDashboardInner() {
     { key: 'fta', label: 'FTA Tracker' },
     { key: 'new-business', label: 'New Business' },
     { key: 'calls', label: 'Calls' },
+    { key: 'climb', label: 'Climb' },
     { key: 'team', label: 'My Team' },
     { key: 'profile', label: 'Profile' },
   ] as const
@@ -1875,6 +1878,7 @@ function AgentDashboardInner() {
           />
         )}
         {activeTab === 'calls' && <CallLogsTab hasCft={(data.badges ?? []).includes('CFT')} />}
+        {activeTab === 'climb' && <ClimbTab isMobile={isMobile} previewToken={previewToken} />}
         {activeTab === 'team' && <MyTeamTab isMobile={isMobile} previewToken={previewToken} />}
         {activeTab === 'profile' && (
           <ProfileTab

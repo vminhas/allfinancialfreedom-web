@@ -7,6 +7,7 @@ import { computeRenewalWindow, todayInEt } from '@/lib/renewals'
 import { createNotification } from '@/lib/notify'
 import { logSubmissionActivity } from '@/lib/submission-activity'
 import { resolveAgentIdentity } from '@/lib/agent-identity'
+import { recomputeClimbAchievements } from '@/lib/climb-points'
 import type { PolicyType } from '@/generated/prisma/client'
 
 const VALID_POLICY_TYPES: PolicyType[] = ['TERM', 'WHOLE_LIFE', 'IUL', 'ANNUITY', 'DISABILITY', 'LTC', 'OTHER']
@@ -240,6 +241,20 @@ export async function POST(req: NextRequest) {
         ],
       },
     }).catch(err => console.warn('[new-business POST] split notify failed:', err))
+  }
+
+  // Climb: recompute lifetime points + award any newly-crossed
+  // milestones for the writer (and the split partner, if any). Best-
+  // effort: a Discord/Anthropic outage shouldn't block the policy
+  // log. Achievements are recorded in DB regardless; reward delivery
+  // is fire-and-forget.
+  recomputeClimbAchievements(profile.id).catch(err =>
+    console.warn('[new-business POST] climb recompute (writer) failed:', err)
+  )
+  if (submission.splitWithAgentId) {
+    recomputeClimbAchievements(submission.splitWithAgentId).catch(err =>
+      console.warn('[new-business POST] climb recompute (split) failed:', err)
+    )
   }
 
   return NextResponse.json({ submission })
