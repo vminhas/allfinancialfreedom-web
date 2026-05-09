@@ -326,6 +326,8 @@ model AgentProfile {
   trainingAttendances   TrainingAttendance[]
   resolvedOrphans       TrainingAttendanceOrphan[] @relation("OrphanResolved")
   zoomAliases           AgentZoomAlias[]
+  climbAchievements     ClimbAchievement[]
+  climbArticles         AgentArticle[]
 
   @@index([recruiterId])
   @@map("agent_profiles")
@@ -1474,4 +1476,100 @@ model PhaseItemReminder {
   @@index([phase, itemKey, sentAt])
   @@index([recipientAgentProfileId, sentAt])
   @@map("phase_item_reminders")
+}
+
+// ─── The Climb ──────────────────────────────────────────────────────────────
+// Lifetime points-based achievement system. Agents earn points from
+// NewBusinessSubmission (existing field, no duplication); the Climb
+// surfaces those points as a journey through admin-configurable
+// milestones with rewards (badges, Discord callouts, AI-generated
+// profile articles, custom). Designed to feel like a Twitch tier
+// system — animated, lively, peer-visible.
+//
+// Schema is admin-editable: admins create milestones at /vault/climb
+// without a deploy. Each agent's achievements are stable rows
+// (not recomputed on read) so we have an audit trail of WHEN they
+// crossed each threshold and what they had at that moment.
+
+enum ClimbRewardType {
+  BADGE             // grants a badge (string pushed into AgentProfile.badges)
+  DISCORD_CALLOUT   // posts to #announcements via existing buildAchievementEmbed
+  ARTICLE           // generates a personalized AI profile article on award
+  CUSTOM            // free-text reward description, no automation
+}
+
+model ClimbMilestone {
+  id              String           @id @default(cuid())
+  // Lifetime-points threshold. Crossing this triggers reward + achievement row.
+  pointThreshold  Int              @unique
+  title           String
+  // One-line flavor text shown on the track marker.
+  tagline         String?
+  // Longer copy shown on click/hover into the marker detail.
+  description     String?
+  rewardType      ClimbRewardType
+  // Type-specific config:
+  //  BADGE           → { key, label, icon?, accentColor? }
+  //  DISCORD_CALLOUT → { embedTitle?, embedDescription? }
+  //  ARTICLE         → { promptTemplate? }   (override default Claude prompt)
+  //  CUSTOM          → { note }              (e.g. "AFF jacket — order from ops")
+  rewardPayload   Json?
+  iconKey         String?
+  // Hex color for the marker (e.g. '#C9A96E'). Drives the climb-tier
+  // accent rolling from bronze → silver → gold → platinum.
+  accentColor     String?
+  active          Boolean          @default(true)
+  // Display order on the track. Defaults to pointThreshold ascending.
+  order           Int              @default(0)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  achievements    ClimbAchievement[]
+
+  @@map("climb_milestones")
+}
+
+model ClimbAchievement {
+  id                  String          @id @default(cuid())
+  agentProfileId      String
+  agentProfile        AgentProfile    @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+  milestoneId         String
+  milestone           ClimbMilestone  @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  achievedAt          DateTime        @default(now())
+  // Points the agent had at the moment they crossed the threshold.
+  // Useful for the 'audit' view (did they squeak past, or blow past?).
+  pointsAtAchievement Int
+
+  // One achievement per (agent, milestone) — re-running the recompute
+  // is idempotent.
+  @@unique([agentProfileId, milestoneId])
+  @@index([agentProfileId])
+  @@index([achievedAt])
+  @@map("climb_achievements")
+}
+
+// AI-generated profile articles, the marquee reward of the system.
+// Stored separately so they have a stable URL the agent can share.
+// Generated once on milestone-cross, never auto-regenerated (admin
+// can manually re-run via the vault tool if the prompt template
+// improves).
+model AgentArticle {
+  id              String       @id @default(cuid())
+  agentProfileId  String
+  agentProfile    AgentProfile @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+  // Which milestone triggered the generation. Null for admin-triggered
+  // ad-hoc articles (future enhancement).
+  milestoneId     String?
+  title           String
+  body            String       @db.Text
+  // Snapshot of the prompt that produced this article so we can debug
+  // / re-run if needed.
+  promptUsed      String?      @db.Text
+  modelId         String?
+  inputTokens     Int?
+  outputTokens    Int?
+  generatedAt     DateTime     @default(now())
+
+  @@index([agentProfileId, generatedAt])
+  @@map("agent_articles")
 }
