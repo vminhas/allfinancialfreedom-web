@@ -32,6 +32,20 @@
   0%   { transform: scale(1); }
   100% { transform: scale(1.12); }
 }
+
+/* Used by <Spinner /> for the "Analyzing..." indicator on the
+ * call-review submit button + per-row analyzing chips. Keeps the
+ * keyframe centralized so both surfaces share one animation
+ * timeline instead of declaring their own. */
+@keyframes aff-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes aff-pulse-dots {
+  0%, 80%, 100% { opacity: 0.25; }
+  40%           { opacity: 1; }
+}
 .hero-bg-animate {
   position: absolute;
   inset: -8%;

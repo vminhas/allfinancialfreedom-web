@@ -66,40 +66,54 @@ const OUTCOME_OPTIONS: Array<{ value: string; label: string }> = [
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 // Rubric descriptions written for the agent / admin reading the
-// review — same NEPQ vocabulary the SYSTEM_PROMPT uses, so the model's
-// scoreBoosters and the user's mental model line up perfectly. Each
-// dimension includes what scores high, what scores low, and the NEPQ
-// technique name to look up if you want to study it.
+// review — same NEPQ vocabulary the SYSTEM_PROMPT uses, so the
+// model's scoreBoosters and the user's mental model line up. Each
+// dimension is now structured as three parts so the modal can render
+// them as three visually distinct blocks: a one-line "what we
+// measure" subhead, a green "scores high" block, and a red "scores
+// low" block. Easier to scan than a paragraph.
 const RUBRIC = [
   {
     key: 'opening',
     label: 'Opening & Rapport',
-    desc: 'NEPQ Stage 1: Connection. The first 7-12 seconds. Disarms the prospect with calm, curious tone and a Connection Question ("have you found what you\'re looking for?", "what attracted your attention?"). High score: "I just had time to get back to you... I\'m not sure we can even help yet." Low score: pitching, "I noticed you filled out a form", or steamrolling ("Hi, do you have 2 minutes?").',
+    what: 'NEPQ Stage 1: Connection. The first 7-12 seconds.',
+    highScore: 'Calm, curious tone with a Connection Question ("have you found what you\'re looking for?", "what attracted your attention?"). Disarming phrase: "I just had time to get back to you... I\'m not sure we can even help yet."',
+    lowScore: 'Pitching, "I noticed you filled out a form", steamrolling ("Hi, do you have 2 minutes?"), eager / needy / aggressive tone.',
   },
   {
     key: 'discovery',
     label: 'Discovery & Needs',
-    desc: 'NEPQ Stage 2: Engagement. Five layers in order: Situation → Problem-Awareness → Solution-Awareness → Consequence → Qualifying. High score: identity frame ("some people don\'t mind putting that stress on family"), "forced" framing, slow ellipsis pauses on heavy questions. Low score: surface-level fact questions ("any active policies?"), skipping straight to product, asking the prospect to commit before pain is built.',
+    what: 'NEPQ Stage 2: Engagement. Five layers in order: Situation → Problem-Awareness → Solution-Awareness → Consequence → Qualifying.',
+    highScore: 'Identity frame ("some people don\'t mind putting that stress on family"), "forced" framing, slow ellipsis pauses on heavy questions, all five layers in order.',
+    lowScore: 'Surface-level fact questions ("any active policies?"), skipping straight to product, asking the prospect to commit before pain is built.',
   },
   {
     key: 'product',
     label: 'Product Knowledge',
-    desc: 'NEPQ Stage 4: Presentation. "Present without presenting" — every feature ties back to a specific problem the prospect raised in discovery. Should be <10% of the call. High score: "Remember how you mentioned [their problem]? The way we solve that for clients in your situation is [specific feature]." Low score: feature-dumping, generic talking points, "we\'ve been in business 30 years", premature numbers (price before pain).',
+    what: 'NEPQ Stage 4: Presentation. "Present without presenting." Should be <10% of the call.',
+    highScore: '"Remember how you mentioned [their problem]? The way we solve that for clients in your situation is [specific feature]." Every claim ties back to discovery.',
+    lowScore: 'Feature-dumping, generic talking points, "we\'ve been in business 30 years", premature numbers (price before pain).',
   },
   {
     key: 'objections',
     label: 'Objection Handling',
-    desc: 'NEPQ method: never reframe, never rebut. Get behind the concern with a clarifying question and let the prospect talk themselves through it. High score: "What makes you feel that way?" / "Help me understand what\'s holding you back." Low score: "I understand, but...", arguing, scarcity ("this rate is going up"), or steamrolling past the concern.',
+    what: 'NEPQ method: never reframe, never rebut. Get behind the concern with a question.',
+    highScore: '"What makes you feel that way?" / "Help me understand what\'s holding you back." Let the prospect talk themselves through it.',
+    lowScore: '"I understand, but...", arguing, scarcity ("this rate is going up"), or steamrolling past the concern.',
   },
   {
     key: 'closing',
     label: 'Closing & Next Steps',
-    desc: 'NEPQ Stage 5: Commitment + Stage 3: Transition. The close is a question, not a statement. NEPQ Commitment Questions: "Which option would you possibly lean towards?" → "How come that one, just so I understand?". The Transition formula bridges discovery to presentation: "Based on what you told me, you said [their want] + [their problem], and that\'s making you feel [their emotion]." Low score: trial closes early, pressure, assumptive close before discovery is complete.',
+    what: 'NEPQ Stage 5: Commitment + Stage 3: Transition. The close is a question, not a statement.',
+    highScore: 'Commitment Questions: "Which option would you lean towards?" → "How come that one?". Transition formula: "Based on what you said... + ...is making you feel [emotion]."',
+    lowScore: 'Trial closes early, pressure, assumptive close before discovery is complete, two-option close before pain is built.',
   },
   {
     key: 'tone',
     label: 'Tone & Empathy',
-    desc: 'JLM tonality + verbal cues. High score: curious-frame questions ("I\'m just curious...", "just so I understand..."), echoing the prospect\'s exact words back, ellipsis pauses on heavy moments, bridging cues ("aww, ok", "got it") between questions so it doesn\'t feel scripted. Low score: certainty statements ("you need..."), pushy phrases ("real quick", "you should"), clinical language ("per our conversation"), missing pace shifts.',
+    what: 'JLM tonality + verbal cues — what the words signal in the transcript.',
+    highScore: 'Curious-frame: "I\'m just curious...", "just so I understand...". Echo the prospect\'s exact words back. Ellipsis pauses on heavy moments. Bridging cues ("aww, ok", "got it") so it doesn\'t feel scripted.',
+    lowScore: 'Certainty statements ("you need..."), pushy phrases ("real quick", "you should"), clinical language ("per our conversation"), missing pace shifts.',
   },
 ] as const
 
@@ -411,11 +425,16 @@ export default function CallReviewModal({
                 const booster = review.scoreBoosters?.[dim.key]
                 const anchor = RUBRIC_PLAYBOOK_ANCHOR[dim.key]
                 return (
-                  <div key={dim.key}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4, gap: 8 }}>
+                  <div key={dim.key} style={{
+                    padding: '12px 14px',
+                    background: 'rgba(255,255,255,0.02)',
+                    border: '1px solid rgba(255,255,255,0.04)',
+                    borderRadius: 6,
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6, gap: 8 }}>
                       <div style={{ minWidth: 0, flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                          <div style={{ fontSize: 12, fontWeight: 500, color: '#ffffff' }}>{dim.label}</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#ffffff' }}>{dim.label}</div>
                           {anchor && (
                             <a
                               href={`/agents/resources/coaching/nepq#${anchor}`}
@@ -433,25 +452,74 @@ export default function CallReviewModal({
                             >Playbook ↗</a>
                           )}
                         </div>
-                        <div style={{ fontSize: 10, color: '#6B8299', marginTop: 3, lineHeight: 1.5 }}>{dim.desc}</div>
+                        <div style={{ fontSize: 11, color: '#9BB0C4', marginTop: 3, lineHeight: 1.5, fontStyle: 'italic' }}>{dim.what}</div>
                       </div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color, flexShrink: 0 }}>{score}</div>
+                      <div style={{ fontSize: 18, fontWeight: 700, color, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{score}</div>
                     </div>
-                    <div style={{ height: 6, background: 'rgba(255,255,255,0.05)', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ height: 6, background: 'rgba(255,255,255,0.05)', borderRadius: 3, overflow: 'hidden', marginBottom: 10 }}>
                       <div style={{
                         height: '100%', width: `${score}%`,
                         background: color, borderRadius: 3,
                         transition: 'width 0.6s ease',
                       }} />
                     </div>
+
+                    {/* Two-up high/low score criteria so the reader
+                        can scan what to do vs what to avoid without
+                        parsing a paragraph. Stacks vertically on
+                        narrow screens. */}
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                      gap: 8,
+                    }}>
+                      <div style={{
+                        padding: '8px 10px',
+                        background: 'rgba(74,222,128,0.06)',
+                        border: '1px solid rgba(74,222,128,0.22)',
+                        borderRadius: 4,
+                      }}>
+                        <div style={{
+                          fontSize: 8, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase',
+                          color: '#86efac', marginBottom: 5,
+                          display: 'inline-flex', alignItems: 'center', gap: 4,
+                        }}>
+                          <span>✓</span><span>Scores High</span>
+                        </div>
+                        <div style={{ fontSize: 11, color: '#d1d9e2', lineHeight: 1.55 }}>{dim.highScore}</div>
+                      </div>
+                      <div style={{
+                        padding: '8px 10px',
+                        background: 'rgba(248,113,113,0.06)',
+                        border: '1px solid rgba(248,113,113,0.22)',
+                        borderRadius: 4,
+                      }}>
+                        <div style={{
+                          fontSize: 8, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase',
+                          color: '#fca5a5', marginBottom: 5,
+                          display: 'inline-flex', alignItems: 'center', gap: 4,
+                        }}>
+                          <span>✕</span><span>Scores Low</span>
+                        </div>
+                        <div style={{ fontSize: 11, color: '#d1d9e2', lineHeight: 1.55 }}>{dim.lowScore}</div>
+                      </div>
+                    </div>
                     {booster && score < 80 && (
                       <div style={{
-                        marginTop: 6, paddingLeft: 10,
-                        borderLeft: '2px solid rgba(245,158,11,0.4)',
-                        display: 'flex', gap: 6, alignItems: 'flex-start',
+                        marginTop: 10,
+                        padding: '8px 10px',
+                        background: 'rgba(245,158,11,0.05)',
+                        border: '1px solid rgba(245,158,11,0.25)',
+                        borderRadius: 4,
                       }}>
-                        <span style={{ color: '#f59e0b', fontSize: 10, flexShrink: 0, marginTop: 1 }}>↑</span>
-                        <span style={{ fontSize: 11, color: '#9BB0C4', lineHeight: 1.5 }}>{booster}</span>
+                        <div style={{
+                          fontSize: 8, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase',
+                          color: '#fbbf24', marginBottom: 5,
+                          display: 'inline-flex', alignItems: 'center', gap: 4,
+                        }}>
+                          <span>↑</span><span>How to Raise This Score</span>
+                        </div>
+                        <div style={{ fontSize: 11, color: '#d1d9e2', lineHeight: 1.55 }}>{booster}</div>
                       </div>
                     )}
                   </div>
