@@ -54,6 +54,29 @@ export default function AdminCallReviewPage() {
   const [showModal, setShowModal] = useState(false)
   const [history, setHistory] = useState<HistoryRow[]>([])
   const [trend, setTrend] = useState<number | null>(null)
+  // Map of CallType -> tagged SetupResource so the form can show
+  // "Graded against: <resource>" the moment the admin picks a type.
+  // Source of truth lives in /vault/setup; this is a read-only mirror.
+  const [scriptsByCallType, setScriptsByCallType] = useState<Record<string, { id: string; label: string; aiScriptOutline: string | null; url: string | null }>>({})
+
+  useEffect(() => {
+    fetch('/api/admin/setup-resources')
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { resources?: Array<{ id: string; label: string; url: string; callType: string | null; aiScriptOutline: string | null }> } | null) => {
+        if (!d?.resources) return
+        const next: typeof scriptsByCallType = {}
+        for (const r of d.resources) {
+          if (r.callType) {
+            next[r.callType] = { id: r.id, label: r.label, aiScriptOutline: r.aiScriptOutline, url: r.url }
+          }
+        }
+        setScriptsByCallType(next)
+      })
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const activeScript = callType ? scriptsByCallType[callType] : null
 
   const wordCount = transcript.trim() ? transcript.trim().split(/\s+/).length : 0
 
@@ -286,6 +309,31 @@ export default function AdminCallReviewPage() {
                   <option value="CLIENT_APPOINTMENT">Client Appointment / Close</option>
                   <option value="OTHER">Other...</option>
                 </select>
+                {callType && (
+                  <div style={{ fontSize: 11, color: '#9BB0C4', marginTop: 6, lineHeight: 1.5 }}>
+                    {activeScript ? (
+                      <>
+                        <span style={{ color: '#C9A96E' }}>◆</span>{' '}
+                        Graded against{' '}
+                        <strong style={{ color: '#fff' }}>{activeScript.label}</strong>
+                        {!activeScript.aiScriptOutline && (
+                          <span style={{ color: '#f59e0b' }}> &middot; outline not generated yet</span>
+                        )}{' '}
+                        <a href="/vault/setup" style={{ color: '#C9A96E', textDecoration: 'underline' }}>
+                          {activeScript.aiScriptOutline ? 'edit ↗' : 'set up ↗'}
+                        </a>
+                      </>
+                    ) : (
+                      <>
+                        No script tagged for this call type.{' '}
+                        <a href="/vault/setup" style={{ color: '#C9A96E', textDecoration: 'underline' }}>
+                          Tag a resource ↗
+                        </a>{' '}
+                        to enable script-aware coaching.
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
               <div>
                 <label style={labelStyle}>Outcome (optional)</label>
@@ -294,7 +342,7 @@ export default function AdminCallReviewPage() {
                   onChange={e => setReviewOutcome(e.target.value || null)}
                   style={{ ...inputStyle, appearance: 'none' as const }}
                 >
-                  <option value="">Set after analyze</option>
+                  <option value="">Not yet recorded (optional)</option>
                   <option value="RECRUITED">🎉 Recruited</option>
                   <option value="APPOINTMENT_BOOKED">📅 Appointment booked</option>
                   <option value="POLICY_CLOSED">✅ Policy closed</option>
