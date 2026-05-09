@@ -36,7 +36,25 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  return NextResponse.json({ review: call.review, hasTranscript: !!call.transcriptText })
+  // Surface the AFF script that applies to this call's type so the
+  // modal can show "Graded against: [script]" when re-opening a
+  // historical review. Best-effort — we use whatever script is
+  // currently active for the callType, which may differ from what was
+  // active when the review was originally produced.
+  const script = call.callType
+    ? await db.callScript.findFirst({
+        where: { callType: call.callType, active: true },
+        orderBy: { updatedAt: 'desc' },
+        select: { name: true, resourceUrl: true },
+      })
+    : null
+
+  return NextResponse.json({
+    review: call.review,
+    hasTranscript: !!call.transcriptText,
+    scriptName: script?.name ?? null,
+    scriptResourceUrl: script?.resourceUrl ?? null,
+  })
 }
 
 // POST /api/agents/calls/[id]/review — trigger Claude analysis
@@ -96,6 +114,7 @@ export async function POST(
       },
       contactName: call.contactName,
       outcome: call.outcome,
+      callType: call.callType,
     })
 
     const review = await db.callReview.upsert({
@@ -137,7 +156,11 @@ export async function POST(
       },
     })
 
-    return NextResponse.json({ review })
+    return NextResponse.json({
+      review,
+      scriptName: result.scriptName ?? null,
+      scriptResourceUrl: result.scriptResourceUrl ?? null,
+    })
   } catch (err) {
     if (err instanceof TranscriptTooShortError) {
       return NextResponse.json(

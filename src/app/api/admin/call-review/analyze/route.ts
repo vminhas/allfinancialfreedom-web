@@ -62,6 +62,8 @@ export async function POST(req: NextRequest) {
     const result = await reviewTranscript({
       transcriptText: body.transcriptText,
       contactName: body.contactName,
+      callType,
+      outcome: body.outcome ?? null,
       // No agentContext — admin is reviewing their own call
     })
 

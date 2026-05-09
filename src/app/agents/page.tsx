@@ -84,6 +84,7 @@ interface AgentData {
   status: string
   goal: string | null
   cft: string | null
+  badges: string[]
   discordUserId: string | null
   discordRoleName: string | null
   icaDate: string | null
@@ -1849,7 +1850,7 @@ function AgentDashboardInner() {
             initialSubmissionId={submissionParam}
           />
         )}
-        {activeTab === 'calls' && <CallLogsTab />}
+        {activeTab === 'calls' && <CallLogsTab hasCft={(data.badges ?? []).includes('CFT')} />}
         {activeTab === 'team' && <MyTeamTab isMobile={isMobile} previewToken={previewToken} />}
         {activeTab === 'profile' && (
           <ProfileTab
@@ -4413,7 +4414,7 @@ interface CallLogRow {
   } | null
 }
 
-function CallLogsTab() {
+function CallLogsTab({ hasCft }: { hasCft: boolean }) {
   const isMobile = useIsMobile()
   const [calls, setCalls] = useState<CallLogRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -4432,7 +4433,12 @@ function CallLogsTab() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [analyzingCallIds, setAnalyzingCallIds] = useState<Set<string>>(new Set())
-  const [viewingReview, setViewingReview] = useState<{ call: CallLogRow; review: CallReviewData } | null>(null)
+  const [viewingReview, setViewingReview] = useState<{
+    call: CallLogRow
+    review: CallReviewData
+    scriptName: string | null
+    scriptResourceUrl: string | null
+  } | null>(null)
 
   const fetchCalls = useCallback(() => {
     fetch('/api/agents/calls')
@@ -4544,8 +4550,19 @@ function CallLogsTab() {
     if (!call.review) return
     const res = await fetch(`/api/agents/calls/${call.id}/review`)
     if (!res.ok) return
-    const data = await res.json() as { review: CallReviewData | null }
-    if (data.review) setViewingReview({ call, review: data.review })
+    const data = await res.json() as {
+      review: CallReviewData | null
+      scriptName?: string | null
+      scriptResourceUrl?: string | null
+    }
+    if (data.review) {
+      setViewingReview({
+        call,
+        review: data.review,
+        scriptName: data.scriptName ?? null,
+        scriptResourceUrl: data.scriptResourceUrl ?? null,
+      })
+    }
   }
 
   const formRow: React.CSSProperties = isMobile
@@ -4560,8 +4577,10 @@ function CallLogsTab() {
           marginBottom: 20,
           padding: '16px 18px',
           borderRadius: 6,
-          background: 'linear-gradient(135deg, rgba(201,169,110,0.08), rgba(201,169,110,0.02))',
-          border: '1px solid rgba(201,169,110,0.2)',
+          background: hasCft
+            ? 'linear-gradient(135deg, rgba(201,169,110,0.08), rgba(201,169,110,0.02))'
+            : 'linear-gradient(135deg, rgba(201,169,110,0.12), rgba(201,169,110,0.04))',
+          border: '1px solid rgba(201,169,110,0.25)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
             <div style={{
@@ -4571,12 +4590,26 @@ function CallLogsTab() {
               border: '1px solid rgba(201,169,110,0.35)',
               flexShrink: 0,
             }}>
-              <span style={{ color: '#C9A96E', fontSize: 13 }}>◆</span>
+              <span style={{ color: '#C9A96E', fontSize: 13 }}>{hasCft ? '◆' : '❖'}</span>
             </div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#ffffff' }}>AI Call Coaching</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#ffffff' }}>
+              {hasCft ? 'AI Call Coaching' : 'AI Call Coaching · CFT Perk'}
+            </div>
+            {hasCft && (
+              <span style={{
+                fontSize: 9, fontWeight: 700, letterSpacing: '0.1em',
+                padding: '2px 8px', borderRadius: 999,
+                background: 'rgba(201,169,110,0.18)', color: '#C9A96E',
+                border: '1px solid rgba(201,169,110,0.4)',
+              }}>UNLOCKED</span>
+            )}
           </div>
           <div style={{ fontSize: 12, color: '#9BB0C4', lineHeight: 1.55 }}>
-            After each call, paste your Fathom transcript here. Claude reviews it against the AFF methodology and gives you concrete coaching tips in about 10 seconds. Your scores stay private — they&apos;re for your growth, not a leaderboard. Trainers can see them to coach you, but nothing affects phase promotion.
+            {hasCft ? (
+              <>After each call, paste your Fathom transcript here. Claude reviews it against the AFF script and NEPQ methodology and gives you concrete coaching tips in about 10 seconds. Your scores stay private (for your growth, not a leaderboard). Trainers can see them to coach you, but nothing affects phase promotion.</>
+            ) : (
+              <>Personalized coaching by JLM, graded against the AFF script you&apos;re running. Unlocks when you earn your <span style={{ color: '#C9A96E', fontWeight: 700 }}>CFT</span> certification, completing the four Phase 3 sign-offs (CFT classes, trainer sign-off, coordinator sign-off, EMD sign-off). You can still log calls below; the AI analyzer activates the moment your CFT badge lands.</>
+            )}
           </div>
         </div>
 
@@ -4699,29 +4732,51 @@ function CallLogsTab() {
               </label>
             </div>
 
-            {/* Transcript section */}
-            <div style={{ borderTop: '1px dashed rgba(201,169,110,0.15)', paddingTop: 14, marginTop: 4 }}>
-              <label style={{ ...fieldLabel, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ color: '#C9A96E' }}>◆</span> Paste Fathom Transcript (optional)
-              </label>
-              <textarea
-                value={form.transcriptText}
-                onChange={e => setForm(f => ({ ...f, transcriptText: e.target.value }))}
-                placeholder="Paste your Fathom transcript here to get AI coaching feedback. Needs at least 100 words. From Fathom: open the call, click Share, choose Copy Transcript."
-                rows={isMobile ? 6 : 7}
-                style={{
-                  ...inputStyle,
-                  minHeight: 140, fontFamily: 'inherit',
-                  resize: 'vertical',
-                  lineHeight: 1.5,
-                }}
-              />
-              {form.transcriptText.trim().length > 0 && (
-                <div style={{ fontSize: 10, color: '#6B8299', marginTop: 4 }}>
-                  {form.transcriptText.trim().split(/\s+/).length} words — Claude will review this after you save.
+            {/* Transcript section — gated on CFT badge. Non-CFT agents
+                can still log calls but the AI analyzer is positioned as a
+                CFT-tier perk so they have a concrete reason to push for
+                certification. */}
+            {hasCft ? (
+              <div style={{ borderTop: '1px dashed rgba(201,169,110,0.15)', paddingTop: 14, marginTop: 4 }}>
+                <label style={{ ...fieldLabel, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ color: '#C9A96E' }}>◆</span> Paste Fathom Transcript (optional)
+                </label>
+                <textarea
+                  value={form.transcriptText}
+                  onChange={e => setForm(f => ({ ...f, transcriptText: e.target.value }))}
+                  placeholder="Paste your Fathom transcript here to get AI coaching feedback. Needs at least 100 words. From Fathom: open the call, click Share, choose Copy Transcript."
+                  rows={isMobile ? 6 : 7}
+                  style={{
+                    ...inputStyle,
+                    minHeight: 140, fontFamily: 'inherit',
+                    resize: 'vertical',
+                    lineHeight: 1.5,
+                  }}
+                />
+                {form.transcriptText.trim().length > 0 && (
+                  <div style={{ fontSize: 10, color: '#6B8299', marginTop: 4 }}>
+                    {form.transcriptText.trim().split(/\s+/).length} words, Claude will review this after you save.
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{
+                borderTop: '1px dashed rgba(201,169,110,0.15)', paddingTop: 14, marginTop: 4,
+                display: 'flex', alignItems: 'flex-start', gap: 12,
+                padding: '14px 16px',
+                background: 'rgba(201,169,110,0.04)',
+                border: '1px solid rgba(201,169,110,0.18)',
+                borderRadius: 6,
+              }}>
+                <span style={{ color: '#C9A96E', fontSize: 16, lineHeight: 1, marginTop: 1 }}>🔒</span>
+                <div style={{ fontSize: 12, color: '#9BB0C4', lineHeight: 1.55 }}>
+                  <div style={{ color: '#fff', fontWeight: 600, marginBottom: 3 }}>
+                    Transcript analysis unlocks at CFT
+                  </div>
+                  Earn your CFT certification to get JLM-style coaching on every call you paste, graded against the AFF script for the call type you select. You can still log this call now.
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {error && (
               <div style={{ fontSize: 11, color: '#f87171', padding: '8px 12px', background: 'rgba(248,113,113,0.08)', borderRadius: 4, border: '1px solid rgba(248,113,113,0.2)' }}>
@@ -4842,6 +4897,8 @@ function CallLogsTab() {
           callDate={viewingReview.call.callDate}
           contactName={viewingReview.call.contactName}
           outcome={viewingReview.call.outcome}
+          scriptName={viewingReview.scriptName}
+          scriptResourceUrl={viewingReview.scriptResourceUrl}
           onClose={() => setViewingReview(null)}
         />
       )}
