@@ -36,24 +36,24 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Surface the AFF script that applies to this call's type so the
-  // modal can show "Graded against: [script]" when re-opening a
-  // historical review. Best-effort — we use whatever script is
-  // currently active for the callType, which may differ from what was
-  // active when the review was originally produced.
+  // Surface the AFF resource tagged as the script for this call's
+  // type so the modal can show "Graded against: [resource]" when
+  // re-opening a historical review. Best-effort — uses whatever
+  // resource is currently tagged for the callType, which may differ
+  // from what was tagged when the review was produced.
   const script = call.callType
-    ? await db.callScript.findFirst({
-        where: { callType: call.callType, active: true },
+    ? await db.setupResource.findFirst({
+        where: { callType: call.callType },
         orderBy: { updatedAt: 'desc' },
-        select: { name: true, resourceUrl: true },
+        select: { label: true, url: true },
       })
     : null
 
   return NextResponse.json({
     review: call.review,
     hasTranscript: !!call.transcriptText,
-    scriptName: script?.name ?? null,
-    scriptResourceUrl: script?.resourceUrl ?? null,
+    scriptName: script?.label ?? null,
+    scriptResourceUrl: script?.url ?? null,
   })
 }
 
