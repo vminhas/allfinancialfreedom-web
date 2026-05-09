@@ -86,11 +86,17 @@ function AgentLoginInner() {
     e.preventDefault()
     setLoading(true)
     setError('')
+    // Honor middleware's ?next=<path> hint so an agent who was
+    // redirected here from a deep-linked portal page lands back on
+    // it after sign-in. Defensive: only allow same-origin agent
+    // paths to avoid open-redirect via the next param.
+    const rawNext = searchParams.get('next')
+    const safeNext = rawNext && rawNext.startsWith('/agents') ? rawNext : '/agents'
     const res = await signIn('agent-credentials', {
       email: email.toLowerCase(),
       password,
       redirect: false,
-      callbackUrl: '/agents',
+      callbackUrl: safeNext,
     })
     if (res?.error === 'AccountInactive') {
       setError('Your account has been deactivated. If you believe this is an error, please contact your trainer or AFF support.')
@@ -99,7 +105,7 @@ function AgentLoginInner() {
       setError('Invalid email or password')
       setLoading(false)
     } else {
-      router.push('/agents')
+      router.push(safeNext)
     }
   }
 
@@ -111,7 +117,9 @@ function AgentLoginInner() {
     // consent screen). If it didn't, we surface the failure inline
     // instead of leaving the user on a stuck page.
     try {
-      const res = await signIn('google', { redirect: false, callbackUrl: '/agents' })
+      const rawNext = searchParams.get('next')
+      const safeNext = rawNext && rawNext.startsWith('/agents') ? rawNext : '/agents'
+      const res = await signIn('google', { redirect: false, callbackUrl: safeNext })
       if (!res) {
         setError('Google sign-in did not respond. Make sure GOOGLE_CLIENT_ID is set in the environment and the deployment was rebuilt.')
         setGoogleLoading(false)
