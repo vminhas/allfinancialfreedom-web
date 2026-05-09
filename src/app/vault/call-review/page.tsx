@@ -159,7 +159,10 @@ export default function AdminCallReviewPage() {
       }
       setResult(data.result)
       setReviewId(data.reviewId ?? null)
-      setReviewOutcome(null)
+      // Keep reviewOutcome as-is: if the admin picked one before
+      // analyze, it was saved with the review server-side and should
+      // stay reflected in the modal's outcome dropdown. Nulling it
+      // here forced a re-pick on every analyze.
       setShowModal(true)
       setLoading(false)
       // Refresh the history list so the new review appears immediately.
