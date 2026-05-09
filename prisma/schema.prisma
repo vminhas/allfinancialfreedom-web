@@ -1553,6 +1553,12 @@ model ClimbAchievement {
 // Generated once on milestone-cross, never auto-regenerated (admin
 // can manually re-run via the vault tool if the prompt template
 // improves).
+enum AgentArticleStatus {
+  DRAFT
+  PUBLISHED
+  REJECTED
+}
+
 model AgentArticle {
   id              String       @id @default(cuid())
   agentProfileId  String
@@ -1569,7 +1575,15 @@ model AgentArticle {
   inputTokens     Int?
   outputTokens    Int?
   generatedAt     DateTime     @default(now())
+  // Articles always land as DRAFT and require admin review before
+  // surfacing on the agent's portal. Admins edit title/body in place
+  // (no separate edited_* columns) and flip status when satisfied.
+  status          AgentArticleStatus @default(DRAFT)
+  reviewedById    String?
+  reviewedAt      DateTime?
+  publishedAt     DateTime?
 
   @@index([agentProfileId, generatedAt])
+  @@index([status])
   @@map("agent_articles")
 }
