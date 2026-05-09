@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { lifetimePointsForAgent } from '@/lib/climb-points'
+import { lifetimePointsForAgent, recomputeClimbAchievements } from '@/lib/climb-points'
 import { getSetting } from '@/lib/settings'
 import { getAgentProfileIdFromEmail } from '@/lib/agent-identity'
 
@@ -50,6 +50,23 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
     }
     agentProfileId = profileId
+  }
+
+  // Self-heal for legacy agents whose ClimbAchievement rows pre-date
+  // the recompute hook in /api/agents/new-business. Without this an
+  // agent with 115K lifetime points would still see "Starting Out"
+  // because their earned milestones were never written. Cheap to run
+  // (single COUNT + a SELECT of milestones lte points), and it's a
+  // no-op for anyone already up to date. Skip rewards side-effects
+  // here so we don't surprise an agent with a wave of Discord pings
+  // for milestones they earned months ago.
+  const existingCount = await db.climbAchievement.count({ where: { agentProfileId } })
+  if (existingCount === 0) {
+    const points = await lifetimePointsForAgent(agentProfileId)
+    if (points > 0) {
+      await recomputeClimbAchievements(agentProfileId, { skipRewardSideEffects: true })
+        .catch(() => {})
+    }
   }
 
   const [milestones, achievements, articles, recentActivity, totalPoints] = await Promise.all([

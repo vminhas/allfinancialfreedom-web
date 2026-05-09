@@ -52,8 +52,41 @@ export default function ClimbTrack({
   const sorted = [...milestones].sort((a, b) => a.pointThreshold - b.pointThreshold)
   const maxThreshold = sorted.length > 0 ? sorted[sorted.length - 1].pointThreshold : 1
 
-  // Fill % = how far along the track the agent is. Cap at 100%.
-  const fillPct = Math.min(100, (totalPoints / maxThreshold) * 100)
+  // Position markers by rank (equal spacing), not by raw threshold.
+  // Linear-by-threshold made the lower milestones (1K/5K/15K/25K)
+  // bunch into the left ~17% of the track because the spread from
+  // 1K→150K is so wide. Equal-rank spacing gives every milestone
+  // the same visual weight, which reads better and keeps labels
+  // from overlapping.
+  const markerPositions = new Map<string, number>()
+  sorted.forEach((m, i) => {
+    const pct = sorted.length === 1 ? 50 : (i / (sorted.length - 1)) * 100
+    markerPositions.set(m.id, pct)
+  })
+
+  // Fill % maps lifetime points onto the rank-spaced track. Walk the
+  // sorted milestones: find the highest one already cleared and the
+  // next one ahead. The fill ends at (cleared marker's pct) + the
+  // proportional progress between cleared and next.
+  const fillPct = (() => {
+    if (sorted.length === 0) return 0
+    if (totalPoints <= sorted[0].pointThreshold) {
+      return Math.max(0, (totalPoints / sorted[0].pointThreshold) * (markerPositions.get(sorted[0].id) ?? 0))
+    }
+    let lastClearedIdx = -1
+    for (let i = 0; i < sorted.length; i++) {
+      if (totalPoints >= sorted[i].pointThreshold) lastClearedIdx = i
+      else break
+    }
+    if (lastClearedIdx === sorted.length - 1) return 100
+    const lower = sorted[lastClearedIdx]
+    const upper = sorted[lastClearedIdx + 1]
+    const lowerPct = markerPositions.get(lower.id) ?? 0
+    const upperPct = markerPositions.get(upper.id) ?? 100
+    const span = upper.pointThreshold - lower.pointThreshold
+    const into = totalPoints - lower.pointThreshold
+    return lowerPct + (into / span) * (upperPct - lowerPct)
+  })()
 
   // Next-up is the lowest threshold not yet achieved.
   const nextUp = sorted.find(m => !achievedIds.has(m.id))?.id ?? null
@@ -98,7 +131,7 @@ export default function ClimbTrack({
         />
         {/* Markers */}
         {sorted.map(m => {
-          const pct = (m.pointThreshold / maxThreshold) * 100
+          const pct = markerPositions.get(m.id) ?? 0
           const achieved = achievedIds.has(m.id)
           const isNext = nextUp === m.id
           const isFresh = freshMilestoneIds.has(m.id)
