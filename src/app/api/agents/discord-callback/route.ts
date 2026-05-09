@@ -16,6 +16,25 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const code  = searchParams.get('code')
   const state = searchParams.get('state')
+  // Discord may bounce the user back without a code if they cancelled
+  // the authorize prompt OR if Discord blocked the action (most often:
+  // their account doesn't have a verified email/phone). Surface that
+  // distinctly so the portal can show an actionable explainer rather
+  // than a generic "something went wrong".
+  const oauthError = searchParams.get('error')
+  const oauthErrorDescription = (searchParams.get('error_description') ?? '').toLowerCase()
+
+  if (oauthError) {
+    const looksLikeVerificationBlock =
+      oauthErrorDescription.includes('verified') ||
+      oauthErrorDescription.includes('verification')
+    const reason = looksLikeVerificationBlock
+      ? 'unverified'
+      : oauthError === 'access_denied'
+        ? 'cancelled'
+        : 'oauth_error'
+    return NextResponse.redirect(`${portalUrl}?discord=error&reason=${reason}`)
+  }
 
   // Validate CSRF state
   const cookieStore = await cookies()

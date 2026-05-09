@@ -77,7 +77,7 @@ export const PHASE_ITEMS: Record<number, PhaseItemDef[]> = {
       description: "Schedule your pre-licensing course and exam with the licensing coordinator. They'll walk you through the process, help you pick a test date, and answer any questions along the way.",
       coordinatorTopic: 'SCHEDULE_EXAM' },
     { key: 'connect_discord', label: 'Connect Discord', group: 'step1', duration: '15 mins',
-      description: 'Join the AFF Discord server and link your account so you get access to your phase training channels, weekly training reminders, and team resources. Use the button below to connect.' },
+      description: "Join the AFF Discord server and link your account so you get access to your phase training channels, weekly training reminders, and team resources. Use the button below to connect. Heads up: Discord requires your account to have a verified email or phone number before it'll let you authorize. If you hit a 'You need a verified e-mail or phone number' wall, open Discord, go to User Settings, My Account, and click Verify next to your email. Then come back and connect." },
     { key: 'fast_start_school', label: 'Fast Start School', group: 'step1', duration: '1 Hour',
       description: "A company-wide walkthrough of what to focus on in your first 30 days. Held Saturdays at 11am Eastern. Your trainer will send you the link and details.",
       action: { type: 'resource-link', resourceKey: 'fast_start_link', label: 'Join Fast Start' } },
