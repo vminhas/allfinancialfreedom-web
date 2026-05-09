@@ -77,7 +77,7 @@ export default function NepqPlaybookPage() {
         {/* TOC: deep-linked sections */}
         <div style={{ marginBottom: 36, padding: 20, background: '#132238', border: '1px solid rgba(201,169,110,0.12)', borderRadius: 8 }}>
           <p style={{ ...kicker, marginBottom: 14 }}>The 5 stages of every NEPQ call</p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 8 }}>
             {STAGES.map(s => (
               <a key={s.id} href={`#${s.id}`} style={{
                 display: 'flex', flexDirection: 'column', gap: 4,

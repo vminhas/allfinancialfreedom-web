@@ -26,21 +26,38 @@ export async function POST(req: NextRequest) {
     url: string
     category?: string
     description?: string
+    callType?: string | null
   }
 
   if (!body.key || !body.label || !body.url) {
     return NextResponse.json({ error: 'key, label, url required' }, { status: 400 })
   }
 
+  const VALID_CALL_TYPES = new Set(['RECRUIT', 'FOLLOW_UP', 'CLIENT_APPOINTMENT', 'OTHER'])
+  const callType = body.callType && VALID_CALL_TYPES.has(body.callType)
+    ? (body.callType as 'RECRUIT' | 'FOLLOW_UP' | 'CLIENT_APPOINTMENT' | 'OTHER')
+    : null
+
   try {
-    const resource = await db.setupResource.create({
-      data: {
-        key: body.key,
-        label: body.label,
-        url: body.url,
-        category: body.category ?? 'general',
-        description: body.description,
-      },
+    const resource = await db.$transaction(async tx => {
+      // Move the script tag off any other resource that currently
+      // owns this CallType, so there's exactly one script per type.
+      if (callType) {
+        await tx.setupResource.updateMany({
+          where: { callType },
+          data: { callType: null },
+        })
+      }
+      return tx.setupResource.create({
+        data: {
+          key: body.key,
+          label: body.label,
+          url: body.url,
+          category: body.category ?? 'general',
+          description: body.description,
+          callType,
+        },
+      })
     })
     return NextResponse.json(resource)
   } catch (err: unknown) {
@@ -63,19 +80,42 @@ export async function PUT(req: NextRequest) {
     url?: string
     category?: string
     description?: string
+    callType?: string | null
+    rawScriptContent?: string | null
+    aiScriptOutline?: string | null
   }
 
   if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+
+  const VALID_CALL_TYPES = new Set(['RECRUIT', 'FOLLOW_UP', 'CLIENT_APPOINTMENT', 'OTHER'])
 
   const data: Record<string, unknown> = {}
   if (body.label !== undefined) data.label = body.label
   if (body.url !== undefined) data.url = body.url
   if (body.category !== undefined) data.category = body.category
   if (body.description !== undefined) data.description = body.description
+  if (body.rawScriptContent !== undefined) data.rawScriptContent = body.rawScriptContent || null
+  if (body.aiScriptOutline !== undefined) data.aiScriptOutline = body.aiScriptOutline || null
 
-  const resource = await db.setupResource.update({
-    where: { id: body.id },
-    data,
+  const wantsCallType = body.callType !== undefined
+  const callType = wantsCallType
+    ? (body.callType && VALID_CALL_TYPES.has(body.callType)
+        ? body.callType as 'RECRUIT' | 'FOLLOW_UP' | 'CLIENT_APPOINTMENT' | 'OTHER'
+        : null)
+    : undefined
+  if (wantsCallType) data.callType = callType
+
+  const resource = await db.$transaction(async tx => {
+    if (wantsCallType && callType) {
+      await tx.setupResource.updateMany({
+        where: { callType, NOT: { id: body.id } },
+        data: { callType: null },
+      })
+    }
+    return tx.setupResource.update({
+      where: { id: body.id },
+      data,
+    })
   })
   return NextResponse.json(resource)
 }

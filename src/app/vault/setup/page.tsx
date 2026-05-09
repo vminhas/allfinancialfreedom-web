@@ -9,10 +9,22 @@ interface SetupResource {
   url: string
   category: string
   description: string | null
+  callType: string | null
+  rawScriptContent: string | null
+  aiScriptOutline: string | null
+  outlineGeneratedAt: string | null
   updatedAt: string
 }
 
 const CATEGORIES = ['scripts', 'training', 'tools', 'forms', 'general'] as const
+
+const CALL_TYPE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: '',                   label: '— Not a call script' },
+  { value: 'RECRUIT',            label: 'Recruit calls (Hiring deck)' },
+  { value: 'CLIENT_APPOINTMENT', label: 'Client appointments / FTAs' },
+  { value: 'FOLLOW_UP',          label: 'Follow-up calls' },
+  { value: 'OTHER',              label: 'Other call types' },
+]
 
 const SUGGESTED_RESOURCES = [
   { key: 'scripts_presentation', label: 'Presentation Scripts', category: 'scripts' },
@@ -37,7 +49,78 @@ export default function SetupDashboard() {
   const [formUrl, setFormUrl] = useState('')
   const [formCategory, setFormCategory] = useState('general')
   const [formDesc, setFormDesc] = useState('')
+  const [formCallType, setFormCallType] = useState('')
   const [saving, setSaving] = useState(false)
+
+  // AI outline configurator. Opens when admin clicks "AI coaching"
+  // on a script-tagged resource. Pastes raw deck text, hits generate,
+  // gets a structured outline back that the call analyzer uses.
+  const [outlineFor, setOutlineFor] = useState<SetupResource | null>(null)
+  const [outlineRaw, setOutlineRaw] = useState('')
+  const [outlineDraft, setOutlineDraft] = useState('')
+  const [outlineGenerating, setOutlineGenerating] = useState(false)
+  const [outlineSaving, setOutlineSaving] = useState(false)
+  const [outlineError, setOutlineError] = useState('')
+
+  const openOutline = (r: SetupResource) => {
+    setOutlineFor(r)
+    setOutlineRaw(r.rawScriptContent ?? '')
+    setOutlineDraft(r.aiScriptOutline ?? '')
+    setOutlineError('')
+  }
+  const closeOutline = () => {
+    setOutlineFor(null)
+    setOutlineRaw('')
+    setOutlineDraft('')
+    setOutlineError('')
+  }
+
+  const generateOutline = async () => {
+    if (!outlineFor) return
+    if (outlineRaw.trim().length < 100) {
+      setOutlineError('Paste at least ~100 characters of script content first.')
+      return
+    }
+    setOutlineGenerating(true)
+    setOutlineError('')
+    try {
+      const res = await fetch(`/api/admin/setup-resources/${outlineFor.id}/generate-outline`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rawScriptContent: outlineRaw }),
+      })
+      const data = await res.json() as { resource?: SetupResource; error?: string }
+      if (!res.ok || !data.resource) {
+        setOutlineError(data.error ?? 'Failed to generate outline')
+      } else {
+        setOutlineDraft(data.resource.aiScriptOutline ?? '')
+        setOutlineFor(data.resource)
+        fetchResources()
+      }
+    } finally {
+      setOutlineGenerating(false)
+    }
+  }
+
+  const saveOutline = async () => {
+    if (!outlineFor) return
+    setOutlineSaving(true)
+    try {
+      await fetch('/api/admin/setup-resources', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: outlineFor.id,
+          rawScriptContent: outlineRaw,
+          aiScriptOutline: outlineDraft,
+        }),
+      })
+      fetchResources()
+      closeOutline()
+    } finally {
+      setOutlineSaving(false)
+    }
+  }
 
   const fetchResources = useCallback(async () => {
     const res = await fetch('/api/admin/setup-resources')
@@ -56,6 +139,7 @@ export default function SetupDashboard() {
     setFormUrl('')
     setFormCategory('general')
     setFormDesc('')
+    setFormCallType('')
     setEditingId(null)
     setShowAdd(false)
   }
@@ -66,6 +150,7 @@ export default function SetupDashboard() {
     setFormUrl(r.url)
     setFormCategory(r.category)
     setFormDesc(r.description ?? '')
+    setFormCallType(r.callType ?? '')
     setEditingId(r.id)
     setShowAdd(true)
   }
@@ -76,6 +161,7 @@ export default function SetupDashboard() {
     setFormUrl('')
     setFormCategory(s.category)
     setFormDesc('')
+    setFormCallType('')
     setEditingId(null)
     setShowAdd(true)
   }
@@ -88,14 +174,14 @@ export default function SetupDashboard() {
         await fetch('/api/admin/setup-resources', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: editingId, label: formLabel, url: formUrl, category: formCategory, description: formDesc || undefined }),
+          body: JSON.stringify({ id: editingId, label: formLabel, url: formUrl, category: formCategory, description: formDesc || undefined, callType: formCallType || null }),
         })
       } else {
         if (!formKey) return
         await fetch('/api/admin/setup-resources', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key: formKey, label: formLabel, url: formUrl, category: formCategory, description: formDesc || undefined }),
+          body: JSON.stringify({ key: formKey, label: formLabel, url: formUrl, category: formCategory, description: formDesc || undefined, callType: formCallType || null }),
         })
       }
       resetForm()
@@ -190,6 +276,21 @@ export default function SetupDashboard() {
               <div style={labelStyle}>Description (optional)</div>
               <input value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder="Brief note" style={inputStyle} />
             </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <div style={labelStyle}>Use as script for</div>
+              <select
+                value={formCallType}
+                onChange={e => setFormCallType(e.target.value)}
+                style={{ ...inputStyle, cursor: 'pointer' }}
+              >
+                {CALL_TYPE_OPTIONS.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+              <div style={{ fontSize: 11, color: '#6B8299', marginTop: 6, lineHeight: 1.5 }}>
+                Tag this resource as the standardized script for a call type. The AI call analyzer will tell agents to follow it and grade their transcripts against it. Only one resource per call type, picking a new one moves the tag.
+              </div>
+            </div>
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
             <button onClick={resetForm} style={{
@@ -245,7 +346,7 @@ export default function SetupDashboard() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
-              {['Label', 'Key', 'Category', 'URL', ''].map(h => (
+              {['Label', 'Key', 'Category', 'Script for', 'URL', ''].map(h => (
                 <th key={h} style={{
                   padding: '10px 14px', fontSize: 9, fontWeight: 700,
                   textTransform: 'uppercase', letterSpacing: '0.12em',
@@ -258,7 +359,7 @@ export default function SetupDashboard() {
           <tbody>
             {resources.length === 0 ? (
               <tr>
-                <td colSpan={5} style={{ padding: '24px 14px', fontSize: 12, color: '#4B5563', textAlign: 'center' }}>
+                <td colSpan={6} style={{ padding: '24px 14px', fontSize: 12, color: '#4B5563', textAlign: 'center' }}>
                   No resources configured yet. Add one above or click a suggestion.
                 </td>
               </tr>
@@ -273,12 +374,34 @@ export default function SetupDashboard() {
                     textTransform: 'uppercase', letterSpacing: '0.08em',
                   }}>{r.category}</span>
                 </td>
+                <td style={{ padding: '10px 14px', fontSize: 11, color: '#9BB0C4' }}>
+                  {r.callType ? (
+                    <span style={{
+                      fontSize: 9, fontWeight: 600, padding: '2px 8px', borderRadius: 10,
+                      background: 'rgba(74,222,128,0.08)', color: '#4ade80',
+                      textTransform: 'uppercase', letterSpacing: '0.08em',
+                    }}>
+                      {r.callType}
+                    </span>
+                  ) : (
+                    <span style={{ color: '#4B5563' }}>—</span>
+                  )}
+                </td>
                 <td style={{ padding: '10px 14px', fontSize: 11, color: '#9BB0C4', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   <a href={r.url} target="_blank" rel="noopener noreferrer" style={{ color: '#9BB0C4', textDecoration: 'underline' }}>
                     {r.url.replace(/^https?:\/\//, '').slice(0, 40)}
                   </a>
                 </td>
                 <td style={{ padding: '10px 14px', textAlign: 'right' }}>
+                  {r.callType && (
+                    <button onClick={() => openOutline(r)} style={{
+                      background: 'none', border: 'none',
+                      color: r.aiScriptOutline ? '#4ade80' : '#C9A96E',
+                      fontSize: 11, cursor: 'pointer', marginRight: 8,
+                    }}>
+                      {r.aiScriptOutline ? 'AI outline ✓' : 'AI coaching'}
+                    </button>
+                  )}
                   <button onClick={() => startEdit(r)} style={{
                     background: 'none', border: 'none', color: '#C9A96E', fontSize: 11, cursor: 'pointer', marginRight: 8,
                   }}>Edit</button>
@@ -291,6 +414,122 @@ export default function SetupDashboard() {
           </tbody>
         </table>
       </div>
+
+      {outlineFor && (
+        <div
+          onClick={e => { if (e.target === e.currentTarget) closeOutline() }}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 100,
+            background: 'rgba(10,22,40,0.85)',
+            display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+            padding: '40px 16px', overflowY: 'auto',
+          }}
+        >
+          <div style={{
+            background: '#0C1E30', border: '1px solid rgba(201,169,110,0.25)',
+            borderRadius: 8, width: '100%', maxWidth: 760, padding: 24,
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+              <div>
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C9A96E' }}>
+                  AI Coaching Setup &middot; {outlineFor.callType}
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 500, color: '#fff', marginTop: 4 }}>{outlineFor.label}</div>
+                <div style={{ fontSize: 11, color: '#6B8299', marginTop: 4, lineHeight: 1.55 }}>
+                  Paste the deck text or script content. Claude will produce a structured outline + JLM coaching guidance, cached on every analyze call so token cost stays flat after the first run.
+                </div>
+              </div>
+              <button onClick={closeOutline} style={{
+                background: 'transparent', border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: 4, color: '#9BB0C4', fontSize: 14, cursor: 'pointer',
+                width: 32, height: 32,
+              }}>✕</button>
+            </div>
+
+            <div style={{ marginBottom: 14 }}>
+              <div style={labelStyle}>Raw deck / script content</div>
+              <textarea
+                value={outlineRaw}
+                onChange={e => setOutlineRaw(e.target.value)}
+                placeholder="Paste the AFF Hiring deck text, FTA Field Visit deck, etc. Slide notes, talking points, the whole presentation pasted as-is..."
+                style={{
+                  ...inputStyle,
+                  minHeight: 180, fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+                  fontSize: 12, lineHeight: 1.55, resize: 'vertical',
+                }}
+              />
+              <div style={{ fontSize: 11, color: '#6B8299', marginTop: 4 }}>
+                {outlineRaw.trim().length} characters
+              </div>
+            </div>
+
+            {outlineError && (
+              <div style={{
+                marginBottom: 12, padding: '8px 12px', borderRadius: 4,
+                background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.3)',
+                color: '#f87171', fontSize: 12,
+              }}>
+                {outlineError}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <button
+                onClick={generateOutline}
+                disabled={outlineGenerating || outlineRaw.trim().length < 100}
+                style={{
+                  background: '#C9A96E', color: '#142D48', border: 'none',
+                  borderRadius: 4, padding: '10px 18px', fontSize: 11, fontWeight: 700,
+                  letterSpacing: '0.1em', textTransform: 'uppercase',
+                  cursor: outlineGenerating ? 'wait' : 'pointer',
+                  opacity: outlineGenerating || outlineRaw.trim().length < 100 ? 0.55 : 1,
+                }}
+              >
+                {outlineGenerating ? 'Generating...' : outlineFor.aiScriptOutline ? 'Re-generate outline' : 'Generate outline'}
+              </button>
+              {outlineFor.outlineGeneratedAt && (
+                <span style={{ fontSize: 11, color: '#6B8299', alignSelf: 'center' }}>
+                  Last generated {new Date(outlineFor.outlineGeneratedAt).toLocaleString()}
+                </span>
+              )}
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <div style={labelStyle}>AI-generated outline (editable)</div>
+              <textarea
+                value={outlineDraft}
+                onChange={e => setOutlineDraft(e.target.value)}
+                placeholder="Click 'Generate outline' above to produce one from the raw content. You can also edit it manually after generation."
+                style={{
+                  ...inputStyle,
+                  minHeight: 280, fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+                  fontSize: 12, lineHeight: 1.6, resize: 'vertical',
+                }}
+              />
+              <div style={{ fontSize: 11, color: '#6B8299', marginTop: 4, lineHeight: 1.55 }}>
+                This is what the call analyzer reads as the standardized playbook for {outlineFor.callType} calls.
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button onClick={closeOutline} style={{
+                padding: '10px 16px', borderRadius: 4, fontSize: 11,
+                background: 'transparent', border: '1px solid rgba(255,255,255,0.1)',
+                color: '#9BB0C4', cursor: 'pointer', fontWeight: 600,
+                letterSpacing: '0.1em', textTransform: 'uppercase',
+              }}>Cancel</button>
+              <button onClick={saveOutline} disabled={outlineSaving} style={{
+                padding: '10px 18px', borderRadius: 4, fontSize: 11,
+                background: '#C9A96E', border: 'none', color: '#142D48', fontWeight: 700,
+                letterSpacing: '0.1em', textTransform: 'uppercase',
+                cursor: outlineSaving ? 'wait' : 'pointer', opacity: outlineSaving ? 0.7 : 1,
+              }}>
+                {outlineSaving ? 'Saving...' : 'Save outline'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

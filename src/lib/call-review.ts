@@ -200,16 +200,23 @@ export async function reviewTranscript(params: {
 
   const client = new Anthropic({ apiKey })
 
-  // Look up the active AFF script for this call type so the AI grades
-  // against our standardized playbook (hiring deck for recruit calls,
-  // FTA deck for client appointments, etc.) on top of the general NEPQ
-  // rubric. Standardization is the whole point: we don't want every
-  // agent inventing their own approach.
+  // Look up the standardized AFF script for this call type. Admins
+  // tag a SetupResource (Canva / Drive / Slides link) with a CallType
+  // in the Resource Center; one of two flavors lands in the prompt:
+  //
+  //  - If the resource has an aiScriptOutline (admin uploaded raw
+  //    deck text and ran 'Generate AI outline'), inject the outline
+  //    as a CACHED system block. Anthropic prompt caching means we
+  //    pay full token cost on the first analyze in a 5-min window
+  //    and ~10% on every subsequent call.
+  //  - Otherwise fall back to a name-only reference in the user
+  //    message: cheap (~50 tokens) but the AI grades on NEPQ
+  //    structure rather than specific deck beats.
   const script = callType
-    ? await db.callScript.findFirst({
-        where: { callType, active: true },
+    ? await db.setupResource.findFirst({
+        where: { callType },
         orderBy: { updatedAt: 'desc' },
-        select: { name: true, content: true, resourceUrl: true },
+        select: { label: true, description: true, url: true, aiScriptOutline: true },
       })
     : null
 
@@ -225,16 +232,19 @@ export async function reviewTranscript(params: {
     ? `Call type: ${callType}`
     : ''
 
+  // Reference-only block when we DON'T have an outline. Cheap, sits
+  // in the user message, ~50 tokens. When an outline exists we use
+  // the cached system block instead and just point to it from here.
   const scriptBlock = script
-    ? `
+    ? script.aiScriptOutline
+      ? `\n\nThis transcript is being graded against the AFF-standardized "${script.label}" playbook (full outline in system prompt). Use the outline's specific beats and language as ground truth.\n`
+      : `
 
-## AFF Script for this call type: ${script.name}
+## AFF Script for this call type: ${script.label}
+${script.description ? `\nWhat this script covers: ${script.description}` : ''}
+${script.url ? `\nSource deck: ${script.url}` : ''}
 
-In addition to the general NEPQ rubric in the system prompt, grade this transcript against the AFF-standardized script below. Adherence to the script's structure, talking points, and language is part of the score: deviations should be called out by name in coachingTips. Reward agents who hit the script's beats while still sounding natural; penalize agents who freelance away from it.
-
----
-${script.content}
----
+In addition to the general NEPQ rubric in the system prompt, grade this transcript on whether the agent appears to be running the AFF-standardized "${script.label}" playbook. Reward agents who clearly follow it (recognizable beats, sequencing, language). Penalize agents who freelance away from it. In coachingTips, name the playbook by the title above and call out specific moments the agent drifted. Standardization is the goal: every AFF agent on this call type should be running the same playbook.
 `
     : ''
 
@@ -249,18 +259,31 @@ Review the following call transcript and produce a coaching review via the submi
 ${transcriptText}
 ---`
 
+  // System prompt blocks. The base NEPQ rubric is always there; if an
+  // outline exists for this call type, append it as a second cached
+  // block so prompt caching pays off across analyses of the same
+  // call type within a 5-minute window.
+  const systemBlocks: Anthropic.Messages.TextBlockParam[] = [
+    {
+      type: 'text',
+      text: SYSTEM_PROMPT,
+      cache_control: { type: 'ephemeral' },
+    },
+  ]
+  if (script?.aiScriptOutline) {
+    systemBlocks.push({
+      type: 'text',
+      text: `## AFF Standardized Playbook for ${callType ?? 'this call'}: "${script.label}"\n\nThe outline below is the AFF + JLM playbook this transcript should be graded against. Specific beats, language, and sequencing matter. Cite this outline when explaining why a transcript scored where it did.\n\n---\n${script.aiScriptOutline}\n---`,
+      cache_control: { type: 'ephemeral' },
+    })
+  }
+
   const message = await client.messages.create({
     model: MODEL_ID,
     // Bumped from 2048: the richer NEPQ-grounded SYSTEM_PROMPT prompts
     // longer per-dimension reasoning + scoreBoosters with named techniques.
     max_tokens: 3072,
-    system: [
-      {
-        type: 'text',
-        text: SYSTEM_PROMPT,
-        cache_control: { type: 'ephemeral' },
-      },
-    ],
+    system: systemBlocks,
     tools: [
       {
         name: 'submit_review',
@@ -359,7 +382,7 @@ ${transcriptText}
     outputTokens: usage.output_tokens,
     cacheReadTokens: usage.cache_read_input_tokens ?? 0,
     cacheCreateTokens: usage.cache_creation_input_tokens ?? 0,
-    scriptName: script?.name ?? null,
-    scriptResourceUrl: script?.resourceUrl ?? null,
+    scriptName: script?.label ?? null,
+    scriptResourceUrl: script?.url ?? null,
   }
 }
