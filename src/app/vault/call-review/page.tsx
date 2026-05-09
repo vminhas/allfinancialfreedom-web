@@ -342,7 +342,7 @@ export default function AdminCallReviewPage() {
                   onChange={e => setReviewOutcome(e.target.value || null)}
                   style={{ ...inputStyle, appearance: 'none' as const }}
                 >
-                  <option value="">Not yet recorded (optional)</option>
+                  <option value="">— Skip / set later</option>
                   <option value="RECRUITED">🎉 Recruited</option>
                   <option value="APPOINTMENT_BOOKED">📅 Appointment booked</option>
                   <option value="POLICY_CLOSED">✅ Policy closed</option>
@@ -350,6 +350,9 @@ export default function AdminCallReviewPage() {
                   <option value="NOT_INTERESTED">✕ Not interested</option>
                   <option value="NO_CONTACT">— No contact</option>
                 </select>
+                <div style={{ fontSize: 11, color: '#9BB0C4', marginTop: 6, lineHeight: 1.5 }}>
+                  Pick it now if you already know how the call ended (the AI uses it to lean feedback toward what worked or what to fix). Skip if you don&apos;t know yet, you can set it after analyze from inside the review.
+                </div>
               </div>
             </div>
 
