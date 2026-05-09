@@ -47,6 +47,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/vault/leaderboard', label: 'Leaderboard', icon: '▲' },
       { href: '/vault/team', label: 'Team Directory', icon: '◉' },
       { href: '/vault/call-review', label: 'Call Review', icon: '◐' },
+      { href: '/vault/coaching/scripts', label: 'Coaching Scripts', icon: '✎' },
       { href: '/vault/birthdays', label: 'Birthdays', icon: '✦' },
       { href: '/vault/milestones', label: 'Milestones', icon: '🏆' },
       { href: '/vault/feedback', label: 'Feedback', icon: '✉' },

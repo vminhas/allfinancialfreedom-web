@@ -15,6 +15,8 @@ interface AnalyzeResult {
   nextSteps: string[]
   summary: string
   flaggedForCoaching: boolean
+  scriptName?: string | null
+  scriptResourceUrl?: string | null
 }
 
 interface HistoryRow {
@@ -597,6 +599,8 @@ export default function AdminCallReviewPage() {
           // admin-by-definition; agent portal uses its own (without
           // this flag).
           adminMode={true}
+          scriptName={result.scriptName ?? null}
+          scriptResourceUrl={result.scriptResourceUrl ?? null}
           onClose={() => setShowModal(false)}
           // Outcome editor is wired only when we have a saved review row
           // (post-analyze or after openHistoryItem). Skipping it before

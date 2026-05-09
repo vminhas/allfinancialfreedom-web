@@ -1,5 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { getSetting } from './settings'
+import { db } from './db'
+import type { CallType } from '@/generated/prisma'
 
 // ─── Rubric definition ────────────────────────────────────────────────────────
 
@@ -41,6 +43,10 @@ export interface CallReviewResult {
   outputTokens: number
   cacheReadTokens: number
   cacheCreateTokens: number
+  // Which AFF script (if any) this transcript was graded against,
+  // surfaced in the modal so the agent knows the standard the AI used.
+  scriptName?: string | null
+  scriptResourceUrl?: string | null
 }
 
 const MODEL_ID = 'claude-sonnet-4-6'
@@ -180,8 +186,9 @@ export async function reviewTranscript(params: {
   agentContext?: { firstName: string; lastName: string; phase: number; goal?: string | null }
   contactName?: string
   outcome?: string | null
+  callType?: CallType | null
 }): Promise<CallReviewResult> {
-  const { transcriptText, agentContext, contactName, outcome } = params
+  const { transcriptText, agentContext, contactName, outcome, callType } = params
 
   const wordCount = transcriptText.trim().split(/\s+/).length
   if (wordCount < MIN_TRANSCRIPT_WORDS) {
@@ -193,6 +200,19 @@ export async function reviewTranscript(params: {
 
   const client = new Anthropic({ apiKey })
 
+  // Look up the active AFF script for this call type so the AI grades
+  // against our standardized playbook (hiring deck for recruit calls,
+  // FTA deck for client appointments, etc.) on top of the general NEPQ
+  // rubric. Standardization is the whole point: we don't want every
+  // agent inventing their own approach.
+  const script = callType
+    ? await db.callScript.findFirst({
+        where: { callType, active: true },
+        orderBy: { updatedAt: 'desc' },
+        select: { name: true, content: true, resourceUrl: true },
+      })
+    : null
+
   const agentLine = agentContext
     ? `Agent: ${agentContext.firstName} ${agentContext.lastName} (Phase ${agentContext.phase}${agentContext.goal ? `, Goal: ${agentContext.goal}` : ''})`
     : 'Agent: (anonymous)'
@@ -201,10 +221,28 @@ export async function reviewTranscript(params: {
     ? `Reported outcome: ${OUTCOME_LABELS[outcome]}${POSITIVE_OUTCOMES.has(outcome) ? ' (successful)' : ''}`
     : ''
 
+  const callTypeLine = callType
+    ? `Call type: ${callType}`
+    : ''
+
+  const scriptBlock = script
+    ? `
+
+## AFF Script for this call type: ${script.name}
+
+In addition to the general NEPQ rubric in the system prompt, grade this transcript against the AFF-standardized script below. Adherence to the script's structure, talking points, and language is part of the score: deviations should be called out by name in coachingTips. Reward agents who hit the script's beats while still sounding natural; penalize agents who freelance away from it.
+
+---
+${script.content}
+---
+`
+    : ''
+
   const userMessage = `${agentLine}
 ${contactName ? `Prospect: ${contactName}` : ''}
+${callTypeLine ? callTypeLine : ''}
 ${outcomeLine ? outcomeLine : ''}
-
+${scriptBlock}
 Review the following call transcript and produce a coaching review via the submit_review tool.
 
 ---
@@ -321,5 +359,7 @@ ${transcriptText}
     outputTokens: usage.output_tokens,
     cacheReadTokens: usage.cache_read_input_tokens ?? 0,
     cacheCreateTokens: usage.cache_creation_input_tokens ?? 0,
+    scriptName: script?.name ?? null,
+    scriptResourceUrl: script?.resourceUrl ?? null,
   }
 }

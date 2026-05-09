@@ -52,6 +52,14 @@ export interface CallReviewModalProps {
    * booked, etc.) after running the review. Returns once persisted.
    */
   onOutcomeChange?: (next: string | null) => Promise<void>
+  /**
+   * AFF script the AI graded this transcript against (e.g. "AFF Hiring
+   * Presentation"). Surfaced as a small chip near the score so the agent
+   * knows the standard their call was measured against. Optional — if
+   * the call had no callType set, no script applies.
+   */
+  scriptName?: string | null
+  scriptResourceUrl?: string | null
 }
 
 const OUTCOME_OPTIONS: Array<{ value: string; label: string }> = [
@@ -156,6 +164,8 @@ export default function CallReviewModal({
   onClose,
   onAdminUpdate,
   onOutcomeChange,
+  scriptName,
+  scriptResourceUrl,
 }: CallReviewModalProps) {
   const isMobile = useIsMobile()
   const [adminNotes, setAdminNotes] = useState(review.adminNotes ?? '')
@@ -299,6 +309,27 @@ export default function CallReviewModal({
             <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>
               {formattedDate} · AI coaching review
             </div>
+            {scriptName && (
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                marginTop: 6, padding: '3px 10px', borderRadius: 999,
+                background: 'rgba(201,169,110,0.1)',
+                border: '1px solid rgba(201,169,110,0.3)',
+                fontSize: 10, fontWeight: 600, color: '#C9A96E',
+              }}>
+                <span style={{ fontSize: 9 }}>◆</span>
+                <span>Graded against: {scriptName}</span>
+                {scriptResourceUrl && (
+                  <a
+                    href={scriptResourceUrl}
+                    target="_blank" rel="noopener noreferrer"
+                    style={{ color: '#C9A96E', textDecoration: 'underline', marginLeft: 2 }}
+                  >
+                    open ↗
+                  </a>
+                )}
+              </div>
+            )}
             {outcome && OUTCOME_LABELS[outcome] && !onOutcomeChange && (
               <div style={{
                 display: 'inline-flex', alignItems: 'center', gap: 5,

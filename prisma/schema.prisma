@@ -852,6 +852,43 @@ enum CallType {
   OTHER
 }
 
+// AFF coaching script associated with a CallType. The AI call review
+// pulls the active script for the call's type and grades the
+// transcript against it (in addition to the general NEPQ rubric).
+// Lets us standardize what every agent should be following: recruit
+// calls grade against the hiring deck, FTAs against the FTA deck,
+// etc. Admin-managed at /vault/coaching/scripts so non-engineers
+// can edit the script content without a deploy.
+//
+// Unique on (callType, active=true) is enforced at the application
+// layer rather than via partial index (Prisma doesn't model partial
+// uniques cleanly across providers); admins flipping a script to
+// active deactivates the previous one for that type.
+model CallScript {
+  id            String   @id @default(cuid())
+  // Which CallType this script applies to. One active script per type.
+  callType      CallType
+  // Display name (e.g. "AFF Hiring Presentation v3", "FTA Field Visit Deck").
+  name          String
+  // The actual content the AI uses as a grading reference. Markdown
+  // works well: a numbered/bulleted outline of the script flow with
+  // the agent's expected language at each step.
+  content       String   @db.Text
+  // Optional link to the live deck (Canva / Google Slides / etc.) so
+  // agents can study the source material. Surfaced in the call review
+  // modal as a 'Read the script' button.
+  resourceUrl   String?
+  // Inactive scripts stick around as history but don't drive coaching.
+  // Activating one auto-deactivates any other active script for the
+  // same callType (handled in the API layer).
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([callType, active])
+  @@map("call_scripts")
+}
+
 model CallLog {
   id               String                @id @default(cuid())
   agentProfileId   String
