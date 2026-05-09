@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { getSetting } from './settings'
 import { db } from './db'
-import type { CallType } from '@/generated/prisma'
+import type { CallType } from '@/generated/prisma/client'
 
 // ─── Rubric definition ────────────────────────────────────────────────────────
 
