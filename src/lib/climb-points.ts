@@ -125,13 +125,25 @@ async function applyRewardSideEffect(
   pointsAtAchievement: number,
 ): Promise<void> {
   try {
+    // Test accounts must never trigger external side-effects:
+    // no Discord posts, no DMs, no role grants, no AI article spend.
+    // The achievement row is still recorded so QA can verify the
+    // logic ran; everything user-visible is suppressed.
+    const profile = await db.agentProfile.findUnique({
+      where: { id: agentProfileId },
+      select: { isTest: true },
+    })
+    if (profile?.isTest) {
+      return
+    }
+
     switch (milestone.rewardType) {
       case 'BADGE': {
-        const payload = (milestone.rewardPayload ?? {}) as { key?: string }
+        const payload = (milestone.rewardPayload ?? {}) as { key?: string; discordRoleId?: string }
         if (!payload.key) break
         const profile = await db.agentProfile.findUnique({
           where: { id: agentProfileId },
-          select: { badges: true },
+          select: { badges: true, discordUserId: true },
         })
         if (!profile) break
         if (!profile.badges.includes(payload.key)) {
@@ -139,6 +151,14 @@ async function applyRewardSideEffect(
             where: { id: agentProfileId },
             data: { badges: { set: [...profile.badges, payload.key] } },
           })
+        }
+        // Discord role tied to the badge: makes the recognition
+        // visible inside Discord (member list, chat color), not just
+        // in the agent portal. Optional per-milestone via
+        // rewardPayload.discordRoleId.
+        if (payload.discordRoleId && profile.discordUserId) {
+          const { assignDiscordRole } = await import('./discord-roles')
+          await assignDiscordRole(profile.discordUserId, payload.discordRoleId)
         }
         // Badge rewards also get a Discord callout for visibility.
         const { celebrateClimbAchievement } = await import('./climb-celebrate')

@@ -78,10 +78,13 @@ export async function GET(req: NextRequest) {
       where: { agentProfileId },
       orderBy: { achievedAt: 'asc' },
     }),
+    // Only published articles surface on the agent portal. Drafts
+    // sit in the vault review queue until an admin signs off; the
+    // agent never sees the AI's first pass directly.
     db.agentArticle.findMany({
-      where: { agentProfileId },
-      orderBy: { generatedAt: 'desc' },
-      select: { id: true, milestoneId: true, title: true, body: true, generatedAt: true },
+      where: { agentProfileId, status: 'PUBLISHED' },
+      orderBy: { publishedAt: 'desc' },
+      select: { id: true, milestoneId: true, title: true, body: true, generatedAt: true, publishedAt: true },
     }),
     // Org-wide ticker: last 10 achievements across all active agents.
     // Excludes test agents and the requesting agent's own (the agent
