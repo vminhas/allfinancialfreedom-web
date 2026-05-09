@@ -13,6 +13,7 @@ import AgentTypeahead from '@/components/AgentTypeahead'
 import DatePicker from '@/components/DatePicker'
 import { AgentTradingCardModal } from '@/components/AgentTradingCard'
 import { CallButton, EmailButton } from '@/components/ContactActions'
+import CopyButton from '@/components/CopyButton'
 
 interface Agent {
   id: string
@@ -929,7 +930,16 @@ export default function TrackerPage() {
                           <div style={{ fontSize: 13, color: '#ffffff', fontWeight: 500 }}>
                             {agent.firstName} {agent.lastName}
                           </div>
-                          <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2, letterSpacing: '0.05em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{agent.agentCode}{agent.email ? ` · ${agent.email}` : ''}</div>
+                          <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2, letterSpacing: '0.05em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {agent.agentCode}
+                            {agent.email && (
+                              <>
+                                {' · '}
+                                <span>{agent.email}</span>
+                                <CopyButton value={agent.email} size={12} />
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -1222,7 +1232,10 @@ function AgentDrawer({
   const [editForm, setEditForm] = useState({
     firstName: agent.firstName,
     lastName: agent.lastName,
-    email: agent.email,
+    // Detail endpoint nests email under agentUser; list endpoint
+    // flattens it to top-level. Fall through both so the form
+    // populates regardless of which entry point loaded the agent.
+    email: agent.email ?? agent.agentUser?.email ?? '',
     phone: (agent.phone ?? '').replace(/\.0+$/, ''),
     state: agent.state ?? '',
     dateOfBirth: agent.dateOfBirth ? agent.dateOfBirth.split('T')[0] : '',
@@ -1342,7 +1355,14 @@ function AgentDrawer({
               {agent.firstName} {agent.lastName}
             </div>
             <div style={{ fontSize: 11, color: '#6B8299', marginTop: 4 }}>
-              {agent.agentCode} &middot; {agent.state ?? 'No state'} &middot; {agent.email}
+              {agent.agentCode} &middot; {agent.state ?? 'No state'}
+              {(agent.email ?? agent.agentUser?.email) && (
+                <>
+                  {' · '}
+                  <span>{agent.email ?? agent.agentUser?.email}</span>
+                  <CopyButton value={agent.email ?? agent.agentUser?.email ?? ''} size={12} />
+                </>
+              )}
             </div>
             {/* Recruiter + join date row. Both are editable in the
                 Edit tab; surfacing them in the header gives admins
