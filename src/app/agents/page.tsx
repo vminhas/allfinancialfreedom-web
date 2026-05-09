@@ -14,6 +14,7 @@ import { formatPhoneAsTyped } from '@/lib/contact-validation'
 import CallReviewModal, { CallReviewData } from '@/components/CallReviewModal'
 import DatePicker from '@/components/DatePicker'
 import DateTimePicker from '@/components/DateTimePicker'
+import Spinner from '@/components/Spinner'
 import LicensingRequestModal, { type LicensingRequestTopic } from '@/components/LicensingRequestModal'
 import RecruitClaimModal from '@/components/RecruitClaimModal'
 import NotificationCenter from '@/components/NotificationCenter'
@@ -4850,7 +4851,12 @@ function CallLogsTab() {
 
 function ReviewCell({ call, analyzing, onClick }: { call: CallLogRow; analyzing: boolean; onClick: () => void }) {
   if (analyzing) {
-    return <span style={{ fontSize: 11, color: '#C9A96E', fontStyle: 'italic' }}>Analyzing...</span>
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#C9A96E', fontStyle: 'italic' }}>
+        <Spinner size={12} />
+        Analyzing...
+      </span>
+    )
   }
   if (!call.review) {
     return <span style={{ fontSize: 11, color: '#4B5563' }}>—</span>
@@ -4900,7 +4906,13 @@ function CallRowMobile({ call, analyzing, onViewReview }: { call: CallLogRow; an
           )}
         </div>
         {analyzing ? (
-          <div style={{ fontSize: 10, color: '#C9A96E', fontStyle: 'italic', flexShrink: 0 }}>Analyzing...</div>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            fontSize: 10, color: '#C9A96E', fontStyle: 'italic', flexShrink: 0,
+          }}>
+            <Spinner size={11} />
+            Analyzing...
+          </div>
         ) : call.review ? (
           <button
             onClick={onViewReview}

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import CallReviewModal, { CallReviewData } from '@/components/CallReviewModal'
 import DatePicker from '@/components/DatePicker'
+import Spinner from '@/components/Spinner'
 import { useIsMobile } from '@/lib/useIsMobile'
 
 interface AnalyzeResult {
@@ -415,8 +416,10 @@ export default function AdminCallReviewPage() {
                   cursor: loading ? 'wait' : wordCount < 100 ? 'not-allowed' : 'pointer',
                   minHeight: 44,
                   boxShadow: loading || wordCount < 100 ? 'none' : '0 0 20px rgba(201,169,110,0.2)',
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
                 }}
               >
+                {loading && <Spinner size={14} color="#142D48" strokeWidth={2.4} />}
                 {loading ? 'Analyzing...' : result ? 'Re-analyze' : 'Analyze call'}
               </button>
             </div>
