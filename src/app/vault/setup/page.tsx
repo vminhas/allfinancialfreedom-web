@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Fragment } from 'react'
 
 interface SetupResource {
   id: string
@@ -238,8 +238,10 @@ export default function SetupDashboard() {
         </button>
       </div>
 
-      {/* Add/Edit form */}
-      {showAdd && (
+      {/* Add form (top of page). The Edit form renders inline below
+          the row being edited so admins don't lose their scroll
+          position when they click Edit on a row halfway down. */}
+      {showAdd && !editingId && (
         <div style={{
           padding: 20, marginBottom: 20,
           background: '#132238', border: '1px solid rgba(201,169,110,0.15)',
@@ -364,7 +366,8 @@ export default function SetupDashboard() {
                 </td>
               </tr>
             ) : resources.map(r => (
-              <tr key={r.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+              <Fragment key={r.id}>
+                <tr style={{ borderBottom: editingId === r.id ? 'none' : '1px solid rgba(255,255,255,0.03)' }}>
                 <td style={{ padding: '10px 14px', fontSize: 12, color: '#ffffff' }}>{r.label}</td>
                 <td style={{ padding: '10px 14px', fontSize: 11, color: '#6B8299', fontFamily: 'monospace' }}>{r.key}</td>
                 <td style={{ padding: '10px 14px' }}>
@@ -402,14 +405,81 @@ export default function SetupDashboard() {
                       {r.aiScriptOutline ? 'AI outline ✓' : 'AI coaching'}
                     </button>
                   )}
-                  <button onClick={() => startEdit(r)} style={{
-                    background: 'none', border: 'none', color: '#C9A96E', fontSize: 11, cursor: 'pointer', marginRight: 8,
-                  }}>Edit</button>
+                  <button onClick={() => editingId === r.id ? resetForm() : startEdit(r)} style={{
+                    background: 'none', border: 'none',
+                    color: editingId === r.id ? '#9BB0C4' : '#C9A96E',
+                    fontSize: 11, cursor: 'pointer', marginRight: 8,
+                  }}>{editingId === r.id ? 'Close' : 'Edit'}</button>
                   <button onClick={() => handleDelete(r.id)} style={{
                     background: 'none', border: 'none', color: '#f87171', fontSize: 11, cursor: 'pointer',
                   }}>Delete</button>
                 </td>
-              </tr>
+                </tr>
+                {editingId === r.id && (
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                    <td colSpan={6} style={{
+                      padding: 0,
+                      background: 'rgba(201,169,110,0.04)',
+                      borderTop: '1px solid rgba(201,169,110,0.18)',
+                    }}>
+                      <div style={{ padding: 18 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#C9A96E', marginBottom: 12, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+                          Editing &middot; {r.label}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                          <div>
+                            <div style={labelStyle}>Label</div>
+                            <input value={formLabel} onChange={e => setFormLabel(e.target.value)} style={inputStyle} />
+                          </div>
+                          <div>
+                            <div style={labelStyle}>Key</div>
+                            <input value={formKey} disabled style={{ ...inputStyle, opacity: 0.5 }} />
+                          </div>
+                          <div style={{ gridColumn: '1 / -1' }}>
+                            <div style={labelStyle}>URL</div>
+                            <input value={formUrl} onChange={e => setFormUrl(e.target.value)} placeholder="https://..." style={inputStyle} />
+                          </div>
+                          <div>
+                            <div style={labelStyle}>Category</div>
+                            <select value={formCategory} onChange={e => setFormCategory(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+                              {CATEGORIES.map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <div style={labelStyle}>Description (optional)</div>
+                            <input value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder="Brief note" style={inputStyle} />
+                          </div>
+                          <div style={{ gridColumn: '1 / -1' }}>
+                            <div style={labelStyle}>Use as script for</div>
+                            <select value={formCallType} onChange={e => setFormCallType(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+                              {CALL_TYPE_OPTIONS.map(o => (
+                                <option key={o.value} value={o.value}>{o.label}</option>
+                              ))}
+                            </select>
+                            <div style={{ fontSize: 11, color: '#6B8299', marginTop: 6, lineHeight: 1.5 }}>
+                              Tag this resource as the standardized script for a call type. The AI call analyzer will tell agents to follow it and grade their transcripts against it. Only one resource per call type, picking a new one moves the tag.
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+                          <button onClick={resetForm} style={{
+                            padding: '8px 16px', borderRadius: 4, fontSize: 12,
+                            background: 'transparent', border: '1px solid rgba(255,255,255,0.1)',
+                            color: '#9BB0C4', cursor: 'pointer',
+                          }}>Cancel</button>
+                          <button onClick={handleSave} disabled={saving || !formLabel || !formUrl} style={{
+                            padding: '8px 20px', borderRadius: 4, fontSize: 12, fontWeight: 700,
+                            background: '#C9A96E', border: 'none', color: '#142D48',
+                            cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1,
+                          }}>
+                            {saving ? 'Saving...' : 'Update'}
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
           </tbody>
         </table>
