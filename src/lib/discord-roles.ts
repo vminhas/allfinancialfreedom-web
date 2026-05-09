@@ -26,6 +26,12 @@ const PHASE_1_STEP_ROLES: Record<number, string> = {
   3: '1295044213372883022', // Step 3: Exam Prep
 }
 
+// Representative role: every connected AFF agent gets this. The role
+// itself carries permissions the CEO configures in Discord (e.g.
+// 'Change Nickname'), so granting it is how we enable agents to
+// rename themselves without giving them broader server perms.
+export const REPRESENTATIVE_ROLE_ID = '1295044213372883017'
+
 function getCredentials(): { guildId: string; botToken: string } | null {
   const guildId = process.env.DISCORD_GUILD_ID
   const botToken = process.env.DISCORD_BOT_TOKEN

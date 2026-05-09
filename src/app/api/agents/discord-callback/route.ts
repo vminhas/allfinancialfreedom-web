@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { assignDiscordPhaseRole, assignDiscordRole } from '@/lib/discord-roles'
+import { assignDiscordPhaseRole, assignDiscordRole, REPRESENTATIVE_ROLE_ID } from '@/lib/discord-roles'
 import { cookies } from 'next/headers'
 
 // GET /api/agents/discord-callback?code=...&state=...
@@ -120,8 +120,11 @@ export async function GET(req: NextRequest) {
     })
   }
 
-  // Assign Discord phase role + portal connected role (non-blocking)
+  // Assign Discord phase role + portal connected role + Representative
+  // (non-blocking). Representative carries the 'Change Nickname'
+  // permission so connected agents can rename themselves.
   assignDiscordPhaseRole(discordUser.id, agentUser.profile.phase, null).catch(() => {})
+  assignDiscordRole(discordUser.id, REPRESENTATIVE_ROLE_ID).catch(() => {})
   if (process.env.DISCORD_PORTAL_CONNECTED_ROLE_ID) {
     assignDiscordRole(discordUser.id, process.env.DISCORD_PORTAL_CONNECTED_ROLE_ID).catch(() => {})
   }

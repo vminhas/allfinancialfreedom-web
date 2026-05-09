@@ -27,6 +27,10 @@ module.exports = {
     PHASE_3:        '1295044213372883025',
     PHASE_4:        '1300845918937157652',
     LICENSED:       '1295044213360296053',
+    // Granted to every member at server-join. Carries the
+    // 'Change Nickname' permission so agents can rename themselves
+    // to their real name without needing broader server perms.
+    REPRESENTATIVE: '1295044213372883017',
   },
 
   // Users allowed to edit bot messages (Admin role OR these user IDs)
