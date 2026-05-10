@@ -508,14 +508,52 @@ client.on(Events.MessageCreate, async (message) => {
         }
       }
     } else {
-      await message.reply({
-        embeds: [new EmbedBuilder()
-          .setColor(0xf87171)
-          .setTitle('Could not parse this flyer')
-          .setDescription(data.error || 'No events were found in the image. Make sure it\'s a training flyer with a date, time, and title.')
-          .setFooter({ text: 'AFF Concierge' })
-        ],
-      });
+      // Training flyer parser found nothing. Before giving up, try
+      // the contest-flyer parser — admins drop $500-bonus-style
+      // flyers in the same channel and we want them auto-converted
+      // into draft contests. The contest endpoint classifies +
+      // creates inactive (admin reviews + activates).
+      try {
+        const contestForm = new FormData();
+        contestForm.append('image', new Blob([buffer], { type: image.contentType || 'image/jpeg' }), image.name || 'flyer.jpg');
+        const contestRes = await fetch(`${baseUrl}/api/admin/contests/from-flyer`, {
+          method: 'POST',
+          body: contestForm,
+          headers: { 'x-cron-secret': process.env.CRON_SECRET || '' },
+        });
+        const contestData = await contestRes.json();
+        if (contestRes.ok && contestData.kind === 'contest' && contestData.contestId) {
+          const c = contestData.contest;
+          const reqLines = (c.requirements || []).map((r, i) => `  ${i + 1}. ${r.label}`).join('\n');
+          const windowText = c.anchor === 'FIXED'
+            ? `${c.fixedStartAt ? new Date(c.fixedStartAt).toLocaleDateString() : '?'} → ${c.fixedEndAt ? new Date(c.fixedEndAt).toLocaleDateString() : '?'}`
+            : `${c.durationDays ?? '?'} days from ${c.anchor.toLowerCase().replace('_', ' ')}`;
+          const successEmbed = new EmbedBuilder()
+            .setColor(COLORS.GOLD)
+            .setTitle(`🏆 Draft contest created: ${c.title}`)
+            .setDescription(`**Reward:** ${c.rewardLabel || (c.rewardAmount ? `$${c.rewardAmount}` : '—')}\n**Window:** ${windowText}\n\n**Requirements:**\n${reqLines}\n\n*Inactive until you review + activate at* ${baseUrl}/vault/contests`)
+            .setFooter({ text: `AFF Concierge · Parsed from flyer by ${message.author.displayName || message.author.username}` });
+          await message.reply({ embeds: [successEmbed] });
+          await message.react('🏆').catch(() => {});
+        } else {
+          // Not a contest either. Be quiet — don't reply with the
+          // 'could not parse' message because the image may have
+          // been intentional (a meeting flyer, a screenshot, etc.)
+          // and we don't want to keep yelling at the admin.
+          await message.react('👀').catch(() => {});
+        }
+      } catch (err) {
+        // Network error or 5xx — fall back to the original noisy
+        // reply so the admin knows something is wrong.
+        await message.reply({
+          embeds: [new EmbedBuilder()
+            .setColor(0xf87171)
+            .setTitle('Could not parse this flyer')
+            .setDescription(`Tried as both a training flyer and a contest flyer; neither parser could read it.\n\n${err.message || 'unknown error'}`)
+            .setFooter({ text: 'AFF Concierge' })
+          ],
+        });
+      }
     }
   } catch (err) {
     await message.reactions.cache.get('⏳')?.remove().catch(() => {});
