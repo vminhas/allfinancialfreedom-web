@@ -328,6 +328,7 @@ model AgentProfile {
   zoomAliases           AgentZoomAlias[]
   climbAchievements     ClimbAchievement[]
   climbArticles         AgentArticle[]
+  contestManualChecks   ContestManualCheck[]
 
   @@index([recruiterId])
   @@map("agent_profiles")
@@ -1586,4 +1587,91 @@ model AgentArticle {
   @@index([agentProfileId, generatedAt])
   @@index([status])
   @@map("agent_articles")
+}
+
+// Time-boxed bonus contests (e.g. "$500 Fast Start Bonus, 60 days
+// from ICA"). Each contest has a window per agent — anchored to a
+// per-agent date (icaDate, createdAt, phaseStartedAt) plus a
+// duration, OR a fixed window for everyone. Requirements compute
+// on the fly from existing data; only MANUAL checks persist a row.
+enum ContestAnchor {
+  ICA_DATE
+  ONBOARDING
+  PHASE_START
+  FIXED
+}
+
+enum ContestRequirementType {
+  PHASE_ITEM        // PhaseItemDefinition.itemKey completed within window
+  MILESTONE         // RecognitionMilestone status=AWARDED within window
+  RECRUITS          // count of business_partners w/ category=PROSPECT_AGENT created in window
+  POLICIES          // count of new_business_submissions in window
+  MANUAL            // admin checks per-agent; row in contest_manual_checks
+  CUSTOM_TEXT       // display only, no auto-tracking
+}
+
+model Contest {
+  id              String                @id @default(cuid())
+  title           String
+  description     String?               @db.Text
+  // Reward shown to the agent. amount is in dollars (not cents) to
+  // match how AFF talks about bonuses in copy ("$500"); label
+  // overrides the default formatting if the reward is non-monetary
+  // ("AFF Jacket").
+  rewardAmount    Int?
+  rewardLabel     String?
+  anchor          ContestAnchor
+  // Used for ICA_DATE / ONBOARDING / PHASE_START anchors. Number of
+  // days from the anchor to the deadline.
+  durationDays    Int?
+  // FIXED anchor only: same window for every eligible agent.
+  fixedStartAt    DateTime?
+  fixedEndAt      DateTime?
+  // Eligibility cutoffs by anchor date. Optional. e.g. "only agents
+  // whose icaDate falls 2026-01-01..2026-06-30 are in this contest."
+  eligibleFromAt  DateTime?
+  eligibleToAt    DateTime?
+  active          Boolean               @default(true)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  requirements    ContestRequirement[]
+  manualChecks    ContestManualCheck[]
+
+  @@index([active])
+  @@map("contests")
+}
+
+model ContestRequirement {
+  id              String                  @id @default(cuid())
+  contestId       String
+  contest         Contest                 @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  order           Int
+  label           String
+  type            ContestRequirementType
+  // Type-specific config:
+  phaseItemKey    String?    // PHASE_ITEM
+  milestoneKey    String?    // MILESTONE
+  count           Int?       // RECRUITS / POLICIES (e.g. 3)
+  manualChecks    ContestManualCheck[]
+
+  @@index([contestId])
+  @@map("contest_requirements")
+}
+
+model ContestManualCheck {
+  id                  String              @id @default(cuid())
+  contestId           String
+  contest             Contest             @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  requirementId       String
+  requirement         ContestRequirement  @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  agentProfileId      String
+  agentProfile        AgentProfile        @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+  completed           Boolean             @default(false)
+  completedAt         DateTime?
+  checkedById         String?
+  notes               String?
+
+  @@unique([requirementId, agentProfileId])
+  @@index([agentProfileId])
+  @@map("contest_manual_checks")
 }

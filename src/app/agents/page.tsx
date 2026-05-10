@@ -13,6 +13,7 @@ import { Trophy, Users, BookOpen, Folder, CalendarDays, LogOut, Menu, X, type Lu
 import { formatPhoneAsTyped } from '@/lib/contact-validation'
 import CallReviewModal, { CallReviewData } from '@/components/CallReviewModal'
 import ClimbTab from '@/components/climb/ClimbTab'
+import ContestBanner from '@/components/ContestBanner'
 import DatePicker from '@/components/DatePicker'
 import DateTimePicker from '@/components/DateTimePicker'
 import Spinner from '@/components/Spinner'
@@ -567,6 +568,11 @@ function AgentDashboardInner() {
           <button onClick={() => window.close()} style={{ background: 'rgba(155,109,255,0.15)', border: '1px solid rgba(155,109,255,0.3)', color: '#9B6DFF', borderRadius: 4, padding: '4px 10px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>Close</button>
         </div>
       )}
+      {/* Contest banner: stacks above the tabs when there are active
+          bonuses for this agent. Self-fetches /api/agents/contests so
+          the agent dashboard payload doesn't grow. Hides itself when
+          there are no in-window contests. */}
+      {data && <ContestBanner previewToken={previewToken} />}
       {/* Top nav. Mobile gets a deliberately tighter treatment: the
           "Agent Portal" subtitle disappears, the avatar drops the name
           chip, the four quick-link pills become icon-only squares, and
