@@ -115,7 +115,7 @@ export async function evaluateRequirement(
       const target = req.count ?? 1
       const count = await db.businessPartner.count({
         where: {
-          ownerId: agentProfileId,
+          agentProfileId,
           category: 'PROSPECT_AGENT',
           createdAt: { gte: window.start, lte: window.end },
         },
