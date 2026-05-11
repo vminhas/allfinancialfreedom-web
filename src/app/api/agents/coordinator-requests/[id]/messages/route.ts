@@ -73,6 +73,7 @@ export async function POST(
       agent: { firstName: profile.firstName, lastName: profile.lastName, agentCode: profile.agentCode },
       topic: existing.topic,
       reply: body.trim(),
+      assignedToAdminId: existing.assignedToId ?? null,
     }).catch(err => console.warn('[coordinator-messages POST agent] admin ping failed:', err))
   }
 

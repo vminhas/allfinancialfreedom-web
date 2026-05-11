@@ -48,13 +48,15 @@ const baseUrl = () => process.env.NEXTAUTH_URL ?? 'https://allfinancialfreedom.c
 
 // Fired when an agent submits a new licensing ticket. Lets the LC
 // queue see it land without manually refreshing /vault/licensing.
+// Also DMs every licensing coordinator who linked their Discord so
+// the people who actually have to action it see it on their phone.
 export async function pingTicketCreated(args: {
   requestId: string
   agent: AgentMeta
   topic: string
   message: string
 }): Promise<void> {
-  await sendAdmin({
+  const embed = {
     title: '🆕 New licensing ticket',
     description: previewClip(args.message),
     color: 0xF59E0B,
@@ -65,7 +67,10 @@ export async function pingTicketCreated(args: {
     footer: { text: 'AFF Concierge · /vault/licensing' },
     url: `${baseUrl()}/vault/licensing`,
     timestamp: new Date().toISOString(),
-  })
+  }
+  await sendAdmin(embed)
+  const { dmLicensingCoordinators } = await import('./staff-discord')
+  dmLicensingCoordinators(embed).catch(() => {})
 }
 
 // Fired when an admin or LC PATCHes status. Skipped if status didn't
@@ -119,14 +124,17 @@ export async function pingTicketStaffReply(args: {
 
 // Fired when the agent replies on a ticket thread (clarification or
 // follow-up). Symmetric with pingTicketStaffReply so admins see both
-// sides of the conversation in the same channel.
+// sides of the conversation in the same channel. Also DMs the
+// assigned coordinator (or all LCs if unassigned) so the reply
+// doesn't sit unread.
 export async function pingTicketAgentReply(args: {
   requestId: string
   agent: AgentMeta
   topic: string
   reply: string
+  assignedToAdminId?: string | null
 }): Promise<void> {
-  await sendAdmin({
+  const embed = {
     title: '↩️ Agent replied to ticket',
     description: previewClip(args.reply),
     color: 0x60A5FA,
@@ -137,5 +145,8 @@ export async function pingTicketAgentReply(args: {
     footer: { text: 'AFF Concierge · /vault/licensing' },
     url: `${baseUrl()}/vault/licensing`,
     timestamp: new Date().toISOString(),
-  })
+  }
+  await sendAdmin(embed)
+  const { dmAdminUser } = await import('./staff-discord')
+  dmAdminUser(args.assignedToAdminId ?? null, embed).catch(() => {})
 }
