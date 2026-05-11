@@ -64,5 +64,22 @@ export async function POST(
       author: { select: { id: true, name: true, role: true } },
     },
   })
+
+  // Mirror to the LC activity feed. ADMIN_ONLY notes are filtered
+  // out at the helper level so they stay private.
+  const agent = await db.agentProfile.findUnique({
+    where: { id },
+    select: { firstName: true, lastName: true, agentCode: true },
+  })
+  if (agent) {
+    const { logAgentNote } = await import('@/lib/lc-activity')
+    logAgentNote({
+      agent,
+      body: note.body,
+      scope: note.scope,
+      actor: { id: note.author.id, name: note.author.name, role: note.author.role },
+    }).catch(err => console.warn('[licensing-agents notes] lc-activity failed:', err))
+  }
+
   return NextResponse.json({ note })
 }

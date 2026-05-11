@@ -98,6 +98,17 @@ export async function POST(
       reply: body.trim(),
       actorName: fromName,
     }).catch(err => console.warn('[coordinator-messages POST staff] admin ping failed:', err))
+    // Dedicated LC-activity channel mirror, so the team has a clean
+    // 'who did what in the licensing pipeline' feed separate from the
+    // broader admin channel.
+    const { logTicketReply } = await import('@/lib/lc-activity')
+    logTicketReply({
+      requestId: id,
+      agent: existing.agentProfile,
+      topic: existing.topic,
+      reply: body.trim(),
+      actor: { id: sender.id ?? '', name: fromName, role: (sender.role as 'admin' | 'licensing_coordinator' | 'ADMIN' | 'LICENSING_COORDINATOR') ?? 'admin' },
+    }).catch(err => console.warn('[coordinator-messages POST staff] lc-activity failed:', err))
   }
 
   return NextResponse.json({ request: updated })

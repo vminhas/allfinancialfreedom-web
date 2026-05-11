@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useIsMobile } from '@/lib/useIsMobile'
@@ -51,12 +51,27 @@ const PHASE_TITLES: Record<number, string> = {
 // (header + back-to-portal + iOS safe-area handling) wraps both so we
 // don't duplicate the chrome between views.
 export default function LeaderboardPage() {
-  const [tab, setTab] = useTabFromHash('progression')
+  // ProductionLeaderboard + ProgressionMatrixView both read
+  // useSearchParams (to honor the admin ?preview=<token> path) which
+  // Next requires to be inside a <Suspense> boundary at build time —
+  // otherwise the page fails to prerender. The Shell wrapper sits
+  // outside Suspense so the chrome still renders on the server.
   return (
     <Shell>
+      <Suspense fallback={<div style={{ padding: 24, color: '#6B8299', fontSize: 12 }}>Loading…</div>}>
+        <LeaderboardInner />
+      </Suspense>
+    </Shell>
+  )
+}
+
+function LeaderboardInner() {
+  const [tab, setTab] = useTabFromHash('progression')
+  return (
+    <>
       <LeaderboardTabsBar active={tab} setActive={setTab} />
       {tab === 'production' ? <ProductionLeaderboard /> : <ProgressionMatrixView />}
-    </Shell>
+    </>
   )
 }
 

@@ -130,6 +130,8 @@ export async function PATCH(
   // stay quiet (different signal, would just be noise in the feed).
   if (body.status && body.status !== existing.status && existing.agentProfile) {
     const actorName = (session!.user as { name?: string }).name ?? 'LC'
+    const actorId = (session!.user as { id?: string }).id ?? ''
+    const actorRole = (session!.user as { role?: 'admin' | 'licensing_coordinator' }).role ?? 'admin'
     const { pingTicketStatusChange } = await import('@/lib/coordinator-discord')
     pingTicketStatusChange({
       requestId: id,
@@ -139,6 +141,15 @@ export async function PATCH(
       newStatus: body.status,
       actorName,
     }).catch(err => console.warn('[coordinator-requests PATCH] admin ping failed:', err))
+    const { logTicketStatusChange } = await import('@/lib/lc-activity')
+    logTicketStatusChange({
+      requestId: id,
+      agent: existing.agentProfile,
+      topic: existing.topic,
+      oldStatus: existing.status,
+      newStatus: body.status,
+      actor: { id: actorId, name: actorName, role: actorRole },
+    }).catch(err => console.warn('[coordinator-requests PATCH] lc-activity failed:', err))
   }
 
   return NextResponse.json({ request: updated })
