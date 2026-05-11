@@ -1,9 +1,11 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef, type RefObject } from 'react'
+import { useSession } from 'next-auth/react'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { US_STATES } from '@/lib/agent-constants'
 import { AgentTradingCardModal } from '@/components/AgentTradingCard'
+import AgentNotes from '@/components/AgentNotes'
 
 interface OrgNode {
   id: string
@@ -352,6 +354,8 @@ function EditPanel({ node, allAgents, onSave, onClose, onDeactivate, onAddRecrui
   const isMobile = useIsMobile()
   const isLeadership = node.id.startsWith('_')
   const fileRef = useRef<HTMLInputElement>(null)
+  const { data: session } = useSession()
+  const viewerRole = (session?.user as { role?: 'admin' | 'licensing_coordinator' } | undefined)?.role ?? null
   const [form, setForm] = useState({
     firstName: node.firstName,
     lastName: node.lastName,
@@ -573,6 +577,17 @@ function EditPanel({ node, allAgents, onSave, onClose, onDeactivate, onAddRecrui
               {error}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Notes thread. Reuses the licensing-notes endpoints — same
+          rows the LC sees in their workspace, so updates flow both
+          ways. Leadership nodes are synthetic (no real AgentProfile
+          row) so skip; otherwise admins + LCs can add updates and
+          see everyone else's. Polls every 8s while open. */}
+      {!isLeadership && (
+        <div style={{ padding: '0 24px 16px' }}>
+          <AgentNotes agentProfileId={node.id} viewerRole={viewerRole} compact />
         </div>
       )}
 
