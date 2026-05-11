@@ -108,6 +108,19 @@ export async function POST(req: NextRequest) {
     points: submission.points,
   }).catch(() => {})
 
+  // LC activity feed: who logged this on behalf of whom.
+  const actorName = (session.user as { name?: string } | undefined)?.name ?? 'LC'
+  const actorRole = (session.user as { role?: 'admin' | 'licensing_coordinator' } | undefined)?.role ?? 'admin'
+  const { logOnBehalfSubmission } = await import('@/lib/lc-activity')
+  logOnBehalfSubmission({
+    writer: { firstName: agent.firstName, lastName: agent.lastName, agentCode: agent.agentCode },
+    carrier: submission.carrier,
+    policyType: body.policyType,
+    clientName: `${submission.clientFirstName} ${submission.clientLastName}`,
+    points: submission.points,
+    actor: { id: adminId, name: actorName, role: actorRole },
+  }).catch(() => {})
+
   // Audit log: writer is the agent the policy is FOR, not the LC
   // who entered it (so leaderboard math + Climb credit go to the
   // right person). Meta records the LC's admin id for later

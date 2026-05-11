@@ -116,6 +116,23 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       actorAdminId: adminId ?? null,
       meta: { from: existing.status, to: data.status },
     })
+    // LC activity feed mirror.
+    const actorName = (session?.user as { name?: string } | undefined)?.name ?? 'LC'
+    const actorRole = (session?.user as { role?: 'admin' | 'licensing_coordinator' } | undefined)?.role ?? 'admin'
+    const { logNewBusinessStatusChange } = await import('@/lib/lc-activity')
+    logNewBusinessStatusChange({
+      submissionId: id,
+      writer: {
+        firstName: existing.agentProfile.firstName,
+        lastName: existing.agentProfile.lastName,
+        agentCode: existing.agentProfile.agentCode,
+      },
+      carrier: existing.carrier,
+      policyType: existing.policyType,
+      oldStatus: existing.status,
+      newStatus: data.status as string,
+      actor: { id: adminId ?? '', name: actorName, role: actorRole },
+    }).catch(err => console.warn('[new-business PATCH] lc-activity failed:', err))
   }
 
   if (statusChanged && data.status === 'ISSUED') {
