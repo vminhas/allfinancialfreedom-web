@@ -50,25 +50,54 @@ interface Response {
 }
 
 export async function GET(req: Request) {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-  const email = session.user!.email
-  if (typeof email !== 'string' || email.trim().length === 0) {
-    return NextResponse.json({ error: 'Session has no email' }, { status: 401 })
-  }
-
   const { searchParams } = new URL(req.url)
   const metric = parseMetric(searchParams.get('metric'))
   const scope = parseScope(searchParams.get('scope'))
   const timeframe = parseTimeframe(searchParams.get('timeframe'))
 
-  const me = await db.agentUser.findFirst({
-    where: { email: { equals: email, mode: 'insensitive' } },
-    include: { profile: { select: { id: true, agentCode: true } } },
-  })
-  if (!me?.profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+  // Resolve the viewing agent. Supports three paths:
+  //   1. Admin preview via ?preview=<token> — used when staff opens
+  //      an agent's portal through the eyes of that agent. Token
+  //      maps to a specific agentProfileId.
+  //   2. Staff session (admin / licensing_coordinator) — leaderboard
+  //      is fine to show; the downline scope falls back to whole-
+  //      company since staff don't have their own downline.
+  //   3. Agent session — viewing their own leaderboard.
+  let me: { id: string; agentCode: string } | null = null
+
+  const previewToken = searchParams.get('preview')
+  if (previewToken) {
+    const { getSetting } = await import('@/lib/settings')
+    const raw = await getSetting(`PREVIEW_TOKEN_${previewToken}`)
+    if (raw) {
+      const data = JSON.parse(raw) as { agentProfileId: string; expires: string }
+      if (new Date(data.expires) >= new Date()) {
+        const profile = await db.agentProfile.findUnique({
+          where: { id: data.agentProfileId },
+          select: { id: true, agentCode: true },
+        })
+        if (profile) me = profile
+      }
+    }
+  }
+
+  if (!me) {
+    const session = await getServerSession(authOptions)
+    const role = (session?.user as { role?: string } | undefined)?.role
+    if (!session || (role !== 'agent' && role !== 'admin' && role !== 'licensing_coordinator')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const email = session.user!.email
+    if (typeof email === 'string' && email.trim().length > 0) {
+      const u = await db.agentUser.findFirst({
+        where: { email: { equals: email, mode: 'insensitive' } },
+        include: { profile: { select: { id: true, agentCode: true } } },
+      })
+      if (u?.profile) me = u.profile
+    }
+  }
+
+  if (!me) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
 
   const { start: currentStart, end: currentEnd, prevStart, prevEnd } = boundsFor(timeframe)
 
@@ -77,14 +106,14 @@ export async function GET(req: Request) {
   // (plus the viewer themselves so they see their own row).
   const roster = scope === 'company'
     ? await rosterAll()
-    : await rosterDownline(me.profile.agentCode, me.profile.id)
+    : await rosterDownline(me.agentCode, me.id)
 
   const rosterIds = roster.map(r => r.id)
   if (rosterIds.length === 0) {
     return NextResponse.json({
       rows: [],
       viewer: {
-        agentProfileId: me.profile.id,
+        agentProfileId: me.id,
         rank: null, value: 0, previousValue: 0,
         inVisibleRows: false,
       },
@@ -97,7 +126,7 @@ export async function GET(req: Request) {
   // viewer's value in the previous period (for the delta banner).
   const [currentValues, previousValues] = await Promise.all([
     valuesFor(metric, rosterIds, roster, currentStart, currentEnd),
-    valuesFor(metric, [me.profile.id], roster, prevStart, prevEnd),
+    valuesFor(metric, [me.id], roster, prevStart, prevEnd),
   ])
 
   // Build upline lookup (recruiter's display name) keyed by agentCode.
@@ -156,21 +185,21 @@ export async function GET(req: Request) {
   // bottom of the table with their real rank in the full roster, so
   // they can see what they're competing against without being forced
   // to scroll past 40 zeros.
-  const viewerInRows = rows.find(r => r.agentProfileId === me.profile!.id) ?? null
-  const viewerFullRow = allRankedRows.find(r => r.agentProfileId === me.profile!.id) ?? null
+  const viewerInRows = rows.find(r => r.agentProfileId === me.id) ?? null
+  const viewerFullRow = allRankedRows.find(r => r.agentProfileId === me.id) ?? null
   const viewerRow = viewerInRows ?? viewerFullRow
 
   return NextResponse.json({
     rows,
     viewer: {
-      agentProfileId: me.profile.id,
+      agentProfileId: me.id,
       // Real rank in the full roster, NOT the filtered list — so a
       // viewer at rank 43 with zero submissions still reads as "#43 of
       // 57" not "unranked." rank stays null only when the viewer
       // wasn't found in the roster at all (downline-empty edge case).
       rank: viewerRow?.rank ?? null,
       value: viewerRow?.value ?? 0,
-      previousValue: previousValues.get(me.profile.id) ?? 0,
+      previousValue: previousValues.get(me.id) ?? 0,
       // Whether the viewer's own row appears in the visible (non-zero)
       // list. Lets the UI decide whether to pin a "your row" sticky at
       // the bottom of the table.

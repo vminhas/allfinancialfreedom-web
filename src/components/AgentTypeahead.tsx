@@ -28,7 +28,7 @@ interface AgentTypeaheadProps {
   /** Called with the new stored value when the admin picks an option or clears. */
   onChange: (value: string, option: AgentOption | null) => void
   /** Which agent field to store on selection. Defaults to `agentCode`. */
-  valueField?: 'agentCode' | 'displayName'
+  valueField?: 'agentCode' | 'displayName' | 'id'
   /** Placeholder shown in the input when value is empty. */
   placeholder?: string
   /** Pass true on the trainer picker so options are limited to phase 3+. */
@@ -90,7 +90,9 @@ export default function AgentTypeahead({
     const match = agents.find(a =>
       valueField === 'agentCode'
         ? a.agentCode === value
-        : `${a.firstName} ${a.lastName}`.trim() === value
+        : valueField === 'id'
+          ? a.id === value
+          : `${a.firstName} ${a.lastName}`.trim() === value
     )
     if (!match) return value  // fallback: show whatever was stored
     return `${match.firstName} ${match.lastName} (${match.agentCode})`
@@ -121,7 +123,11 @@ export default function AgentTypeahead({
     if (!a) {
       onChange('', null)
     } else {
-      onChange(valueField === 'agentCode' ? a.agentCode : `${a.firstName} ${a.lastName}`.trim(), a)
+      const stored =
+        valueField === 'agentCode' ? a.agentCode
+        : valueField === 'id' ? a.id
+        : `${a.firstName} ${a.lastName}`.trim()
+      onChange(stored, a)
     }
     setQuery('')
     setOpen(false)

@@ -6,6 +6,7 @@ import { TOPIC_LABELS, type LicensingRequestTopic } from '@/components/Licensing
 import { useIsMobile } from '@/lib/useIsMobile'
 import { CARRIERS } from '@/lib/agent-constants'
 import DatePicker from '@/components/DatePicker'
+import AgentTypeahead from '@/components/AgentTypeahead'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -84,6 +85,7 @@ export default function LicensingWorkspacePage() {
 
   const [tab, setTab] = useState<'inbox' | 'agents' | 'referrals' | 'profile'>('inbox')
   const [showAddAgentModal, setShowAddAgentModal] = useState(false)
+  const [showNewBusinessModal, setShowNewBusinessModal] = useState(false)
   const [agentsRefreshNonce, setAgentsRefreshNonce] = useState(0)
 
   // Pull the same sidebar badge counts so we can split them across the
@@ -128,20 +130,34 @@ export default function LicensingWorkspacePage() {
                 : 'Oversight of all licensing coordinator requests. You can see every inbox, reassign, and jump into any request.'}
             </p>
           </div>
-          <button
-            onClick={() => setShowAddAgentModal(true)}
-            style={{
-              background: '#C9A96E', color: '#142D48',
-              border: 'none', borderRadius: 4,
-              padding: '12px 22px', fontSize: 11, fontWeight: 700,
-              letterSpacing: '0.12em', textTransform: 'uppercase',
-              cursor: 'pointer', minHeight: 44,
-              boxShadow: '0 0 20px rgba(201,169,110,0.2)',
-              flexShrink: 0,
-            }}
-          >
-            + Add Agent
-          </button>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setShowNewBusinessModal(true)}
+              style={{
+                background: 'transparent', color: '#C9A96E',
+                border: '1px solid rgba(201,169,110,0.4)', borderRadius: 4,
+                padding: '12px 18px', fontSize: 11, fontWeight: 700,
+                letterSpacing: '0.12em', textTransform: 'uppercase',
+                cursor: 'pointer', minHeight: 44,
+              }}
+              title="Log a new business policy on behalf of another agent (e.g. for Vick)"
+            >
+              + New Business
+            </button>
+            <button
+              onClick={() => setShowAddAgentModal(true)}
+              style={{
+                background: '#C9A96E', color: '#142D48',
+                border: 'none', borderRadius: 4,
+                padding: '12px 22px', fontSize: 11, fontWeight: 700,
+                letterSpacing: '0.12em', textTransform: 'uppercase',
+                cursor: 'pointer', minHeight: 44,
+                boxShadow: '0 0 20px rgba(201,169,110,0.2)',
+              }}
+            >
+              + Add Agent
+            </button>
+          </div>
         </div>
       </div>
 
@@ -150,6 +166,16 @@ export default function LicensingWorkspacePage() {
           onClose={() => setShowAddAgentModal(false)}
           onCreated={() => {
             setShowAddAgentModal(false)
+            setAgentsRefreshNonce(n => n + 1)
+          }}
+        />
+      )}
+
+      {showNewBusinessModal && (
+        <OnBehalfNewBusinessModal
+          onClose={() => setShowNewBusinessModal(false)}
+          onCreated={() => {
+            setShowNewBusinessModal(false)
             setAgentsRefreshNonce(n => n + 1)
           }}
         />
@@ -2057,6 +2083,186 @@ function LicensingAddAgentModal({ onClose, onCreated }: { onClose: () => void; o
               }}
             >
               {loading ? 'Creating...' : 'Create & Send Invite'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// On-behalf-of new-business logging. Built for Natalia logging
+// policies Vick the CEO writes; supports any agent. Mirrors the
+// agent-portal form shape so the resulting submission lands in
+// New Business identically to a self-logged one.
+function OnBehalfNewBusinessModal({
+  onClose, onCreated,
+}: { onClose: () => void; onCreated: () => void }) {
+  const POLICY_TYPES = [
+    { value: 'TERM',        label: 'Term' },
+    { value: 'WHOLE_LIFE',  label: 'Whole Life' },
+    { value: 'IUL',         label: 'IUL' },
+    { value: 'ANNUITY',     label: 'Annuity' },
+    { value: 'DISABILITY',  label: 'Disability' },
+    { value: 'LTC',         label: 'LTC' },
+    { value: 'OTHER',       label: 'Other' },
+  ] as const
+
+  const [agentProfileId, setAgentProfileId] = useState<string | null>(null)
+  const [splitWithAgentId, setSplitWithAgentId] = useState<string | null>(null)
+  const [applicationDate, setApplicationDate] = useState(new Date().toISOString().slice(0, 10))
+  const [carrier, setCarrier] = useState('')
+  const [policyType, setPolicyType] = useState<string>('TERM')
+  const [points, setPoints] = useState<string>('')
+  const [clientFirstName, setClientFirstName] = useState('')
+  const [clientLastName, setClientLastName] = useState('')
+  const [clientPhone, setClientPhone] = useState('')
+  const [clientEmail, setClientEmail] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!agentProfileId) { setError('Pick the agent who wrote this policy'); return }
+    setSaving(true); setError('')
+    const res = await fetch('/api/vault/new-business/on-behalf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        agentProfileId,
+        splitWithAgentId,
+        applicationDate,
+        carrier,
+        policyType,
+        points: points || null,
+        clientFirstName,
+        clientLastName,
+        clientPhone,
+        clientEmail,
+      }),
+    })
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({})) as { error?: string }
+      setError(d.error ?? 'Save failed')
+      setSaving(false)
+      return
+    }
+    onCreated()
+  }
+
+  const labelStyle: React.CSSProperties = {
+    display: 'block', fontSize: 9, fontWeight: 700,
+    letterSpacing: '0.18em', textTransform: 'uppercase',
+    color: '#C9A96E', marginBottom: 6,
+  }
+  const inputStyle: React.CSSProperties = {
+    width: '100%', boxSizing: 'border-box',
+    background: '#0C1E30', border: '1px solid rgba(201,169,110,0.2)',
+    borderRadius: 4, color: '#d1d9e2', padding: '10px 14px',
+    fontSize: 13, fontFamily: 'inherit',
+  }
+
+  return (
+    <div
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 100,
+        background: 'rgba(10,22,40,0.85)',
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+        padding: '40px 16px', overflowY: 'auto',
+      }}
+    >
+      <div style={{
+        background: '#0C1E30', border: '1px solid rgba(201,169,110,0.25)',
+        borderRadius: 8, width: '100%', maxWidth: 640, padding: 24,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C9A96E' }}>Licensing Coordinator</div>
+            <div style={{ fontSize: 16, fontWeight: 500, color: '#fff', marginTop: 4 }}>Log New Business On Behalf</div>
+            <div style={{ fontSize: 11, color: '#6B8299', marginTop: 4, lineHeight: 1.55 }}>
+              Pick the agent who wrote the policy. The submission lands in their New Business pipeline + counts toward their Climb points, exactly as if they logged it themselves.
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 4, color: '#9BB0C4', fontSize: 14, cursor: 'pointer', width: 32, height: 32 }}>✕</button>
+        </div>
+
+        <form onSubmit={submit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label style={labelStyle}>Agent who wrote the policy</label>
+            <AgentTypeahead
+              valueField="id"
+              value={agentProfileId ?? ''}
+              onChange={v => setAgentProfileId(v || null)}
+              placeholder="Start typing… (e.g. Vick, Karmvir)"
+              includeFormer={false}
+            />
+          </div>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label style={labelStyle}>Split with (optional)</label>
+            <AgentTypeahead
+              valueField="id"
+              value={splitWithAgentId ?? ''}
+              onChange={v => setSplitWithAgentId(v || null)}
+              placeholder="No split"
+              includeFormer={false}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Application date</label>
+            <DatePicker value={applicationDate} onChange={setApplicationDate} />
+          </div>
+          <div>
+            <label style={labelStyle}>Carrier</label>
+            <select style={{ ...inputStyle, cursor: 'pointer' }} value={carrier} onChange={e => setCarrier(e.target.value)} required>
+              <option value="">Select carrier</option>
+              {CARRIERS.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>Policy type</label>
+            <select style={{ ...inputStyle, cursor: 'pointer' }} value={policyType} onChange={e => setPolicyType(e.target.value)}>
+              {POLICY_TYPES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>Points</label>
+            <input style={inputStyle} type="number" inputMode="numeric" value={points} onChange={e => setPoints(e.target.value)} placeholder="Optional" />
+          </div>
+          <div style={{ gridColumn: '1 / -1', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 14, marginTop: 4 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#9BB0C4', marginBottom: 10 }}>
+              Client info
+            </div>
+          </div>
+          <div>
+            <label style={labelStyle}>First name</label>
+            <input style={inputStyle} value={clientFirstName} onChange={e => setClientFirstName(e.target.value)} required />
+          </div>
+          <div>
+            <label style={labelStyle}>Last name</label>
+            <input style={inputStyle} value={clientLastName} onChange={e => setClientLastName(e.target.value)} required />
+          </div>
+          <div>
+            <label style={labelStyle}>Phone</label>
+            <input style={inputStyle} type="tel" value={clientPhone} onChange={e => setClientPhone(e.target.value)} placeholder="(555) 555-5555" />
+          </div>
+          <div>
+            <label style={labelStyle}>Email</label>
+            <input style={inputStyle} type="email" value={clientEmail} onChange={e => setClientEmail(e.target.value)} />
+          </div>
+
+          {error && (
+            <div style={{ gridColumn: '1 / -1', padding: '10px 14px', borderRadius: 4, background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.3)', color: '#f87171', fontSize: 12 }}>
+              {error}
+            </div>
+          )}
+
+          <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
+            <button type="button" onClick={onClose} style={{ padding: '10px 16px', borderRadius: 4, fontSize: 11, background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#9BB0C4', cursor: 'pointer', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+              Cancel
+            </button>
+            <button type="submit" disabled={saving || !agentProfileId} style={{ padding: '10px 18px', borderRadius: 4, fontSize: 11, background: '#C9A96E', border: 'none', color: '#142D48', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: saving ? 'wait' : 'pointer', opacity: saving || !agentProfileId ? 0.6 : 1 }}>
+              {saving ? 'Logging...' : 'Log policy'}
             </button>
           </div>
         </form>
