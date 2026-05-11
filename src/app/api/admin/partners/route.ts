@@ -90,6 +90,31 @@ export async function POST(req: NextRequest) {
     await autoLinkAgentForBusinessPartner({ businessPartnerId: partner.id, email: partner.email })
   }
 
+  // Mirror the agent-side classify path: when a BP lands already
+  // categorized (status=NEW), fire the #announcements welcome embed
+  // celebrating the receiving agent. Vault-side hand-offs used to
+  // skip this — meaning policies Vick or other leadership added on
+  // behalf of an agent never showed up in the channel.
+  if (partner.status === 'NEW') {
+    const receivingAgent = await db.agentProfile.findUnique({
+      where: { id: agent.id },
+      select: { firstName: true, lastName: true, agentCode: true, avatarUrl: true },
+    })
+    if (receivingAgent) {
+      import('@/lib/business-partner-announce')
+        .then(({ announceBPWelcome }) =>
+          announceBPWelcome({
+            agentFirstName: receivingAgent.firstName,
+            agentLastName: receivingAgent.lastName,
+            agentCode: receivingAgent.agentCode,
+            agentAvatarUrl: receivingAgent.avatarUrl,
+            bpName: partner.name,
+          })
+        )
+        .catch(err => console.warn('[admin partners] BP announce failed:', err))
+    }
+  }
+
   return NextResponse.json(partner)
 }
 
