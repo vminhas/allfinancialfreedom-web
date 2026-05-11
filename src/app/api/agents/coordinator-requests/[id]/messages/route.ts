@@ -34,6 +34,7 @@ export async function POST(
       id: true,
       agentProfileId: true,
       topic: true,
+      assignedToId: true,
     },
   })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
