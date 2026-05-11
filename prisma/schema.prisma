@@ -24,6 +24,14 @@ model AdminUser {
   role         AdminRole @default(ADMIN)
   createdAt    DateTime  @default(now())
   lastLoginAt  DateTime?
+  // Optional Discord linking so the bot can DM staff (especially
+  // Licensing Coordinators) when work lands in their queue — new
+  // business submissions, licensing tickets, agent replies, etc.
+  // Set via /vault/settings → Connect Discord. Username is cached
+  // so the settings UI can show 'Connected as jsmith#1234' without
+  // a Discord round-trip per page load.
+  discordUserId   String?
+  discordUsername String?
 
   assignedRequests CoordinatorRequest[] @relation("AssignedCoordinator")
   authoredLicensingNotes LicensingNote[]

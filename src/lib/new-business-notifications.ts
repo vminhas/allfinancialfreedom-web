@@ -22,22 +22,31 @@ interface SubmittedArgs {
   points: number | null
 }
 export async function notifySubmitted(args: SubmittedArgs): Promise<void> {
-  if (!process.env.DISCORD_BOT_TOKEN || !process.env.DISCORD_ADMIN_CHANNEL_ID) return
-  const { sendChannelMessage } = await import('@/lib/discord')
-  await sendChannelMessage(process.env.DISCORD_ADMIN_CHANNEL_ID, {
-    embeds: [{
-      title: 'New Business Submission',
-      description: [
-        `**${args.agentName}** submitted ${policyTypeLabel(args.policyType)} for **${args.clientName}**`,
-        `Carrier: ${args.carrier}${args.points != null ? ` · ${args.points} points` : ''}`,
-        '',
-        '_Awaiting licensing coordinator review_',
-      ].join('\n'),
-      color: 0xC9A96E,
-      timestamp: new Date().toISOString(),
-      footer: { text: 'AFF Concierge · New Business' },
-    }],
-  }).catch(() => {})
+  if (!process.env.DISCORD_BOT_TOKEN) return
+
+  const embed = {
+    title: 'New Business Submission',
+    description: [
+      `**${args.agentName}** submitted ${policyTypeLabel(args.policyType)} for **${args.clientName}**`,
+      `Carrier: ${args.carrier}${args.points != null ? ` · ${args.points} points` : ''}`,
+      '',
+      '_Awaiting licensing coordinator review_',
+    ].join('\n'),
+    color: 0xC9A96E,
+    timestamp: new Date().toISOString(),
+    footer: { text: 'AFF Concierge · New Business' },
+  }
+
+  if (process.env.DISCORD_ADMIN_CHANNEL_ID) {
+    const { sendChannelMessage } = await import('@/lib/discord')
+    await sendChannelMessage(process.env.DISCORD_ADMIN_CHANNEL_ID, { embeds: [embed] }).catch(() => {})
+  }
+
+  // DM every licensing coordinator who linked Discord. The channel
+  // post above keeps the team in the loop; the DM makes sure the
+  // people who actually have to action this see it on their phone.
+  const { dmLicensingCoordinators } = await import('./staff-discord')
+  dmLicensingCoordinators(embed).catch(() => {})
 }
 
 async function dmAgent(discordUserId: string, embed: Record<string, unknown>): Promise<void> {
