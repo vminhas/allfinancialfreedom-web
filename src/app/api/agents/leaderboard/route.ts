@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { getSetting } from '@/lib/settings'
 
 // GET /api/agents/leaderboard
 //
@@ -10,21 +11,37 @@ import { db } from '@/lib/db'
 // items hidden (those are by-definition invisible to agents anyway), and
 // the response includes the caller's own agentProfileId so the page can
 // highlight their row with a "YOU" badge and rank them in context.
-export async function GET() {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+//
+// Supports the same admin-preview ?preview=<token> path /api/agents/me
+// uses, so staff opening an agent's portal through the eyes of that
+// agent see the leaderboard without a 401.
+export async function GET(req: NextRequest) {
+  let viewerAgentId: string | null = null
+
+  const previewToken = new URL(req.url).searchParams.get('preview')
+  if (previewToken) {
+    const raw = await getSetting(`PREVIEW_TOKEN_${previewToken}`)
+    if (raw) {
+      const data = JSON.parse(raw) as { agentProfileId: string; expires: string }
+      if (new Date(data.expires) >= new Date()) viewerAgentId = data.agentProfileId
+    }
   }
 
-  const email = session.user!.email
-  if (typeof email !== 'string' || email.trim().length === 0) {
-    return NextResponse.json({ error: 'Session has no email' }, { status: 401 })
+  if (!viewerAgentId) {
+    const session = await getServerSession(authOptions)
+    const role = (session?.user as { role?: string } | undefined)?.role
+    if (!session || (role !== 'agent' && role !== 'admin' && role !== 'licensing_coordinator')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const email = session.user!.email
+    if (typeof email === 'string' && email.trim().length > 0) {
+      const u = await db.agentUser.findFirst({
+        where: { email: { equals: email, mode: 'insensitive' } },
+        include: { profile: { select: { id: true } } },
+      })
+      if (u?.profile) viewerAgentId = u.profile.id
+    }
   }
-  const me = await db.agentUser.findFirst({
-    where: { email: { equals: email, mode: 'insensitive' } },
-    include: { profile: { select: { id: true } } },
-  })
-  if (!me?.profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
 
   const [agents, items, completions] = await Promise.all([
     db.agentProfile.findMany({
@@ -59,6 +76,6 @@ export async function GET() {
     agents,
     items,
     completedAt,
-    viewerAgentId: me.profile.id,
+    viewerAgentId,
   })
 }

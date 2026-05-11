@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { useIsMobile } from '@/lib/useIsMobile'
 import {
   TrophyIcon, CrownIcon, MedalIcon,
@@ -102,11 +103,9 @@ const PODIUM_ACCENT: Record<1 | 2 | 3, { ring: string; glow: string; gem: string
 
 export default function ProductionLeaderboard() {
   const isMobile = useIsMobile()
-  // The 6-column desktop ranking table needs ~900px of horizontal room
-  // before its fixed columns crowd the flex Agent/Upline columns into a
-  // smear. At 768-960px we switch the table (and only the table) to the
-  // mobile row layout so the page never shows a broken grid.
   const isNarrowForTable = useIsMobile(960)
+  const searchParams = useSearchParams()
+  const previewToken = searchParams.get('preview')
   const [metric, setMetric] = useState<Metric>('submissions')
   const [scope, setScope] = useState<Scope>('company')
   const [timeframe, setTimeframe] = useState<Timeframe>('month')
@@ -118,7 +117,8 @@ export default function ProductionLeaderboard() {
     let cancelled = false
     setLoading(true)
     setError(null)
-    const url = `/api/agents/leaderboard/production?metric=${metric}&scope=${scope}&timeframe=${timeframe}`
+    const previewQs = previewToken ? `&preview=${previewToken}` : ''
+    const url = `/api/agents/leaderboard/production?metric=${metric}&scope=${scope}&timeframe=${timeframe}${previewQs}`
     fetch(url)
       .then(async r => {
         if (!r.ok) throw new Error(`${r.status}`)
@@ -128,7 +128,7 @@ export default function ProductionLeaderboard() {
       .catch(err => { if (!cancelled) setError(String(err)) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [metric, scope, timeframe])
+  }, [metric, scope, timeframe, previewToken])
 
   return (
     <div>

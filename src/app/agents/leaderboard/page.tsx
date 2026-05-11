@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { useIsMobile } from '@/lib/useIsMobile'
 import ProductionLeaderboard from './ProductionLeaderboard'
 import { LeaderboardTabsBar, useTabFromHash } from './LeaderboardTabs'
@@ -61,6 +62,8 @@ export default function LeaderboardPage() {
 
 function ProgressionMatrixView() {
   const isMobile = useIsMobile()
+  const searchParams = useSearchParams()
+  const previewToken = searchParams.get('preview')
   const [data, setData] = useState<Payload | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -68,7 +71,10 @@ function ProgressionMatrixView() {
   const [phaseFilter, setPhaseFilter] = useState<number | 'all'>('all')
 
   useEffect(() => {
-    fetch('/api/agents/leaderboard')
+    const url = previewToken
+      ? `/api/agents/leaderboard?preview=${previewToken}`
+      : '/api/agents/leaderboard'
+    fetch(url)
       .then(async r => {
         if (!r.ok) throw new Error(`${r.status}`)
         return r.json() as Promise<Payload>
@@ -76,7 +82,7 @@ function ProgressionMatrixView() {
       .then(setData)
       .catch(err => setError(String(err)))
       .finally(() => setLoading(false))
-  }, [])
+  }, [previewToken])
 
   const items = useMemo(() => {
     if (!data) return []
