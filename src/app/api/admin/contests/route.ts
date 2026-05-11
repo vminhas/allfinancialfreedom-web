@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
     eligibleFromAt?: string
     eligibleToAt?: string
     active?: boolean
+    discordChannelId?: string | null
     requirements?: Array<{
       label: string
       type: string
@@ -79,6 +80,7 @@ export async function POST(req: NextRequest) {
       eligibleFromAt: body.eligibleFromAt ? new Date(body.eligibleFromAt) : null,
       eligibleToAt: body.eligibleToAt ? new Date(body.eligibleToAt) : null,
       active: body.active !== false,
+      discordChannelId: body.discordChannelId?.trim() || null,
       requirements: {
         create: reqs.map((r, i) => ({
           order: r.order ?? i,

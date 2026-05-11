@@ -92,20 +92,43 @@ MANUAL       → admin checks per-agent (use this when the requirement
 CUSTOM_TEXT  → display only (rare; only when there's truly nothing
                to track and nothing to manually verify).
 
-Anchor selection:
-- ICA_DATE     → window is "X days from ICA" / "X days from joining"
-- ONBOARDING   → window is "X days from getting portal access"
-- PHASE_START  → window is "X days from entering this phase"
-- FIXED        → flyer gives exact start + end dates that apply to
-                 everyone (use fixedStartAt + fixedEndAt as ISO dates)
+Anchor selection — read CAREFULLY:
+
+A flyer can mention TWO different date concepts, and you must NOT
+confuse them:
+
+  (a) Per-agent duration. "60 days from when you signed your ICA"
+      or "you have 60 days from onboarding to complete." This means
+      every agent's clock runs from their OWN anchor date. Use the
+      anchor that matches:
+        ICA_DATE     → "60 days from ICA"
+        ONBOARDING   → "60 days from joining" / "60 days from portal access"
+        PHASE_START  → "60 days from entering this phase"
+      And set durationDays to the number from the flyer.
+
+  (b) Cohort eligibility window. "Starts Jan 1, 2026, ends Jun 30,
+      2026" or "for agents who join Q1." This bounds which agents
+      QUALIFY for the contest at all — not when their individual
+      clock runs out. Set eligibleFromAt + eligibleToAt to capture
+      it. The per-agent anchor + duration still drives the
+      countdown.
+
+  (c) Truly fixed window. The contest has the same deadline for
+      everyone, no per-agent variation ("Q1 Sprint, everyone must
+      finish by Mar 31"). Only then use FIXED with fixedStartAt +
+      fixedEndAt.
+
+If you see BOTH (a) and (b) on the same flyer — which is common
+("Starts Jan 1, ends Jun 30; you have 60 days from ICA") — use the
+(a) anchor with durationDays AND set eligibleFromAt/eligibleToAt
+from (b). Do NOT use FIXED in that case. FIXED is only for case (c).
 
 Duration: when anchor is non-FIXED, set durationDays. When FIXED,
 set fixedStartAt + fixedEndAt instead.
 
 Eligibility cutoffs (eligibleFromAt / eligibleToAt) are OPTIONAL —
-only set them if the flyer explicitly says "for agents whose ICA
-falls between X and Y" or similar cohort scoping. Default to null
-otherwise.
+only set them if the flyer explicitly says "starts X, ends Y" or
+similar cohort scoping. Default to null otherwise.
 
 Reward extraction:
 - rewardLabel: the dollar/text label as shown ("$500", "AFF jacket")

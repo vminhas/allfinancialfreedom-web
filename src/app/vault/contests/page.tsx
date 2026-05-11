@@ -29,6 +29,8 @@ interface Contest {
   eligibleFromAt: string | null
   eligibleToAt: string | null
   active: boolean
+  discordChannelId: string | null
+  discordTrackerMessageId: string | null
   createdAt: string
   updatedAt: string
   requirements: Requirement[]
@@ -168,6 +170,24 @@ export default function ContestsAdminPage() {
     }
   }
 
+  const syncTracker = async (cId: string, currentChannelId: string | null) => {
+    const channelId = prompt('Discord channel ID to post the live tracker in:', currentChannelId ?? '')
+    if (!channelId?.trim()) return
+    const res = await fetch(`/api/admin/contests/${cId}/sync-tracker`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channelId: channelId.trim() }),
+    })
+    if (res.ok) {
+      const d = await res.json() as { counts: { total: number; earned: number; inProgress: number; atRisk: number; missed: number } }
+      alert(`Tracker synced. ${d.counts.total} eligible · ${d.counts.earned} earned · ${d.counts.atRisk} at risk.`)
+      load()
+    } else {
+      const d = await res.json().catch(() => ({})) as { error?: string }
+      alert(`Sync failed: ${d.error ?? 'unknown'}`)
+    }
+  }
+
   const generatePost = async (id: string) => {
     setPostText(null); setPostCount(0)
     const res = await fetch(`/api/admin/contests/${id}/at-risk-post`, {
@@ -258,6 +278,9 @@ export default function ContestsAdminPage() {
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 <button onClick={() => openParticipants(c.id)} style={{ ...btn, background: 'transparent', color: '#9BB0C4', border: '1px solid rgba(255,255,255,0.12)' }}>
                   Participants
+                </button>
+                <button onClick={() => syncTracker(c.id, c.discordChannelId)} style={{ ...btn, background: 'transparent', color: '#5865F2', border: '1px solid rgba(88,101,242,0.4)' }}>
+                  {c.discordTrackerMessageId ? 'Sync to Discord' : 'Post to Discord'}
                 </button>
                 <button onClick={() => generatePost(c.id)} style={{ ...btn, background: 'transparent', color: '#f87171', border: '1px solid rgba(248,113,113,0.3)' }}>
                   At-risk post

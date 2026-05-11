@@ -1632,6 +1632,13 @@ model Contest {
   eligibleFromAt  DateTime?
   eligibleToAt    DateTime?
   active          Boolean               @default(true)
+  // Live tracker embed in Discord. discordChannelId is the channel
+  // the admin chose to post the leaderboard-style status embed.
+  // discordTrackerMessageId is the message the bot owns and edits
+  // in place on every sync — keeps one current message instead of
+  // spamming a new post each time.
+  discordChannelId        String?
+  discordTrackerMessageId String?
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
   requirements    ContestRequirement[]
