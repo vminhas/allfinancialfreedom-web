@@ -63,6 +63,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       phaseItemKey?: string | null
       milestoneKey?: string | null
       count?: number | null
+      defaultCompleted?: boolean
     }>
   }
 
@@ -95,6 +96,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
           phaseItemKey: r.phaseItemKey?.trim() || null,
           milestoneKey: r.milestoneKey?.trim() || null,
           count: r.count ?? null,
+          defaultCompleted: r.defaultCompleted === true,
         })),
       })
     }

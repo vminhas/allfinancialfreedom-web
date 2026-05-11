@@ -137,7 +137,12 @@ export async function evaluateRequirement(
         where: { requirementId_agentProfileId: { requirementId: req.id, agentProfileId } },
         select: { completed: true },
       })
-      return { ...base, completed: check?.completed ?? false }
+      // No explicit check row → fall back to the requirement's
+      // defaultCompleted flag. Lets admins mark a requirement as
+      // 'implicitly true for everyone' (e.g. 'Get GFI Code' for any
+      // portal user) without having to bulk-tick every future joiner.
+      const completed = check?.completed ?? req.defaultCompleted ?? false
+      return { ...base, completed }
     }
     case 'CUSTOM_TEXT': {
       // Display-only. Never auto-completes.
