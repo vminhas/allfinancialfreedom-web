@@ -5,9 +5,9 @@ import { db } from '@/lib/db'
 import { requireRole } from '@/lib/permissions'
 import type { PolicyType } from '@/generated/prisma/client'
 import { notifySubmitted } from '@/lib/new-business-notifications'
-import { logSubmissionActivity } from '@/lib/new-business-activity'
+import { logSubmissionActivity } from '@/lib/submission-activity'
 import { recomputeClimbAchievements } from '@/lib/climb-points'
-import { createNotification } from '@/lib/notifications'
+import { createNotification } from '@/lib/notify'
 import { validatePhone, validateEmail } from '@/lib/contact-validation'
 
 // POST /api/vault/new-business/on-behalf
@@ -112,14 +112,18 @@ export async function POST(req: NextRequest) {
   // who entered it (so leaderboard math + Climb credit go to the
   // right person). Meta records the LC's admin id for later
   // 'who entered this' reporting.
+  // actorAdminId records the LC who entered it; the activity row still
+  // attributes the policy itself to the writing agent via the
+  // submission's agentProfileId. enteredOnBehalf flag in meta makes
+  // 'who entered this' queries trivial.
   logSubmissionActivity({
     submissionId: submission.id,
     kind: 'CREATED',
-    actorAgentProfileId: agent.id,
+    actorAdminId: adminId,
     meta: {
       carrier: submission.carrier,
       policyType: body.policyType,
-      enteredByAdminId: adminId,
+      writerAgentProfileId: agent.id,
       enteredOnBehalf: true,
     },
   })
@@ -131,7 +135,7 @@ export async function POST(req: NextRequest) {
     logSubmissionActivity({
       submissionId: submission.id,
       kind: 'SPLIT_ADDED',
-      actorAgentProfileId: agent.id,
+      actorAdminId: adminId,
       meta: split ? { name: `${split.firstName} ${split.lastName}`, agentCode: split.agentCode } : {},
     })
   }
