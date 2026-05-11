@@ -1639,6 +1639,11 @@ model Contest {
   // spamming a new post each time.
   discordChannelId        String?
   discordTrackerMessageId String?
+  // Whether the live tracker embed includes a 'Missed' section for
+  // agents who ran out of time without qualifying. Off by default —
+  // public shame doesn't motivate — but admins can flip it on per
+  // contest if they want it visible.
+  trackerShowMissed       Boolean @default(false)
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
   requirements    ContestRequirement[]

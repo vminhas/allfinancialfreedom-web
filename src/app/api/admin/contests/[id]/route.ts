@@ -57,6 +57,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     eligibleToAt?: string | null
     active?: boolean
     discordChannelId?: string | null
+    trackerShowMissed?: boolean
     requirements?: Array<{
       label: string
       type: string
@@ -81,6 +82,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (body.eligibleToAt !== undefined) data.eligibleToAt = body.eligibleToAt ? new Date(body.eligibleToAt) : null
   if (body.active !== undefined) data.active = body.active
   if (body.discordChannelId !== undefined) data.discordChannelId = body.discordChannelId?.trim() || null
+  if (body.trackerShowMissed !== undefined) data.trackerShowMissed = body.trackerShowMissed === true
 
   await db.$transaction(async tx => {
     if (Object.keys(data).length > 0) {

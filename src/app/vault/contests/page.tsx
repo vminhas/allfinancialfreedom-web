@@ -31,6 +31,7 @@ interface Contest {
   active: boolean
   discordChannelId: string | null
   discordTrackerMessageId: string | null
+  trackerShowMissed: boolean
   createdAt: string
   updatedAt: string
   requirements: Requirement[]
@@ -465,6 +466,16 @@ function ContestForm({
             <option value="no">No</option>
           </select>
         </div>
+        <div style={{ gridColumn: '1 / -1', padding: '10px 12px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <ToggleSwitch
+            checked={form.trackerShowMissed === true}
+            onChange={v => setForm({ ...form, trackerShowMissed: v })}
+          />
+          <div>
+            <div style={{ fontSize: 12, color: '#fff', fontWeight: 600 }}>Show &lsquo;Missed&rsquo; section in Discord tracker</div>
+            <div style={{ fontSize: 11, color: '#6B8299' }}>Off by default. When on, the live tracker embed includes a section listing agents who ran out of time.</div>
+          </div>
+        </div>
         <div>
           <label style={labelStyle}>Anchor</label>
           <select style={{ ...inputStyle, cursor: 'pointer' }} value={form.anchor ?? 'ICA_DATE'} onChange={e => setForm({ ...form, anchor: e.target.value as Anchor })}>
@@ -536,5 +547,34 @@ function ContestForm({
         </button>
       </div>
     </div>
+  )
+}
+
+function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      style={{
+        position: 'relative',
+        width: 44, height: 24,
+        background: checked ? '#4ade80' : 'rgba(255,255,255,0.12)',
+        borderRadius: 999, border: 'none',
+        cursor: 'pointer', transition: 'background 180ms ease',
+        flexShrink: 0,
+      }}
+    >
+      <span
+        style={{
+          position: 'absolute', top: 2, left: checked ? 22 : 2,
+          width: 20, height: 20, borderRadius: '50%',
+          background: '#fff',
+          transition: 'left 180ms ease',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+        }}
+      />
+    </button>
   )
 }
