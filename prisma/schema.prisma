@@ -1652,6 +1652,12 @@ model ContestRequirement {
   phaseItemKey    String?    // PHASE_ITEM
   milestoneKey    String?    // MILESTONE
   count           Int?       // RECRUITS / POLICIES (e.g. 3)
+  // MANUAL only: when true, evaluator treats the requirement as
+  // completed for any agent who doesn't have an explicit check row.
+  // Used for "implicit-true" requirements like 'Get GFI Code' where
+  // every portal user already qualifies and we shouldn't keep
+  // bulk-ticking new joiners forever.
+  defaultCompleted Boolean   @default(false)
   manualChecks    ContestManualCheck[]
 
   @@index([contestId])

@@ -13,6 +13,7 @@ interface Requirement {
   phaseItemKey: string | null
   milestoneKey: string | null
   count: number | null
+  defaultCompleted?: boolean
 }
 
 interface Contest {
@@ -148,6 +149,25 @@ export default function ContestsAdminPage() {
     }
   }
 
+  const bulkCheck = async (cId: string, requirementId: string, completed: boolean) => {
+    const verb = completed ? 'mark complete for' : 'clear for'
+    if (!confirm(`This will ${verb} every eligible agent now AND auto-${completed ? 'check' : 'uncheck'} for any new agent who joins later. Continue?`)) return
+    const res = await fetch(`/api/admin/contests/${cId}/bulk-check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requirementId, completed }),
+    })
+    if (res.ok) {
+      const d = await res.json() as { affected: number }
+      alert(`Done. ${d.affected} agent${d.affected === 1 ? '' : 's'} updated. New joiners will inherit this state automatically.`)
+      openParticipants(cId)
+      load()
+    } else {
+      const d = await res.json().catch(() => ({})) as { error?: string }
+      alert(`Failed: ${d.error ?? 'unknown'}`)
+    }
+  }
+
   const generatePost = async (id: string) => {
     setPostText(null); setPostCount(0)
     const res = await fetch(`/api/admin/contests/${id}/at-risk-post`, {
@@ -253,6 +273,46 @@ export default function ContestsAdminPage() {
 
             {participantsForId === c.id && (
               <div style={{ marginTop: 14, padding: '12px 0 0', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                {/* Bulk-check rail: each MANUAL requirement gets a
+                    one-click 'mark complete for everyone' button.
+                    Used for things like 'Get GFI Code' that are
+                    implicitly true for the whole portal cohort. */}
+                {c.requirements.filter(r => r.type === 'MANUAL').length > 0 && (
+                  <div style={{ marginBottom: 14, padding: '10px 12px', background: 'rgba(201,169,110,0.04)', border: '1px solid rgba(201,169,110,0.2)', borderRadius: 6 }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', color: '#C9A96E', textTransform: 'uppercase', marginBottom: 8 }}>
+                      Bulk actions &middot; manual requirements
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {c.requirements.filter(r => r.type === 'MANUAL').map(r => (
+                        <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 12, color: '#fff' }}>{r.label}</span>
+                            {r.defaultCompleted && (
+                              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', padding: '2px 8px', borderRadius: 999, background: 'rgba(74,222,128,0.12)', color: '#4ade80', textTransform: 'uppercase', border: '1px solid rgba(74,222,128,0.4)' }}>
+                                Auto-checks new joiners
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button
+                              onClick={() => bulkCheck(c.id, r.id!, true)}
+                              style={{ ...btn, background: 'rgba(74,222,128,0.12)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.4)' }}
+                            >
+                              ✓ Mark all done {!r.defaultCompleted && '+ auto-check future'}
+                            </button>
+                            <button
+                              onClick={() => bulkCheck(c.id, r.id!, false)}
+                              style={{ ...btn, background: 'transparent', color: '#9BB0C4', border: '1px solid rgba(255,255,255,0.12)' }}
+                            >
+                              Clear all
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', color: '#C9A96E', marginBottom: 8, textTransform: 'uppercase' }}>
                   Eligible agents ({participants.length})
                 </div>
