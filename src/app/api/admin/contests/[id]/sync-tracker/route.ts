@@ -35,12 +35,20 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!adminId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await ctx.params
 
-  const body = await req.json().catch(() => ({})) as { channelId?: string }
+  const body = await req.json().catch(() => ({})) as { channelId?: string; includeMissed?: boolean }
+  // includeMissed resolution order:
+  //   1. body.includeMissed if explicitly set (per-sync override)
+  //   2. contest.trackerShowMissed otherwise (persistent toggle)
+  //   3. false by default (kindness mode)
   const contest = await db.contest.findUnique({
     where: { id },
     include: { requirements: { orderBy: { order: 'asc' } } },
   })
   if (!contest) return NextResponse.json({ error: 'Contest not found' }, { status: 404 })
+
+  const includeMissed = body.includeMissed !== undefined
+    ? body.includeMissed === true
+    : contest.trackerShowMissed === true
 
   // Channel can come from the request (admin sets/updates it on
   // sync) or from a previously-saved value on the contest.
@@ -65,8 +73,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       )
 
   // Bucket by status. At-risk = <=7 days, incomplete. In-progress =
-  // anything in-window not yet qualified. Earned = qualified. Missed
-  // = expired without qualifying.
+  // anything in-window not yet qualified. Earned = qualified.
+  // Missed = expired without qualifying — hidden by default, shown
+  // when includeMissed is true (per-contest toggle or per-sync
+  // override).
   const earned: typeof participants = []
   const atRisk: typeof participants = []
   const inProgress: typeof participants = []
@@ -114,7 +124,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (earned.length > 0) {
     fields.push({ name: `✅ Earned (${earned.length})`, value: cap(earned.map(p => renderRow(p, false))) })
   }
-  if (missed.length > 0) {
+  if (includeMissed && missed.length > 0) {
     fields.push({ name: `❌ Missed (${missed.length})`, value: cap(missed.map(p => renderRow(p, false))) })
   }
   if (fields.length === 0) {
