@@ -57,6 +57,43 @@ const PHASE_COLORS: Record<number, string> = {
   3: '#C9A96E',  // gold
   4: '#a78bfa',  // purple
   5: '#f472b6',  // pink
+  6: '#FFD54F',  // bright gold — apex (Phase 6 / EMD title)
+}
+
+// Small helper for rendering the P{n} pill. Phases 1–5 are subtle
+// text in the phase color; Phase 6 (apex) gets a gilded gradient
+// pill with a crown so it visually stands apart from the rest of
+// the roster. Use this everywhere we surface the phase tag in a
+// list/roster context.
+function PhaseTag({ phase }: { phase: number }) {
+  const isApex = phase >= 6
+  if (isApex) {
+    return (
+      <span
+        title="EMD · Phase 6"
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 3,
+          fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
+          color: '#0A1628',
+          padding: '2px 7px', borderRadius: 999,
+          background: 'linear-gradient(135deg, #FFE082 0%, #C9A96E 55%, #8B6F2E 100%)',
+          boxShadow: '0 0 10px rgba(255,213,79,0.45)',
+          border: '1px solid rgba(255,213,79,0.55)',
+        }}
+      >
+        <span style={{ fontSize: 10, lineHeight: 1 }}>👑</span>
+        <span>P{phase}</span>
+      </span>
+    )
+  }
+  return (
+    <span style={{
+      fontSize: 9, color: PHASE_COLORS[phase] ?? '#6B8299',
+      fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+    }}>
+      P{phase}
+    </span>
+  )
 }
 const PHASE_TITLES: Record<number, string> = {
   1: 'Onboarding',
@@ -762,7 +799,7 @@ function Matrix({
                     </div>
                     <div style={{ fontSize: 9, color: '#6B8299', display: 'flex', gap: 6, marginTop: 1, alignItems: 'center' }}>
                       <span>{agent.agentCode}</span>
-                      <span style={{ color: PHASE_COLORS[agent.phase] }}>P{agent.phase}</span>
+                      <PhaseTag phase={agent.phase} />
                       {(() => {
                         const info = atRiskByAgent.get(agent.id)
                         if (!info || info.status === 'on-track') return null
@@ -924,7 +961,7 @@ function MobileList({
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 13, color: '#ffffff', fontWeight: 600 }}>{a.firstName} {a.lastName}</span>
-                  <span style={{ fontSize: 9, color: PHASE_COLORS[a.phase], fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>P{a.phase}</span>
+                  <PhaseTag phase={a.phase} />
                   <span style={{ fontSize: 10, color: '#6B8299' }}>{a.agentCode}</span>
                 </div>
                 <div style={{ position: 'relative', height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden' }}>

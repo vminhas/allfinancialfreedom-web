@@ -21,7 +21,18 @@ interface SnapshotResponse {
   monthLabel: string
   submissions: AgentRow[]
   recruits: AgentRow[]
-  agents: Array<{ agentCode: string; firstName: string; lastName: string; phase: number }>
+  agents: Array<{
+    agentCode: string
+    firstName: string
+    lastName: string
+    phase: number
+    // When this agent is part of a configured couple, displayName
+    // is the joint label ('Vick & Melinee Minhas'); the phase-mover
+    // line on the Discord embed uses it instead of first+last so
+    // the celebration honors both partners.
+    displayName?: string
+    isCouple?: boolean
+  }>
   totalSubmissions: number
   activeSubmitters: number
 }
@@ -249,12 +260,19 @@ export async function GET(req: NextRequest) {
 
   const agents = roster
     .filter(r => !r.isLeadership)
-    .map(r => ({
-      agentCode: r.agentCode,
-      firstName: r.firstName,
-      lastName: r.lastName,
-      phase: r.phase,
-    }))
+    .map(r => {
+      const meta = resolveCouple(r.id)
+      return {
+        agentCode: r.agentCode,
+        firstName: r.firstName,
+        lastName: r.lastName,
+        phase: r.phase,
+        // Phase-movers line on the bot reads displayName when set so
+        // couples celebrate as a unit ('🎉 Vick & Melinee Minhas
+        // moved from Phase 5 to Phase 6').
+        ...(meta.isCouple ? { displayName: meta.displayName, isCouple: true } : {}),
+      }
+    })
 
   return NextResponse.json({
     monthLabel, submissions, recruits, agents, totalSubmissions, activeSubmitters,

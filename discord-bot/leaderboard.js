@@ -90,7 +90,11 @@ function buildEmbeds(data) {
   if (movers.length > 0) {
     const moverLines = movers.map(m => {
       const emoji = PHASE_UP_EMOJI[m.phase] ?? '⬆️';
-      return `${emoji}  **${m.firstName} ${m.lastName}**  Phase ${m.prevPhase} → Phase ${m.phase}  🎉`;
+      // Couples celebrate as a unit: snapshot puts the joint label
+      // ('Vick & Melinee Minhas') on m.displayName + m.isCouple,
+      // otherwise fall through to first + last.
+      const who = m.isCouple && m.displayName ? m.displayName : `${m.firstName} ${m.lastName}`.trim();
+      return `${emoji}  **${who}**  Phase ${m.prevPhase} → Phase ${m.phase}  🎉`;
     }).join('\n');
     moversEmbed = new EmbedBuilder()
       .setColor(COLORS.NAVY)
