@@ -1243,6 +1243,7 @@ function AgentDrawer({
     email: agent.email ?? agent.agentUser?.email ?? '',
     phone: (agent.phone ?? '').replace(/\.0+$/, ''),
     state: agent.state ?? '',
+    phase: agent.phase ?? 1,
     dateOfBirth: agent.dateOfBirth ? agent.dateOfBirth.split('T')[0] : '',
     npn: agent.npn ?? '',
     licenseNumber: agent.licenseNumber ?? '',
@@ -2083,6 +2084,25 @@ function AgentDrawer({
                 <label style={lStyle}>Last Name</label>
                 <input value={editForm.lastName} onChange={set('lastName')} style={iStyle} />
               </div>
+            </div>
+
+            {/* Phase — direct picker so admins can jump straight to a
+                phase (e.g. setting Vick to 6) instead of clicking
+                Advance N times. PHASE_LABELS keys this; the API
+                allowlist already accepts 'phase'. */}
+            <div>
+              <label style={lStyle}>Phase</label>
+              <select
+                value={editForm.phase}
+                onChange={e => setEditForm(f => ({ ...f, phase: parseInt(e.target.value, 10) }))}
+                style={{ ...iStyle, appearance: 'auto' }}
+              >
+                {[1, 2, 3, 4, 5, 6].map(n => (
+                  <option key={n} value={n}>
+                    Phase {n}{PHASE_LABELS[n]?.title ? ` — ${PHASE_LABELS[n].title}` : ''}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Email */}
