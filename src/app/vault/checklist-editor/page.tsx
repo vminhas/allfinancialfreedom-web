@@ -248,7 +248,7 @@ export default function ChecklistEditorPage() {
 
       {/* Phase tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 20, flexWrap: 'wrap' }}>
-        {[1, 2, 3, 4, 5].map(ph => (
+        {[1, 2, 3, 4, 5, 6].map(ph => (
           <button
             key={ph}
             onClick={() => setActivePhase(ph)}
@@ -677,7 +677,7 @@ function GroupsEditor({ groups, onRefresh, isMobile }: { groups: PhaseGroupDef[]
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-          {[1,2,3,4,5].map(ph => (
+          {[1,2,3,4,5,6].map(ph => (
             <button key={ph} onClick={() => setActivePhase(ph)} style={{ padding: '5px 14px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: activePhase === ph ? 'rgba(201,169,110,0.12)' : 'transparent', border: `1px solid ${activePhase === ph ? 'rgba(201,169,110,0.3)' : 'rgba(255,255,255,0.06)'}`, color: activePhase === ph ? '#C9A96E' : '#6B8299', cursor: 'pointer' }}>Phase {ph}</button>
           ))}
         </div>

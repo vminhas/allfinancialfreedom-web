@@ -122,7 +122,7 @@ export async function GET() {
 
   const stats = {
     totalAgents: agents.length,
-    byPhase: [1, 2, 3, 4, 5].map(p => ({
+    byPhase: [1, 2, 3, 4, 5, 6].map(p => ({
       phase: p,
       title: PHASE_TITLES[p],
       count: agents.filter(a => a.phase === p).length,

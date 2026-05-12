@@ -42,7 +42,7 @@ const PHASE_COLORS: Record<number, string> = {
   1: '#60a5fa', 2: '#4ade80', 3: '#C9A96E', 4: '#a78bfa', 5: '#f472b6',
 }
 const PHASE_TITLES: Record<number, string> = {
-  1: 'Onboarding', 2: 'Training', 3: 'Advancement', 4: 'Leadership', 5: 'Mastery',
+  1: 'Onboarding', 2: 'Training', 3: 'Advancement', 4: 'Leadership', 5: 'Mastery', 6: 'Legacy',
 }
 
 // Top-level page is now a tabbed shell: Production (the new
@@ -191,7 +191,7 @@ function ProgressionMatrixView() {
         background: '#142D48', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)',
       }}>
         <FilterPill active={phaseFilter === 'all'} onClick={() => setPhaseFilter('all')}>All Phases</FilterPill>
-        {[1, 2, 3, 4, 5].map(ph => (
+        {[1, 2, 3, 4, 5, 6].map(ph => (
           <FilterPill key={ph} active={phaseFilter === ph} onClick={() => setPhaseFilter(ph)} accent={PHASE_COLORS[ph]}>
             Phase {ph}
           </FilterPill>

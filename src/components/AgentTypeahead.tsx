@@ -44,8 +44,14 @@ interface AgentTypeaheadProps {
   helperText?: React.ReactNode
 }
 
+// Title shown next to an agent in pickers. Convention: agents in
+// Phase N display the title earned by completing Phase N-1 (you
+// have to be in the *next* phase to hold the current title). Vick
+// at Phase 6 is an EMD; an agent at Phase 5 is an MD working
+// toward EMD. Phase 1 has no earned title yet (default rendered
+// as 'Phase 1' by the fallback).
 const PHASE_TITLE: Record<number, string> = {
-  1: 'Agent', 2: 'Associate', 3: 'Senior Associate', 4: 'MD', 5: 'EMD',
+  2: 'Agent', 3: 'Associate', 4: 'Senior Associate', 5: 'MD', 6: 'EMD',
 }
 
 export default function AgentTypeahead({

@@ -34,7 +34,7 @@ export async function GET() {
   const inactiveAgents = totalAgents - activeAgents
 
   // Phase distribution
-  const phaseDistribution = [1, 2, 3, 4, 5].map(phase => {
+  const phaseDistribution = [1, 2, 3, 4, 5, 6].map(phase => {
     const inPhase = profiles.filter(p => p.phase === phase)
     return {
       phase,
@@ -61,7 +61,10 @@ export async function GET() {
   // Ready to promote count
   let readyToPromoteCount = 0
   for (const p of profiles) {
-    if (p.status !== 'ACTIVE' || p.phase >= 5) continue
+    // Cap at phase 6 — beyond that there's no 'next' phase to
+    // promote to (Phase 6 is the terminal EMD-titled level until
+    // higher ranks are added).
+    if (p.status !== 'ACTIVE' || p.phase >= 6) continue
     const totalItems = PHASE_ITEMS[p.phase]?.length ?? 0
     const completedItems = p.phaseItems.filter(i => i.phase === p.phase && i.completed).length
     if (totalItems > 0 && completedItems >= totalItems) readyToPromoteCount++
