@@ -264,6 +264,12 @@ model AgentProfile {
   // leaderboard, future aggregate dashboards). Test agents keep all
   // login + flow capabilities so we can exercise the agent UX as them.
   isTest                Boolean     @default(false) @map("is_test")
+  // Flag for AFF leadership (Vick, Melinee, and any future founders /
+  // executives) who have AgentProfiles but operate as staff. Hides
+  // them from the production leaderboard and bundles their recruits
+  // into a single 'Vick & Melinee' synthetic row on the recruits
+  // leaderboard.
+  isLeadership          Boolean     @default(false) @map("is_leadership")
   // Earned recognitions that aren't a phase rank. CFT is the first;
   // others (EliteCFT, TopRecruiter, FoundersCircle) plug in here
   // without a migration. Auto-managed by recomputeBadges() when the

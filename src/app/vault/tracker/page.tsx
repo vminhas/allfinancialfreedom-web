@@ -77,6 +77,7 @@ interface DetailedAgent extends Agent {
   discordUserId: string | null
   notes: string | null
   isTest: boolean
+  isLeadership?: boolean
   recruiter: { firstName: string; lastName: string; agentCode: string } | null
 }
 
@@ -1252,6 +1253,7 @@ function AgentDrawer({
     zip: agent.zip ?? '',
     notes: agent.notes ?? '',
     isTest: agent.isTest ?? false,
+    isLeadership: agent.isLeadership ?? false,
   })
   const [editSaving, setEditSaving] = useState(false)
   const [editSaved, setEditSaved] = useState(false)
@@ -1924,6 +1926,35 @@ function AgentDrawer({
                   Hides this agent from the admin progression matrix and the
                   agent-facing leaderboard. Login + features still work
                   normally for QA.
+                </div>
+              </div>
+            </label>
+
+            {/* Leadership flag. Vick / Melinee carry AgentProfiles
+                so they can be assigned policies, BPs, etc., but
+                they're operating as staff — checking this hides
+                them from the production leaderboard and rolls their
+                recruits into the synthetic 'Vick & Melinee' row on
+                the recruits leaderboard. */}
+            <label style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '10px 12px', borderRadius: 4,
+              background: editForm.isLeadership ? 'rgba(201,169,110,0.08)' : 'rgba(255,255,255,0.02)',
+              border: editForm.isLeadership ? '1px solid rgba(201,169,110,0.3)' : '1px solid rgba(255,255,255,0.05)',
+              cursor: 'pointer',
+            }}>
+              <input
+                type="checkbox"
+                checked={editForm.isLeadership}
+                onChange={e => setEditForm(f => ({ ...f, isLeadership: e.target.checked }))}
+                style={{ flexShrink: 0 }}
+              />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: editForm.isLeadership ? '#C9A96E' : '#9BB0C4', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                  AFF Leadership
+                </div>
+                <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2 }}>
+                  Marks this profile as a leadership user (Vick, Melinee, founders). Hides from production leaderboard. Recruits roll up to the &lsquo;Vick &amp; Melinee&rsquo; bundle on the recruits leaderboard.
                 </div>
               </div>
             </label>
