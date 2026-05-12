@@ -47,7 +47,9 @@ export async function PUT(req: NextRequest) {
   }
   await db.agentProfile.update({
     where: { id: id.profileId },
-    data: { clientReminderPrefs: next },
+    // Cast through unknown to Prisma's InputJsonObject shape — our
+    // typed Prefs interface lacks the string index Prisma expects.
+    data: { clientReminderPrefs: next as unknown as Record<string, boolean> },
   })
   return NextResponse.json({ prefs: { ...DEFAULT_PREFS, ...next } })
 }
