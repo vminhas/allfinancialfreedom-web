@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import AgentSessionProvider from './AgentSessionProvider'
 import PullToRefresh from '@/components/PullToRefresh'
+import InstallPromptCard from '@/components/InstallPromptCard'
 
 export const metadata: Metadata = {
   title: 'Agent Portal · All Financial Freedom',
@@ -50,6 +51,12 @@ export default function AgentsLayout({ children }: { children: React.ReactNode }
     <AgentSessionProvider>
       <PullToRefresh />
       {children}
+      {/* Bottom-anchored install card. Self-suppresses when running
+          in standalone mode (already installed) and when the user
+          dismissed it within the last 14 days. Safe on every agent
+          page; renders nothing on desktop where the browser hasn't
+          fired beforeinstallprompt. */}
+      <InstallPromptCard />
     </AgentSessionProvider>
   )
 }
