@@ -185,12 +185,22 @@ export async function POST(req: NextRequest) {
     submission.illustrationUrls = urls
   }
 
+  // Pull the split partner so the announcement can shout them out
+  // too. One round-trip; only fires when a split was actually set.
+  const splitPartner = submission.splitWithAgentId
+    ? await db.agentProfile.findUnique({
+        where: { id: submission.splitWithAgentId },
+        select: { firstName: true, lastName: true, agentCode: true },
+      }).catch(() => null)
+    : null
+
   notifySubmitted({
     agentName: `${profile.firstName} ${profile.lastName}`,
     policyType,
     carrier: submission.carrier,
     clientName: `${submission.clientFirstName} ${submission.clientLastName}`,
     points: submission.points,
+    splitWith: splitPartner ?? null,
   }).catch(() => {})
 
   // Audit-log: CREATED + (SPLIT_ADDED if a split was set on creation).
