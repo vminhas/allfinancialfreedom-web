@@ -66,10 +66,10 @@ const PHASE_COLORS: Record<number, string> = {
 // default to 'Agent' (no prior phase). Mirrors the directory API logic.
 const PHASE_TITLES: Record<number, string> = {
   1: 'Agent', 2: 'Associate', 3: 'Senior Associate',
-  4: 'Marketing Director', 5: 'Executive Marketing Director', 6: 'MVP',
+  4: 'Marketing Director', 5: 'Executive Marketing Director', 6: 'NVP',
 }
 const PHASE_ABBREV: Record<number, string> = {
-  1: 'Agent', 2: 'Associate', 3: 'CFT', 4: 'MD', 5: 'EMD', 6: 'MVP',
+  1: 'Agent', 2: 'Associate', 3: 'CFT', 4: 'MD', 5: 'EMD', 6: 'NVP',
 }
 function agentTitle(phase: number): string {
   return PHASE_TITLES[phase - 1] ?? 'Agent'

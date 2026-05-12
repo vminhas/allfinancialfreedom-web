@@ -345,11 +345,11 @@ export const PHASE_LABELS: Record<number, { title: string; standard: string; goa
     nextStep: 'Earn your EMD designation to advance to Phase 6.',
   },
   6: {
-    title: 'MVP Focus',
-    standard: 'MVP Plan',
-    goal: 'Earn the MVP rank',
-    description: "You're an EMD. From here, the work shifts to building MVPs underneath you and scaling the organization beyond a single team. Phase 6 is the path from EMD to MVP.",
-    nextStep: 'Develop EMDs from your organization and hit MVP-level production. Specific milestones will be configurable as the path matures.',
+    title: 'NVP Focus',
+    standard: 'NVP Plan',
+    goal: 'Earn the National Vice President rank',
+    description: "You're an EMD. From here, the work shifts to building EMDs underneath you and scaling the organization beyond a single team. Phase 6 is the path from EMD to National Vice President (NVP).",
+    nextStep: 'Develop EMDs from your organization and hit NVP-level production. Specific milestones will be configurable as the path matures.',
   },
 }
 
