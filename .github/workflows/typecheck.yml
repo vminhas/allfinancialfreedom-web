@@ -1,0 +1,33 @@
+name: Typecheck
+
+# Runs `tsc --noEmit` on every push + PR so we never ship a TS
+# regression. Mirrors what Vercel runs during the production build's
+# 'Running TypeScript ...' step — catches it before it gets there
+# instead of finding out post-merge.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci --no-audit --no-fund
+
+      # Prisma client is generated to src/generated/prisma; without it,
+      # any file that imports from @/generated/prisma/client fails to
+      # resolve and tsc errors out unrelated to the actual diff.
+      - run: npx prisma generate
+
+      - run: npm run typecheck
