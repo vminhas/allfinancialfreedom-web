@@ -110,8 +110,8 @@ export const PHASE_ACCENT: Record<number, number> = {
   2: 0x4ade80, // green  (Associate → CFT)
   3: 0xC9A96E, // gold   (CFT → MD)
   4: 0xa78bfa, // purple (MD → EMD)
-  5: 0xf472b6, // pink   (EMD → MVP)
-  6: 0xfbbf24, // amber  (MVP)
+  5: 0xf472b6, // pink   (EMD → NVP)
+  6: 0xfbbf24, // amber  (NVP)
 }
 
 // Title earned by completing the PREVIOUS phase (you have to be in

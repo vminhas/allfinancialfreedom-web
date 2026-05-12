@@ -45,7 +45,7 @@ const PHASE_COLORS: Record<number, string> = {
 
 const PHASE_TITLES: Record<number, string> = {
   1: 'Agent', 2: 'Associate', 3: 'Senior Associate',
-  4: 'Marketing Director', 5: 'Executive Marketing Director', 6: 'MVP',
+  4: 'Marketing Director', 5: 'Executive Marketing Director', 6: 'NVP',
 }
 
 // US states list now lives in agent-constants so every state-picker in
