@@ -166,6 +166,7 @@ export async function PUT(
     'discordUserId', 'welcomeLetterSentAt', 'clientProduct', 'licenseProcess', 'notes',
     'addressLine1', 'addressLine2', 'city', 'zip', 'country', 'avatarUrl',
     'isTest',
+    'isLeadership',
     // Earned-recognition list. Manual override path; auto-managed
     // updates flow through recomputeBadges() in lib/agent-badges.
     'badges',
