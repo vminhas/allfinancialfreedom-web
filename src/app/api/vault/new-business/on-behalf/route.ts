@@ -108,9 +108,11 @@ export async function POST(req: NextRequest) {
     points: submission.points,
   }).catch(() => {})
 
-  // LC activity feed: who logged this on behalf of whom.
-  const actorName = (session.user as { name?: string } | undefined)?.name ?? 'LC'
-  const actorRole = (session.user as { role?: 'admin' | 'licensing_coordinator' } | undefined)?.role ?? 'admin'
+  // LC activity feed: who logged this on behalf of whom. session is
+  // guaranteed non-null here — requireRole above 401s otherwise —
+  // but TS needs the assertion to narrow.
+  const actorName = (session!.user as { name?: string } | undefined)?.name ?? 'LC'
+  const actorRole = (session!.user as { role?: 'admin' | 'licensing_coordinator' } | undefined)?.role ?? 'admin'
   const { logOnBehalfSubmission } = await import('@/lib/lc-activity')
   logOnBehalfSubmission({
     writer: { firstName: agent.firstName, lastName: agent.lastName, agentCode: agent.agentCode },
