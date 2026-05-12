@@ -1,5 +1,14 @@
 import type { PolicyType } from '@/generated/prisma/client'
 
+// Fallback to the team-known announcements channel ID when the env
+// var isn't set — matches the pattern in climb-celebrate /
+// milestone-celebrate so the public-facing posts always land in the
+// right place, regardless of whether DISCORD_ANNOUNCEMENTS_CHANNEL_ID
+// is configured in this environment.
+const ANNOUNCEMENTS_FALLBACK = '1295044213590982724'
+const announcementsChannel = () =>
+  process.env.DISCORD_ANNOUNCEMENTS_CHANNEL_ID ?? ANNOUNCEMENTS_FALLBACK
+
 const POLICY_LABEL: Record<PolicyType, string> = {
   TERM: 'Term',
   WHOLE_LIFE: 'Whole Life',
@@ -24,7 +33,9 @@ interface SubmittedArgs {
 export async function notifySubmitted(args: SubmittedArgs): Promise<void> {
   if (!process.env.DISCORD_BOT_TOKEN) return
 
-  const embed = {
+  // LC-facing embed for the admin channel — concrete + ops-flavored
+  // because LCs are the ones who have to act on it.
+  const adminEmbed = {
     title: 'New Business Submission',
     description: [
       `**${args.agentName}** submitted ${policyTypeLabel(args.policyType)} for **${args.clientName}**`,
@@ -37,16 +48,30 @@ export async function notifySubmitted(args: SubmittedArgs): Promise<void> {
     footer: { text: 'AFF Concierge · New Business' },
   }
 
+  const { sendChannelMessage } = await import('@/lib/discord')
+
   if (process.env.DISCORD_ADMIN_CHANNEL_ID) {
-    const { sendChannelMessage } = await import('@/lib/discord')
-    await sendChannelMessage(process.env.DISCORD_ADMIN_CHANNEL_ID, { embeds: [embed] }).catch(() => {})
+    await sendChannelMessage(process.env.DISCORD_ADMIN_CHANNEL_ID, { embeds: [adminEmbed] }).catch(() => {})
   }
 
-  // DM every licensing coordinator who linked Discord. The channel
-  // post above keeps the team in the loop; the DM makes sure the
+  // Subtle announcement-channel post. Same event, different audience:
+  // builds hype with the team without the LC-ops phrasing. Smaller
+  // visual weight than the POLICY ISSUED card (no @everyone, no
+  // protagonist avatar) so the issued card is still the louder
+  // moment of celebration when the policy lands.
+  const teaserEmbed = {
+    description: `✍️  **${args.agentName}** just submitted an application — ${args.carrier} ${policyTypeLabel(args.policyType)} for **${args.clientName}**.`,
+    color: 0xC9A96E,
+    timestamp: new Date().toISOString(),
+    footer: { text: 'AFF Concierge · Application Submitted' },
+  }
+  await sendChannelMessage(announcementsChannel(), { embeds: [teaserEmbed] }).catch(() => {})
+
+  // DM every licensing coordinator who linked Discord. The admin
+  // channel keeps the team in the loop; the DM makes sure the
   // people who actually have to action this see it on their phone.
   const { dmLicensingCoordinators } = await import('./staff-discord')
-  dmLicensingCoordinators(embed).catch(() => {})
+  dmLicensingCoordinators(adminEmbed).catch(() => {})
 }
 
 async function dmAgent(discordUserId: string, embed: Record<string, unknown>): Promise<void> {
@@ -97,10 +122,11 @@ export async function notifyIssued(args: IssuedArgs): Promise<void> {
     ],
   })
 
-  const channelId = process.env.DISCORD_ANNOUNCEMENTS_CHANNEL_ID ?? process.env.DISCORD_ADMIN_CHANNEL_ID
-  if (channelId) {
-    await sendChannelMessage(channelId, { embeds: [card] }).catch(() => {})
-  }
+  // POLICY ISSUED is always public hype — goes to announcements
+  // regardless of env config, never the admin channel. The team
+  // sees the win, the producing agent's face shows up in the embed
+  // (via buildAchievementEmbed), it reads as a celebration.
+  await sendChannelMessage(announcementsChannel(), { embeds: [card] }).catch(() => {})
 
   // DM the agent the same card so it lands in their inbox too.
   if (args.agentDiscordUserId) {
