@@ -132,7 +132,7 @@ export default function AnnouncementsPage() {
               <div style={lbl}>Target Phase (optional)</div>
               <select value={form.targetPhase} onChange={e => setForm(f => ({ ...f, targetPhase: e.target.value }))} style={{ ...inp, cursor: 'pointer' }}>
                 <option value="">All agents</option>
-                {[1,2,3,4,5].map(p => <option key={p} value={p}>Phase {p} only</option>)}
+                {[1,2,3,4,5,6].map(p => <option key={p} value={p}>Phase {p} only</option>)}
               </select>
             </div>
             <div>

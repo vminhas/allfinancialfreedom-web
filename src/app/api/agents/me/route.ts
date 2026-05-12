@@ -153,7 +153,7 @@ export async function GET(req: NextRequest) {
     totalByPhase[d.phase] += 1
   }
 
-  const allPhaseProgress = [1, 2, 3, 4, 5].map(phase => {
+  const allPhaseProgress = [1, 2, 3, 4, 5, 6].map(phase => {
     // Fall back to PHASE_ITEMS only if the editor hasn't seeded any
     // definitions yet (fresh-DB / dev-environment safety).
     const liveKeys = liveKeysByPhase[phase]

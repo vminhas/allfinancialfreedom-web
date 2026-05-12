@@ -342,13 +342,20 @@ export const PHASE_LABELS: Record<number, { title: string; standard: string; goa
     standard: 'EMD Plan',
     goal: '150K Net Points + 20 Licenses',
     description: 'Scale to Elite Marketing Director. Maintain 150,000 net points over 6 months, develop a Marketing Director, and grow your licensed team to 20 agents.',
-    nextStep: "You're building a legacy, maintain production and keep growing your leadership team.",
+    nextStep: 'Earn your EMD designation to advance to Phase 6.',
+  },
+  6: {
+    title: 'MVP Focus',
+    standard: 'MVP Plan',
+    goal: 'Earn the MVP rank',
+    description: "You're an EMD. From here, the work shifts to building MVPs underneath you and scaling the organization beyond a single team. Phase 6 is the path from EMD to MVP.",
+    nextStep: 'Develop EMDs from your organization and hit MVP-level production. Specific milestones will be configurable as the path matures.',
   },
 }
 
 // Discord roles per phase, guild role IDs stored in Settings table
 // Key format: DISCORD_ROLE_PHASE_{n}
-export const DISCORD_PHASE_ROLE_KEYS = [1, 2, 3, 4, 5].map(n => `DISCORD_ROLE_PHASE_${n}`)
+export const DISCORD_PHASE_ROLE_KEYS = [1, 2, 3, 4, 5, 6].map(n => `DISCORD_ROLE_PHASE_${n}`)
 export const DISCORD_GUILD_ID_KEY = 'DISCORD_GUILD_ID'
 export const DISCORD_BOT_TOKEN_KEY = 'DISCORD_BOT_TOKEN'
 

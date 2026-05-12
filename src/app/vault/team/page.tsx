@@ -117,7 +117,7 @@ export default function VaultTeamDirectoryPage() {
           }}
         >
           <option value="">All Phases</option>
-          {[1,2,3,4,5].map(n => <option key={n} value={n}>Phase {n}</option>)}
+          {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>Phase {n}</option>)}
         </select>
         {!loading && (
           <span style={{ fontSize: 11, color: '#4B5563', whiteSpace: 'nowrap' }}>

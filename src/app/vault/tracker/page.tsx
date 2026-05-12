@@ -320,7 +320,7 @@ export default function TrackerPage() {
   }
 
   const advancePhase = async () => {
-    if (!selectedAgent || selectedAgent.phase >= 5) return
+    if (!selectedAgent || selectedAgent.phase >= 6) return
     await fetch(`/api/admin/agents/${selectedAgent.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -737,7 +737,7 @@ export default function TrackerPage() {
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
         <select style={selectStyle} value={phaseFilter} onChange={e => { setPhaseFilter(e.target.value); setPage(1) }}>
           <option value="">All Phases</option>
-          {[1,2,3,4,5].map(n => (
+          {[1,2,3,4,5,6].map(n => (
             <option key={n} value={n}>Phase {n} — {PHASE_LABELS[n].title}</option>
           ))}
         </select>
@@ -1601,7 +1601,7 @@ function AgentDrawer({
         <div>
           {/* Phase sub-tabs — bounce between phases independently of current phase */}
           <div style={{ display: 'flex', gap: 4, marginBottom: 16, flexWrap: 'wrap' }}>
-            {[1, 2, 3, 4, 5].map(ph => {
+            {[1, 2, 3, 4, 5, 6].map(ph => {
               const items = PHASE_ITEMS[ph] ?? []
               const done = localPhaseItems.filter(p => p.phase === ph && p.completed).length
               const total = items.length

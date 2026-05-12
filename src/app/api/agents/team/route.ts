@@ -206,7 +206,7 @@ export async function GET(req: NextRequest) {
 
   function computeProgress(a: typeof allAgents[0]): TeamProgress {
     const entry = progressByAgent.get(a.id)
-    const perPhase = [1, 2, 3, 4, 5].map(p => ({
+    const perPhase = [1, 2, 3, 4, 5, 6].map(p => ({
       phase: p,
       completed: entry?.perPhase.get(p) ?? 0,
       total: PHASE_ITEM_TOTALS[p] ?? 0,

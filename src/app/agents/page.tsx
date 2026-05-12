@@ -1073,7 +1073,7 @@ function AgentDashboardInner() {
         <div style={{ ...card, padding: '20px 24px', marginBottom: 24 }}>
           <div style={sectionLabel}>Your Journey</div>
           <div style={{ display: 'flex', alignItems: 'flex-start', overflowX: 'auto', paddingBottom: 8 }}>
-            {[1, 2, 3, 4, 5].map((phase, idx) => {
+            {[1, 2, 3, 4, 5, 6].map((phase, idx) => {
               const prog = data.allPhaseProgress.find(p => p.phase === phase)
               const isCurrent = phase === data.phase
               const isDone = phase < data.phase
@@ -1150,7 +1150,7 @@ function AgentDashboardInner() {
 
             {/* Phase sub-tabs */}
             <div style={{ display: 'flex', gap: 4, marginBottom: 24, flexWrap: 'wrap' }}>
-              {[1, 2, 3, 4, 5].map(ph => {
+              {[1, 2, 3, 4, 5, 6].map(ph => {
                 const prog = data.allPhaseProgress.find(p => p.phase === ph)
                 const isActive = activeChecklistPhase === ph
                 const isCurrent = ph === data.phase

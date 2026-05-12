@@ -352,7 +352,7 @@ export default function ProgressMatrixPage() {
       }}>
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
           <FilterPill active={phaseFilter === 'all'} onClick={() => setPhaseFilter('all')}>All Phases</FilterPill>
-          {[1, 2, 3, 4, 5].map(ph => (
+          {[1, 2, 3, 4, 5, 6].map(ph => (
             <FilterPill key={ph} active={phaseFilter === ph} onClick={() => setPhaseFilter(ph)} accent={PHASE_COLORS[ph]}>
               Phase {ph}
             </FilterPill>

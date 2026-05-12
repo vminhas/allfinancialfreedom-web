@@ -110,9 +110,14 @@ export const PHASE_ACCENT: Record<number, number> = {
   2: 0x4ade80, // green  (Associate → CFT)
   3: 0xC9A96E, // gold   (CFT → MD)
   4: 0xa78bfa, // purple (MD → EMD)
-  5: 0xf472b6, // pink   (EMD)
+  5: 0xf472b6, // pink   (EMD → MVP)
+  6: 0xfbbf24, // amber  (MVP)
 }
 
+// Title earned by completing the PREVIOUS phase (you have to be in
+// the next phase to hold the current title). Phase 1 agents have
+// no earned title yet — fall through to a generic 'Phase 1' label
+// at call sites.
 export const PHASE_TITLE: Record<number, string> = {
-  1: 'Agent', 2: 'Associate', 3: 'Senior Associate', 4: 'Marketing Director', 5: 'Executive Marketing Director',
+  2: 'Agent', 3: 'Associate', 4: 'Senior Associate', 5: 'Marketing Director', 6: 'Executive Marketing Director',
 }
