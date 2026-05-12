@@ -288,6 +288,12 @@ model AgentProfile {
   // rendering a couple as one entity. Falls back to the agent's own
   // avatarUrl if not set.
   coupleAvatarUrl       String?     @map("couple_avatar_url")
+  // Client-touchpoint reminder toggles. Per-agent opt-in for the
+  // daily reminder cron: { birthday, thankYou30Day, annualReview }.
+  // Default null = all off. Shaped as JSON so adding new reminder
+  // types later doesn't require a schema migration each time.
+  clientReminderPrefs   Json?       @map("client_reminder_prefs")
+  clientReminderFires   ClientReminderFire[]
   // Earned recognitions that aren't a phase rank. CFT is the first;
   // others (EliteCFT, TopRecruiter, FoundersCircle) plug in here
   // without a migration. Auto-managed by recomputeBadges() when the
@@ -1724,4 +1730,26 @@ model ContestManualCheck {
   @@unique([requirementId, agentProfileId])
   @@index([agentProfileId])
   @@map("contest_manual_checks")
+}
+
+// Tracks each client-touchpoint reminder the cron has already fired
+// so we don't double-notify. Keyed on (agentProfileId, submissionId,
+// kind, periodKey) where periodKey is a short stable string for the
+// occurrence — e.g. 'BIRTHDAY:2026' or 'THANK_YOU_30:<issuedDate>'.
+// Lifecycle: the cron upserts a row at fire time. Rows persist
+// indefinitely so the same reminder never re-fires.
+model ClientReminderFire {
+  id              String       @id @default(cuid())
+  agentProfileId  String
+  agentProfile    AgentProfile @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+  // The submission this reminder is about. Null if we ever support
+  // standalone client reminders not tied to a policy (unlikely v1).
+  submissionId    String?
+  kind            String       // 'BIRTHDAY' | 'THANK_YOU_30' | 'ANNUAL_REVIEW'
+  periodKey       String       // 'BIRTHDAY:2026', 'THANK_YOU_30', 'ANNUAL_REVIEW:1'
+  firedAt         DateTime     @default(now())
+
+  @@unique([agentProfileId, submissionId, kind, periodKey])
+  @@index([agentProfileId, firedAt])
+  @@map("client_reminder_fires")
 }
