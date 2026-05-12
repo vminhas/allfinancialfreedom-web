@@ -20,6 +20,7 @@ import Spinner from '@/components/Spinner'
 import LicensingRequestModal, { type LicensingRequestTopic } from '@/components/LicensingRequestModal'
 import RecruitClaimModal from '@/components/RecruitClaimModal'
 import NotificationCenter from '@/components/NotificationCenter'
+import ClientReminderTogglesCard from '@/components/ClientReminderTogglesCard'
 import LicensingCoordinatorPanel from '@/components/LicensingCoordinatorPanel'
 import FTALogModal from '@/components/FTALogModal'
 import FeedbackButton from '@/components/FeedbackButton'
@@ -3086,6 +3087,15 @@ function ProfileTab({ data, onSaved, discordParam, discordReason, discordUsernam
             )}
           </div>
         )}
+      </div>
+
+      {/* Client touchpoint reminders. Self-fetches its own state so
+          the Profile tab payload doesn't grow. Mercedes-feedback
+          driven: agents toggle birthday / 30-day thank-you / annual
+          review reminders for their book of clients. Daily cron
+          fires the due ones as Discord DMs + bell pings. */}
+      <div style={{ marginTop: 18 }}>
+        <ClientReminderTogglesCard />
       </div>
     </div>
   )
