@@ -20,6 +20,7 @@ export interface AgentOption {
   lastName: string
   phase: number
   status?: string
+  isLeadership?: boolean
 }
 
 interface AgentTypeaheadProps {
@@ -211,10 +212,11 @@ export default function AgentTypeahead({
                 >
                   <span style={{ minWidth: 0, flex: 1, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {a.firstName} {a.lastName}
-                    {isFormer && <span style={{ marginLeft: 6, fontSize: 9, color: '#9BB0C4', letterSpacing: '0.1em' }}>· FORMER</span>}
+                    {a.isLeadership && <span style={{ marginLeft: 6, fontSize: 9, color: '#C9A96E', letterSpacing: '0.1em' }}>· LEADERSHIP</span>}
+                    {isFormer && !a.isLeadership && <span style={{ marginLeft: 6, fontSize: 9, color: '#9BB0C4', letterSpacing: '0.1em' }}>· FORMER</span>}
                   </span>
                   <span style={{ fontSize: 11, color: '#6B8299', flexShrink: 0 }}>
-                    {a.agentCode} · {PHASE_TITLE[a.phase] ?? `Phase ${a.phase}`}
+                    {a.agentCode} · {a.isLeadership ? 'CEO/COO' : (PHASE_TITLE[a.phase] ?? `Phase ${a.phase}`)}
                   </span>
                 </button>
               )

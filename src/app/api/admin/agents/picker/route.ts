@@ -29,9 +29,18 @@ export async function GET(req: NextRequest) {
 
   const agents = await db.agentProfile.findMany({
     where: {
-      status: includeFormer ? { in: ['ACTIVE', 'INACTIVE'] } : 'ACTIVE',
-      isTest: false,
-      ...(minPhase > 0 ? { phase: { gte: minPhase } } : {}),
+      // Leadership profiles (Vick / Melinee) are always selectable —
+      // the picker needs them as split partners and recruit-under
+      // targets even when their AgentProfile is INACTIVE because
+      // they're operating as staff most of the time.
+      OR: [
+        {
+          status: includeFormer ? { in: ['ACTIVE', 'INACTIVE'] } : 'ACTIVE',
+          isTest: false,
+          ...(minPhase > 0 ? { phase: { gte: minPhase } } : {}),
+        },
+        { isLeadership: true, isTest: false },
+      ],
     },
     select: {
       id: true,
@@ -40,8 +49,13 @@ export async function GET(req: NextRequest) {
       lastName: true,
       phase: true,
       status: true,
+      isLeadership: true,
     },
-    orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+    orderBy: [
+      { isLeadership: 'desc' },  // leadership float to the top of the list
+      { lastName: 'asc' },
+      { firstName: 'asc' },
+    ],
   })
 
   return NextResponse.json({ agents })
