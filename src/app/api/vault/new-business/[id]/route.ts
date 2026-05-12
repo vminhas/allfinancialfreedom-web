@@ -52,7 +52,12 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
   const existing = await db.newBusinessSubmission.findUnique({
     where: { id },
-    include: { agentProfile: { select: { firstName: true, lastName: true, agentCode: true, avatarUrl: true, discordUserId: true } } },
+    include: {
+      agentProfile: { select: { firstName: true, lastName: true, agentCode: true, avatarUrl: true, discordUserId: true } },
+      // splitWithAgent loaded so the POLICY ISSUED card can shout
+      // out both writers when a split was set on this submission.
+      splitWithAgent: { select: { firstName: true, lastName: true, agentCode: true, discordUserId: true } },
+    },
   })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -146,6 +151,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       clientName,
       carrier: existing.carrier,
       policyType: existing.policyType,
+      splitWith: existing.splitWithAgent ?? null,
     }).catch(() => {})
   } else if (statusChanged && data.status === 'DECLINED') {
     notifyDeclined({

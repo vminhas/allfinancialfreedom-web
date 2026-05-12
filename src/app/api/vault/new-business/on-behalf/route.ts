@@ -98,6 +98,14 @@ export async function POST(req: NextRequest) {
     },
   })
 
+  // Pull the split partner so the announcement can shout them out.
+  const splitPartner = submission.splitWithAgentId
+    ? await db.agentProfile.findUnique({
+        where: { id: submission.splitWithAgentId },
+        select: { firstName: true, lastName: true, agentCode: true },
+      }).catch(() => null)
+    : null
+
   // LC + admin channel pings — same flow as agent-side POST so the
   // submission shows up alongside agent-logged ones.
   notifySubmitted({
@@ -106,6 +114,7 @@ export async function POST(req: NextRequest) {
     carrier: submission.carrier,
     clientName: `${submission.clientFirstName} ${submission.clientLastName}`,
     points: submission.points,
+    splitWith: splitPartner ?? null,
   }).catch(() => {})
 
   // LC activity feed: who logged this on behalf of whom. session is

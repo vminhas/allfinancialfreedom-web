@@ -23,22 +23,35 @@ export function policyTypeLabel(t: PolicyType): string {
   return POLICY_LABEL[t]
 }
 
+interface SplitPartnerMeta {
+  firstName: string
+  lastName: string
+  agentCode: string
+  discordUserId?: string | null
+}
+
 interface SubmittedArgs {
   agentName: string
   policyType: PolicyType
   carrier: string
   clientName: string
   points: number | null
+  splitWith?: SplitPartnerMeta | null
 }
 export async function notifySubmitted(args: SubmittedArgs): Promise<void> {
   if (!process.env.DISCORD_BOT_TOKEN) return
+
+  const splitName = args.splitWith
+    ? `${args.splitWith.firstName} ${args.splitWith.lastName}`.trim()
+    : null
+  const splitLine = splitName ? ` (split with **${splitName}**)` : ''
 
   // LC-facing embed for the admin channel — concrete + ops-flavored
   // because LCs are the ones who have to act on it.
   const adminEmbed = {
     title: 'New Business Submission',
     description: [
-      `**${args.agentName}** submitted ${policyTypeLabel(args.policyType)} for **${args.clientName}**`,
+      `**${args.agentName}**${splitLine ? ` & ${splitName}` : ''} submitted ${policyTypeLabel(args.policyType)} for **${args.clientName}**`,
       `Carrier: ${args.carrier}${args.points != null ? ` · ${args.points} points` : ''}`,
       '',
       '_Awaiting licensing coordinator review_',
@@ -60,7 +73,7 @@ export async function notifySubmitted(args: SubmittedArgs): Promise<void> {
   // protagonist avatar) so the issued card is still the louder
   // moment of celebration when the policy lands.
   const teaserEmbed = {
-    description: `✍️  **${args.agentName}** just submitted an application — ${args.carrier} ${policyTypeLabel(args.policyType)} for **${args.clientName}**.`,
+    description: `✍️  **${args.agentName}**${splitLine} just submitted an application — ${args.carrier} ${policyTypeLabel(args.policyType)} for **${args.clientName}**.`,
     color: 0xC9A96E,
     timestamp: new Date().toISOString(),
     footer: { text: 'AFF Concierge · Application Submitted' },
@@ -97,15 +110,35 @@ interface IssuedArgs {
   clientName: string
   carrier: string
   policyType: PolicyType
+  splitWith?: SplitPartnerMeta | null
 }
 export async function notifyIssued(args: IssuedArgs): Promise<void> {
   if (!process.env.DISCORD_BOT_TOKEN) return
   const { sendChannelMessage } = await import('@/lib/discord')
   const { buildAchievementEmbed } = await import('@/lib/discord-card')
 
-  // Public POLICY ISSUED card. Goes to announcements (a producing-agent
-  // win is worth showing to the team, not just the LC queue) with a
-  // fallback to admin channel only if announcements isn't configured.
+  const splitName = args.splitWith
+    ? `${args.splitWith.firstName} ${args.splitWith.lastName}`.trim()
+    : null
+
+  // Public POLICY ISSUED card. Goes to announcements (a producing-
+  // agent win is worth showing to the team, not just the LC queue).
+  // When the policy was a split, the subline calls out the partner
+  // and a Split field surfaces their code, so both writers get the
+  // credit in front of the team.
+  const fields = [
+    { name: 'Client',  value: args.clientName, inline: true },
+    { name: 'Carrier', value: args.carrier, inline: true },
+    { name: 'Product', value: policyTypeLabel(args.policyType), inline: true },
+  ]
+  if (splitName && args.splitWith) {
+    fields.push({ name: 'Split with', value: `${splitName} (${args.splitWith.agentCode})`, inline: true })
+  }
+
+  const subline = splitName
+    ? `Helped a new family with **${splitName}**. **${args.clientName}**'s policy is in force.`
+    : `Helped a new family. **${args.clientName}**'s policy is in force.`
+
   const card = buildAchievementEmbed({
     flavor: 'POLICY_ISSUED',
     protagonist: {
@@ -114,23 +147,21 @@ export async function notifyIssued(args: IssuedArgs): Promise<void> {
       agentCode: args.agentCode,
       avatarUrl: args.agentAvatarUrl,
     },
-    subline: `Helped a new family. **${args.clientName}**'s policy is in force.`,
-    fields: [
-      { name: 'Client',  value: args.clientName, inline: true },
-      { name: 'Carrier', value: args.carrier, inline: true },
-      { name: 'Product', value: policyTypeLabel(args.policyType), inline: true },
-    ],
+    subline,
+    fields,
   })
 
   // POLICY ISSUED is always public hype — goes to announcements
-  // regardless of env config, never the admin channel. The team
-  // sees the win, the producing agent's face shows up in the embed
-  // (via buildAchievementEmbed), it reads as a celebration.
+  // regardless of env config, never the admin channel.
   await sendChannelMessage(announcementsChannel(), { embeds: [card] }).catch(() => {})
 
-  // DM the agent the same card so it lands in their inbox too.
+  // DM the writer + the split partner so both get the celebration in
+  // their inbox.
   if (args.agentDiscordUserId) {
     await dmAgent(args.agentDiscordUserId, card as unknown as Record<string, unknown>).catch(() => {})
+  }
+  if (args.splitWith?.discordUserId) {
+    await dmAgent(args.splitWith.discordUserId, card as unknown as Record<string, unknown>).catch(() => {})
   }
 }
 
