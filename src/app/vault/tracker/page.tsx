@@ -78,6 +78,10 @@ interface DetailedAgent extends Agent {
   notes: string | null
   isTest: boolean
   isLeadership?: boolean
+  partnerAgentProfileId?: string | null
+  partnerDisplayName?: string | null
+  coupleDisplayName?: string | null
+  coupleAvatarUrl?: string | null
   recruiter: { firstName: string; lastName: string; agentCode: string } | null
 }
 
@@ -1254,6 +1258,10 @@ function AgentDrawer({
     notes: agent.notes ?? '',
     isTest: agent.isTest ?? false,
     isLeadership: agent.isLeadership ?? false,
+    partnerAgentProfileId: agent.partnerAgentProfileId ?? '',
+    partnerDisplayName: agent.partnerDisplayName ?? '',
+    coupleDisplayName: agent.coupleDisplayName ?? '',
+    coupleAvatarUrl: agent.coupleAvatarUrl ?? '',
   })
   const [editSaving, setEditSaving] = useState(false)
   const [editSaved, setEditSaved] = useState(false)
@@ -1958,6 +1966,74 @@ function AgentDrawer({
                 </div>
               </div>
             </label>
+
+            {/* Power-couple pairing. Two flavors:
+                  - Both partners on platform (the typical 'Joey &
+                    Jen' producing duo): pick the partner from the
+                    AgentTypeahead. We auto-sync the reciprocal
+                    pointer on save so both rows reference each
+                    other.
+                  - Partner is admin-only / off-platform (Vick +
+                    admin Melinee): leave the partner field blank
+                    and just fill in the Partner Display Name +
+                    Couple Display Name.
+                Couple Display Name is what shows on the leaderboard
+                ('Joey & Jen', 'The Garcia's'). Couple photo is
+                optional — a joint headshot used by the leaderboard
+                renderer instead of the solo avatar. */}
+            <div style={{
+              display: 'flex', flexDirection: 'column', gap: 10,
+              padding: '12px 14px', borderRadius: 4,
+              background: 'rgba(201,169,110,0.04)',
+              border: '1px solid rgba(201,169,110,0.18)',
+            }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#C9A96E', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+                Power Couple
+              </div>
+              <div style={{ fontSize: 11, color: '#6B8299', lineHeight: 1.55 }}>
+                Pair this agent with their producing partner. Combined stats show as one row on the leaderboard.
+              </div>
+              <div>
+                <div style={sLabel}>Partner (on-platform agent, optional)</div>
+                <AgentTypeahead
+                  valueField="id"
+                  value={editForm.partnerAgentProfileId}
+                  onChange={v => setEditForm(f => ({ ...f, partnerAgentProfileId: v }))}
+                  placeholder="Pick partner agent, or leave blank for off-platform partner"
+                  includeFormer
+                />
+              </div>
+              <div>
+                <div style={sLabel}>Partner display name (if off-platform)</div>
+                <input
+                  type="text"
+                  value={editForm.partnerDisplayName}
+                  onChange={e => setEditForm(f => ({ ...f, partnerDisplayName: e.target.value }))}
+                  placeholder="e.g. Melinee Minhas"
+                  style={iStyle}
+                />
+              </div>
+              <div>
+                <div style={sLabel}>Couple display name (shown on leaderboard)</div>
+                <input
+                  type="text"
+                  value={editForm.coupleDisplayName}
+                  onChange={e => setEditForm(f => ({ ...f, coupleDisplayName: e.target.value }))}
+                  placeholder="e.g. Joey & Jen, The Garcia's, Vick & Melinee"
+                  style={iStyle}
+                />
+              </div>
+              <div>
+                <div style={sLabel}>Couple photo URL (optional)</div>
+                <input
+                  type="text"
+                  value={editForm.coupleAvatarUrl}
+                  onChange={e => setEditForm(f => ({ ...f, coupleAvatarUrl: e.target.value }))}
+                  placeholder="https://… (joint headshot)"
+                  style={iStyle}
+                />
+              </div>
+            </div>
 
             {/* Avatar */}
             <div>

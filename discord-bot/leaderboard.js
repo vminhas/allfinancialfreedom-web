@@ -47,8 +47,14 @@ function buildEmbeds(data) {
   const monthLabel = data.monthLabel || data.weekLabel || 'This Month';
   const updatedAt = updatedLine();
 
+  // Couples carry the full label in firstName ('Joey & Jen', 'The
+  // Garcias') with empty lastName; non-couples are first + last.
+  // nameFor() collapses both into a clean label without stray
+  // trailing spaces.
+  const nameFor = (r) => r.isCouple ? r.firstName : `${r.firstName} ${r.lastName}`.trim();
+
   // Production
-  const subLines = submissions.map((r, i) => rankLine(i, `${r.firstName} ${r.lastName}`, r.value, 'app')).join('\n');
+  const subLines = submissions.map((r, i) => rankLine(i, nameFor(r), r.value, 'app')).join('\n');
   const submissionSummary = totalSubmissions > 0
     ? `${totalSubmissions} total app${totalSubmissions !== 1 ? 's' : ''} · ${activeSubmitters} active agent${activeSubmitters !== 1 ? 's' : ''}`
     : 'No submissions recorded this month.';
@@ -60,7 +66,7 @@ function buildEmbeds(data) {
     .setFooter({ text: `${submissionSummary}\nUpdated ${updatedAt} ET · allfinancialfreedom.com/agents/leaderboard` });
 
   // Recruits
-  const recLines = recruits.map((r, i) => rankLine(i, `${r.firstName} ${r.lastName}`, r.value, 'recruit')).join('\n');
+  const recLines = recruits.map((r, i) => rankLine(i, nameFor(r), r.value, 'recruit')).join('\n');
   const recruitEmbed = new EmbedBuilder()
     .setColor(COLORS.NAVY)
     .setTitle(`🤝  Top Recruiters · ${monthLabel}`)
