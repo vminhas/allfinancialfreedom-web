@@ -167,6 +167,13 @@ export async function PUT(
     'addressLine1', 'addressLine2', 'city', 'zip', 'country', 'avatarUrl',
     'isTest',
     'isLeadership',
+    // Couples (power-couple pairing) — set from the tracker edit
+    // drawer. One-sided uses partnerDisplayName + coupleDisplayName
+    // only; two-sided also sets partnerAgentProfileId on both rows.
+    'partnerAgentProfileId',
+    'partnerDisplayName',
+    'coupleDisplayName',
+    'coupleAvatarUrl',
     // Earned-recognition list. Manual override path; auto-managed
     // updates flow through recomputeBadges() in lib/agent-badges.
     'badges',
@@ -203,6 +210,31 @@ export async function PUT(
   }
 
   const updated = await db.agentProfile.update({ where: { id }, data })
+
+  // Couples: auto-sync the reciprocal partner pointer so admins only
+  // have to edit one side of the pair. If this PUT set
+  // partnerAgentProfileId to a real agent, also point that agent
+  // back at this one. If this PUT cleared the partner pointer, clear
+  // the previously-pointed-at agent's pointer too (when it was
+  // pointing back at this row).
+  if ('partnerAgentProfileId' in data) {
+    const newPartnerId = data.partnerAgentProfileId as string | null
+    const oldPartnerId = (existing as { partnerAgentProfileId?: string | null }).partnerAgentProfileId ?? null
+    if (newPartnerId && newPartnerId !== oldPartnerId) {
+      await db.agentProfile.update({
+        where: { id: newPartnerId },
+        data: { partnerAgentProfileId: id },
+      }).catch(() => { /* partner missing or update raced; safe to ignore */ })
+    }
+    if (oldPartnerId && oldPartnerId !== newPartnerId) {
+      // Clear the old partner's reciprocal pointer only if it still
+      // points at this row — avoid stomping a hand-managed pairing.
+      await db.agentProfile.updateMany({
+        where: { id: oldPartnerId, partnerAgentProfileId: id },
+        data: { partnerAgentProfileId: null },
+      }).catch(() => {})
+    }
+  }
 
   // Status flipped to INACTIVE — post an admin-channel notice with a
   // "Kick from Discord" button so we can clean up the server in one

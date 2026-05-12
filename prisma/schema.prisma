@@ -270,6 +270,24 @@ model AgentProfile {
   // into a single 'Vick & Melinee' synthetic row on the recruits
   // leaderboard.
   isLeadership          Boolean     @default(false) @map("is_leadership")
+  // Power-couple pairing. Two flavors:
+  //   1. Two-sided: both partners have AgentProfiles. Each profile
+  //      points to the other via partnerAgentProfileId. Leaderboard
+  //      coalesces their stats into a single row labeled
+  //      coupleDisplayName.
+  //   2. One-sided: the partner doesn't have an AgentProfile (e.g.
+  //      Melinee — admin-only, no license). Set partnerDisplayName
+  //      + coupleDisplayName on the licensed agent's profile. The
+  //      leaderboard relabels their solo row under the couple name.
+  // White-label friendly: no hardcoded names anywhere in code.
+  partnerAgentProfileId String?     @map("partner_agent_profile_id")
+  partnerDisplayName    String?     @map("partner_display_name")
+  coupleDisplayName     String?     @map("couple_display_name")
+  // Optional joint photo for the couple (Joey & Jen-style two-person
+  // headshot). Used by leaderboard embeds + the agent portal when
+  // rendering a couple as one entity. Falls back to the agent's own
+  // avatarUrl if not set.
+  coupleAvatarUrl       String?     @map("couple_avatar_url")
   // Earned recognitions that aren't a phase rank. CFT is the first;
   // others (EliteCFT, TopRecruiter, FoundersCircle) plug in here
   // without a migration. Auto-managed by recomputeBadges() when the
