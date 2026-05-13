@@ -62,7 +62,7 @@ export async function announcePhaseItemCompletion(args: {
         color,
         footer: { text: `Phase ${args.phase} · ${profile.agentCode}` },
         timestamp: new Date().toISOString(),
-      } as unknown as JsonValue],
+      }],
     }).catch(() => null)
     activityMsgId = (res as { id?: string } | null)?.id ?? null
   }

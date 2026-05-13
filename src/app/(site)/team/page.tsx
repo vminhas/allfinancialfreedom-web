@@ -142,9 +142,15 @@ export default function Team() {
           <span className="section-label">The Team</span>
           <h2 className="section-title"><em>Senior Associates</em></h2>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 max-w-4xl mx-auto">
-          {ASSOCIATES.map(assoc => (
-            <div key={assoc.name} className="card-premium text-center group overflow-hidden">
+        {/* Top row: 3 cards. Bottom row: 4 cards. Renders as a single
+            12-column grid so cards stay visually aligned: top row spans
+            4 cols each, bottom row spans 3 cols each. Mobile falls back
+            to a simple 2-col grid where every card spans 6. */}
+        <div className="grid grid-cols-2 sm:grid-cols-12 gap-6 max-w-5xl mx-auto">
+          {ASSOCIATES.map((assoc, idx) => {
+            const span = idx < 3 ? 'sm:col-span-4' : 'sm:col-span-3'
+            return (
+            <div key={assoc.name} className={`card-premium text-center group overflow-hidden ${span}`}>
               {/* Photo or initials avatar */}
               {assoc.image ? (
                 <div className="relative overflow-hidden" style={{ aspectRatio: '1/1' }}>
@@ -187,7 +193,8 @@ export default function Team() {
                 )}
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
       </section>
 
