@@ -69,6 +69,31 @@ export async function PUT(
     },
   })
 
+  // Retraction path: an admin unticking the box deletes any prior
+  // celebratory Discord posts and clears the stored message IDs.
+  // Mirrors the agent-self path (src/app/api/agents/progress/route.ts)
+  // so the admin tracker drawer is a true superset, not a one-way door.
+  // Clearing the IDs is also what makes re-tick reliably resend: the
+  // shouldAnnounce guard below requires both IDs to be null.
+  const isRealRetraction = !completed && (prior?.completed ?? false)
+  if (isRealRetraction && process.env.DISCORD_BOT_TOKEN && (prior?.activityMsgId || prior?.announcementMsgId)) {
+    const ACTIVITY_CHANNEL = process.env.DISCORD_AGENT_ACTIVITY_CHANNEL_ID ?? '1501070249695383622'
+    const ANNOUNCEMENTS_CHANNEL = process.env.DISCORD_ANNOUNCEMENTS_CHANNEL_ID ?? '1295044213590982724'
+    try {
+      const { deleteChannelMessage } = await import('@/lib/discord')
+      if (prior?.activityMsgId) {
+        await deleteChannelMessage(ACTIVITY_CHANNEL, prior.activityMsgId).catch(() => {})
+      }
+      if (prior?.announcementMsgId) {
+        await deleteChannelMessage(ANNOUNCEMENTS_CHANNEL, prior.announcementMsgId).catch(() => {})
+      }
+    } catch { /* non-fatal */ }
+    await db.phaseItem.update({
+      where: { id: item.id },
+      data: { activityMsgId: null, announcementMsgId: null },
+    }).catch(() => {})
+  }
+
   // Fire the Discord celebration if this toggle just flipped the item
   // to completed and we haven't announced before. Same helper the
   // agent-self path and the promotion-request approval path use, so
