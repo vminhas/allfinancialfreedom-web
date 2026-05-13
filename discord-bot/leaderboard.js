@@ -60,25 +60,25 @@ function buildEmbeds(data) {
   // Production
   const subLines = submissions.map((r, i) => rankLine(i, nameFor(r), r.value, 'app')).join('\n');
   const submissionSummary = totalSubmissions > 0
-    ? `${totalSubmissions} total app${totalSubmissions !== 1 ? 's' : ''} · ${activeSubmitters} active agent${activeSubmitters !== 1 ? 's' : ''}`
-    : 'No submissions recorded this month.';
+    ? `**${totalSubmissions}** app${totalSubmissions !== 1 ? 's' : ''} · ${activeSubmitters} agent${activeSubmitters !== 1 ? 's' : ''}`
+    : null;
 
   const prodEmbed = new EmbedBuilder()
     .setColor(COLORS.GOLD)
     .setTitle(`🏆  Monthly Production · ${monthLabel}`)
-    .setDescription(subLines || '_No submissions this month._')
-    .setFooter({ text: `${submissionSummary}\nUpdated ${updatedAt} ET · allfinancialfreedom.com/agents/leaderboard` });
+    .setDescription((submissionSummary ? `${submissionSummary}\n\n` : '') + (subLines || '_No submissions this month._'))
+    .setFooter({ text: `Updated ${updatedAt} ET · allfinancialfreedom.com/agents/leaderboard` });
 
   // Recruits
   const recLines = recruits.map((r, i) => rankLine(i, nameFor(r), r.value, 'recruit')).join('\n');
   const recruitSummary = totalRecruits > 0
-    ? `${totalRecruits} total recruit${totalRecruits !== 1 ? 's' : ''} · ${activeRecruiters} recruiter${activeRecruiters !== 1 ? 's' : ''}`
-    : 'No recruits recorded this month.';
+    ? `**${totalRecruits}** recruit${totalRecruits !== 1 ? 's' : ''} · ${activeRecruiters} recruiter${activeRecruiters !== 1 ? 's' : ''}`
+    : null;
   const recruitEmbed = new EmbedBuilder()
     .setColor(COLORS.NAVY)
     .setTitle(`🤝  Top Recruiters · ${monthLabel}`)
-    .setDescription(recLines || '_No new recruits this month._')
-    .setFooter({ text: `${recruitSummary}\nUpdated ${updatedAt} ET · allfinancialfreedom.com/agents/leaderboard` });
+    .setDescription((recruitSummary ? `${recruitSummary}\n\n` : '') + (recLines || '_No new recruits this month._'))
+    .setFooter({ text: `Updated ${updatedAt} ET · allfinancialfreedom.com/agents/leaderboard` });
 
   // Phase movers
   const cachedPhases = loadPhasesCache();

@@ -430,7 +430,7 @@ async function handleLeaderboardTab(customId: string) {
     if (topSubs.length > 0) {
       subLines = topSubs.map(([id, v], i) => rankLine(i, toName(id), v, 'app')).join('\n')
       const total = [...subCounts.values()].reduce((a, b) => a + b, 0)
-      submissionSummary = `${total} total app${total !== 1 ? 's' : ''} · ${subCounts.size} active agent${subCounts.size !== 1 ? 's' : ''}`
+      submissionSummary = `**${total}** app${total !== 1 ? 's' : ''} · ${subCounts.size} active agent${subCounts.size !== 1 ? 's' : ''}`
     }
 
     const newAgents = await db.agentProfile.findMany({
@@ -448,7 +448,7 @@ async function handleLeaderboardTab(customId: string) {
     if (topRec.length > 0) {
       recLines = topRec.map(([id, v], i) => rankLine(i, toName(id), v, 'recruit')).join('\n')
       const totalRec = [...recruitCounts.values()].reduce((a, b) => a + b, 0)
-      recruitSummary = `${totalRec} total recruit${totalRec !== 1 ? 's' : ''} · ${recruitCounts.size} recruiter${recruitCounts.size !== 1 ? 's' : ''}`
+      recruitSummary = `**${totalRec}** recruit${totalRec !== 1 ? 's' : ''} · ${recruitCounts.size} recruiter${recruitCounts.size !== 1 ? 's' : ''}`
     }
 
     // Promotions: title-bearing phase items completed this month
@@ -483,15 +483,15 @@ async function handleLeaderboardTab(customId: string) {
     embed = {
       color: 0xC9A84C,
       title: `\u{1F3C6}  Monthly Production · ${monthLabel}`,
-      description: subLines,
-      footer: { text: `${submissionSummary}\nUpdated ${updatedAt} ET · allfinancialfreedom.com/agents/leaderboard` },
+      description: (submissionSummary ? `${submissionSummary}\n\n` : '') + subLines,
+      footer: { text: `Updated ${updatedAt} ET · allfinancialfreedom.com/agents/leaderboard` },
     }
   } else if (view === 'recruits') {
     embed = {
       color: 0x1a2744,
       title: `\u{1F91D}  Top Recruiters · ${monthLabel}`,
-      description: recLines,
-      footer: { text: `${recruitSummary}\nUpdated ${updatedAt} ET · allfinancialfreedom.com/agents/leaderboard` },
+      description: (recruitSummary ? `${recruitSummary}\n\n` : '') + recLines,
+      footer: { text: `Updated ${updatedAt} ET · allfinancialfreedom.com/agents/leaderboard` },
     }
   } else if (view === 'promotions') {
     embed = {
