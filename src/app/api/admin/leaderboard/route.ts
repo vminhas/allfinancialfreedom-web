@@ -116,7 +116,8 @@ async function recruitsValues(roster: { id: string; agentCode: string }[], start
   const recruits = await db.agentProfile.findMany({
     where: {
       isTest: false,
-      status: 'ACTIVE',
+      // No status filter: agents who later go inactive still count toward
+      // their recruiter's recruitment total — they were recruited.
       recruiterId: { in: codes },
       createdAt: start ? { gte: start, lte: end } : { lte: end },
     },
