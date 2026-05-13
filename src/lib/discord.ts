@@ -378,3 +378,58 @@ export async function sendChannelMessage(channelId: string, payload: {
   }
   return res.json() as Promise<{ id: string }>
 }
+
+/**
+ * Raw Discord message attachment as returned by the channel-messages
+ * endpoint. We only model the fields the ICA poller actually reads —
+ * Discord returns more (width/height for images, etc.) but TS keeps
+ * unmodeled keys happily as long as we don't index them.
+ */
+export interface DiscordChannelMessage {
+  id: string
+  channel_id: string
+  content: string
+  timestamp: string
+  author: {
+    id: string
+    username: string
+    bot?: boolean
+  }
+  attachments: Array<{
+    id: string
+    filename: string
+    content_type?: string
+    size: number
+    url: string
+    proxy_url: string
+  }>
+}
+
+/**
+ * List recent messages in a channel. Maps to GET /channels/{id}/messages.
+ * Default limit is 50; max is 100 per Discord docs. `after` is a snowflake
+ * cursor for "messages newer than X" — the cron uses this with the last
+ * processed message id to avoid re-scanning history.
+ *
+ * Throws on non-2xx. Caller is responsible for handling per-attachment
+ * errors (download failures, parse errors); this just lists.
+ */
+export async function listChannelMessages(channelId: string, opts?: {
+  limit?: number
+  after?: string
+  before?: string
+}): Promise<DiscordChannelMessage[]> {
+  const params = new URLSearchParams()
+  params.set('limit', String(Math.min(100, Math.max(1, opts?.limit ?? 50))))
+  if (opts?.after) params.set('after', opts.after)
+  if (opts?.before) params.set('before', opts.before)
+  const res = await discordFetch(`${API}/channels/${channelId}/messages?${params.toString()}`, {
+    method: 'GET',
+    headers: authHeaders(),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Discord listChannelMessages failed (${res.status}): ${text.slice(0, 400)}`)
+  }
+  return res.json() as Promise<DiscordChannelMessage[]>
+}

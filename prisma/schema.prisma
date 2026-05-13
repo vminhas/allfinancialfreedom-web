@@ -335,6 +335,76 @@ enum AgentStatus {
   INACTIVE
 }
 
+// Pending-recruit record created when an ICA PDF is dropped into the
+// admin activity channel (or uploaded via the web). The bot's cron
+// fetches each new PDF, runs it through Claude (src/lib/parse-ica.ts)
+// for structured extraction, and writes one row here per submission.
+// An admin reviews the parsed fields in /vault/recruits, optionally
+// edits them, then approves — which creates the live AgentProfile +
+// AgentUser and fires the NEW RECRUIT announcement. Until approval
+// the row is the pending state; we don't pre-create the AgentProfile
+// because agentCode (unique non-null) is admin-chosen at approval time.
+enum IcaSubmissionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PARSE_FAILED
+}
+
+model IcaSubmission {
+  id                    String              @id @default(cuid())
+  status                IcaSubmissionStatus @default(PENDING)
+
+  // Source tracking. Discord drops populate the message/channel/author
+  // ids and the attachment URL; web uploads only have sourceType='web'
+  // and pdfBlobUrl. sourceMessageId is unique so the cron can dedupe.
+  sourceType            String              // 'discord' | 'web'
+  sourceMessageId       String?             @unique @map("source_message_id")
+  sourceChannelId       String?             @map("source_channel_id")
+  sourceAuthorDiscordId String?             @map("source_author_discord_id")
+  sourceAttachmentUrl   String?             @map("source_attachment_url")
+  pdfBlobUrl            String?             @map("pdf_blob_url")
+  pdfFilename           String?             @map("pdf_filename")
+
+  // Parser output. parsedRaw is the JSON returned by Claude; the
+  // explicit columns are the fields we surface in the review UI and
+  // pre-fill on the new AgentProfile at approval time.
+  rawText               String?             @map("raw_text")
+  parsedRaw             Json?               @map("parsed_raw")
+  parseError            String?             @map("parse_error")
+  firstName             String?             @map("first_name")
+  middleName            String?             @map("middle_name")
+  lastName              String?             @map("last_name")
+  email                 String?
+  dob                   DateTime?
+  gender                String?
+  maritalStatus         String?             @map("marital_status")
+  spouseName            String?             @map("spouse_name")
+  addressLine1          String?             @map("address_line1")
+  city                  String?
+  state                 String?
+  zip                   String?
+  country               String?
+  referenceCode         String?             @map("reference_code")
+  classification        String?
+  hasLicense            Boolean?            @map("has_license")
+
+  // Approval bookkeeping. createdAgentProfileId is set the moment the
+  // admin approves; serves as the back-reference and the indicator
+  // that we already created the AgentProfile (so a re-approve doesn't
+  // double-create).
+  reviewedAt            DateTime?           @map("reviewed_at")
+  reviewedByEmail       String?             @map("reviewed_by_email")
+  reviewNote            String?             @map("review_note")
+  createdAgentProfileId String?             @unique @map("created_agent_profile_id")
+
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt      @map("updated_at")
+
+  @@index([status, createdAt(sort: Desc)])
+  @@map("ica_submissions")
+}
+
 model PersonalFinancialReview {
   id              String       @id @default(cuid())
   agentProfileId  String       @unique
