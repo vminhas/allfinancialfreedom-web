@@ -238,6 +238,7 @@ export async function GET(req: NextRequest) {
       itemKey: { in: TITLE_OVERRIDE_ITEM_KEYS },
       completed: true,
       completedAt: { gte: monthStart, lte: now },
+      agentProfile: { isLeadership: false },
     },
     select: {
       itemKey: true,

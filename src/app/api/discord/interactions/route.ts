@@ -453,7 +453,7 @@ async function handleLeaderboardTab(customId: string) {
 
     // Promotions: title-bearing phase items completed this month
     const promoItems = await db.phaseItem.findMany({
-      where: { itemKey: { in: TITLE_OVERRIDE_ITEM_KEYS }, completed: true, completedAt: { gte: monthStart, lte: now } },
+      where: { itemKey: { in: TITLE_OVERRIDE_ITEM_KEYS }, completed: true, completedAt: { gte: monthStart, lte: now }, agentProfile: { isLeadership: false } },
       select: { itemKey: true, agentProfile: { select: { firstName: true, lastName: true } } },
     })
     const TITLE_EMOJI: Record<string, string> = {
