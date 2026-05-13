@@ -38,7 +38,7 @@ export const BADGES: Record<BadgeKey, {
 // one place to edit if the curriculum ever changes.
 export const CFT_GATE_ITEM_KEYS = [
   'cft_classes',
-  'cft_trainer_signoff',
+  'trainer_signoff',
   'cft_coordinator_signoff',
   'emd_signoff',
 ] as const

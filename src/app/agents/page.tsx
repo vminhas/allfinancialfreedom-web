@@ -32,6 +32,7 @@ import { MILESTONE_BY_KEY, isSubmittable } from '@/lib/milestones'
 import MarkdownDescription from '@/components/MarkdownDescription'
 import ChecklistItemVideo from '@/components/ChecklistItemVideo'
 import AnnouncementBanner from '@/components/AnnouncementBanner'
+import { PHASE_COLORS } from '@/lib/phase-colors'
 import { useIsMobile } from '@/lib/useIsMobile'
 
 interface PhaseProgress { phase: number; total: number; completed: number; pct: number }
@@ -163,9 +164,6 @@ function computeProgressions(data: AgentData): Record<string, boolean> {
   }
 }
 
-const PHASE_COLORS: Record<number, string> = {
-  1: '#6B8299', 2: '#9B6DFF', 3: '#C9A96E', 4: '#3b82f6', 5: '#4ade80',
-}
 const APPT_COLORS: Record<string, string> = {
   APPOINTED: '#4ade80', PENDING: '#f59e0b', JIT: '#9B6DFF', NOT_STARTED: '#4B5563',
 }
@@ -5184,9 +5182,7 @@ const MEMBER_STATUS_STYLE: Record<MemberStatus, { bg: string; border: string; fg
   INACTIVE: { bg: 'rgba(107,130,153,0.10)', border: 'rgba(107,130,153,0.25)', fg: '#9BB0C4', label: 'Inactive' },
 }
 
-const TEAM_PHASE_COLORS: Record<number, string> = {
-  1: '#C9A96E', 2: '#60a5fa', 3: '#f59e0b', 4: '#9B6DFF', 5: '#4ade80',
-}
+const TEAM_PHASE_COLORS = PHASE_COLORS
 
 // Top-nav link styled to read as a real navigation item rather than
 function NavbarLink({ href, Icon, label }: {

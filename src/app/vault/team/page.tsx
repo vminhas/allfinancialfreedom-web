@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { AgentTradingCardModal } from '@/components/AgentTradingCard'
+import { PHASE_COLORS } from '@/lib/phase-colors'
 
 interface DirectoryAgent {
   id: string
@@ -14,9 +15,6 @@ interface DirectoryAgent {
   state: string | null
 }
 
-const PHASE_COLORS: Record<number, string> = {
-  1: '#6B8299', 2: '#9B6DFF', 3: '#C9A96E', 4: '#3b82f6', 5: '#4ade80',
-}
 
 function SilhouettePlaceholder({ size }: { size: number }) {
   return (

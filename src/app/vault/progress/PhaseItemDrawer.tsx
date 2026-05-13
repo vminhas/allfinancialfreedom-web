@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { PHASE_COLORS } from '@/lib/phase-colors'
 
 // Slide-in drawer that opens when an admin clicks a column header on
 // the Progression Matrix. Shows two lists side-by-side:
@@ -10,10 +11,6 @@ import { useEffect, useMemo, useState } from 'react'
 // /api/admin/progress-matrix/email-reminder. Email composer modal is
 // rendered inline below the lists with a pre-filled template the admin
 // can tweak before sending.
-
-const PHASE_COLORS: Record<number, string> = {
-  1: '#60a5fa', 2: '#4ade80', 3: '#C9A96E', 4: '#a78bfa', 5: '#f472b6',
-}
 
 interface AgentLite {
   id: string

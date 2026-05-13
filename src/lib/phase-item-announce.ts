@@ -12,6 +12,7 @@
 
 import { db } from './db'
 import { titleForPromotionItem } from './agent-title'
+import { PHASE_COLORS_INT } from './phase-colors'
 
 const ACTIVITY_CHANNEL_FALLBACK = '1501070249695383622'
 const ANNOUNCEMENTS_FALLBACK    = '1295044213590982724'
@@ -31,9 +32,7 @@ const ALWAYS_ANNOUNCE: ReadonlySet<string> = new Set([
   'nvp_promotion',       // National Vice President
 ])
 
-const PHASE_COLORS: Record<number, number> = {
-  1: 0x60a5fa, 2: 0x4ade80, 3: 0xC9A96E, 4: 0xa78bfa, 5: 0xf472b6, 6: 0xFFD54F,
-}
+const PHASE_COLORS = PHASE_COLORS_INT
 
 const PHASE_TITLES: Record<number, string> = {
   1: 'Onboarding', 2: 'Training', 3: 'Advancement', 4: 'Leadership', 5: 'Mastery', 6: 'Legacy',

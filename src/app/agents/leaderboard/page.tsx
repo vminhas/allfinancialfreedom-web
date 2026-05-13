@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useIsMobile } from '@/lib/useIsMobile'
 import ProductionLeaderboard from './ProductionLeaderboard'
+import { PHASE_COLORS } from '@/lib/phase-colors'
 import { LeaderboardTabsBar, useTabFromHash } from './LeaderboardTabs'
 
 // Agent-facing leaderboard. Same matrix-style visualization the admin
@@ -38,9 +39,6 @@ interface Payload {
   viewerAgentId: string
 }
 
-const PHASE_COLORS: Record<number, string> = {
-  1: '#60a5fa', 2: '#4ade80', 3: '#C9A96E', 4: '#a78bfa', 5: '#f472b6',
-}
 const PHASE_TITLES: Record<number, string> = {
   1: 'Onboarding', 2: 'Training', 3: 'Advancement', 4: 'Leadership', 5: 'Mastery', 6: 'Legacy',
 }

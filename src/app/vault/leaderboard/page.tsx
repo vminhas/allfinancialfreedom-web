@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { AgentTradingCardModal } from '@/components/AgentTradingCard'
+import { PHASE_COLORS } from '@/lib/phase-colors'
 
 type Metric = 'submissions' | 'recruits' | 'points'
 type Timeframe = 'week' | 'month' | 'quarter' | 'ytd' | 'all'
@@ -25,10 +26,6 @@ interface Payload {
   timeframe: Timeframe
   totalCount: number
   activeCount: number
-}
-
-const PHASE_COLORS: Record<number, string> = {
-  1: '#60a5fa', 2: '#4ade80', 3: '#C9A96E', 4: '#a78bfa', 5: '#f472b6',
 }
 
 function titleAbbrev(title: string): string {

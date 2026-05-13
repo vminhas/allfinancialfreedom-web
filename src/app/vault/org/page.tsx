@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef, type RefObject } from 'react'
 import { useSession } from 'next-auth/react'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { US_STATES } from '@/lib/agent-constants'
+import { PHASE_COLORS } from '@/lib/phase-colors'
 import { AgentTradingCardModal } from '@/components/AgentTradingCard'
 import AgentNotes from '@/components/AgentNotes'
 
@@ -39,9 +40,6 @@ interface OrgData {
   }
 }
 
-const PHASE_COLORS: Record<number, string> = {
-  1: '#C9A96E', 2: '#60a5fa', 3: '#f59e0b', 4: '#9B6DFF', 5: '#4ade80', 6: '#C9A96E',
-}
 
 const PHASE_TITLES: Record<number, string> = {
   1: 'Agent', 2: 'Associate', 3: 'Senior Associate',

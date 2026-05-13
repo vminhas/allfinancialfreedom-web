@@ -7,6 +7,7 @@ import {
   ResponsiveContainer, ReferenceLine,
 } from 'recharts'
 import { PHASE_LABELS, CARRIERS, getAtRiskStatus, PHASE_ITEMS, PHASE_GROUPS } from '@/lib/agent-constants'
+import { PHASE_COLORS } from '@/lib/phase-colors'
 import { GROUP_ICONS, ChevronDown } from '@/lib/checklist-icons'
 import CallReviewModal, { CallReviewData } from '@/components/CallReviewModal'
 import AgentTypeahead from '@/components/AgentTypeahead'
@@ -105,9 +106,6 @@ const US_STATES = [
   'VA','WA','WV','WI','WY','DC',
 ]
 
-const PHASE_COLORS: Record<number, string> = {
-  1: '#6B8299', 2: '#9B6DFF', 3: '#C9A96E', 4: '#3b82f6', 5: '#4ade80',
-}
 const STATUS_COLORS = {
   'on-track': { color: '#4ade80', label: 'On Track', bg: 'rgba(74,222,128,0.12)' },
   'behind':   { color: '#f59e0b', label: 'Behind',   bg: 'rgba(245,158,11,0.12)' },

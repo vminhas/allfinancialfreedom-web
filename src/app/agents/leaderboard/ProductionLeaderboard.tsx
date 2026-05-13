@@ -12,6 +12,7 @@ import {
   EmptyChartIcon,
 } from './leaderboard-icons'
 import AgentBadges from '@/components/AgentBadges'
+import { PHASE_COLORS } from '@/lib/phase-colors'
 
 // Production leaderboard. Premium-themed counterpart to the existing
 // onboarding-progress matrix. Three metrics, two scopes, five timeframes.
@@ -58,10 +59,6 @@ interface Payload {
 // into a wall, so we hide the rest behind a "Show all" toggle. Strava /
 // Spinify / Salesforce-reports all converge on this cap.
 const DEFAULT_VISIBLE = 20
-
-const PHASE_COLORS: Record<number, string> = {
-  1: '#60a5fa', 2: '#4ade80', 3: '#C9A96E', 4: '#a78bfa', 5: '#f472b6',
-}
 
 function titleAbbrev(title: string): string {
   if (title === 'Marketing Director') return 'MD'

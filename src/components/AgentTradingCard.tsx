@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { CallButton, TextButton, EmailButton } from './ContactActions'
+import { PHASE_COLORS } from '@/lib/phase-colors'
 
 // Reusable trading-card shell. The same component will eventually power
 // birthday and milestone announcement cards (different `variant`,
@@ -39,10 +40,6 @@ export interface CardData {
   licenseNumber: string | null
   milestoneBadges: { key: string; label: string }[]
   scope: 'admin' | 'lc' | 'peer_agent'
-}
-
-const PHASE_COLORS: Record<number, string> = {
-  1: '#6B8299', 2: '#9B6DFF', 3: '#C9A96E', 4: '#3b82f6', 5: '#4ade80',
 }
 
 // "1y 4m" style tenure. Reads better than days for anything past a few

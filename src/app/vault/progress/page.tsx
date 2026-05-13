@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { getAtRiskStatus, AT_RISK_THRESHOLDS } from '@/lib/agent-constants'
+import { PHASE_COLORS } from '@/lib/phase-colors'
 import PhaseItemDrawer, { type SelectedItem } from './PhaseItemDrawer'
 
 // Adjacency-matrix style dashboard inspired by Bostock's Les Misérables
@@ -51,14 +52,6 @@ interface Payload {
   completedAt: Record<string, string>  // `${agentId}:${itemKey}` -> ISO date or ''
 }
 
-const PHASE_COLORS: Record<number, string> = {
-  1: '#60a5fa',  // blue
-  2: '#4ade80',  // green
-  3: '#C9A96E',  // gold
-  4: '#a78bfa',  // purple
-  5: '#f472b6',  // pink
-  6: '#FFD54F',  // bright gold — apex (Phase 6 / EMD title)
-}
 
 // Small helper for rendering the P{n} pill. Phases 1–5 are subtle
 // text in the phase color; Phase 6 (apex) gets a gilded gradient
