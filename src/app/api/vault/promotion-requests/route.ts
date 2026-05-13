@@ -106,6 +106,33 @@ export async function PATCH(req: NextRequest) {
       }),
     ])
 
+    // Fire the same Discord celebrations the agent-self path fires
+    // when this item is marked complete. Approving the SA Promotion
+    // request now triggers the same announcement as if the agent
+    // had ticked the box themselves (assuming the PhaseItemDefinition
+    // has postToAnnouncements set in the checklist editor).
+    const { announcePhaseItemCompletion } = await import('@/lib/phase-item-announce')
+    const ids = await announcePhaseItemCompletion({
+      agentProfileId: request.agentProfileId,
+      itemKey,
+      phase,
+    }).catch(() => ({ activityMsgId: null, announcementMsgId: null }))
+    if (ids.activityMsgId || ids.announcementMsgId) {
+      await db.phaseItem.update({
+        where: {
+          agentProfileId_phase_itemKey: {
+            agentProfileId: request.agentProfileId,
+            phase,
+            itemKey,
+          },
+        },
+        data: {
+          activityMsgId: ids.activityMsgId,
+          announcementMsgId: ids.announcementMsgId,
+        },
+      }).catch(() => {})
+    }
+
     return NextResponse.json({ ok: true, status: 'approved' })
   }
 
