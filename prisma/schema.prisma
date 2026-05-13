@@ -36,6 +36,7 @@ model AdminUser {
   reviewedMilestones   RecognitionMilestone[] @relation("MilestoneReviewer")
   callReviews          AdminCallReview[]
   authoredFeedbackNotes AgentFeedbackNote[]
+  sentPhaseItemReminders PhaseItemReminder[] @relation("ReminderSender")
 
   @@map("admin_users")
 }
@@ -55,6 +56,11 @@ model AdminCallReview {
   // is required so the history list has something to sort/filter on.
   contactName        String?
   callDate           DateTime
+  phoneNumber        String?
+  subject            String?
+  callType           CallType?
+  callTypeOther      String?
+  followUpNeeded     Boolean    @default(false)
   // Full transcript saved so the admin can re-read it later or run a
   // re-analysis with a tweaked prompt without having to keep the
   // text around in their notes app.
@@ -72,6 +78,7 @@ model AdminCallReview {
   // Free-form note the admin can add after the fact (e.g. "tried the
   // tip on the next call, worked great").
   notes              String?
+  outcome            CallOutcome?
 
   modelId            String
   inputTokens        Int
@@ -241,6 +248,7 @@ model AgentProfile {
   // leaderboard, future aggregate dashboards). Test agents keep all
   // login + flow capabilities so we can exercise the agent UX as them.
   isTest                Boolean     @default(false) @map("is_test")
+  isLeadership          Boolean     @default(false) @map("is_leadership")
   phase                 Int         @default(1)
   phaseStartedAt        DateTime?   // when they entered current phase
   goal                  String?     // "MD", "EMD", etc.
@@ -265,6 +273,8 @@ model AgentProfile {
   notes                 String?
   lastReminderSentAt    DateTime?
   lastSeenPhase         Int?
+  badges                String[]  @default([])
+  clientReminderPrefs   Json?     @map("client_reminder_prefs")
   // Power-couple pairing. Two-sided: both agents have AgentProfiles and each
   // stores the other's id. One-sided: partner has no profile, use displayName.
   partnerAgentProfileId String?   @map("partner_agent_profile_id")
@@ -310,6 +320,11 @@ model AgentProfile {
   trainingAttendances   TrainingAttendance[]
   resolvedOrphans       TrainingAttendanceOrphan[] @relation("OrphanResolved")
   zoomAliases           AgentZoomAlias[]
+  phaseItemReminders    PhaseItemReminder[]        @relation("ReminderRecipient")
+  climbAchievements     ClimbAchievement[]
+  agentArticles         AgentArticle[]
+  contestManualChecks   ContestManualCheck[]
+  clientReminderFires   ClientReminderFire[]
 
   @@index([recruiterId])
   @@map("agent_profiles")
@@ -686,14 +701,18 @@ model BusinessPartner {
 }
 
 model SetupResource {
-  id          String   @id @default(cuid())
-  key         String   @unique
-  label       String
-  url         String
-  category    String   @default("general")
-  description String?
-  updatedAt   DateTime @updatedAt
-  createdAt   DateTime @default(now())
+  id               String    @id @default(cuid())
+  key              String    @unique
+  label            String
+  url              String
+  category         String    @default("general")
+  description      String?
+  callType            CallType?
+  rawScriptContent    String?   @db.Text
+  aiScriptOutline     String?   @db.Text
+  outlineGeneratedAt  DateTime?
+  updatedAt           DateTime  @updatedAt
+  createdAt           DateTime  @default(now())
 
   @@map("setup_resources")
 }
@@ -835,6 +854,8 @@ model CallLog {
   notes            String?
   result           String?
   outcome          CallOutcome?
+  callType         CallType?
+  callTypeOther    String?
   followUpNeeded   Boolean               @default(false)
   createdAt        DateTime              @default(now())
 
@@ -1382,4 +1403,206 @@ enum FtaStatus {
   RESCHEDULED
   CANCELLED
   NO_SHOW
+}
+
+enum CallType {
+  RECRUIT
+  FOLLOW_UP
+  CLIENT_APPOINTMENT
+  OTHER
+}
+
+model CallScript {
+  id          String    @id @default(cuid())
+  callType    CallType
+  name        String
+  content     String    @db.Text
+  resourceUrl String?
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([callType, active])
+  @@map("call_scripts")
+}
+
+model PhaseItemReminder {
+  id                      String       @id @default(cuid())
+  phase                   Int
+  itemKey                 String
+  itemLabel               String
+  recipientAgentProfileId String
+  recipient               AgentProfile @relation("ReminderRecipient", fields: [recipientAgentProfileId], references: [id], onDelete: Cascade)
+  sentByAdminId           String
+  sentBy                  AdminUser    @relation("ReminderSender", fields: [sentByAdminId], references: [id])
+  subject                 String
+  bodyPreview             String       @db.VarChar(500)
+  status                  String
+  errorMessage            String?
+  ghlMessageId            String?
+  sentAt                  DateTime     @default(now())
+
+  @@index([phase, itemKey, sentAt])
+  @@index([recipientAgentProfileId, sentAt])
+  @@map("phase_item_reminders")
+}
+
+enum ContestAnchor {
+  ICA_DATE
+  ONBOARDING
+  PHASE_START
+  FIXED
+}
+
+enum ContestRequirementType {
+  PHASE_ITEM
+  MILESTONE
+  RECRUITS
+  POLICIES
+  MANUAL
+  CUSTOM_TEXT
+}
+
+model Contest {
+  id                     String         @id @default(cuid())
+  title                  String
+  description            String?
+  rewardAmount           Int?
+  rewardLabel            String?
+  anchor                 ContestAnchor
+  durationDays           Int?
+  fixedStartAt           DateTime?
+  fixedEndAt             DateTime?
+  eligibleFromAt         DateTime?
+  eligibleToAt           DateTime?
+  active                 Boolean        @default(true)
+  discordChannelId       String?
+  discordTrackerMessageId String?
+  trackerShowMissed      Boolean        @default(false)
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+
+  requirements           ContestRequirement[]
+
+  @@index([active])
+  @@map("contests")
+}
+
+model ContestRequirement {
+  id               String                 @id @default(cuid())
+  contestId        String
+  contest          Contest                @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  order            Int
+  label            String
+  type             ContestRequirementType
+  phaseItemKey     String?
+  milestoneKey     String?
+  count            Int?
+  defaultCompleted Boolean                @default(false)
+
+  manualChecks     ContestManualCheck[]
+
+  @@index([contestId])
+  @@map("contest_requirements")
+}
+
+model ContestManualCheck {
+  id             String             @id @default(cuid())
+  contestId      String
+  requirementId  String
+  requirement    ContestRequirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  agentProfileId String
+  agentProfile   AgentProfile       @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+  completed      Boolean            @default(false)
+  completedAt    DateTime?
+  checkedById    String?
+  notes          String?
+
+  @@unique([requirementId, agentProfileId])
+  @@index([agentProfileId])
+  @@map("contest_manual_checks")
+}
+
+enum ClimbRewardType {
+  BADGE
+  DISCORD_CALLOUT
+  ARTICLE
+  CUSTOM
+}
+
+model ClimbMilestone {
+  id             String          @id @default(cuid())
+  pointThreshold Int             @unique
+  title          String
+  tagline        String?
+  description    String?
+  rewardType     ClimbRewardType
+  rewardPayload  Json?
+  iconKey        String?
+  accentColor    String?
+  active         Boolean         @default(true)
+  order          Int             @default(0)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  achievements   ClimbAchievement[]
+
+  @@map("climb_milestones")
+}
+
+model ClimbAchievement {
+  id                  String         @id @default(cuid())
+  agentProfileId      String
+  agentProfile        AgentProfile   @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+  milestoneId         String
+  milestone           ClimbMilestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  achievedAt          DateTime       @default(now())
+  pointsAtAchievement Int
+
+  @@unique([agentProfileId, milestoneId])
+  @@index([agentProfileId])
+  @@index([achievedAt])
+  @@map("climb_achievements")
+}
+
+enum AgentArticleStatus {
+  DRAFT
+  PUBLISHED
+  REJECTED
+}
+
+model AgentArticle {
+  id             String             @id @default(cuid())
+  agentProfileId String
+  agentProfile   AgentProfile       @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+  milestoneId    String?
+  title          String
+  body           String             @db.Text
+  promptUsed     String?            @db.Text
+  modelId        String?
+  inputTokens    Int?
+  outputTokens   Int?
+  status         AgentArticleStatus @default(DRAFT)
+  reviewedById   String?
+  reviewedAt     DateTime?
+  publishedAt    DateTime?
+  generatedAt    DateTime           @default(now())
+
+  @@index([agentProfileId, generatedAt])
+  @@index([status])
+  @@map("agent_articles")
+}
+
+model ClientReminderFire {
+  id             String       @id @default(cuid())
+  agentProfileId String
+  agentProfile   AgentProfile @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+  submissionId   String?
+  kind           String
+  periodKey      String
+  firedAt        DateTime     @default(now())
+
+  @@unique([agentProfileId, submissionId, kind, periodKey])
+  @@index([agentProfileId, firedAt])
+  @@map("client_reminder_fires")
 }
