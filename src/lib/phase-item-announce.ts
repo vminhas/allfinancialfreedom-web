@@ -34,15 +34,28 @@ export async function announcePhaseItemCompletion(args: {
     where: { itemKey: args.itemKey },
     select: { label: true, postToActivity: true, postToAnnouncements: true, pingAdmin: true },
   })
-  if (!def || (!def.postToActivity && !def.postToAnnouncements)) return empty
+  if (!def) {
+    console.warn(`[announcePhaseItemCompletion] no PhaseItemDefinition for itemKey="${args.itemKey}"`)
+    return empty
+  }
+  if (!def.postToActivity && !def.postToAnnouncements) {
+    console.info(`[announcePhaseItemCompletion] both flags off for itemKey="${args.itemKey}" -- nothing to post`)
+    return empty
+  }
 
   const profile = await db.agentProfile.findUnique({
     where: { id: args.agentProfileId },
     select: { firstName: true, lastName: true, agentCode: true, avatarUrl: true },
   })
-  if (!profile) return empty
+  if (!profile) {
+    console.warn(`[announcePhaseItemCompletion] no AgentProfile for id="${args.agentProfileId}"`)
+    return empty
+  }
 
-  if (!process.env.DISCORD_BOT_TOKEN) return empty
+  if (!process.env.DISCORD_BOT_TOKEN) {
+    console.warn('[announcePhaseItemCompletion] DISCORD_BOT_TOKEN not set, skipping post')
+    return empty
+  }
 
   const { sendChannelMessage } = await import('./discord')
   const agentName = `${profile.firstName} ${profile.lastName}`.trim()
@@ -55,39 +68,51 @@ export async function announcePhaseItemCompletion(args: {
 
   if (def.postToActivity) {
     const color = def.pingAdmin ? 0xFFD700 : (PHASE_COLORS[args.phase] ?? 0xC9A96E)
-    const res = await sendChannelMessage(activityChannel, {
-      content: def.pingAdmin && adminUserId ? `<@${adminUserId}>` : undefined,
-      embeds: [{
-        description: `**${agentName}** completed *${def.label}*`,
-        color,
-        footer: { text: `Phase ${args.phase} · ${profile.agentCode}` },
-        timestamp: new Date().toISOString(),
-      }],
-    }).catch(() => null)
-    activityMsgId = (res as { id?: string } | null)?.id ?? null
+    try {
+      const res = await sendChannelMessage(activityChannel, {
+        content: def.pingAdmin && adminUserId ? `<@${adminUserId}>` : undefined,
+        embeds: [{
+          description: `**${agentName}** completed *${def.label}*`,
+          color,
+          footer: { text: `Phase ${args.phase} · ${profile.agentCode}` },
+          timestamp: new Date().toISOString(),
+        }],
+      })
+      activityMsgId = res?.id ?? null
+    } catch (err) {
+      console.error(`[announcePhaseItemCompletion] activity post FAILED for itemKey="${args.itemKey}" channel=${activityChannel}:`, err)
+    }
+  } else {
+    console.info(`[announcePhaseItemCompletion] postToActivity=false for itemKey="${args.itemKey}", skipping activity post`)
   }
 
   if (def.postToAnnouncements) {
     const { buildAchievementEmbed } = await import('./discord-card')
-    const res = await sendChannelMessage(announcementsChannel, {
-      embeds: [
-        buildAchievementEmbed({
-          flavor: 'MILESTONE',
-          protagonist: {
-            firstName: profile.firstName,
-            lastName: profile.lastName,
-            agentCode: profile.agentCode,
-            avatarUrl: profile.avatarUrl,
-          },
-          subline: `Completed **${def.label}**`,
-          fields: [
-            { name: 'Phase', value: PHASE_TITLES[args.phase] ?? `Phase ${args.phase}`, inline: true },
-            { name: 'Agent', value: '`' + profile.agentCode + '`',                     inline: true },
-          ],
-        }),
-      ],
-    }).catch(() => null)
-    announcementMsgId = (res as { id?: string } | null)?.id ?? null
+    try {
+      const res = await sendChannelMessage(announcementsChannel, {
+        embeds: [
+          buildAchievementEmbed({
+            flavor: 'MILESTONE',
+            protagonist: {
+              firstName: profile.firstName,
+              lastName: profile.lastName,
+              agentCode: profile.agentCode,
+              avatarUrl: profile.avatarUrl,
+            },
+            subline: `Completed **${def.label}**`,
+            fields: [
+              { name: 'Phase', value: PHASE_TITLES[args.phase] ?? `Phase ${args.phase}`, inline: true },
+              { name: 'Agent', value: '`' + profile.agentCode + '`',                     inline: true },
+            ],
+          }),
+        ],
+      })
+      announcementMsgId = res?.id ?? null
+    } catch (err) {
+      console.error(`[announcePhaseItemCompletion] announcement post FAILED for itemKey="${args.itemKey}" channel=${announcementsChannel}:`, err)
+    }
+  } else {
+    console.info(`[announcePhaseItemCompletion] postToAnnouncements=false for itemKey="${args.itemKey}", skipping announcement post`)
   }
 
   return { activityMsgId, announcementMsgId }
