@@ -5,7 +5,7 @@ const {
 } = require('discord.js');
 const { GUILD_ID, CHANNELS, ROLES, COLORS, EDITORS } = require('./config');
 const { maybeReactToMessage } = require('./reactions');
-const { postLeaderboard } = require('./leaderboard');
+const { postLeaderboard, handleLeaderboardButton } = require('./leaderboard');
 
 const client = new Client({
   intents: [
@@ -208,6 +208,14 @@ function editButtonRow(messageId) {
 
 // Slash commands + button/modal interactions
 client.on(Events.InteractionCreate, async (interaction) => {
+
+  // ── Leaderboard tab buttons ─────────────────────────────────────────────────
+  if (interaction.isButton() && interaction.customId.startsWith('lb_')) {
+    await handleLeaderboardButton(interaction).catch(err =>
+      console.error('[Leaderboard] Button handler error:', err)
+    );
+    return;
+  }
 
   // ── Button click → open edit modal ─────────────────────────────────────────
   if (interaction.isButton() && interaction.customId.startsWith('edit_btn_')) {

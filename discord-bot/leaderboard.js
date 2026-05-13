@@ -204,4 +204,35 @@ async function postLeaderboard(client) {
   }
 }
 
-module.exports = { postLeaderboard };
+// Button interaction handler — called from bot.js interactionCreate.
+// Returns true if handled, false if not a leaderboard button.
+async function handleLeaderboardButton(interaction) {
+  const id = interaction.customId;
+  if (!['lb_recruits', 'lb_production', 'lb_promotions', 'lb_movers'].includes(id)) return false;
+
+  await interaction.deferUpdate();
+
+  let data;
+  try {
+    data = await fetchLeaderboardData();
+  } catch (err) {
+    console.error('[Leaderboard] Button fetch failed:', err.message);
+    await interaction.followUp({ content: 'Could not load leaderboard data right now. Try again in a moment.', ephemeral: true });
+    return true;
+  }
+
+  const { prodEmbed, recruitEmbed, moversEmbed, promotionsEmbed } = buildEmbeds(data);
+
+  const viewMap = { lb_recruits: 'recruits', lb_production: 'production', lb_promotions: 'promotions', lb_movers: 'movers' };
+  const view = viewMap[id];
+  const embedMap = { recruits: recruitEmbed, production: prodEmbed, promotions: promotionsEmbed, movers: moversEmbed };
+
+  await interaction.editReply({
+    embeds: [embedMap[view]],
+    components: [buildButtons(view)],
+  });
+
+  return true;
+}
+
+module.exports = { postLeaderboard, handleLeaderboardButton };
