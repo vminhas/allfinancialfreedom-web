@@ -118,6 +118,12 @@ export const PHASE_ACCENT: Record<number, number> = {
 // the next phase to hold the current title). Phase 1 agents have
 // no earned title yet — fall through to a generic 'Phase 1' label
 // at call sites.
+// Deprecated for title rendering. Use resolveAgentTitle from
+// `@/lib/agent-title` instead — title is now driven by the rank
+// promotion items the agent has completed, not their phase number.
+// Every entry maps to 'Associate' (the universal starting title) so any
+// stale lookup degrades gracefully rather than showing 'Agent' or a
+// phase-derived label that contradicts the resolver.
 export const PHASE_TITLE: Record<number, string> = {
-  2: 'Agent', 3: 'Associate', 4: 'Senior Associate', 5: 'Marketing Director', 6: 'Executive Marketing Director',
+  1: 'Associate', 2: 'Associate', 3: 'Associate', 4: 'Associate', 5: 'Associate', 6: 'Associate',
 }

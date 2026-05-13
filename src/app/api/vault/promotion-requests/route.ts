@@ -9,13 +9,23 @@ import { requireRole } from '@/lib/permissions'
 // gate is one row here + the matching `adminOnly + promotion-request`
 // action in agent-constants.
 //
-// associate_promotion (Phase 1 → 2): the original CFT-Associate gate.
-// emd_signoff (Phase 3 → 4): EMD reviews and signs off the agent's
-//   CFT designation before they advance to MD focus. Added 2026-05-07
+// associate_promotion (Phase 2): bumps title to Senior Associate.
+// emd_signoff (Phase 3): EMD reviews and signs off the agent's CFT
+//   designation before they advance to MD focus. Added 2026-05-07
 //   after Tracy's self-tick highlighted the missing gate.
+// md_promotion (Phase 4): bumps title to Marketing Director.
+// emd_promotion (Phase 5): bumps title to EMD.
+// nvp_promotion (Phase 6): bumps title to NVP.
+//
+// Each rank promotion mirrors associate_promotion: admin-only checklist
+// item, promotion-request modal, title resolver in lib/agent-title.ts
+// picks up the flip the moment Vick ticks it.
 const GATED_ITEMS: Record<string, number> = {
   associate_promotion: 2,
   emd_signoff: 3,
+  md_promotion: 4,
+  emd_promotion: 5,
+  nvp_promotion: 6,
 }
 const GATED_KEYS = Object.keys(GATED_ITEMS)
 

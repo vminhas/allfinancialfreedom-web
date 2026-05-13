@@ -11,9 +11,25 @@
 // to support de-duplication on re-completion).
 
 import { db } from './db'
+import { titleForPromotionItem } from './agent-title'
 
 const ACTIVITY_CHANNEL_FALLBACK = '1501070249695383622'
 const ANNOUNCEMENTS_FALLBACK    = '1295044213590982724'
+
+// Rank-promotion phase items always broadcast to #announcements, no
+// matter what `post_to_announcements` happens to be in the DB for them.
+// These are CEO-critical celebratory moments (every rank earn the team
+// has) and we refuse to make them dependent on an admin remembering to
+// tick a per-item toggle in the checklist editor. The corresponding
+// migration (20260513000000_promotion_items_announce) keeps the DB flag
+// in sync so the editor UI doesn't misrepresent reality, but the code
+// here is the source of truth.
+const ALWAYS_ANNOUNCE: ReadonlySet<string> = new Set([
+  'associate_promotion', // Senior Associate
+  'md_promotion',        // Marketing Director
+  'emd_promotion',       // Executive Marketing Director
+  'nvp_promotion',       // National Vice President
+])
 
 const PHASE_COLORS: Record<number, number> = {
   1: 0x60a5fa, 2: 0x4ade80, 3: 0xC9A96E, 4: 0xa78bfa, 5: 0xf472b6, 6: 0xFFD54F,
@@ -38,7 +54,9 @@ export async function announcePhaseItemCompletion(args: {
     console.warn(`[announcePhaseItemCompletion] no PhaseItemDefinition for itemKey="${args.itemKey}"`)
     return empty
   }
-  if (!def.postToActivity && !def.postToAnnouncements) {
+  const forceAnnounce = ALWAYS_ANNOUNCE.has(args.itemKey)
+  const shouldAnnounce = def.postToAnnouncements || forceAnnounce
+  if (!def.postToActivity && !shouldAnnounce) {
     console.info(`[announcePhaseItemCompletion] both flags off for itemKey="${args.itemKey}" -- nothing to post`)
     return empty
   }
@@ -86,24 +104,41 @@ export async function announcePhaseItemCompletion(args: {
     console.info(`[announcePhaseItemCompletion] postToActivity=false for itemKey="${args.itemKey}", skipping activity post`)
   }
 
-  if (def.postToAnnouncements) {
+  if (shouldAnnounce) {
+    if (forceAnnounce && !def.postToAnnouncements) {
+      console.info(`[announcePhaseItemCompletion] forcing #announcements post for rank-gate itemKey="${args.itemKey}" (DB flag is off, ALWAYS_ANNOUNCE overrides)`)
+    }
+    // Rank promotions render as a PROMOTION-flavored embed with the
+    // newly-earned title front and center; everything else stays a
+    // generic MILESTONE. The title comes from the same RANK_OVERRIDES
+    // table the resolver reads, so the announcement and the agent's
+    // displayed title are guaranteed to agree.
+    const newTitle = titleForPromotionItem(args.itemKey)
+    const isRankPromotion = newTitle !== null
     const { buildAchievementEmbed } = await import('./discord-card')
     try {
       const res = await sendChannelMessage(announcementsChannel, {
         embeds: [
           buildAchievementEmbed({
-            flavor: 'MILESTONE',
+            flavor: isRankPromotion ? 'PROMOTION' : 'MILESTONE',
             protagonist: {
               firstName: profile.firstName,
               lastName: profile.lastName,
               agentCode: profile.agentCode,
               avatarUrl: profile.avatarUrl,
             },
-            subline: `Completed **${def.label}**`,
-            fields: [
-              { name: 'Phase', value: PHASE_TITLES[args.phase] ?? `Phase ${args.phase}`, inline: true },
-              { name: 'Agent', value: '`' + profile.agentCode + '`',                     inline: true },
-            ],
+            subline: isRankPromotion
+              ? `Promoted to **${newTitle}**`
+              : `Completed **${def.label}**`,
+            fields: isRankPromotion
+              ? [
+                  { name: 'New Title', value: newTitle!,                       inline: true },
+                  { name: 'Agent',     value: '`' + profile.agentCode + '`',   inline: true },
+                ]
+              : [
+                  { name: 'Phase', value: PHASE_TITLES[args.phase] ?? `Phase ${args.phase}`, inline: true },
+                  { name: 'Agent', value: '`' + profile.agentCode + '`',                     inline: true },
+                ],
           }),
         ],
       })
@@ -112,7 +147,7 @@ export async function announcePhaseItemCompletion(args: {
       console.error(`[announcePhaseItemCompletion] announcement post FAILED for itemKey="${args.itemKey}" channel=${announcementsChannel}:`, err)
     }
   } else {
-    console.info(`[announcePhaseItemCompletion] postToAnnouncements=false for itemKey="${args.itemKey}", skipping announcement post`)
+    console.info(`[announcePhaseItemCompletion] postToAnnouncements=false (and not in ALWAYS_ANNOUNCE) for itemKey="${args.itemKey}", skipping announcement post`)
   }
 
   return { activityMsgId, announcementMsgId }

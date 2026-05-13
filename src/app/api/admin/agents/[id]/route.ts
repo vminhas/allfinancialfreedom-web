@@ -99,60 +99,16 @@ export async function PUT(
       assignDiscordPhaseRole(existing.discordUserId, newPhase, existing.phase).catch(() => {})
     }
 
-    // Public promotion card + DM. Goes out regardless of whether the
-    // agent has linked Discord — the announcements post is still
-    // worth firing for the team. The DM only attempts when discordUserId
-    // is set (otherwise we have nowhere to send it).
-    try {
-      const { sendChannelMessage } = await import('@/lib/discord')
-      const { buildAchievementEmbed, PHASE_ACCENT, PHASE_TITLE } = await import('@/lib/discord-card')
-
-      const phaseGoals: Record<number, string> = {
-        2: 'Complete 10 Field Training Appointments and help your first 3 clients.',
-        3: 'Get all sign-offs and master the core product suite.',
-        4: 'Hit 45,000 points and build a team of 5 licensed agents.',
-        5: 'Reach 150,000 net points in 6 months and develop a Marketing Director.',
-      }
-
-      const accent = PHASE_ACCENT[newPhase] ?? 0xC9A96E
-      const newTitle = PHASE_TITLE[newPhase] ?? `Phase ${newPhase}`
-
-      const announcementCard = buildAchievementEmbed({
-        flavor: 'PROMOTION',
-        protagonist: {
-          firstName: existing.firstName,
-          lastName: existing.lastName,
-          agentCode: existing.agentCode,
-          avatarUrl: existing.avatarUrl,
-        },
-        subline: `Promoted to **${newTitle}**`,
-        fields: [
-          { name: 'New phase', value: newTitle, inline: true },
-          { name: 'Agent',     value: '`' + existing.agentCode + '`', inline: true },
-          ...(phaseGoals[newPhase] ? [{ name: 'Next milestone', value: phaseGoals[newPhase] }] : []),
-        ],
-        accentOverride: accent,
-      })
-
-      // Public broadcast
-      const announcementsChannel = process.env.DISCORD_ANNOUNCEMENTS_CHANNEL_ID ?? '1295044213590982724'
-      await sendChannelMessage(announcementsChannel, { embeds: [announcementCard] }).catch(() => {})
-
-      // DM to the promoted agent
-      if (existing.discordUserId) {
-        const dmChannelRes = await fetch(`https://discord.com/api/v10/users/@me/channels`, {
-          method: 'POST',
-          headers: { Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ recipient_id: existing.discordUserId }),
-        })
-        if (dmChannelRes.ok) {
-          const dmChannel = await dmChannelRes.json() as { id: string }
-          await sendChannelMessage(dmChannel.id, { embeds: [announcementCard] })
-        }
-      }
-    } catch {
-      // Non-fatal: promotion still goes through even if Discord fails
-    }
+    // Phase change is no longer a rank promotion under the new model:
+    // rank/title is driven exclusively by the rank-promotion checklist
+    // items (associate_promotion -> Senior Associate, md_promotion ->
+    // MD, etc.), each gated through /api/vault/promotion-requests and
+    // broadcast by src/lib/phase-item-announce.ts. Phase advancement
+    // here only updates the agent's focus area (onboarding / FTAs /
+    // CFT / MD-focus / EMD-focus / NVP-track), so no public PROMOTION
+    // embed fires; that would lie about a title that didn't actually
+    // change. The Discord role assignment above still runs because the
+    // role tracks focus phase, not rank.
 
     body.phaseStartedAt = new Date()
   }

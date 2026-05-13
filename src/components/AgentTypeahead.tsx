@@ -44,14 +44,16 @@ interface AgentTypeaheadProps {
   helperText?: React.ReactNode
 }
 
-// Title shown next to an agent in pickers. Convention: agents in
-// Phase N display the title earned by completing Phase N-1 (you
-// have to be in the *next* phase to hold the current title). Vick
-// at Phase 6 is an EMD; an agent at Phase 5 is an MD working
-// toward EMD. Phase 1 has no earned title yet (default rendered
-// as 'Phase 1' by the fallback).
+// Title shown next to an agent in pickers. Under the new model every
+// agent starts as "Associate" and only the rank-promotion checklist
+// items (associate_promotion / md_promotion / emd_promotion /
+// nvp_promotion) advance the title. The picker doesn't have those
+// item-keys handy (we only know the agent's phase), so we render
+// "Associate" as a safe default. Callers that need the precise title
+// should pull it from the agent API (which routes through
+// resolveAgentTitle) rather than computing it locally.
 const PHASE_TITLE: Record<number, string> = {
-  2: 'Agent', 3: 'Associate', 4: 'Senior Associate', 5: 'MD', 6: 'EMD',
+  1: 'Associate', 2: 'Associate', 3: 'Associate', 4: 'Associate', 5: 'Associate', 6: 'Associate',
 }
 
 export default function AgentTypeahead({
