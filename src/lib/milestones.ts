@@ -91,9 +91,9 @@ export const MILESTONES: MilestoneDefinition[] = [
   },
   {
     key: 'associate_promotion',
-    label: 'Associate Promotion',
-    description: 'Promoted into Phase 3 (Associate track).',
-    criteria: 'Complete every Phase 2 item and request your promotion via the licensing coordinator.',
+    label: 'Senior Associate Promotion',
+    description: 'Earned the Senior Associate rank.',
+    criteria: 'Complete every Phase 2 item and request your promotion via the licensing coordinator. Admin approves the rank earn.',
     award: 'auto',
     phase: 2,
   },
