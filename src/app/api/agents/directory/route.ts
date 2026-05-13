@@ -2,17 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
-
-// Key = the phase NUMBER, value = the title earned on COMPLETING that phase.
-// An agent in phase N has completed phase N-1, so their display title is
-// PHASE_TITLES[N - 1]. Phase-1 agents default to 'Agent'.
-const PHASE_TITLES: Record<number, string> = {
-  1: 'Agent',
-  2: 'Associate',
-  3: 'Senior Associate',
-  4: 'Marketing Director',
-  5: 'Executive Marketing Director',
-}
+import { resolveAgentTitle, TITLE_OVERRIDE_ITEM_KEYS } from '@/lib/agent-title'
 
 // GET /api/agents/directory
 //
@@ -35,6 +25,12 @@ export async function GET() {
       avatarUrl: true,
       phase: true,
       state: true,
+      // Pull only the title-override items so the resolver can decide
+      // whether the agent's rank has been bumped mid-phase.
+      phaseItems: {
+        where: { completed: true, itemKey: { in: TITLE_OVERRIDE_ITEM_KEYS } },
+        select: { itemKey: true },
+      },
     },
     orderBy: [{ phase: 'desc' }, { firstName: 'asc' }],
   })
@@ -47,7 +43,10 @@ export async function GET() {
       lastName: a.lastName,
       avatarUrl: a.avatarUrl,
       phase: a.phase,
-      title: PHASE_TITLES[a.phase - 1] ?? 'Agent',
+      title: resolveAgentTitle({
+        phase: a.phase,
+        completedItemKeys: a.phaseItems.map(i => i.itemKey),
+      }),
       state: a.state,
     })),
   })
