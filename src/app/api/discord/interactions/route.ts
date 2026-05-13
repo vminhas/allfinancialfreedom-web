@@ -369,28 +369,47 @@ async function handleSearchSubmit(interaction: DiscordInteraction, agentProfileI
   })
 }
 
-// Leaderboard tab buttons (lb_production, lb_recruits, lb_movers).
+// Leaderboard tab buttons (lb_recruits, lb_production, lb_promotions, lb_movers).
 // These are posted by the bot process but handled here because Discord
 // routes all button interactions to the Interactions Endpoint URL, not
 // the WebSocket bot. We query the DB directly to avoid an internal HTTP
 // round-trip.
 async function handleLeaderboardTab(customId: string) {
+  const { TITLE_OVERRIDE_ITEM_KEYS, titleForPromotionItem } = await import('@/lib/agent-title')
+
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0)
   const monthLabel = now.toLocaleDateString('en-US', {
     month: 'long', year: 'numeric', timeZone: 'America/New_York',
   })
+  const updatedAt = now.toLocaleString('en-US', {
+    timeZone: 'America/New_York', month: 'short', day: 'numeric',
+    hour: 'numeric', minute: '2-digit', hour12: true,
+  })
 
   const roster = await db.agentProfile.findMany({
     where: { status: 'ACTIVE', isTest: false },
-    select: { id: true, agentCode: true, firstName: true, lastName: true },
-  }) as Array<{ id: string; agentCode: string; firstName: string; lastName: string }>
+    select: { id: true, agentCode: true, firstName: true, lastName: true, isLeadership: true },
+  }) as Array<{ id: string; agentCode: string; firstName: string; lastName: string; isLeadership: boolean }>
   const rosterIds = roster.map(r => r.id)
   const idSet = new Set(rosterIds)
+  const leadershipIds = new Set(roster.filter(r => r.isLeadership).map(r => r.id))
 
+  const MEDAL_EMOJI = ['🥇', '🥈', '🥉']
+  const rankLine = (i: number, name: string, value: number, unit: string) => {
+    const prefix = i < 3 ? MEDAL_EMOJI[i] : `${i + 1}.`
+    const padded = name.length > 22 ? name.slice(0, 21) + '…' : name.padEnd(22)
+    const plural = value !== 1 ? unit + 's' : unit
+    return `${prefix}  \`${padded}\`  **${value}** ${plural}`
+  }
+  const toName = (id: string) => { const a = roster.find(r => r.id === id); return a ? `${a.firstName} ${a.lastName}` : id }
+
+  // Always query recruits and production so all tabs have fresh data.
   let subLines = '_No submissions this month._'
   let submissionSummary = 'No submissions recorded this month.'
   let recLines = '_No new recruits this month._'
+  let recruitSummary = 'No recruits recorded this month.'
+  let promoLines = '_No promotions recorded yet this month._'
 
   if (rosterIds.length > 0) {
     const subs = await db.newBusinessSubmission.findMany({
@@ -400,15 +419,22 @@ async function handleLeaderboardTab(customId: string) {
       },
       select: { agentProfileId: true, splitWithAgentId: true },
     })
-
     const subCounts = new Map<string, number>()
     for (const s of subs) {
-      if (idSet.has(s.agentProfileId)) subCounts.set(s.agentProfileId, (subCounts.get(s.agentProfileId) ?? 0) + 1)
-      if (s.splitWithAgentId && idSet.has(s.splitWithAgentId)) subCounts.set(s.splitWithAgentId, (subCounts.get(s.splitWithAgentId) ?? 0) + 1)
+      if (idSet.has(s.agentProfileId) && !leadershipIds.has(s.agentProfileId))
+        subCounts.set(s.agentProfileId, (subCounts.get(s.agentProfileId) ?? 0) + 1)
+      if (s.splitWithAgentId && idSet.has(s.splitWithAgentId) && !leadershipIds.has(s.splitWithAgentId))
+        subCounts.set(s.splitWithAgentId, (subCounts.get(s.splitWithAgentId) ?? 0) + 1)
+    }
+    const topSubs = [...subCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10)
+    if (topSubs.length > 0) {
+      subLines = topSubs.map(([id, v], i) => rankLine(i, toName(id), v, 'app')).join('\n')
+      const total = [...subCounts.values()].reduce((a, b) => a + b, 0)
+      submissionSummary = `${total} total app${total !== 1 ? 's' : ''} · ${subCounts.size} active agent${subCounts.size !== 1 ? 's' : ''}`
     }
 
     const newAgents = await db.agentProfile.findMany({
-      where: { isTest: false, recruiterId: { not: null }, createdAt: { gte: monthStart, lte: now } },
+      where: { isTest: false, createdAt: { gte: monthStart, lte: now } },
       select: { recruiterId: true },
     }) as Array<{ recruiterId: string | null }>
     const codeToId = new Map(roster.map(r => [r.agentCode, r.id]))
@@ -418,35 +444,39 @@ async function handleLeaderboardTab(customId: string) {
       const id = codeToId.get(a.recruiterId)
       if (id) recruitCounts.set(id, (recruitCounts.get(id) ?? 0) + 1)
     }
-
-    const toName = (id: string) => { const a = roster.find(r => r.id === id); return a ? `${a.firstName} ${a.lastName}` : id }
-    const MEDAL_EMOJI = ['🥇', '🥈', '🥉']
-    const rankLine = (i: number, name: string, value: number, unit: string) => {
-      const prefix = i < 3 ? MEDAL_EMOJI[i] : `${i + 1}.`
-      const padded = name.length > 22 ? name.slice(0, 21) + '…' : name.padEnd(22)
-      const plural = value !== 1 ? unit + 's' : unit
-      return `${prefix}  \`${padded}\`  **${value}** ${plural}`
-    }
-
-    const topSubs = [...subCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10)
-    if (topSubs.length > 0) {
-      subLines = topSubs.map(([id, v], i) => rankLine(i, toName(id), v, 'app')).join('\n')
-      const total = [...subCounts.values()].reduce((a, b) => a + b, 0)
-      submissionSummary = `${total} total app${total !== 1 ? 's' : ''} · ${subCounts.size} active agent${subCounts.size !== 1 ? 's' : ''}`
-    }
-
     const topRec = [...recruitCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10)
     if (topRec.length > 0) {
       recLines = topRec.map(([id, v], i) => rankLine(i, toName(id), v, 'recruit')).join('\n')
+      const totalRec = [...recruitCounts.values()].reduce((a, b) => a + b, 0)
+      recruitSummary = `${totalRec} total recruit${totalRec !== 1 ? 's' : ''} · ${recruitCounts.size} recruiter${recruitCounts.size !== 1 ? 's' : ''}`
+    }
+
+    // Promotions: title-bearing phase items completed this month
+    const promoItems = await db.phaseItem.findMany({
+      where: { itemKey: { in: TITLE_OVERRIDE_ITEM_KEYS }, completed: true, completedAt: { gte: monthStart, lte: now } },
+      select: { itemKey: true, agentProfile: { select: { firstName: true, lastName: true } } },
+    })
+    const TITLE_EMOJI: Record<string, string> = {
+      'Senior Associate': '⭐',
+      'Marketing Director': '🚀',
+      'Executive Marketing Director': '👑',
+      'National Vice President': '💎',
+    }
+    if (promoItems.length > 0) {
+      promoLines = promoItems.map(item => {
+        const title = titleForPromotionItem(item.itemKey) ?? item.itemKey
+        const name = `${item.agentProfile.firstName} ${item.agentProfile.lastName}`.trim()
+        const emoji = TITLE_EMOJI[title] ?? '🎖️'
+        return `${emoji}  **${name}**  promoted to **${title}**`
+      }).join('\n')
     }
   }
 
-  const updatedAt = new Date().toLocaleString('en-US', {
-    timeZone: 'America/New_York', month: 'short', day: 'numeric',
-    hour: 'numeric', minute: '2-digit', hour12: true,
-  })
-
-  const view = customId === 'lb_production' ? 'production' : customId === 'lb_recruits' ? 'recruits' : 'movers'
+  type View = 'recruits' | 'production' | 'promotions' | 'movers'
+  const view: View = (customId === 'lb_production' ? 'production'
+    : customId === 'lb_promotions' ? 'promotions'
+    : customId === 'lb_movers' ? 'movers'
+    : 'recruits') as View
 
   let embed: Record<string, unknown>
   if (view === 'production') {
@@ -461,7 +491,14 @@ async function handleLeaderboardTab(customId: string) {
       color: 0x1a2744,
       title: `\u{1F91D}  Top Recruiters · ${monthLabel}`,
       description: recLines,
-      footer: { text: `Updated ${updatedAt} ET · allfinancialfreedom.com/agents/leaderboard` },
+      footer: { text: `${recruitSummary}\nUpdated ${updatedAt} ET · allfinancialfreedom.com/agents/leaderboard` },
+    }
+  } else if (view === 'promotions') {
+    embed = {
+      color: 0xC9A84C,
+      title: `\u{1F396}  Promotions · ${monthLabel}`,
+      description: promoLines,
+      footer: { text: `Updated ${updatedAt} ET` },
     }
   } else {
     embed = {
@@ -472,12 +509,16 @@ async function handleLeaderboardTab(customId: string) {
     }
   }
 
+  const btn = (id: string, label: string, active: boolean) => ({
+    type: 2, style: active ? 1 : 2, label, custom_id: id,
+  })
   const buttons = {
     type: 1,
     components: [
-      { type: 2, style: view === 'production' ? 1 : 2, label: '\u{1F3C6} Production', custom_id: 'lb_production' },
-      { type: 2, style: view === 'recruits'   ? 1 : 2, label: '\u{1F91D} Recruits',   custom_id: 'lb_recruits' },
-      { type: 2, style: view === 'movers'     ? 1 : 2, label: '\u{1F331} Phase Movers', custom_id: 'lb_movers' },
+      btn('lb_recruits',    '\u{1F91D} Recruits',    view === 'recruits'),
+      btn('lb_production',  '\u{1F3C6} Production',  view === 'production'),
+      btn('lb_promotions',  '\u{1F396}️ Promotions', view === 'promotions'),
+      btn('lb_movers',      '\u{1F331} Movers',      view === 'movers'),
     ],
   }
 

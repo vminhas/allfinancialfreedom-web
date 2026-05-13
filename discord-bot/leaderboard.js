@@ -1,8 +1,9 @@
 // Monthly leaderboard post for #leaderboard channel.
 // Fetches from /api/admin/leaderboard/discord-snapshot and posts a single embed
-// with 3 tab buttons: Production | Recruits | Phase Movers.
+// with 4 tab buttons: Recruits | Production | Promotions | Phase Movers.
 //
-// The message edits in place each day. Button clicks switch the active view.
+// The message edits in place each day. Button interactions are handled by
+// the Vercel interactions endpoint (/api/discord/interactions), not this bot.
 // Phase history is persisted in phases-cache.json between runs.
 
 require('./load-env');
@@ -145,29 +146,19 @@ function buildEmbeds(data) {
   return { prodEmbed, recruitEmbed, moversEmbed, promotionsEmbed };
 }
 
-// Build the tab button row. activeView: 'production' | 'recruits' | 'movers' | 'promotions'
+// Build the tab button row. activeView: 'recruits' | 'production' | 'promotions' | 'movers'
 function buildButtons(activeView) {
   const row = new ActionRowBuilder();
-
   row.addComponents(
-    new ButtonBuilder()
-      .setCustomId('lb_production')
-      .setLabel('🏆 Production')
-      .setStyle(activeView === 'production' ? ButtonStyle.Primary : ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId('lb_recruits')
-      .setLabel('🤝 Recruits')
+    new ButtonBuilder().setCustomId('lb_recruits').setLabel('🤝 Recruits')
       .setStyle(activeView === 'recruits' ? ButtonStyle.Primary : ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId('lb_movers')
-      .setLabel('🌱 Movers')
-      .setStyle(activeView === 'movers' ? ButtonStyle.Primary : ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId('lb_promotions')
-      .setLabel('🎖️ Promotions')
+    new ButtonBuilder().setCustomId('lb_production').setLabel('🏆 Production')
+      .setStyle(activeView === 'production' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('lb_promotions').setLabel('🎖️ Promotions')
       .setStyle(activeView === 'promotions' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('lb_movers').setLabel('🌱 Movers')
+      .setStyle(activeView === 'movers' ? ButtonStyle.Primary : ButtonStyle.Secondary),
   );
-
   return row;
 }
 
@@ -211,43 +202,6 @@ async function postLeaderboard(client) {
     await channel.send({ embeds: [recruitEmbed], components });
     console.log(`[Leaderboard] Posted monthly snapshot (${data.submissions.length} producers, ${data.recruits.length} recruiters)`);
   }
-
-  // Store embeds on client so button handler can access them without re-fetching
-  client._leaderboardCache = { prodEmbed, recruitEmbed, moversEmbed, promotionsEmbed };
 }
 
-// Button interaction handler — call this from bot.js interactionCreate.
-// Returns true if the interaction was a leaderboard button and was handled.
-async function handleLeaderboardButton(interaction) {
-  const id = interaction.customId;
-  if (!['lb_production', 'lb_recruits', 'lb_movers', 'lb_promotions'].includes(id)) return false;
-
-  await interaction.deferUpdate();
-
-  // Fetch fresh data for the button click so it's always current
-  let data;
-  try {
-    data = await fetchLeaderboardData();
-  } catch (err) {
-    console.error('[Leaderboard] Button fetch failed:', err.message);
-    await interaction.followUp({ content: 'Could not load leaderboard data right now. Try again in a moment.', ephemeral: true });
-    return true;
-  }
-
-  const { prodEmbed, recruitEmbed, moversEmbed, promotionsEmbed } = buildEmbeds(data);
-
-  let view, embed;
-  if (id === 'lb_production') { view = 'production'; embed = prodEmbed; }
-  else if (id === 'lb_recruits') { view = 'recruits'; embed = recruitEmbed; }
-  else if (id === 'lb_movers') { view = 'movers'; embed = moversEmbed; }
-  else { view = 'promotions'; embed = promotionsEmbed; }
-
-  await interaction.editReply({
-    embeds: [embed],
-    components: [buildButtons(view)],
-  });
-
-  return true;
-}
-
-module.exports = { postLeaderboard, handleLeaderboardButton };
+module.exports = { postLeaderboard };
