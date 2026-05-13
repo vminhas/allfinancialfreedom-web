@@ -212,9 +212,7 @@ export async function GET(req: NextRequest) {
   }
 
   const TOP_N = 10
-  // Production: skip leadership-only buckets. Couples (non-leadership) stay in.
   const submissions = [...subCounts.entries()]
-    .filter(([key]) => !leadershipIds.has(key))
     .sort((a, b) => b[1] - a[1])
     .slice(0, TOP_N)
     .map(([key, value]) => toRow(key, value))
@@ -224,10 +222,8 @@ export async function GET(req: NextRequest) {
     .sort((a, b) => b.value - a.value)
     .slice(0, TOP_N)
 
-  const totalSubmissions = [...subCounts.entries()]
-    .filter(([key]) => !leadershipIds.has(key))
-    .reduce((sum, [, v]) => sum + v, 0)
-  const activeSubmitters = [...subCounts.keys()].filter(key => !leadershipIds.has(key)).length
+  const totalSubmissions = [...subCounts.values()].reduce((sum, v) => sum + v, 0)
+  const activeSubmitters = subCounts.size
 
   const totalRecruits = [...recruitCounts.values()].reduce((sum, v) => sum + v, 0)
   const activeRecruiters = recruitCounts.size

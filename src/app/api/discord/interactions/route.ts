@@ -421,9 +421,9 @@ async function handleLeaderboardTab(customId: string) {
     })
     const subCounts = new Map<string, number>()
     for (const s of subs) {
-      if (idSet.has(s.agentProfileId) && !leadershipIds.has(s.agentProfileId))
+      if (idSet.has(s.agentProfileId))
         subCounts.set(s.agentProfileId, (subCounts.get(s.agentProfileId) ?? 0) + 1)
-      if (s.splitWithAgentId && idSet.has(s.splitWithAgentId) && !leadershipIds.has(s.splitWithAgentId))
+      if (s.splitWithAgentId && idSet.has(s.splitWithAgentId))
         subCounts.set(s.splitWithAgentId, (subCounts.get(s.splitWithAgentId) ?? 0) + 1)
     }
     const topSubs = [...subCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10)
