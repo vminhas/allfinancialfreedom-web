@@ -265,6 +265,12 @@ model AgentProfile {
   notes                 String?
   lastReminderSentAt    DateTime?
   lastSeenPhase         Int?
+  // Power-couple pairing. Two-sided: both agents have AgentProfiles and each
+  // stores the other's id. One-sided: partner has no profile, use displayName.
+  partnerAgentProfileId String?   @map("partner_agent_profile_id")
+  partnerDisplayName    String?   @map("partner_display_name")
+  coupleDisplayName     String?   @map("couple_display_name")
+  coupleAvatarUrl       String?   @map("couple_avatar_url")
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
