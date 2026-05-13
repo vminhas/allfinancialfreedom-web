@@ -13,6 +13,7 @@ interface Row {
   lastName: string
   avatarUrl: string | null
   phase: number
+  title: string
   upline: string | null
   value: number
   rank: number
@@ -30,15 +31,12 @@ const PHASE_COLORS: Record<number, string> = {
   1: '#60a5fa', 2: '#4ade80', 3: '#C9A96E', 4: '#a78bfa', 5: '#f472b6',
 }
 
-const PHASE_TITLES: Record<number, string> = {
-  1: 'Agent', 2: 'Associate', 3: 'Senior Associate',
-  4: 'Marketing Director', 5: 'Executive Marketing Director',
+function titleAbbrev(title: string): string {
+  if (title === 'Marketing Director') return 'MD'
+  if (title === 'Executive Marketing Director') return 'EMD'
+  if (title === 'Senior Associate') return 'Sr. Assoc'
+  return title
 }
-const PHASE_ABBREV: Record<number, string> = {
-  1: 'Agent', 2: 'Associate', 3: 'CFT', 4: 'MD', 5: 'EMD',
-}
-function agentTitle(phase: number) { return PHASE_TITLES[phase - 1] ?? 'Agent' }
-function agentAbbrev(phase: number) { return PHASE_ABBREV[phase - 1] ?? 'Agent' }
 
 const METRIC_LABELS: Record<Metric, string> = {
   submissions: 'Submissions', recruits: 'Recruits', points: 'Points',
@@ -170,9 +168,9 @@ export default function VaultLeaderboardPage() {
                     </td>
                     <td style={{ padding: '12px 16px' }}>
                       <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 3, background: `${phaseColor}18`, border: `1px solid ${phaseColor}40`, fontSize: 10, fontWeight: 700, color: phaseColor, whiteSpace: 'nowrap' }}>
-                        {agentAbbrev(row.phase)}
+                        {titleAbbrev(row.title)}
                       </span>
-                      <div style={{ fontSize: 10, color: '#6B8299', marginTop: 3 }}>{agentTitle(row.phase)}</div>
+                      <div style={{ fontSize: 10, color: '#6B8299', marginTop: 3 }}>{row.title}</div>
                     </td>
                     <td style={{ padding: '12px 16px', fontSize: 12, color: '#6B8299' }}>
                       {row.upline ?? <span style={{ color: '#3F4B5C' }}>&mdash;</span>}

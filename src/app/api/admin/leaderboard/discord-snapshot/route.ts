@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { TITLE_OVERRIDE_ITEM_KEYS, titleForPromotionItem } from '@/lib/agent-title'
 
 // GET /api/admin/leaderboard/discord-snapshot
 // Returns monthly production snapshot for the Discord leaderboard bot post.
@@ -14,6 +15,13 @@ interface AgentRow {
   // Couple flag for the bot's renderer — when true, the firstName
   // field already carries the combined display name (e.g.
   // 'Joey & Jen' or 'The Garcias') and lastName is empty.
+  isCouple?: boolean
+}
+
+interface PromotionRow {
+  firstName: string
+  lastName: string
+  title: string
   isCouple?: boolean
 }
 
@@ -35,6 +43,9 @@ interface SnapshotResponse {
   }>
   totalSubmissions: number
   activeSubmitters: number
+  totalRecruits: number
+  activeRecruiters: number
+  promotions: PromotionRow[]
 }
 
 export async function GET(req: NextRequest) {
@@ -128,6 +139,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       monthLabel, submissions: [], recruits: [],
       agents: [], totalSubmissions: 0, activeSubmitters: 0,
+      totalRecruits: 0, activeRecruiters: 0, promotions: [],
     } satisfies SnapshotResponse)
   }
 
@@ -169,21 +181,12 @@ export async function GET(req: NextRequest) {
 
   const codeToId = new Map(roster.map(r => [r.agentCode, r.id]))
   const recruitCounts = new Map<string, number>()
-  let leadershipRecruits = 0
   for (const a of newAgents) {
-    if (a.recruiterId) {
-      const id = codeToId.get(a.recruiterId)
-      if (id) {
-        if (leadershipIds.has(id)) {
-          leadershipRecruits++
-        } else {
-          const key = resolveCouple(id).key
-          recruitCounts.set(key, (recruitCounts.get(key) ?? 0) + 1)
-        }
-        continue
-      }
-    }
-    leadershipRecruits++
+    if (!a.recruiterId) continue
+    const id = codeToId.get(a.recruiterId)
+    if (!id) continue
+    const key = resolveCouple(id).key
+    recruitCounts.set(key, (recruitCounts.get(key) ?? 0) + 1)
   }
 
   const toRow = (key: string, value: number): AgentRow => {
@@ -209,54 +212,55 @@ export async function GET(req: NextRequest) {
   }
 
   const TOP_N = 10
-  // Production: skip leadership-only buckets. Couples (non-leadership)
-  // stay in.
+  // Production: skip leadership-only buckets. Couples (non-leadership) stay in.
   const submissions = [...subCounts.entries()]
     .filter(([key]) => !leadershipIds.has(key))
     .sort((a, b) => b[1] - a[1])
     .slice(0, TOP_N)
     .map(([key, value]) => toRow(key, value))
 
-  const recruitRows: AgentRow[] = [...recruitCounts.entries()].map(([k, v]) => toRow(k, v))
-  if (leadershipRecruits > 0) {
-    // Build the leadership display name from the actual flagged
-    // profiles so white-labeling Just Works — if the founders flip
-    // their isLeadership flag, the label updates. Falls back to a
-    // generic 'Founders' label when no leadership profiles exist.
-    const leaders = roster.filter(r => r.isLeadership)
-    let label = 'Founders'
-    if (leaders.length === 1) {
-      const meta = resolveCouple(leaders[0].id)
-      label = meta.displayName
-    } else if (leaders.length >= 2) {
-      // Multiple flagged leaders that aren't coupled: join their
-      // first names ('Vick & Melinee') unless one of them is part
-      // of a configured couple (use that label instead).
-      const seenKeys = new Set<string>()
-      const names: string[] = []
-      for (const l of leaders) {
-        const meta = resolveCouple(l.id)
-        if (seenKeys.has(meta.key)) continue
-        seenKeys.add(meta.key)
-        names.push(meta.isCouple ? meta.displayName : l.firstName)
-      }
-      label = names.join(' & ')
-    }
-    recruitRows.push({
-      firstName: label,
-      lastName: '',
-      value: leadershipRecruits,
-      phase: 6,
-      isCouple: true,
-      avatarUrl: leaders[0]?.coupleAvatarUrl ?? leaders[0]?.avatarUrl ?? null,
-    })
-  }
-  const recruits = recruitRows.sort((a, b) => b.value - a.value).slice(0, TOP_N)
+  const recruits = [...recruitCounts.entries()]
+    .map(([k, v]) => toRow(k, v))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, TOP_N)
 
   const totalSubmissions = [...subCounts.entries()]
     .filter(([key]) => !leadershipIds.has(key))
     .reduce((sum, [, v]) => sum + v, 0)
   const activeSubmitters = [...subCounts.keys()].filter(key => !leadershipIds.has(key)).length
+
+  const totalRecruits = [...recruitCounts.values()].reduce((sum, v) => sum + v, 0)
+  const activeRecruiters = recruitCounts.size
+
+  // Promotions this month — admin-gated title items completed in the current month
+  const promoItems = await db.phaseItem.findMany({
+    where: {
+      itemKey: { in: TITLE_OVERRIDE_ITEM_KEYS },
+      completed: true,
+      completedAt: { gte: monthStart, lte: now },
+    },
+    select: {
+      itemKey: true,
+      agentProfile: {
+        select: { id: true, firstName: true, lastName: true },
+      },
+    },
+  })
+  // Deduplicate by couple key and include title label
+  const promoSeen = new Set<string>()
+  const promotions: PromotionRow[] = []
+  for (const item of promoItems) {
+    const title = titleForPromotionItem(item.itemKey)
+    if (!title) continue
+    const meta = resolveCouple(item.agentProfile.id)
+    if (promoSeen.has(meta.key + item.itemKey)) continue
+    promoSeen.add(meta.key + item.itemKey)
+    promotions.push(
+      meta.isCouple
+        ? { firstName: meta.displayName, lastName: '', title, isCouple: true }
+        : { firstName: item.agentProfile.firstName, lastName: item.agentProfile.lastName, title }
+    )
+  }
 
   const agents = roster
     .filter(r => !r.isLeadership)
@@ -275,7 +279,8 @@ export async function GET(req: NextRequest) {
     })
 
   return NextResponse.json({
-    monthLabel, submissions, recruits, agents, totalSubmissions, activeSubmitters,
+    monthLabel, submissions, recruits, agents,
+    totalSubmissions, activeSubmitters, totalRecruits, activeRecruiters, promotions,
   } satisfies SnapshotResponse)
 }
 

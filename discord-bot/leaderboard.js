@@ -40,10 +40,13 @@ function updatedLine() {
   });
 }
 
-// Build the three embeds + detect phase movers from fetched data.
-// Returns { prodEmbed, recruitEmbed, moversEmbed | null, hasMoved }.
+// Build the four embeds + detect phase movers from fetched data.
+// Returns { prodEmbed, recruitEmbed, moversEmbed, promotionsEmbed }.
 function buildEmbeds(data) {
   const { submissions, recruits, agents, totalSubmissions, activeSubmitters } = data;
+  const totalRecruits = data.totalRecruits ?? 0;
+  const activeRecruiters = data.activeRecruiters ?? 0;
+  const promotions = data.promotions ?? [];
   const monthLabel = data.monthLabel || data.weekLabel || 'This Month';
   const updatedAt = updatedLine();
 
@@ -67,11 +70,14 @@ function buildEmbeds(data) {
 
   // Recruits
   const recLines = recruits.map((r, i) => rankLine(i, nameFor(r), r.value, 'recruit')).join('\n');
+  const recruitSummary = totalRecruits > 0
+    ? `${totalRecruits} total recruit${totalRecruits !== 1 ? 's' : ''} · ${activeRecruiters} recruiter${activeRecruiters !== 1 ? 's' : ''}`
+    : 'No recruits recorded this month.';
   const recruitEmbed = new EmbedBuilder()
     .setColor(COLORS.NAVY)
     .setTitle(`🤝  Top Recruiters · ${monthLabel}`)
     .setDescription(recLines || '_No new recruits this month._')
-    .setFooter({ text: `Updated ${updatedAt} ET · allfinancialfreedom.com/agents/leaderboard` });
+    .setFooter({ text: `${recruitSummary}\nUpdated ${updatedAt} ET · allfinancialfreedom.com/agents/leaderboard` });
 
   // Phase movers
   const cachedPhases = loadPhasesCache();
@@ -109,10 +115,37 @@ function buildEmbeds(data) {
       .setFooter({ text: `Updated ${updatedAt} ET` });
   }
 
-  return { prodEmbed, recruitEmbed, moversEmbed };
+  // Promotions this month
+  let promotionsEmbed;
+  if (promotions.length > 0) {
+    const TITLE_EMOJI = {
+      'Senior Associate': '⭐',
+      'Marketing Director': '🚀',
+      'EMD': '👑',
+      'NVP': '💎',
+    };
+    const promoLines = promotions.map(p => {
+      const name = p.isCouple ? p.firstName : `${p.firstName} ${p.lastName}`.trim();
+      const emoji = TITLE_EMOJI[p.title] ?? '🎖️';
+      return `${emoji}  **${name}**  promoted to **${p.title}**`;
+    }).join('\n');
+    promotionsEmbed = new EmbedBuilder()
+      .setColor(COLORS.GOLD)
+      .setTitle(`🎖️  Promotions · ${monthLabel}`)
+      .setDescription(promoLines)
+      .setFooter({ text: `Updated ${updatedAt} ET` });
+  } else {
+    promotionsEmbed = new EmbedBuilder()
+      .setColor(COLORS.GOLD)
+      .setTitle(`🎖️  Promotions · ${monthLabel}`)
+      .setDescription('_No promotions recorded yet this month._')
+      .setFooter({ text: `Updated ${updatedAt} ET` });
+  }
+
+  return { prodEmbed, recruitEmbed, moversEmbed, promotionsEmbed };
 }
 
-// Build the tab button row. activeView: 'production' | 'recruits' | 'movers'
+// Build the tab button row. activeView: 'production' | 'recruits' | 'movers' | 'promotions'
 function buildButtons(activeView) {
   const row = new ActionRowBuilder();
 
@@ -127,8 +160,12 @@ function buildButtons(activeView) {
       .setStyle(activeView === 'recruits' ? ButtonStyle.Primary : ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId('lb_movers')
-      .setLabel('🌱 Phase Movers')
+      .setLabel('🌱 Movers')
       .setStyle(activeView === 'movers' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId('lb_promotions')
+      .setLabel('🎖️ Promotions')
+      .setStyle(activeView === 'promotions' ? ButtonStyle.Primary : ButtonStyle.Secondary),
   );
 
   return row;
@@ -161,7 +198,7 @@ async function postLeaderboard(client) {
     return;
   }
 
-  const { prodEmbed, recruitEmbed, moversEmbed } = buildEmbeds(data);
+  const { prodEmbed, recruitEmbed, moversEmbed, promotionsEmbed } = buildEmbeds(data);
   const components = [buildButtons('recruits')];
 
   const recent = await channel.messages.fetch({ limit: 20 });
@@ -176,14 +213,14 @@ async function postLeaderboard(client) {
   }
 
   // Store embeds on client so button handler can access them without re-fetching
-  client._leaderboardCache = { prodEmbed, recruitEmbed, moversEmbed };
+  client._leaderboardCache = { prodEmbed, recruitEmbed, moversEmbed, promotionsEmbed };
 }
 
 // Button interaction handler — call this from bot.js interactionCreate.
 // Returns true if the interaction was a leaderboard button and was handled.
 async function handleLeaderboardButton(interaction) {
   const id = interaction.customId;
-  if (!['lb_production', 'lb_recruits', 'lb_movers'].includes(id)) return false;
+  if (!['lb_production', 'lb_recruits', 'lb_movers', 'lb_promotions'].includes(id)) return false;
 
   await interaction.deferUpdate();
 
@@ -197,10 +234,13 @@ async function handleLeaderboardButton(interaction) {
     return true;
   }
 
-  const { prodEmbed, recruitEmbed, moversEmbed } = buildEmbeds(data);
+  const { prodEmbed, recruitEmbed, moversEmbed, promotionsEmbed } = buildEmbeds(data);
 
-  const view = id === 'lb_production' ? 'production' : id === 'lb_recruits' ? 'recruits' : 'movers';
-  const embed = view === 'production' ? prodEmbed : view === 'recruits' ? recruitEmbed : moversEmbed;
+  let view, embed;
+  if (id === 'lb_production') { view = 'production'; embed = prodEmbed; }
+  else if (id === 'lb_recruits') { view = 'recruits'; embed = recruitEmbed; }
+  else if (id === 'lb_movers') { view = 'movers'; embed = moversEmbed; }
+  else { view = 'promotions'; embed = promotionsEmbed; }
 
   await interaction.editReply({
     embeds: [embed],

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { resolveAgentTitle, TITLE_OVERRIDE_ITEM_KEYS } from '@/lib/agent-title'
 
 // GET /api/agents/leaderboard/production
 //
@@ -27,6 +28,7 @@ interface Row {
   lastName: string
   avatarUrl: string | null
   phase: number
+  title: string
   upline: string | null
   value: number
   rank: number
@@ -139,6 +141,18 @@ export async function GET(req: Request) {
     : []
   const recruiterByCode = new Map(recruiters.map(r => [r.agentCode, `${r.firstName} ${r.lastName}`.trim()]))
 
+  // Resolve DB-driven titles for all roster agents in one batch query.
+  const promoItems = await db.phaseItem.findMany({
+    where: { agentProfileId: { in: rosterIds }, itemKey: { in: TITLE_OVERRIDE_ITEM_KEYS }, completed: true },
+    select: { agentProfileId: true, itemKey: true },
+  })
+  const promoKeysByAgent = new Map<string, string[]>()
+  for (const item of promoItems) {
+    const keys = promoKeysByAgent.get(item.agentProfileId) ?? []
+    keys.push(item.itemKey)
+    promoKeysByAgent.set(item.agentProfileId, keys)
+  }
+
   // Sort by value desc; tie-break by lastName then firstName so order is
   // stable across reloads (otherwise random Map iteration order shows up
   // in ties and the UI looks like it's shuffling). Dense-rank ties: two
@@ -172,6 +186,7 @@ export async function GET(req: Request) {
       lastName: a.lastName,
       avatarUrl: a.avatarUrl,
       phase: a.phase,
+      title: resolveAgentTitle({ completedItemKeys: promoKeysByAgent.get(a.id) ?? [] }),
       upline: a.recruiterId ? (recruiterByCode.get(a.recruiterId) ?? null) : null,
       value: a.value,
       rank,
