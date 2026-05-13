@@ -17,19 +17,13 @@ model Setting {
 }
 
 model AdminUser {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  passwordHash String
-  name         String
-  role         AdminRole @default(ADMIN)
-  createdAt    DateTime  @default(now())
-  lastLoginAt  DateTime?
-  // Optional Discord linking so the bot can DM staff (especially
-  // Licensing Coordinators) when work lands in their queue — new
-  // business submissions, licensing tickets, agent replies, etc.
-  // Set via /vault/settings → Connect Discord. Username is cached
-  // so the settings UI can show 'Connected as jsmith#1234' without
-  // a Discord round-trip per page load.
+  id              String    @id @default(cuid())
+  email           String    @unique
+  passwordHash    String
+  name            String
+  role            AdminRole @default(ADMIN)
+  createdAt       DateTime  @default(now())
+  lastLoginAt     DateTime?
   discordUserId   String?
   discordUsername String?
 
@@ -42,7 +36,6 @@ model AdminUser {
   reviewedMilestones   RecognitionMilestone[] @relation("MilestoneReviewer")
   callReviews          AdminCallReview[]
   authoredFeedbackNotes AgentFeedbackNote[]
-  sentPhaseItemReminders PhaseItemReminder[]   @relation("ReminderSender")
 
   @@map("admin_users")
 }
@@ -62,16 +55,6 @@ model AdminCallReview {
   // is required so the history list has something to sort/filter on.
   contactName        String?
   callDate           DateTime
-  // Parity with CallLog (the agent-side call entry table). Lets
-  // admins capture the same context an agent would log, so reviewing
-  // your own calls in the vault has the same data shape as agents
-  // logging from the field. Reporting can later UNION the two tables
-  // for a unified call history.
-  phoneNumber        String?
-  subject            String?
-  callType           CallType?
-  callTypeOther      String?
-  followUpNeeded     Boolean    @default(false)
   // Full transcript saved so the admin can re-read it later or run a
   // re-analysis with a tweaked prompt without having to keep the
   // text around in their notes app.
@@ -89,12 +72,6 @@ model AdminCallReview {
   // Free-form note the admin can add after the fact (e.g. "tried the
   // tip on the next call, worked great").
   notes              String?
-
-  // What actually happened on the call. Mirrors the agent-side
-  // CallReview.outcome field; null until the admin records it.
-  // Used to track the AFF-real-world impact of the coaching rubric:
-  // are admin reviewers' calls actually closing recruits / clients?
-  outcome            CallOutcome?
 
   modelId            String
   inputTokens        Int
@@ -264,42 +241,6 @@ model AgentProfile {
   // leaderboard, future aggregate dashboards). Test agents keep all
   // login + flow capabilities so we can exercise the agent UX as them.
   isTest                Boolean     @default(false) @map("is_test")
-  // Flag for AFF leadership (Vick, Melinee, and any future founders /
-  // executives) who have AgentProfiles but operate as staff. Hides
-  // them from the production leaderboard and bundles their recruits
-  // into a single 'Vick & Melinee' synthetic row on the recruits
-  // leaderboard.
-  isLeadership          Boolean     @default(false) @map("is_leadership")
-  // Power-couple pairing. Two flavors:
-  //   1. Two-sided: both partners have AgentProfiles. Each profile
-  //      points to the other via partnerAgentProfileId. Leaderboard
-  //      coalesces their stats into a single row labeled
-  //      coupleDisplayName.
-  //   2. One-sided: the partner doesn't have an AgentProfile (e.g.
-  //      Melinee — admin-only, no license). Set partnerDisplayName
-  //      + coupleDisplayName on the licensed agent's profile. The
-  //      leaderboard relabels their solo row under the couple name.
-  // White-label friendly: no hardcoded names anywhere in code.
-  partnerAgentProfileId String?     @map("partner_agent_profile_id")
-  partnerDisplayName    String?     @map("partner_display_name")
-  coupleDisplayName     String?     @map("couple_display_name")
-  // Optional joint photo for the couple (Joey & Jen-style two-person
-  // headshot). Used by leaderboard embeds + the agent portal when
-  // rendering a couple as one entity. Falls back to the agent's own
-  // avatarUrl if not set.
-  coupleAvatarUrl       String?     @map("couple_avatar_url")
-  // Client-touchpoint reminder toggles. Per-agent opt-in for the
-  // daily reminder cron: { birthday, thankYou30Day, annualReview }.
-  // Default null = all off. Shaped as JSON so adding new reminder
-  // types later doesn't require a schema migration each time.
-  clientReminderPrefs   Json?       @map("client_reminder_prefs")
-  clientReminderFires   ClientReminderFire[]
-  // Earned recognitions that aren't a phase rank. CFT is the first;
-  // others (EliteCFT, TopRecruiter, FoundersCircle) plug in here
-  // without a migration. Auto-managed by recomputeBadges() when the
-  // four Phase-3 CFT signoff items toggle, with admin manual
-  // override on the agent edit drawer.
-  badges                String[]    @default([])
   phase                 Int         @default(1)
   phaseStartedAt        DateTime?   // when they entered current phase
   goal                  String?     // "MD", "EMD", etc.
@@ -336,7 +277,6 @@ model AgentProfile {
   // got onboarded. Multiple recruiters can have logged the same person,
   // so this is one-to-many.
   linkedFromBusinessPartners BusinessPartner[] @relation("BusinessPartnerLinkedAgent")
-  receivedPhaseItemReminders PhaseItemReminder[] @relation("ReminderRecipient")
   policies              PolicyEntry[]    @relation("PolicyWriter")
   splitPolicies         PolicyEntry[]    @relation("PolicySplit")
   policyComments        PolicyComment[]
@@ -364,9 +304,6 @@ model AgentProfile {
   trainingAttendances   TrainingAttendance[]
   resolvedOrphans       TrainingAttendanceOrphan[] @relation("OrphanResolved")
   zoomAliases           AgentZoomAlias[]
-  climbAchievements     ClimbAchievement[]
-  climbArticles         AgentArticle[]
-  contestManualChecks   ContestManualCheck[]
 
   @@index([recruiterId])
   @@map("agent_profiles")
@@ -749,30 +686,9 @@ model SetupResource {
   url         String
   category    String   @default("general")
   description String?
-  // Tag a resource as the standardized script for a particular call
-  // type. The AI call analyzer reads the active resource for the
-  // call's CallType and tells agents how their transcript compares.
-  // Optional: most resources aren't scripts. At most one resource
-  // should carry each non-null CallType (enforced at the API layer
-  // since Prisma doesn't model partial uniques cleanly).
-  callType    CallType?
-  // Raw text the admin pastes from the deck (slide notes, transcript
-  // export, full script, etc.) when this resource is a call script.
-  // Used to generate aiScriptOutline; not injected into prompts
-  // directly.
-  rawScriptContent  String?  @db.Text
-  // AI-generated structured outline of the script + JLM coaching
-  // guidance. Generated once via /api/admin/setup-resources/[id]/
-  // generate-outline and reused on every analyze call as a cached
-  // system block. Editable by admin if the AI output needs tweaks.
-  aiScriptOutline   String?  @db.Text
-  // Timestamp of the last outline generation, for the admin UI to
-  // show 'last generated X ago' and to invalidate stale outlines.
-  outlineGeneratedAt DateTime?
   updatedAt   DateTime @updatedAt
   createdAt   DateTime @default(now())
 
-  @@index([callType])
   @@map("setup_resources")
 }
 
@@ -902,18 +818,6 @@ enum CallOutcome {
   NO_CONTACT
 }
 
-// Intent / category of the call when it was made. Pairs with
-// CallOutcome (what actually happened). E.g. CallType=RECRUIT +
-// CallOutcome=RECRUITED is a successful recruit call. CallType=
-// CLIENT_APPOINTMENT + CallOutcome=POLICY_CLOSED is a closed client.
-// OTHER + callTypeOther free-text covers anything ad-hoc.
-enum CallType {
-  RECRUIT
-  FOLLOW_UP
-  CLIENT_APPOINTMENT
-  OTHER
-}
-
 model CallLog {
   id               String                @id @default(cuid())
   agentProfileId   String
@@ -923,17 +827,7 @@ model CallLog {
   phoneNumber      String?
   subject          String?
   notes            String?
-  // Deprecated: free-form result field. Kept for back-compat with
-  // historical rows; new submissions use callType + outcome instead
-  // (the outcome IS the result, the callType captures intent).
   result           String?
-  // What the agent set out to do on this call. Recruit a new agent,
-  // follow up on a prior touch, close a client appointment, or other.
-  // Pairs with outcome (what actually happened) so reporting can ask
-  // "of recruit calls, what % converted?" etc.
-  callType         CallType?
-  // Free-text label when callType=OTHER. Null otherwise.
-  callTypeOther    String?
   outcome          CallOutcome?
   followUpNeeded   Boolean               @default(false)
   createdAt        DateTime              @default(now())
@@ -1482,274 +1376,4 @@ enum FtaStatus {
   RESCHEDULED
   CANCELLED
   NO_SHOW
-}
-
-// Audit log for "email-reminder" sends out of the Progression Matrix.
-// One row per recipient per send. Lets admins see what's been sent and
-// when, and lets the UI gate "you already nudged this agent today" if
-// we ever want a 24h cooldown. Subject + bodyPreview are saved (not the
-// full body) so a long template doesn't bloat the table; the full body
-// the admin typed is only ever ephemeral.
-model PhaseItemReminder {
-  id                       String       @id @default(cuid())
-  // Identifies the checklist item being reminded about. Stored as
-  // (phase, itemKey) since that's the natural composite key on
-  // PhaseItemDefinition; not a real FK because we want reminders to
-  // outlive the definition row if it's ever pruned.
-  phase                    Int
-  itemKey                  String
-  itemLabel                String       // snapshot at send time, in case the definition changes later
-  recipientAgentProfileId  String
-  recipientAgentProfile    AgentProfile @relation("ReminderRecipient", fields: [recipientAgentProfileId], references: [id], onDelete: Cascade)
-  sentByAdminId            String
-  sentByAdmin              AdminUser    @relation("ReminderSender", fields: [sentByAdminId], references: [id])
-  subject                  String
-  bodyPreview              String       @db.VarChar(500)
-  // 'sent' | 'failed' | 'skipped_no_email'. Keep as plain string so we
-  // can add states (e.g. 'queued', 'discord_dm_sent') without a migration.
-  status                   String
-  errorMessage             String?
-  ghlMessageId             String?
-  sentAt                   DateTime     @default(now())
-
-  @@index([phase, itemKey, sentAt])
-  @@index([recipientAgentProfileId, sentAt])
-  @@map("phase_item_reminders")
-}
-
-// ─── The Climb ──────────────────────────────────────────────────────────────
-// Lifetime points-based achievement system. Agents earn points from
-// NewBusinessSubmission (existing field, no duplication); the Climb
-// surfaces those points as a journey through admin-configurable
-// milestones with rewards (badges, Discord callouts, AI-generated
-// profile articles, custom). Designed to feel like a Twitch tier
-// system — animated, lively, peer-visible.
-//
-// Schema is admin-editable: admins create milestones at /vault/climb
-// without a deploy. Each agent's achievements are stable rows
-// (not recomputed on read) so we have an audit trail of WHEN they
-// crossed each threshold and what they had at that moment.
-
-enum ClimbRewardType {
-  BADGE             // grants a badge (string pushed into AgentProfile.badges)
-  DISCORD_CALLOUT   // posts to #announcements via existing buildAchievementEmbed
-  ARTICLE           // generates a personalized AI profile article on award
-  CUSTOM            // free-text reward description, no automation
-}
-
-model ClimbMilestone {
-  id              String           @id @default(cuid())
-  // Lifetime-points threshold. Crossing this triggers reward + achievement row.
-  pointThreshold  Int              @unique
-  title           String
-  // One-line flavor text shown on the track marker.
-  tagline         String?
-  // Longer copy shown on click/hover into the marker detail.
-  description     String?
-  rewardType      ClimbRewardType
-  // Type-specific config:
-  //  BADGE           → { key, label, icon?, accentColor? }
-  //  DISCORD_CALLOUT → { embedTitle?, embedDescription? }
-  //  ARTICLE         → { promptTemplate? }   (override default Claude prompt)
-  //  CUSTOM          → { note }              (e.g. "AFF jacket — order from ops")
-  rewardPayload   Json?
-  iconKey         String?
-  // Hex color for the marker (e.g. '#C9A96E'). Drives the climb-tier
-  // accent rolling from bronze → silver → gold → platinum.
-  accentColor     String?
-  active          Boolean          @default(true)
-  // Display order on the track. Defaults to pointThreshold ascending.
-  order           Int              @default(0)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-
-  achievements    ClimbAchievement[]
-
-  @@map("climb_milestones")
-}
-
-model ClimbAchievement {
-  id                  String          @id @default(cuid())
-  agentProfileId      String
-  agentProfile        AgentProfile    @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
-  milestoneId         String
-  milestone           ClimbMilestone  @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
-  achievedAt          DateTime        @default(now())
-  // Points the agent had at the moment they crossed the threshold.
-  // Useful for the 'audit' view (did they squeak past, or blow past?).
-  pointsAtAchievement Int
-
-  // One achievement per (agent, milestone) — re-running the recompute
-  // is idempotent.
-  @@unique([agentProfileId, milestoneId])
-  @@index([agentProfileId])
-  @@index([achievedAt])
-  @@map("climb_achievements")
-}
-
-// AI-generated profile articles, the marquee reward of the system.
-// Stored separately so they have a stable URL the agent can share.
-// Generated once on milestone-cross, never auto-regenerated (admin
-// can manually re-run via the vault tool if the prompt template
-// improves).
-enum AgentArticleStatus {
-  DRAFT
-  PUBLISHED
-  REJECTED
-}
-
-model AgentArticle {
-  id              String       @id @default(cuid())
-  agentProfileId  String
-  agentProfile    AgentProfile @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
-  // Which milestone triggered the generation. Null for admin-triggered
-  // ad-hoc articles (future enhancement).
-  milestoneId     String?
-  title           String
-  body            String       @db.Text
-  // Snapshot of the prompt that produced this article so we can debug
-  // / re-run if needed.
-  promptUsed      String?      @db.Text
-  modelId         String?
-  inputTokens     Int?
-  outputTokens    Int?
-  generatedAt     DateTime     @default(now())
-  // Articles always land as DRAFT and require admin review before
-  // surfacing on the agent's portal. Admins edit title/body in place
-  // (no separate edited_* columns) and flip status when satisfied.
-  status          AgentArticleStatus @default(DRAFT)
-  reviewedById    String?
-  reviewedAt      DateTime?
-  publishedAt     DateTime?
-
-  @@index([agentProfileId, generatedAt])
-  @@index([status])
-  @@map("agent_articles")
-}
-
-// Time-boxed bonus contests (e.g. "$500 Fast Start Bonus, 60 days
-// from ICA"). Each contest has a window per agent — anchored to a
-// per-agent date (icaDate, createdAt, phaseStartedAt) plus a
-// duration, OR a fixed window for everyone. Requirements compute
-// on the fly from existing data; only MANUAL checks persist a row.
-enum ContestAnchor {
-  ICA_DATE
-  ONBOARDING
-  PHASE_START
-  FIXED
-}
-
-enum ContestRequirementType {
-  PHASE_ITEM        // PhaseItemDefinition.itemKey completed within window
-  MILESTONE         // RecognitionMilestone status=AWARDED within window
-  RECRUITS          // count of business_partners w/ category=PROSPECT_AGENT created in window
-  POLICIES          // count of new_business_submissions in window
-  MANUAL            // admin checks per-agent; row in contest_manual_checks
-  CUSTOM_TEXT       // display only, no auto-tracking
-}
-
-model Contest {
-  id              String                @id @default(cuid())
-  title           String
-  description     String?               @db.Text
-  // Reward shown to the agent. amount is in dollars (not cents) to
-  // match how AFF talks about bonuses in copy ("$500"); label
-  // overrides the default formatting if the reward is non-monetary
-  // ("AFF Jacket").
-  rewardAmount    Int?
-  rewardLabel     String?
-  anchor          ContestAnchor
-  // Used for ICA_DATE / ONBOARDING / PHASE_START anchors. Number of
-  // days from the anchor to the deadline.
-  durationDays    Int?
-  // FIXED anchor only: same window for every eligible agent.
-  fixedStartAt    DateTime?
-  fixedEndAt      DateTime?
-  // Eligibility cutoffs by anchor date. Optional. e.g. "only agents
-  // whose icaDate falls 2026-01-01..2026-06-30 are in this contest."
-  eligibleFromAt  DateTime?
-  eligibleToAt    DateTime?
-  active          Boolean               @default(true)
-  // Live tracker embed in Discord. discordChannelId is the channel
-  // the admin chose to post the leaderboard-style status embed.
-  // discordTrackerMessageId is the message the bot owns and edits
-  // in place on every sync — keeps one current message instead of
-  // spamming a new post each time.
-  discordChannelId        String?
-  discordTrackerMessageId String?
-  // Whether the live tracker embed includes a 'Missed' section for
-  // agents who ran out of time without qualifying. Off by default —
-  // public shame doesn't motivate — but admins can flip it on per
-  // contest if they want it visible.
-  trackerShowMissed       Boolean @default(false)
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
-  requirements    ContestRequirement[]
-  manualChecks    ContestManualCheck[]
-
-  @@index([active])
-  @@map("contests")
-}
-
-model ContestRequirement {
-  id              String                  @id @default(cuid())
-  contestId       String
-  contest         Contest                 @relation(fields: [contestId], references: [id], onDelete: Cascade)
-  order           Int
-  label           String
-  type            ContestRequirementType
-  // Type-specific config:
-  phaseItemKey    String?    // PHASE_ITEM
-  milestoneKey    String?    // MILESTONE
-  count           Int?       // RECRUITS / POLICIES (e.g. 3)
-  // MANUAL only: when true, evaluator treats the requirement as
-  // completed for any agent who doesn't have an explicit check row.
-  // Used for "implicit-true" requirements like 'Get GFI Code' where
-  // every portal user already qualifies and we shouldn't keep
-  // bulk-ticking new joiners forever.
-  defaultCompleted Boolean   @default(false)
-  manualChecks    ContestManualCheck[]
-
-  @@index([contestId])
-  @@map("contest_requirements")
-}
-
-model ContestManualCheck {
-  id                  String              @id @default(cuid())
-  contestId           String
-  contest             Contest             @relation(fields: [contestId], references: [id], onDelete: Cascade)
-  requirementId       String
-  requirement         ContestRequirement  @relation(fields: [requirementId], references: [id], onDelete: Cascade)
-  agentProfileId      String
-  agentProfile        AgentProfile        @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
-  completed           Boolean             @default(false)
-  completedAt         DateTime?
-  checkedById         String?
-  notes               String?
-
-  @@unique([requirementId, agentProfileId])
-  @@index([agentProfileId])
-  @@map("contest_manual_checks")
-}
-
-// Tracks each client-touchpoint reminder the cron has already fired
-// so we don't double-notify. Keyed on (agentProfileId, submissionId,
-// kind, periodKey) where periodKey is a short stable string for the
-// occurrence — e.g. 'BIRTHDAY:2026' or 'THANK_YOU_30:<issuedDate>'.
-// Lifecycle: the cron upserts a row at fire time. Rows persist
-// indefinitely so the same reminder never re-fires.
-model ClientReminderFire {
-  id              String       @id @default(cuid())
-  agentProfileId  String
-  agentProfile    AgentProfile @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
-  // The submission this reminder is about. Null if we ever support
-  // standalone client reminders not tied to a policy (unlikely v1).
-  submissionId    String?
-  kind            String       // 'BIRTHDAY' | 'THANK_YOU_30' | 'ANNUAL_REVIEW'
-  periodKey       String       // 'BIRTHDAY:2026', 'THANK_YOU_30', 'ANNUAL_REVIEW:1'
-  firedAt         DateTime     @default(now())
-
-  @@unique([agentProfileId, submissionId, kind, periodKey])
-  @@index([agentProfileId, firedAt])
-  @@map("client_reminder_fires")
 }

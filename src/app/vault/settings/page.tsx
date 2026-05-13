@@ -1,7 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useState, useEffect, useRef } from 'react'
 
 // Lightweight helpers used by the Booking Links card. Inline so we
 // don't have to thread a separate component file.
@@ -98,6 +97,12 @@ function Field({ label, name, value, onChange, placeholder }: {
 }
 
 export default function SettingsPage() {
+  const [discordConnected, setDiscordConnected] = useState(false)
+  const [discordUsername, setDiscordUsername] = useState<string | null>(null)
+  const [discordMsg, setDiscordMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [discordDisconnecting, setDiscordDisconnecting] = useState(false)
+  const discordChecked = useRef(false)
+
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
@@ -276,6 +281,28 @@ export default function SettingsPage() {
       if (Array.isArray(d.links)) setBookings(d.links as BookingLink[])
       setBookingsLoaded(true)
     }).catch(() => setBookingsLoaded(true))
+
+    // Check Discord connection status
+    if (!discordChecked.current) {
+      discordChecked.current = true
+      fetch('/api/admin/discord-status').then(r => r.json()).then(d => {
+        if (d.connected) { setDiscordConnected(true); setDiscordUsername(d.username ?? null) }
+      })
+      // Handle redirect back from Discord OAuth
+      const params = new URLSearchParams(window.location.search)
+      const discordParam = params.get('discord')
+      if (discordParam === 'connected') {
+        const uname = params.get('username')
+        setDiscordConnected(true)
+        setDiscordUsername(uname)
+        setDiscordMsg({ ok: true, text: `Discord connected${uname ? ` as ${uname}` : ''}.` })
+        window.history.replaceState({}, '', '/vault/settings')
+      } else if (discordParam === 'error') {
+        const reason = params.get('reason')
+        setDiscordMsg({ ok: false, text: `Discord connection failed${reason ? `: ${reason}` : ''}. Try again.` })
+        window.history.replaceState({}, '', '/vault/settings')
+      }
+    }
   }, [])
 
   const setOps = (key: keyof typeof opsFields) => (v: string) =>
@@ -429,6 +456,20 @@ export default function SettingsPage() {
     setSyncingPipeline(false)
   }
 
+  async function handleDiscordDisconnect() {
+    setDiscordDisconnecting(true)
+    setDiscordMsg(null)
+    const res = await fetch('/api/admin/discord-status', { method: 'DELETE' })
+    if (res.ok) {
+      setDiscordConnected(false)
+      setDiscordUsername(null)
+      setDiscordMsg({ ok: true, text: 'Discord disconnected.' })
+    } else {
+      setDiscordMsg({ ok: false, text: 'Failed to disconnect. Try again.' })
+    }
+    setDiscordDisconnecting(false)
+  }
+
   const card = (children: React.ReactNode) => (
     <div style={{ background: '#142D48', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)', marginBottom: 24 }}>
       {children}
@@ -447,16 +488,6 @@ export default function SettingsPage() {
         <p style={{ color: '#C9A96E', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 600, margin: '0 0 6px' }}>Configuration</p>
         <h1 style={{ color: '#ffffff', fontSize: 28, fontWeight: 300, margin: 0 }}>Settings</h1>
       </div>
-
-      {/* Your Discord */}
-      {card(
-        <>
-          {cardHeader('Your Discord')}
-          <div style={{ padding: '28px' }}>
-            <YourDiscordSection />
-          </div>
-        </>
-      )}
 
       {/* API Keys */}
       {card(
@@ -1006,6 +1037,80 @@ export default function SettingsPage() {
         </>
       )}
 
+      {/* Your Discord */}
+      {card(
+        <>
+          {cardHeader('Your Discord')}
+          <div style={{ padding: '28px' }}>
+            <p style={{ color: '#6B8299', fontSize: 12, margin: '0 0 20px', lineHeight: 1.6 }}>
+              Link your personal Discord to get DMs from the AFF Concierge bot when something in the vault needs your attention. Licensing coordinators are pinged on new business submissions, licensing tickets, and agent replies. Admins can opt in too.
+            </p>
+
+            {discordConnected ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '10px 14px',
+                  background: 'rgba(74,222,128,0.06)',
+                  border: '1px solid rgba(74,222,128,0.3)',
+                  borderRadius: 6,
+                  flex: 1, minWidth: 0,
+                }}>
+                  <span style={{ fontSize: 16 }}>✓</span>
+                  <div>
+                    <div style={{ fontSize: 13, color: '#4ade80', fontWeight: 600 }}>
+                      Discord connected
+                    </div>
+                    {discordUsername && (
+                      <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>
+                        {discordUsername}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={handleDiscordDisconnect}
+                  disabled={discordDisconnecting}
+                  style={{
+                    padding: '10px 20px', background: 'transparent',
+                    border: '1px solid rgba(248,113,113,0.35)', color: '#f87171',
+                    borderRadius: 4, fontSize: 11, fontWeight: 700,
+                    letterSpacing: '0.1em', textTransform: 'uppercase',
+                    cursor: discordDisconnecting ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {discordDisconnecting ? 'Disconnecting...' : 'Disconnect'}
+                </button>
+              </div>
+            ) : (
+              <a
+                href="/api/admin/discord-connect"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 10,
+                  padding: '10px 22px',
+                  background: '#5865F2',
+                  color: '#ffffff',
+                  borderRadius: 4, fontSize: 12, fontWeight: 700,
+                  letterSpacing: '0.06em', textTransform: 'uppercase',
+                  textDecoration: 'none',
+                }}
+              >
+                <svg width="18" height="14" viewBox="0 0 24 18" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M20.317 1.492a19.825 19.825 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.566 18.566 0 0 0-5.487 0 12.36 12.36 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 1.492a.07.07 0 0 0-.032.027C.533 6.093-.32 10.555.099 14.961a.08.08 0 0 0 .031.055 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.027 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.442a.061.061 0 0 0-.031-.03z"/>
+                </svg>
+                Connect Discord
+              </a>
+            )}
+
+            {discordMsg && (
+              <p style={{ marginTop: 14, fontSize: 12, color: discordMsg.ok ? '#4ade80' : '#f87171' }}>
+                {discordMsg.ok ? '✓ ' : '✗ '}{discordMsg.text}
+              </p>
+            )}
+          </div>
+        </>
+      )}
+
       {/* Maintenance — one-shot admin fixers for data backfills.
           Each entry is a single button that runs an idempotent
           server-side script and reports a count. Add new ones here
@@ -1380,98 +1485,6 @@ function BackfillDiscordConnectRow() {
       >
         {state === 'running' ? 'Running...' : state === 'done' ? 'Run again' : 'Run backfill'}
       </button>
-    </div>
-  )
-}
-
-function YourDiscordSection() {
-  const [user, setUser] = useState<{ discordUserId: string | null; discordUsername: string | null; role: string } | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [disconnecting, setDisconnecting] = useState(false)
-  const params = useSearchParams()
-  const justConnectedUsername = params.get('discord') === 'connected' ? params.get('username') : null
-  const errorReason = params.get('discord') === 'error' ? params.get('reason') : null
-
-  const load = useCallback(async () => {
-    const res = await fetch('/api/vault/me')
-    if (res.ok) {
-      const d = await res.json() as { user: { discordUserId: string | null; discordUsername: string | null; role: string } }
-      setUser(d.user)
-    }
-    setLoading(false)
-  }, [])
-  useEffect(() => { load() }, [load])
-
-  const disconnect = async () => {
-    if (!confirm('Disconnect Discord? You will stop receiving DM notifications from the bot.')) return
-    setDisconnecting(true)
-    await fetch('/api/vault/discord-disconnect', { method: 'POST' })
-    setDisconnecting(false)
-    load()
-  }
-
-  const connected = !!user?.discordUserId
-
-  return (
-    <div>
-      <p style={{ color: '#9BB0C4', fontSize: 13, lineHeight: 1.5, margin: '0 0 16px' }}>
-        Link your personal Discord to get DMs from the AFF Concierge bot when something in the vault needs your attention. Licensing coordinators are pinged on new business submissions, licensing tickets, and agent replies. Admins can opt in too.
-      </p>
-
-      {errorReason === 'unverified' && (
-        <div style={{ marginBottom: 14, padding: '10px 14px', borderRadius: 4, background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.25)', color: '#fca5a5', fontSize: 12, lineHeight: 1.5 }}>
-          Discord blocked the authorization because your Discord account does not have a verified email or phone. In Discord, open User Settings &rarr; My Account, click <strong style={{ color: '#fff' }}>Verify</strong>, then come back and try again.
-        </div>
-      )}
-      {errorReason && errorReason !== 'unverified' && (
-        <div style={{ marginBottom: 14, padding: '10px 14px', borderRadius: 4, background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.25)', color: '#fca5a5', fontSize: 12 }}>
-          Discord connect failed: {errorReason}. Try again.
-        </div>
-      )}
-      {justConnectedUsername && !errorReason && (
-        <div style={{ marginBottom: 14, padding: '10px 14px', borderRadius: 4, background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.25)', color: '#4ade80', fontSize: 12 }}>
-          ✓ Connected as <strong>{justConnectedUsername}</strong>. You should have a confirmation DM in Discord.
-        </div>
-      )}
-
-      {loading && <div style={{ color: '#6B8299', fontSize: 13 }}>Loading...</div>}
-
-      {!loading && connected && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: 'rgba(74,222,128,0.06)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: 6 }}>
-          <span style={{ fontSize: 18, color: '#4ade80' }}>✓</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>Connected as {user!.discordUsername ?? user!.discordUserId}</div>
-            <div style={{ fontSize: 11, color: '#9BB0C4', marginTop: 2 }}>Bot DMs are active.</div>
-          </div>
-          <button
-            onClick={disconnect}
-            disabled={disconnecting}
-            style={{ padding: '8px 14px', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', background: 'transparent', color: '#f87171', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 4, cursor: disconnecting ? 'wait' : 'pointer' }}
-          >
-            {disconnecting ? 'Disconnecting...' : 'Disconnect'}
-          </button>
-        </div>
-      )}
-
-      {!loading && !connected && (
-        <a
-          href="/api/vault/discord-connect"
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: 10,
-            padding: '12px 20px',
-            background: 'linear-gradient(135deg, #5865F2, #4752C4)',
-            color: '#ffffff', borderRadius: 6,
-            fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
-            textDecoration: 'none', cursor: 'pointer',
-            boxShadow: '0 4px 16px rgba(88,101,242,0.35)',
-          }}
-        >
-          <svg width="18" height="14" viewBox="0 0 71 55" fill="white">
-            <path d="M60.1 4.9A58.5 58.5 0 0045.4.2a.2.2 0 00-.2.1 41 41 0 00-1.8 3.7 54 54 0 00-16.2 0A37 37 0 0025.4.3a.2.2 0 00-.2-.1A58.4 58.4 0 0010.5 5a.2.2 0 00-.1 0C1.5 17.7-.9 30 .3 42.1a.2.2 0 000 .2 58.7 58.7 0 0017.7 9 .2.2 0 00.3-.1 42 42 0 003.6-5.9.2.2 0 00-.1-.3 38.7 38.7 0 01-5.5-2.6.2.2 0 01 0-.4 31 31 0 001.1-.9.2.2 0 01.2 0c11.6 5.3 24.1 5.3 35.5 0a.2.2 0 01.2 0 29 29 0 001.1.9.2.2 0 010 .3 36.3 36.3 0 01-5.5 2.6.2.2 0 00-.1.4 47 47 0 003.6 5.8.2.2 0 00.2.1 58.5 58.5 0 0017.7-9 .2.2 0 000-.1c1.4-14.5-2.4-27.1-10-38.3a.2.2 0 00-.1 0zM23.7 34.6c-3.3 0-6-3-6-6.8s2.7-6.8 6-6.8 6.1 3.1 6 6.8c0 3.7-2.6 6.8-6 6.8zm22.2 0c-3.3 0-6-3-6-6.8s2.6-6.8 6-6.8 6 3.1 6 6.8c0 3.7-2.6 6.8-6 6.8z"/>
-          </svg>
-          Connect Discord
-        </a>
-      )}
     </div>
   )
 }

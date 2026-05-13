@@ -1,0 +1,2 @@
+-- No-op: discord_user_id and discord_username were already added to
+-- admin_users in migration 20260509220000_admin_user_discord.
