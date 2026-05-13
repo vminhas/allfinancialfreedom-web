@@ -59,6 +59,11 @@ if (env === 'production' || !env) {
     ['prisma', 'migrate', 'resolve', '--rolled-back', '20260507210000_fix_phone_float_strings'],
     'Recovery: marking previously-failed phone-float migration as rolled-back so migrate deploy can retry it with the corrected table name',
   )
+  tryRun(
+    'npx',
+    ['prisma', 'migrate', 'resolve', '--rolled-back', '20260513000000_promotion_items_announce'],
+    'Recovery: marking previously-failed promotion-items-announce migration as rolled-back so migrate deploy can retry it with the corrected column name (itemKey not item_key)',
+  )
   run('npx', ['prisma', 'migrate', 'deploy'])
 } else {
   console.log(`\n[build] Skipping prisma migrate deploy on VERCEL_ENV=${env}`)

@@ -271,6 +271,14 @@ export const PHASE_ITEMS: Record<number, PhaseItemDef[]> = {
     { key: 'license_net_5', label: 'Net Licensed Agent 5', group: 'team',
       description: 'Five active licensed agents on your team. This is the team size required to qualify for Marketing Director.',
       action: { type: 'navigate-tab', tab: 'partners', label: 'View team' } },
+
+    // Promotions & Recognition. Mirrors associate_promotion: gated by
+    // admin approval via /api/vault/promotion-requests and flips the
+    // agent's resolved title from "Senior Associate" to "Marketing
+    // Director" once Vick checks it.
+    { key: 'md_promotion', label: 'Marketing Director Promotion', group: 'milestones',
+      description: 'Officially promoted to Marketing Director. Recognizes you hit 45,000 production points and built a team of 5 net licensed agents.',
+      adminOnly: true, action: { type: 'inline-form', modal: 'promotion-request', label: 'Request Promotion' } },
   ],
   5: [
     // Leadership Production
@@ -310,6 +318,19 @@ export const PHASE_ITEMS: Record<number, PhaseItemDef[]> = {
     { key: 'license_20', label: 'Organization License 20', group: 'org',
       description: 'Net License 20 of 20, the final team size requirement for Elite Marketing Director. You have built a true agency.',
       action: { type: 'navigate-tab', tab: 'partners', label: 'View organization' } },
+
+    // Promotions & Recognition. Same admin-gated pattern as
+    // associate_promotion / md_promotion.
+    { key: 'emd_promotion', label: 'Executive Marketing Director Promotion', group: 'milestones',
+      description: 'Officially promoted to Executive Marketing Director. Recognizes 150,000 net production points over 6 months, an EMD-sized organization, and at least one MD on your team.',
+      adminOnly: true, action: { type: 'inline-form', modal: 'promotion-request', label: 'Request Promotion' } },
+  ],
+  6: [
+    // Promotions & Recognition. Phase 6 is the NVP track; the only
+    // explicit checklist item is the promotion itself, gated by Vick.
+    { key: 'nvp_promotion', label: 'National Vice President Promotion', group: 'milestones',
+      description: 'Officially promoted to National Vice President, the pinnacle of the AFF career path. Gated by Vick.',
+      adminOnly: true, action: { type: 'inline-form', modal: 'promotion-request', label: 'Request Promotion' } },
   ],
 }
 

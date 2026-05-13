@@ -3,7 +3,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/permissions'
-import { buildAchievementEmbed, PHASE_ACCENT, PHASE_TITLE } from '@/lib/discord-card'
+import { buildAchievementEmbed, PHASE_ACCENT } from '@/lib/discord-card'
+import { resolveAgentTitleById } from '@/lib/agent-title'
 
 // POST /api/admin/agents/[id]/announce-promotion
 //
@@ -42,7 +43,12 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   }
 
   const accent = PHASE_ACCENT[agent.phase] ?? 0xC9A96E
-  const newTitle = PHASE_TITLE[agent.phase] ?? `Phase ${agent.phase}`
+  // Title now comes from the rank resolver (driven by completed
+  // promotion items), not from the phase number. The /announce-promotion
+  // route re-broadcasts an agent's CURRENT title, so an agent stuck on
+  // Phase 4 with no md_promotion box ticked re-announces as "Associate"
+  // not "Senior Associate" — matches what the team page shows.
+  const newTitle = await resolveAgentTitleById(id)
 
   const card = buildAchievementEmbed({
     flavor: 'PROMOTION',
