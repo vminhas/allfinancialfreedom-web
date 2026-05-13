@@ -412,7 +412,56 @@ function AgentDashboardInner() {
 
   const effectivePhaseItems = dbPhaseItems ?? PHASE_ITEMS
 
-  const CONFETTI_MILESTONES = new Set(['fta_10', 'first_1000', 'cft_coordinator_signoff', '45k_points', '150k_net_6mo', '100k_income'])
+  // Milestone-item keys that trigger a confetti burst on completion.
+  // Two trigger paths:
+  //   1. Self-tick on the checklist → fires from the toggleItem
+  //      handler below (instant).
+  //   2. Admin-approved (SA Promotion, CFT sign-offs) → the agent
+  //      doesn't click. The useEffect right after detects 'recently
+  //      completed items I haven't celebrated on this device yet'
+  //      and fires confetti when the dashboard next loads.
+  const CONFETTI_MILESTONES = new Set([
+    'fta_10', 'first_1000', 'cft_coordinator_signoff',
+    '45k_points', '150k_net_6mo', '100k_income',
+    'associate_promotion',
+  ])
+
+  // Catch-up confetti for admin-approved milestone completions
+  // (SA Promotion, CFT sign-offs) that happened while the agent was
+  // away. Looks for any CONFETTI_MILESTONES item completed in the
+  // last 30 minutes and not previously celebrated on this device.
+  // localStorage keyed cursor is per-device but that's fine — agents
+  // who switch phones occasionally see the confetti twice, which
+  // is the right side of wrong.
+  useEffect(() => {
+    if (!data) return
+    const RECENT_MS = 30 * 60 * 1000
+    let seen: string[] = []
+    try {
+      seen = JSON.parse(window.localStorage.getItem('aff.celebrated.items') || '[]') as string[]
+    } catch { /* corrupted, treat as empty */ }
+    const now = Date.now()
+    const fresh = data.phaseItems.filter(i =>
+      i.completed && CONFETTI_MILESTONES.has(i.itemKey) &&
+      i.completedAt &&
+      (now - new Date(i.completedAt).getTime()) < RECENT_MS &&
+      !seen.includes(i.itemKey)
+    )
+    if (fresh.length === 0) return
+    import('canvas-confetti').then(({ default: confetti }) => {
+      confetti({
+        particleCount: 100, spread: 70, origin: { y: 0.6 },
+        colors: ['#C9A96E', '#4ade80', '#60a5fa', '#ffffff'],
+      })
+    }).catch(() => { /* lib missing — confetti is nice-to-have */ })
+    try {
+      window.localStorage.setItem(
+        'aff.celebrated.items',
+        JSON.stringify([...seen, ...fresh.map(f => f.itemKey)]),
+      )
+    } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.id])
 
   const toggleItem = async (itemKey: string, phase: number, current: boolean) => {
     if (!data) return
