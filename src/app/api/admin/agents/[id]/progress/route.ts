@@ -36,6 +36,18 @@ export async function PUT(
   const profile = await db.agentProfile.findUnique({ where: { id }, select: { id: true } })
   if (!profile) return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
 
+  // Snapshot the prior state so we can decide whether to fire the
+  // Discord announcement. We only announce on a false→true transition
+  // (or the first time the row is being created with completed=true)
+  // and only when no announcementMsgId has been stored yet, so admin
+  // re-saves never double-post.
+  const prior = await db.phaseItem.findUnique({
+    where: {
+      agentProfileId_phase_itemKey: { agentProfileId: id, phase, itemKey },
+    },
+    select: { completed: true, announcementMsgId: true, activityMsgId: true },
+  })
+
   const item = await db.phaseItem.upsert({
     where: {
       agentProfileId_phase_itemKey: {
@@ -56,6 +68,36 @@ export async function PUT(
       completedAt: completed ? new Date() : null,
     },
   })
+
+  // Fire the Discord celebration if this toggle just flipped the item
+  // to completed and we haven't announced before. Same helper the
+  // agent-self path and the promotion-request approval path use, so
+  // an admin ticking the box from /vault/progress posts the identical
+  // embed to #announcements / #activity.
+  const shouldAnnounce =
+    completed &&
+    (!prior?.completed) &&
+    !prior?.announcementMsgId &&
+    !prior?.activityMsgId
+  if (shouldAnnounce) {
+    const { announcePhaseItemCompletion } = await import('@/lib/phase-item-announce')
+    const ids = await announcePhaseItemCompletion({
+      agentProfileId: id,
+      itemKey,
+      phase,
+    }).catch(() => ({ activityMsgId: null, announcementMsgId: null }))
+    if (ids.activityMsgId || ids.announcementMsgId) {
+      await db.phaseItem.update({
+        where: {
+          agentProfileId_phase_itemKey: { agentProfileId: id, phase, itemKey },
+        },
+        data: {
+          activityMsgId: ids.activityMsgId,
+          announcementMsgId: ids.announcementMsgId,
+        },
+      }).catch(() => {})
+    }
+  }
 
   // If the toggled item is one of the four CFT-gating signoffs,
   // recompute auto-managed badges so the CFT chip lights up the
