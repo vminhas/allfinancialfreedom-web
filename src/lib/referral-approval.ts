@@ -55,7 +55,13 @@ export async function approveReferral(input: ApprovalInput): Promise<ApprovalRes
 
   const referringAgent = await db.agentProfile.findUnique({
     where: { id: referral.referringAgentId },
-    select: { agentCode: true, firstName: true, lastName: true },
+    select: {
+      agentCode: true,
+      firstName: true,
+      lastName: true,
+      avatarUrl: true,
+      discordUserId: true,
+    },
   })
 
   const inviteToken = randomUUID()
@@ -158,6 +164,46 @@ export async function approveReferral(input: ApprovalInput): Promise<ApprovalRes
     }
   } catch {
     // swallow — caller decides what to surface
+  }
+
+  // Public-facing celebration in #announcements — gated on approval so we
+  // don't celebrate a recruit that staff hasn't reviewed yet. Fires from
+  // both the Discord approve-button path and the vault UI approve path
+  // because both flow through here.
+  if (process.env.DISCORD_BOT_TOKEN && referringAgent) {
+    try {
+      const { sendChannelMessage } = await import('./discord')
+      const { buildAchievementEmbed } = await import('./discord-card')
+      const announcementsChannel = process.env.DISCORD_ANNOUNCEMENTS_CHANNEL_ID ?? '1295044213590982724'
+      const refName = `${referringAgent.firstName} ${referringAgent.lastName}`
+      const recruitName = `${referral.firstName} ${referral.lastName}`
+      const recruiterMention = referringAgent.discordUserId
+        ? `<@${referringAgent.discordUserId}>`
+        : `**${refName}**`
+      const card = buildAchievementEmbed({
+        flavor: 'NEW_RECRUIT',
+        protagonist: {
+          firstName: referringAgent.firstName,
+          lastName: referringAgent.lastName,
+          agentCode: referringAgent.agentCode,
+          avatarUrl: referringAgent.avatarUrl,
+        },
+        subline: `Welcome **${recruitName}** to the AFF family.`,
+        fields: [
+          { name: 'Recruit', value: recruitName, inline: true },
+          { name: 'State', value: referral.state ?? 'Not set', inline: true },
+          { name: 'Recruited by', value: `${refName} (\`${referringAgent.agentCode}\`)`, inline: false },
+        ],
+      })
+      sendChannelMessage(announcementsChannel, {
+        content: `${recruiterMention} brought a new agent to the team! Let's go!`,
+        embeds: [card],
+      }).catch((err) => {
+        console.error('[approveReferral] public announcement failed:', err)
+      })
+    } catch (err) {
+      console.error('[approveReferral] public announcement threw:', err)
+    }
   }
 
   // Fire a celebration ping in the admin Discord channel — symmetrical to
