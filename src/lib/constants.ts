@@ -51,7 +51,7 @@ export const ASSOCIATES = [
   { name: 'Heather Cullum', initials: 'HC', specialty: 'Retirement Planning', location: 'Leonardtown, MD', image: '/team/heather.jpg' },
   { name: 'Sam Yonce', initials: 'SY', specialty: 'Asset Protection', location: 'Cape Carteret, NC', image: '/team/sam.jpg', calendly: 'https://calendly.com/syonce61/new-meeting' },
   { name: 'Sadie Grubb', initials: 'SG', specialty: 'Financial Planning', location: 'Centerville, IA', image: '/team/sadie.jpg', calendly: 'https://calendly.com/sadiegrubb/future-planning-call' },
-  { name: 'Bhavita Patel', initials: 'BP', specialty: 'Financial Planning', location: 'Tennessee', image: '/team/bhavita.jpeg' },
+  { name: 'Bhavita Patel', initials: 'BP', specialty: 'Financial Planning', location: 'Murfreesboro, TN', image: '/team/bhavita.jpeg' },
 ]
 
 export const GHL_JOIN_FORM_URL = '' // Add your GHL join/team-prospect form embed URL here

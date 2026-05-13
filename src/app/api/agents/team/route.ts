@@ -4,14 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { getSetting, setSetting } from '@/lib/settings'
 import { PHASE_ITEMS } from '@/lib/agent-constants'
-
-const PHASE_TITLES: Record<number, string> = {
-  1: 'Agent',
-  2: 'Associate',
-  3: 'Senior Associate',
-  4: 'Marketing Director',
-  5: 'Executive Marketing Director',
-}
+import { resolveAgentTitle } from '@/lib/agent-title'
 
 // Static checklist totals per phase. Used to compute "X / Y complete"
 // for each team member without an extra DB query. If the checklist is
@@ -256,7 +249,12 @@ export async function GET(req: NextRequest) {
       firstName: a.firstName,
       lastName: a.lastName,
       phase: a.phase,
-      title: PHASE_TITLES[a.phase - 1] ?? 'Agent',
+      title: resolveAgentTitle({
+        phase: a.phase,
+        completedItemKeys: Array.from(
+          progressByAgent.get(a.id)?.completedKeysByPhase.values() ?? [],
+        ).flatMap(set => Array.from(set)),
+      }),
       state: a.state,
       avatarUrl: a.avatarUrl,
       memberStatus,
