@@ -63,10 +63,15 @@ export const PHASE_GROUPS: Record<number, PhaseGroupDef[]> = {
   4: [
     { key: 'production', label: 'Production Goals', icon: 'BarChart3', description: 'Hit the production numbers for Marketing Director.' },
     { key: 'team', label: 'Team Building', icon: 'UserPlus', description: 'Build and maintain a team of 5 profitable net licensed agents.' },
+    { key: 'milestones', label: 'Promotions & Recognition', icon: 'TrendingUp', description: 'Earn your Marketing Director promotion.' },
   ],
   5: [
     { key: 'leadership', label: 'Leadership Production', icon: 'Crown', description: 'Lead a high-performing organization.' },
     { key: 'org', label: 'Organization Growth', icon: 'Network', description: 'Grow your organization to 20 active licensed agents.' },
+    { key: 'milestones', label: 'Promotions & Recognition', icon: 'TrendingUp', description: 'Earn your Executive Marketing Director promotion.' },
+  ],
+  6: [
+    { key: 'milestones', label: 'Promotions & Recognition', icon: 'TrendingUp', description: 'Earn your National Vice President promotion.' },
   ],
 }
 
