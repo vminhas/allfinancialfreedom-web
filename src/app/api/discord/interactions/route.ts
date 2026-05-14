@@ -389,20 +389,10 @@ async function handleLeaderboardTab(customId: string) {
 
   const roster = await db.agentProfile.findMany({
     where: { status: 'ACTIVE', isTest: false },
-    select: {
-      id: true, agentCode: true, firstName: true, lastName: true,
-      isLeadership: true,
-      // Couple metadata for the recruits bundling below — mirrors the
-      // shape discord-snapshot uses so the two views agree on how to
-      // label "Vick & Melinee" (or any future founder pair).
-      partnerAgentProfileId: true,
-      partnerDisplayName: true,
-      coupleDisplayName: true,
-    },
+    select: { id: true, agentCode: true, firstName: true, lastName: true },
   })
   const rosterIds = roster.map(r => r.id)
   const idSet = new Set(rosterIds)
-  const leadershipIds = new Set(roster.filter(r => r.isLeadership).map(r => r.id))
 
   const MEDAL_EMOJI = ['🥇', '🥈', '🥉']
   const rankLine = (i: number, name: string, value: number, unit: string) => {
@@ -442,52 +432,45 @@ async function handleLeaderboardTab(customId: string) {
       submissionSummary = `**${total}** app${total !== 1 ? 's' : ''} · ${subCounts.size} active agent${subCounts.size !== 1 ? 's' : ''}`
     }
 
-    const newAgents = await db.agentProfile.findMany({
-      where: { isTest: false, createdAt: { gte: monthStart, lte: now } },
-      select: { recruiterId: true },
-    }) as Array<{ recruiterId: string | null }>
     const codeToId = new Map(roster.map(r => [r.agentCode, r.id]))
 
-    // Leadership recruits roll up into one synthetic "Vick & Melinee"
-    // bucket so the recruits leaderboard reads as a single founder
-    // contribution instead of splitting the credit across two rows (or
-    // hiding the row whose individual count is zero). Matches the
-    // pattern used by /api/admin/leaderboard/discord-snapshot — when
-    // we factor resolveCouple into a shared lib, both routes will read
-    // from it. Until then this is the agreed-upon shape: one bundled
-    // row, label drawn from the leadership profiles themselves so a
-    // future Vick/Melinee retitle Just Works without a code change.
-    const LEADERSHIP_KEY = '__leadership__'
+    // Tevah-first recruit counts — same source-of-truth as discord-snapshot.
+    // The icaDate fallback over-counts because bulk-imported agents all got
+    // icaDate = import date, not their actual recruit date.
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    const tevahRecruitProfiles = await db.agentProfile.findMany({
+      where: { id: { in: rosterIds }, tevahRecruitsMonth: currentMonth },
+      select: { id: true, tevahMonthlyRecruits: true },
+    })
     const recruitCounts = new Map<string, number>()
-    let leadershipCount = 0
-    for (const a of newAgents) {
-      if (!a.recruiterId) continue
-      const id = codeToId.get(a.recruiterId)
-      if (!id) continue
-      if (leadershipIds.has(id)) {
-        leadershipCount += 1
-      } else {
+    if (tevahRecruitProfiles.some(p => p.tevahMonthlyRecruits !== null)) {
+      for (const p of tevahRecruitProfiles) {
+        if (!p.tevahMonthlyRecruits || p.tevahMonthlyRecruits <= 0) continue
+        recruitCounts.set(p.id, (recruitCounts.get(p.id) ?? 0) + p.tevahMonthlyRecruits)
+      }
+    } else {
+      // No Tevah data yet: fall back to icaDate/createdAt count.
+      const newAgents = await db.agentProfile.findMany({
+        where: {
+          isTest: false,
+          OR: [
+            { icaDate: { gte: monthStart, lte: now } },
+            { icaDate: null, createdAt: { gte: monthStart, lte: now } },
+          ],
+        },
+        select: { recruiterId: true },
+      })
+      for (const a of newAgents) {
+        if (!a.recruiterId) continue
+        const id = codeToId.get(a.recruiterId)
+        if (!id) continue
         recruitCounts.set(id, (recruitCounts.get(id) ?? 0) + 1)
       }
-    }
-    // Build the leadership label from the flagged profiles so white-
-    // labeling keeps working: prefer an explicit coupleDisplayName,
-    // otherwise join first names with " & " (Vick & Melinee).
-    const leaders = roster.filter(r => r.isLeadership)
-    const leadershipLabel = leaders.length === 0
-      ? null
-      : (leaders.find(l => l.coupleDisplayName)?.coupleDisplayName
-        ?? leaders.map(l => l.firstName).join(' & '))
-    if (leadershipCount > 0 && leadershipLabel) {
-      recruitCounts.set(LEADERSHIP_KEY, leadershipCount)
     }
 
     const topRec = [...recruitCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10)
     if (topRec.length > 0) {
-      recLines = topRec.map(([key, v], i) => {
-        const name = key === LEADERSHIP_KEY ? (leadershipLabel ?? 'Founders') : toName(key)
-        return rankLine(i, name, v, 'recruit')
-      }).join('\n')
+      recLines = topRec.map(([id, v], i) => rankLine(i, toName(id), v, 'recruit')).join('\n')
       const totalRec = [...recruitCounts.values()].reduce((a, b) => a + b, 0)
       recruitSummary = `**${totalRec}** recruit${totalRec !== 1 ? 's' : ''} · ${recruitCounts.size} recruiter${recruitCounts.size !== 1 ? 's' : ''}`
     }
