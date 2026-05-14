@@ -21,6 +21,7 @@ import { recomputeClimbAchievements } from '@/lib/climb-points'
 import { getAutoAssignee } from '@/lib/auto-assign'
 import { sendChannelMessage } from '@/lib/discord'
 import { sendAgentInviteEmail } from '@/lib/send-agent-invite'
+import { celebrateNewBusinessPartner } from '@/lib/celebrate-new-business-partner'
 import type { PolicyType, NewBusinessStatus } from '@/generated/prisma/client'
 
 // GET /api/cron/tevah-sync (Vercel cron, runs hourly)
@@ -102,6 +103,13 @@ async function postSyncSummary(
         return [
           agents.created ? `Agents: ${agents.created} new, ${agents.updated ?? 0} updated` : '',
           agents.invited ? `Invite emails sent: ${agents.invited}` : '',
+          // Recruiterless new agents (no Tevah `reference` field, or
+          // a reference that didn't resolve) are skipped silently for
+          // the public card. The gap between `created` and `announced`
+          // tells ops how many of those there were.
+          typeof agents.announced === 'number' && agents.created
+            ? `Announced in #announcements: ${agents.announced} of ${agents.created}`
+            : '',
           names.length ? `New: ${nameList}` : '',
         ].filter(Boolean)
       })()
@@ -234,6 +242,11 @@ export async function syncAgents() {
     created_codes: [] as string[],
     created_names: [] as string[],
     milestone_checks: 0,
+    // How many of the created-this-sync agents got a public NEW BUSINESS
+    // PARTNER card posted to #announcements. Less than `created` is
+    // expected when an agent has no recruiterId on file (self-onboarded
+    // via the public site, or Tevah didn't ship a reference field).
+    announced: 0,
   }
 
   for (const agent of agentsWithCode) {
@@ -323,6 +336,23 @@ export async function syncAgents() {
         if (newAgentUserId && email) {
           sendAgentInviteEmail(newAgentUserId).catch(() => {})
           results.invited++
+        }
+
+        // Public Discord celebration. Only fires when Tevah shipped a
+        // `reference` for this agent (resolving to a recruiterId on
+        // the profile) — without a recruiter, the card has no
+        // protagonist. The helper handles the lookup, embed build,
+        // and channel post; we just await it inline so the announced
+        // counter on the summary is accurate. Failure here doesn't
+        // abort the sync.
+        if (newProfileId) {
+          const announce = await celebrateNewBusinessPartner({
+            agentProfileId: newProfileId,
+          }).catch(err => {
+            console.error('[tevah-sync/agents] celebrate threw:', err)
+            return null
+          })
+          if (announce?.ok) results.announced++
         }
 
         results.created++
