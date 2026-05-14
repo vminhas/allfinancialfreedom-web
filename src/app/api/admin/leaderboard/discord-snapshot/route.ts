@@ -167,29 +167,44 @@ export async function GET(req: NextRequest) {
     if (s.splitWithAgentId) bump(s.splitWithAgentId)
   }
 
-  // Recruits this month. Same couple-keyed grouping. Leadership-
-  // attributed recruits (null recruiterId, or recruiterId pointing
-  // to a flagged leader) bundle into one synthetic 'leadership'
-  // bucket.
-  const newAgents = await db.agentProfile.findMany({
-    where: {
-      isTest: false,
-      OR: [
-        { icaDate: { gte: monthStart, lte: now } },
-        { icaDate: null, createdAt: { gte: monthStart, lte: now } },
-      ],
-    },
-    select: { recruiterId: true },
+  // Recruits this month. Use Tevah's byRecruit counts (synced hourly) as
+  // the source of truth. The icaDate fallback over-counts because bulk-
+  // imported agents all have icaDate = import date, not actual recruit date.
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const tevahRecruitProfiles = await db.agentProfile.findMany({
+    where: { id: { in: rosterIds }, tevahRecruitsMonth: currentMonth },
+    select: { id: true, tevahMonthlyRecruits: true },
   })
 
   const codeToId = new Map(roster.map(r => [r.agentCode, r.id]))
   const recruitCounts = new Map<string, number>()
-  for (const a of newAgents) {
-    if (!a.recruiterId) continue
-    const id = codeToId.get(a.recruiterId)
-    if (!id) continue
-    const key = resolveCouple(id).key
-    recruitCounts.set(key, (recruitCounts.get(key) ?? 0) + 1)
+
+  if (tevahRecruitProfiles.some(p => p.tevahMonthlyRecruits !== null)) {
+    // Tevah data available: use it.
+    for (const p of tevahRecruitProfiles) {
+      if (!p.tevahMonthlyRecruits || p.tevahMonthlyRecruits <= 0) continue
+      const key = resolveCouple(p.id).key
+      recruitCounts.set(key, (recruitCounts.get(key) ?? 0) + p.tevahMonthlyRecruits)
+    }
+  } else {
+    // No Tevah data yet (first run before sync): fall back to icaDate count.
+    const newAgents = await db.agentProfile.findMany({
+      where: {
+        isTest: false,
+        OR: [
+          { icaDate: { gte: monthStart, lte: now } },
+          { icaDate: null, createdAt: { gte: monthStart, lte: now } },
+        ],
+      },
+      select: { recruiterId: true },
+    })
+    for (const a of newAgents) {
+      if (!a.recruiterId) continue
+      const id = codeToId.get(a.recruiterId)
+      if (!id) continue
+      const key = resolveCouple(id).key
+      recruitCounts.set(key, (recruitCounts.get(key) ?? 0) + 1)
+    }
   }
 
   const toRow = (key: string, value: number): AgentRow => {
