@@ -119,7 +119,7 @@ export default function SettingsPage() {
 
   // Team management
   type TeamRole = 'ADMIN' | 'LICENSING_COORDINATOR'
-  interface AdminUser { id: string; email: string; name: string; role?: TeamRole; createdAt: string; lastLoginAt: string | null }
+  interface AdminUser { id: string; email: string; name: string; role?: TeamRole; isTest?: boolean; createdAt: string; lastLoginAt: string | null }
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([])
   const [showAddAdmin, setShowAddAdmin] = useState(false)
   const [newAdmin, setNewAdmin] = useState<{ email: string; name: string; password: string; role: TeamRole }>({
@@ -169,6 +169,24 @@ export default function SettingsPage() {
       setTeamMsg({ ok: true, text: `Removed ${email}` })
     } else {
       setTeamMsg({ ok: false, text: data.error ?? 'Failed to remove admin' })
+    }
+    setTeamLoading(false)
+  }
+
+  async function handleToggleTestAdmin(userId: string, currentIsTest: boolean) {
+    setTeamLoading(true)
+    setTeamMsg(null)
+    const res = await fetch(`/api/admin/users/${userId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isTest: !currentIsTest }),
+    })
+    const data = await res.json() as { user?: AdminUser; error?: string }
+    if (res.ok && data.user) {
+      setAdminUsers(prev => prev.map(u => u.id === userId ? { ...u, isTest: data.user!.isTest } : u))
+      setTeamMsg({ ok: true, text: !currentIsTest ? 'Marked as test account. Run a sync to reassign their submissions.' : 'Removed test flag.' })
+    } else {
+      setTeamMsg({ ok: false, text: data.error ?? 'Failed to update' })
     }
     setTeamLoading(false)
   }
@@ -899,12 +917,35 @@ export default function SettingsPage() {
                         }}>
                           {u.role === 'LICENSING_COORDINATOR' ? 'Licensing' : 'Admin'}
                         </span>
+                        {u.isTest && (
+                          <span style={{
+                            display: 'inline-block',
+                            background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)',
+                            color: '#f87171', fontSize: 8, fontWeight: 700, letterSpacing: '0.12em',
+                            textTransform: 'uppercase', padding: '2px 7px', borderRadius: 3,
+                          }}>Test</span>
+                        )}
                       </div>
                       <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>
                         {u.email} · {u.lastLoginAt ? `last login ${new Date(u.lastLoginAt).toLocaleDateString()}` : 'never logged in'}
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        onClick={() => handleToggleTestAdmin(u.id, !!u.isTest)}
+                        disabled={teamLoading}
+                        title={u.isTest ? 'Remove test flag' : 'Mark as test account (excluded from auto-assign)'}
+                        style={{
+                          background: u.isTest ? 'rgba(239,68,68,0.12)' : 'transparent',
+                          border: `1px solid ${u.isTest ? 'rgba(239,68,68,0.35)' : 'rgba(107,130,153,0.3)'}`,
+                          color: u.isTest ? '#f87171' : '#6B8299', borderRadius: 4,
+                          padding: '6px 12px', fontSize: 10, fontWeight: 700,
+                          letterSpacing: '0.1em', textTransform: 'uppercase',
+                          cursor: teamLoading ? 'wait' : 'pointer', minHeight: 32,
+                        }}
+                      >
+                        {u.isTest ? 'Unmark Test' : 'Test'}
+                      </button>
                       <button
                         onClick={() => handleResetAdminPassword(u.id, u.email)}
                         disabled={teamLoading}
