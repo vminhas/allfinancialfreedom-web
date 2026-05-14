@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback, Suspense } from 'react'
+import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import {
@@ -1193,34 +1193,20 @@ function AgentDashboardInner() {
         </div>
 
         {/* ── Tab navigation ── */}
-        <div id="agent-tab-nav" style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid rgba(255,255,255,0.06)', overflowX: 'auto', scrollMarginTop: 80 }}>
-          {TABS.map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key as typeof activeTab)}
-              style={{
-                background: 'none', border: 'none', whiteSpace: 'nowrap',
-                padding: '8px 14px', cursor: 'pointer',
-                fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
-                color: activeTab === tab.key ? '#C9A96E' : '#6B8299',
-                borderBottom: activeTab === tab.key ? '2px solid #C9A96E' : '2px solid transparent',
-                marginBottom: -1,
-                ...(tab.key === 'licensing' && { position: 'relative' }),
-              }}
-            >
-              {tab.label}
-              {tab.key === 'licensing' && licensingCompleted < LICENSING_CHECKLIST.length && (
-                <span style={{
-                  marginLeft: 4, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  width: 14, height: 14, borderRadius: '50%', fontSize: 8, fontWeight: 700,
-                  background: '#f59e0b', color: '#0A1628',
-                }}>
-                  {LICENSING_CHECKLIST.length - licensingCompleted}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
+        {/* Wrapped to layer scroll affordances (left/right gradient
+            fades + chevron buttons) over the actual horizontal scroll
+            container. The strip has up to 11 tabs and overflows on
+            most screen sizes; without affordance the CEO + Mercedes
+            had no idea anything was to the right of "My Team".
+            Active-tab auto-scroll-into-view (smooth, centered) also
+            handles the case where the agent clicks a hamburger-menu
+            link that jumps to a tab off the current scroll viewport. */}
+        <TabStrip
+          tabs={TABS}
+          activeTab={activeTab}
+          onSelect={key => setActiveTab(key as typeof activeTab)}
+          licensingBadge={licensingCompleted < LICENSING_CHECKLIST.length ? LICENSING_CHECKLIST.length - licensingCompleted : 0}
+        />
 
         {/* ── PHASE CHECKLIST TAB ── */}
         {activeTab === 'checklist' && (
@@ -5234,6 +5220,188 @@ const MEMBER_STATUS_STYLE: Record<MemberStatus, { bg: string; border: string; fg
 }
 
 const TEAM_PHASE_COLORS = PHASE_COLORS
+
+// ─── Tab strip with scroll affordance ──────────────────────────────────────
+//
+// Drop-in replacement for the original overflow-x scroll container. Adds:
+//   - left/right gradient fades that appear only when there's more to
+//     see in that direction, so the strip visually "leaks" off-screen
+//     instead of looking like a clean edge
+//   - chevron tap targets that scroll the strip by ~60% of its width;
+//     fades and chevrons hide together at each end so the affordance
+//     disappears when there's nothing more to scroll to
+//   - auto-scroll the active tab into the center of the viewport when
+//     activeTab changes from any external trigger (mobile drawer link,
+//     checklist deep-link, etc.), so the agent never has to manually
+//     find the tab they just clicked
+//
+// `licensingBadge` is the count of incomplete licensing checklist items;
+// passed in so the LICENSING tab can keep its small orange badge.
+
+interface TabStripTab { key: string; label: string }
+
+function TabStrip({
+  tabs, activeTab, onSelect, licensingBadge,
+}: {
+  tabs: ReadonlyArray<TabStripTab>
+  activeTab: string
+  onSelect: (key: string) => void
+  licensingBadge: number
+}) {
+  const scrollerRef = useRef<HTMLDivElement | null>(null)
+  const buttonRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(false)
+
+  const updateScrollState = useCallback(() => {
+    const el = scrollerRef.current
+    if (!el) return
+    // 1px slack so a fractional scroll position doesn't leave a fade
+    // visible when we're effectively at the edge.
+    setCanScrollLeft(el.scrollLeft > 1)
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1)
+  }, [])
+
+  // Recompute on mount + when the tab list changes (e.g. the My
+  // Trainees tab appearing once we know the agent is a trainer).
+  useEffect(() => {
+    updateScrollState()
+  }, [updateScrollState, tabs.length])
+
+  // Window resize can change clientWidth without firing scroll, so
+  // recompute on resize too.
+  useEffect(() => {
+    const handler = () => updateScrollState()
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [updateScrollState])
+
+  // Auto-scroll the active tab into view, centered. Uses inline:
+  // 'center' so on small screens the active tab sits in the middle
+  // of the strip with room on both sides — gives a clearer "you can
+  // scroll either way" affordance than aligning to the edge.
+  useEffect(() => {
+    const btn = buttonRefs.current[activeTab]
+    if (!btn) return
+    btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+    // scrollIntoView fires async; recompute fade state after the
+    // browser settles the new scrollLeft.
+    const t = window.setTimeout(updateScrollState, 350)
+    return () => window.clearTimeout(t)
+  }, [activeTab, updateScrollState])
+
+  const scrollBy = (delta: number) => {
+    const el = scrollerRef.current
+    if (!el) return
+    el.scrollBy({ left: delta, behavior: 'smooth' })
+    window.setTimeout(updateScrollState, 350)
+  }
+
+  return (
+    <div style={{ position: 'relative', marginBottom: 20 }}>
+      <div
+        id="agent-tab-nav"
+        ref={scrollerRef}
+        onScroll={updateScrollState}
+        style={{
+          display: 'flex', gap: 0,
+          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          overflowX: 'auto', scrollMarginTop: 80,
+          // Hide the native scrollbar across browsers. The fades + chevrons
+          // are the affordance; a chrome scrollbar on top of them is noise.
+          scrollbarWidth: 'none' as const,
+          msOverflowStyle: 'none' as const,
+        }}
+      >
+        {tabs.map(tab => (
+          <button
+            key={tab.key}
+            ref={el => { buttonRefs.current[tab.key] = el }}
+            onClick={() => onSelect(tab.key)}
+            style={{
+              background: 'none', border: 'none', whiteSpace: 'nowrap',
+              padding: '8px 14px', cursor: 'pointer',
+              fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
+              color: activeTab === tab.key ? '#C9A96E' : '#6B8299',
+              borderBottom: activeTab === tab.key ? '2px solid #C9A96E' : '2px solid transparent',
+              marginBottom: -1,
+              ...(tab.key === 'licensing' && { position: 'relative' }),
+            }}
+          >
+            {tab.label}
+            {tab.key === 'licensing' && licensingBadge > 0 && (
+              <span style={{
+                marginLeft: 4, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                width: 14, height: 14, borderRadius: '50%', fontSize: 8, fontWeight: 700,
+                background: '#f59e0b', color: '#0A1628',
+              }}>
+                {licensingBadge}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Left edge affordance */}
+      {canScrollLeft && (
+        <>
+          <div style={{
+            position: 'absolute', left: 0, top: 0, bottom: 1, width: 40,
+            background: 'linear-gradient(to right, #0A1628, rgba(10,22,40,0))',
+            pointerEvents: 'none',
+          }} />
+          <button
+            type="button"
+            onClick={() => scrollBy(-Math.max(150, (scrollerRef.current?.clientWidth ?? 300) * 0.6))}
+            aria-label="Scroll tabs left"
+            style={{
+              position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)',
+              width: 28, height: 28, borderRadius: '50%',
+              background: '#132238', border: '1px solid rgba(201,169,110,0.25)',
+              color: '#C9A96E', fontSize: 14, fontWeight: 700, lineHeight: 1,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+          >
+            ‹
+          </button>
+        </>
+      )}
+
+      {/* Right edge affordance */}
+      {canScrollRight && (
+        <>
+          <div style={{
+            position: 'absolute', right: 0, top: 0, bottom: 1, width: 40,
+            background: 'linear-gradient(to left, #0A1628, rgba(10,22,40,0))',
+            pointerEvents: 'none',
+          }} />
+          <button
+            type="button"
+            onClick={() => scrollBy(Math.max(150, (scrollerRef.current?.clientWidth ?? 300) * 0.6))}
+            aria-label="Scroll tabs right"
+            style={{
+              position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)',
+              width: 28, height: 28, borderRadius: '50%',
+              background: '#132238', border: '1px solid rgba(201,169,110,0.25)',
+              color: '#C9A96E', fontSize: 14, fontWeight: 700, lineHeight: 1,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+          >
+            ›
+          </button>
+        </>
+      )}
+
+      {/* WebKit scrollbar suppression — Firefox + Edge handled by the
+          inline `scrollbarWidth: 'none'`, but Safari/Chrome need this. */}
+      <style jsx>{`
+        #agent-tab-nav::-webkit-scrollbar { display: none; }
+      `}</style>
+    </div>
+  )
+}
 
 // Top-nav link styled to read as a real navigation item rather than
 function NavbarLink({ href, Icon, label }: {
