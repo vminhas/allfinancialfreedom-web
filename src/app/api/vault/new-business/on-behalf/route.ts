@@ -7,6 +7,7 @@ import type { PolicyType } from '@/generated/prisma/client'
 import { notifySubmitted } from '@/lib/new-business-notifications'
 import { logSubmissionActivity } from '@/lib/submission-activity'
 import { recomputeClimbAchievements } from '@/lib/climb-points'
+import { getAutoAssignee } from '@/lib/auto-assign'
 import { createNotification } from '@/lib/notify'
 import { validatePhone, validateEmail } from '@/lib/contact-validation'
 
@@ -76,6 +77,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
   }
 
+  // If the submitter is an LC, assign to them directly; otherwise round-robin.
+  const submitterRole = (session!.user as { role?: string }).role
+  const assignedToId = submitterRole === 'licensing_coordinator'
+    ? adminId
+    : await getAutoAssignee()
+
   const submission = await db.newBusinessSubmission.create({
     data: {
       agentProfileId: agent.id,
@@ -84,6 +91,7 @@ export async function POST(req: NextRequest) {
       policyType: body.policyType,
       points: body.points != null && body.points !== '' ? Number(body.points) : null,
       splitWithAgentId: body.splitWithAgentId || null,
+      assignedToId,
       illustrationUrls: [],
       clientFirstName: body.clientFirstName,
       clientLastName: body.clientLastName,

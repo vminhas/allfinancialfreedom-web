@@ -8,6 +8,7 @@ import { createNotification } from '@/lib/notify'
 import { logSubmissionActivity } from '@/lib/submission-activity'
 import { resolveAgentIdentity } from '@/lib/agent-identity'
 import { recomputeClimbAchievements } from '@/lib/climb-points'
+import { getAutoAssignee } from '@/lib/auto-assign'
 import type { PolicyType } from '@/generated/prisma/client'
 
 const VALID_POLICY_TYPES: PolicyType[] = ['TERM', 'WHOLE_LIFE', 'IUL', 'ANNUITY', 'DISABILITY', 'LTC', 'OTHER']
@@ -149,6 +150,8 @@ export async function POST(req: NextRequest) {
     if (err) return NextResponse.json({ error: err }, { status: 400 })
   }
 
+  const assignedToId = await getAutoAssignee()
+
   const submission = await db.newBusinessSubmission.create({
     data: {
       agentProfileId: profile.id,
@@ -157,6 +160,7 @@ export async function POST(req: NextRequest) {
       policyType,
       points: fields.points != null && fields.points !== '' ? Number(fields.points) : null,
       splitWithAgentId: (fields.splitWithAgentId as string) || null,
+      assignedToId,
       illustrationUrls: [],
       clientFirstName: String(fields.clientFirstName),
       clientLastName: String(fields.clientLastName),

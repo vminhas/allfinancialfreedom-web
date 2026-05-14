@@ -17,6 +17,7 @@ import { PHASE_ITEMS, CARRIERS } from '@/lib/agent-constants'
 import { autoLinkBusinessPartnersForAgent } from '@/lib/business-partner-link'
 import { notifySubmitted } from '@/lib/new-business-notifications'
 import { recomputeClimbAchievements } from '@/lib/climb-points'
+import { getAutoAssignee } from '@/lib/auto-assign'
 import { sendChannelMessage } from '@/lib/discord'
 import { sendAgentInviteEmail } from '@/lib/send-agent-invite'
 import type { PolicyType, NewBusinessStatus } from '@/generated/prisma/client'
@@ -374,6 +375,7 @@ export async function syncClients() {
 
   const results = { created: 0, updated: 0, skipped: 0, errors: 0, announced: 0 }
   const now = Date.now()
+  const autoAssignee = await getAutoAssignee()
 
   for (const client of clients) {
     try {
@@ -438,24 +440,20 @@ export async function syncClients() {
           ? parseFloat(client.premiumAmount)
           : null
 
-      // Application date priority: submitDate (application sent to carrier) >
-      // policyIssueDate (reliable for issued policies) > createdDate only if
-      // the record is genuinely old (> 60 days) so today's bulk-import date
-      // doesn't pollute the leaderboard time-buckets.
-      const createdMs = new Date(client.createdDate).getTime()
-      const createdIsOld = Date.now() - createdMs > 60 * 24 * 60 * 60 * 1000
+      // Application date priority: submitDate > policyIssueDate > createdDate.
+      // Always fall back to Tevah's createdDate rather than today — using today
+      // as the fallback caused all historical imports to show the sync-run date.
       const applicationDate = client.submitDate
         ? new Date(client.submitDate)
         : client.policyIssueDate
           ? new Date(client.policyIssueDate)
-          : createdIsOld
-            ? new Date(client.createdDate)
-            : new Date() // unknown date — use today, will show as imported today
+          : new Date(client.createdDate)
 
       await db.newBusinessSubmission.create({
         data: {
           agentProfileId:   writerProfile.id,
           splitWithAgentId: splitPartnerProfile?.id ?? null,
+          assignedToId:     newStatus === 'PENDING' ? autoAssignee : null,
           clientFirstName:  clientFirst,
           clientLastName:   clientLast,
           clientPhone:      client.clientPhone ?? null,
