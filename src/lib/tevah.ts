@@ -159,6 +159,81 @@ export async function getAllTevahAgentPoints(): Promise<Map<string, number>> {
   return m
 }
 
+// Fetch monthly recruit counts from Tevah's byRecruit team report.
+// Returns a map of agentCode (uppercase) → recruitCount for the given month.
+export async function getAllTevahAgentRecruits(year: number, month: number): Promise<Map<string, number>> {
+  const { jwt, userId, agentId } = await getTevahToken()
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  const fmt = (d: Date) => `${d.getDate()}+${MONTHS[d.getMonth()]}+${d.getFullYear()}`
+  const startDt = new Date(year, month - 1, 1)
+  const endDt = new Date(year, month, 0)   // day 0 of next month = last day of this month
+
+  const pageSize = 200
+  const all: Array<{ subjectAgentNumber: string; recruitCount: number }> = []
+  let page = 1
+
+  while (true) {
+    const url =
+      `${TEVAH_API}/api/team/getFilteredTeamReportAgents` +
+      `?id=${agentId}&page=${page}&pageSize=${pageSize}` +
+      `&search=&level=&field=recruitCount&sortDirection=desc&type=base&top=All` +
+      `&selectedType=byRecruit&startDate=${fmt(startDt)}&endDate=${fmt(endDt)}`
+
+    const res = await fetch(url, { headers: headers(jwt, userId, agentId) })
+    if (!res.ok) throw new Error(`Tevah recruits fetch HTTP ${res.status}`)
+
+    const json = await res.json() as { data?: typeof all; count?: number }
+    const rows = json.data ?? []
+    all.push(...rows)
+    if (all.length >= (json.count ?? 0) || rows.length === 0) break
+    page++
+  }
+
+  const m = new Map<string, number>()
+  for (const r of all) {
+    if (r.subjectAgentNumber) m.set(r.subjectAgentNumber.toUpperCase(), r.recruitCount || 0)
+  }
+  return m
+}
+
+export interface TevahRecruitDetail {
+  id: number
+  agentCode: string | null
+  firstName: string
+  lastName: string
+  email: string | null
+  phone: string | null
+  status: string
+  createdDate: string
+  onboardApprovedDate: string | null
+}
+
+// Fetch the individual recruits for a specific agent in a given month.
+// agentTevahId is stored as AgentProfile.tevahAgentId after sync.
+export async function getTevahAgentRecruitDetails(
+  agentTevahId: number,
+  year: number,
+  month: number,
+): Promise<TevahRecruitDetail[]> {
+  const { jwt, userId, agentId } = await getTevahToken()
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  const fmt = (d: Date) => `${d.getDate()}+${MONTHS[d.getMonth()]}+${d.getFullYear()}`
+  const startDt = new Date(year, month - 1, 1)
+  const endDt = new Date(year, month, 0)
+
+  const url =
+    `${TEVAH_API}/api/team/getTeamReportRecruitsDetails` +
+    `?agentId=${agentTevahId}&currentUserId=${userId}&leaderAgentId=${agentId}` +
+    `&startDate=${fmt(startDt)}&endDate=${fmt(endDt)}&type=base&pageSize=200&pageNumber=1` +
+    `&selectedType=byRecruit&sortDirection=desc`
+
+  const res = await fetch(url, { headers: headers(jwt, userId, agentId) })
+  if (!res.ok) throw new Error(`Tevah recruit details HTTP ${res.status}`)
+
+  const json = await res.json() as { data?: TevahRecruitDetail[] }
+  return json.data ?? []
+}
+
 // Tevah level code → AFF phase number
 export function tevahLevelToPhase(level: string | null): number {
   switch (level) {

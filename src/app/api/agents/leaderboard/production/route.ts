@@ -343,10 +343,30 @@ async function pointsValues(agentIds: string[], start: Date | null, end: Date) {
 }
 
 async function recruitsValues(roster: RosterAgent[], agentIds: string[], start: Date | null, end: Date) {
-  // recruiterId stores the recruiter's agentCode, so we need to resolve
-  // each candidate agentCode → id once. The roster we already have
-  // covers every code we care about, so build the map locally instead
-  // of issuing a second query.
+  // For current-month queries: use Tevah's verified byRecruit counts (synced
+  // hourly). The icaDate fallback over-counts because bulk-imported agents all
+  // have icaDate = import date rather than their actual recruit date.
+  const now = new Date()
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const isCurrentMonth = start !== null &&
+    start.getFullYear() === now.getFullYear() &&
+    start.getMonth() === now.getMonth()
+
+  if (isCurrentMonth) {
+    const profiles = await db.agentProfile.findMany({
+      where: { id: { in: agentIds }, tevahRecruitsMonth: currentMonth },
+      select: { id: true, tevahMonthlyRecruits: true },
+    })
+    const m = new Map<string, number>()
+    for (const p of profiles) {
+      if (p.tevahMonthlyRecruits !== null && p.tevahMonthlyRecruits > 0) {
+        m.set(p.id, p.tevahMonthlyRecruits)
+      }
+    }
+    return m
+  }
+
+  // Other timeframes: fall back to icaDate-based DB count.
   const codeToId = new Map<string, string>()
   for (const a of roster) codeToId.set(a.agentCode, a.id)
 
@@ -356,8 +376,6 @@ async function recruitsValues(roster: RosterAgent[], agentIds: string[], start: 
   const recruits = await db.agentProfile.findMany({
     where: {
       isTest: false,
-      // No status filter: agents who later go inactive still count toward
-      // their recruiter's recruitment total — they were recruited.
       recruiterId: { in: codesOfInterest },
       OR: [
         { icaDate: start ? { gte: start, lte: end } : { lte: end } },

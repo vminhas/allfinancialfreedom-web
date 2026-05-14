@@ -5,6 +5,7 @@ import {
   getAllTevahAgents,
   getAllTevahClients,
   getAllTevahAgentPoints,
+  getAllTevahAgentRecruits,
   tevahLevelToPhase,
   tevahProductToAffPolicyType,
   tevahStatusToAff,
@@ -59,6 +60,7 @@ export async function GET(req: NextRequest) {
   const agentResults = await syncAgents()
   const clientResults = await syncClients()
   syncTevahPoints().catch(() => {})
+  syncTevahRecruits().catch(() => {})
   postSyncSummary(agentResults, clientResults).catch(() => {})
   return NextResponse.json({ ok: true, agents: agentResults, submissions: clientResults })
 }
@@ -69,6 +71,7 @@ export async function POST(req: NextRequest) {
   const agentResults = await syncAgents()
   const clientResults = await syncClients()
   syncTevahPoints().catch(() => {})
+  syncTevahRecruits().catch(() => {})
   postSyncSummary(agentResults, clientResults).catch(() => {})
   return NextResponse.json({ ok: true, agents: agentResults, submissions: clientResults })
 }
@@ -152,6 +155,39 @@ async function syncTevahPoints() {
   )
 }
 
+// Phase 4: Sync current-month Tevah recruit counts onto AgentProfile.
+// Runs fire-and-forget so a failure never blocks agent/submission processing.
+async function syncTevahRecruits() {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = now.getMonth() + 1
+  const monthLabel = `${year}-${String(month).padStart(2, '0')}`
+
+  let recruitsMap: Map<string, number>
+  try {
+    recruitsMap = await getAllTevahAgentRecruits(year, month)
+  } catch (err) {
+    console.error('[tevah-sync/recruits] fetch failed:', err)
+    return
+  }
+
+  const profiles = await db.agentProfile.findMany({
+    where: { agentCode: { in: [...recruitsMap.keys()] } },
+    select: { id: true, agentCode: true },
+  })
+
+  await Promise.all(
+    profiles.map(p => {
+      const count = recruitsMap.get(p.agentCode.toUpperCase())
+      if (count === undefined) return Promise.resolve()
+      return db.agentProfile.update({
+        where: { id: p.id },
+        data: { tevahMonthlyRecruits: count, tevahRecruitsMonth: monthLabel },
+      })
+    })
+  )
+}
+
 // ─── Phase 1: Agent sync ──────────────────────────────────────────────────────
 
 export async function syncAgents() {
@@ -212,6 +248,7 @@ export async function syncAgents() {
           data: {
             // If the agentCode in AFF differs from Tevah (matched by email/phone), sync it.
             ...(existing.agentCode !== code ? { agentCode: code } : {}),
+            tevahAgentId: agent.id,
             ...(agent.npn           ? { npn:         agent.npn }            : {}),
             ...(agent.phone         ? { phone:       agent.phone }          : {}),
             ...(agent.dob           ? { dateOfBirth: new Date(agent.dob) }  : {}),
@@ -297,6 +334,7 @@ function agentProfileData(agent: TevahAgent, code: string) {
 
   return {
     agentCode: code,
+    tevahAgentId: agent.id,
     firstName: agent.firstName,
     lastName:  agent.lastName,
     ...(agent.npn       ? { npn:         agent.npn }           : {}),

@@ -276,10 +276,15 @@ model AgentProfile {
   lastSeenPhase         Int?
   badges                String[]  @default([])
   clientReminderPrefs   Json?     @map("client_reminder_prefs")
-  // Tevah-sourced production points (all-time), updated on each sync.
-  // Used by the Climb as the authoritative lifetime total so milestones
-  // reflect Tevah's verified issued-policy numbers, not raw premium sums.
+  // Tevah platform IDs and synced metrics. All three are set/updated by
+  // the hourly tevah-sync cron and used as the source of truth for
+  // official AFF recognition (Climb milestones, leaderboard tabs).
+  tevahAgentId          Int?      @map("tevah_agent_id")
   tevahPoints           Float?    @map("tevah_points")
+  // Rolling monthly recruit count from Tevah byRecruit. Stored alongside
+  // the month string ("2026-05") so callers can detect stale data.
+  tevahMonthlyRecruits  Int?      @map("tevah_monthly_recruits")
+  tevahRecruitsMonth    String?   @map("tevah_recruits_month")
   // Power-couple pairing. Two-sided: both agents have AgentProfiles and each
   // stores the other's id. One-sided: partner has no profile, use displayName.
   partnerAgentProfileId String?   @map("partner_agent_profile_id")
