@@ -191,7 +191,7 @@ export async function getAllTevahAgentRecruits(year: number, month: number): Pro
 
   const m = new Map<string, number>()
   for (const r of all) {
-    if (r.subjectAgentNumber) m.set(r.subjectAgentNumber.toUpperCase(), r.recruitCount || 0)
+    if (r.subjectAgentNumber) m.set(r.subjectAgentNumber.toUpperCase(), parseInt(String(r.recruitCount), 10) || 0)
   }
   return m
 }
