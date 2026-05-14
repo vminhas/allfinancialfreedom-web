@@ -128,13 +128,19 @@ async function pointsValues(agentIds: string[], start: Date | null, end: Date) {
 async function recruitsValues(roster: { id: string; agentCode: string }[], start: Date | null, end: Date) {
   const codeToId = new Map(roster.map(r => [r.agentCode, r.id]))
   const codes = roster.map(r => r.agentCode)
+  // Use icaDate when set (the official ICA signing date, which Tevah provides
+  // historically). Fall back to createdAt for manually-created agents who have
+  // no icaDate, so they aren't silently excluded from the recruit count.
   const recruits = await db.agentProfile.findMany({
     where: {
       isTest: false,
       // No status filter: agents who later go inactive still count toward
       // their recruiter's recruitment total — they were recruited.
       recruiterId: { in: codes },
-      icaDate: start ? { gte: start, lte: end } : { lte: end },
+      OR: [
+        { icaDate: start ? { gte: start, lte: end } : { lte: end } },
+        { icaDate: null, createdAt: start ? { gte: start, lte: end } : { lte: end } },
+      ],
     },
     select: { recruiterId: true },
   })

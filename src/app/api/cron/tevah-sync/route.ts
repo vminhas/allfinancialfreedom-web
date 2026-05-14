@@ -81,15 +81,18 @@ async function postSyncSummary(
 
   const agentLines = 'error' in agents
     ? [`Agents: sync failed (${agents.error})`]
-    : [
-        `Agents: ${agents.created ?? 0} created, ${agents.updated ?? 0} updated, ${agents.pending ?? 0} pending Tevah code`,
-        agents.invited ? `Invite emails sent: ${agents.invited}` : '',
-        agents.created_codes?.length
-          ? agents.created_names?.length
-            ? `New: ${agents.created_codes.map((c, i) => `${agents.created_names![i] ?? ''} (${c})`).join(', ')}`
-            : `New: ${agents.created_codes.join(', ')}`
-          : '',
-      ].filter(Boolean)
+    : (() => {
+        const MAX_NAMES = 20
+        const names = agents.created_codes?.map((c, i) => `${agents.created_names?.[i] ?? ''} (${c})`) ?? []
+        const nameList = names.length > MAX_NAMES
+          ? names.slice(0, MAX_NAMES).join(', ') + ` + ${names.length - MAX_NAMES} more`
+          : names.join(', ')
+        return [
+          `Agents: ${agents.created ?? 0} created, ${agents.updated ?? 0} updated, ${agents.pending ?? 0} pending Tevah code`,
+          agents.invited ? `Invite emails sent: ${agents.invited}` : '',
+          names.length ? `New: ${nameList}` : '',
+        ].filter(Boolean)
+      })()
 
   const clientLines = 'error' in clients
     ? [`Submissions: sync failed (${clients.error})`]
