@@ -1327,6 +1327,9 @@ model NewBusinessSubmission {
   declinedReason      String?
   assignedToId        String?
   assignedTo          AdminUser?    @relation("AssignedSubmissions", fields: [assignedToId], references: [id])
+  // Tevah platform client record ID — set when the submission was created
+  // or matched via the Tevah sync cron. Unique so the sync can upsert safely.
+  tevahClientId       Int?          @unique @map("tevah_client_id")
 
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt

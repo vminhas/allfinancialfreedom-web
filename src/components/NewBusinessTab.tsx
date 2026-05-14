@@ -83,7 +83,7 @@ function anniversaryColor(daysUntil: number | null): string {
   return '#6B8299'
 }
 
-export default function NewBusinessTab({ isMobile, phase, initialSubmissionId }: { isMobile: boolean; phase: number; initialSubmissionId?: string | null }) {
+export default function NewBusinessTab({ isMobile, phase, initialSubmissionId, previewToken }: { isMobile: boolean; phase: number; initialSubmissionId?: string | null; previewToken?: string | null }) {
   const [submissions, setSubmissions] = useState<Submission[]>([])
   const [loading, setLoading] = useState(true)
   const [locked, setLocked] = useState(false)
@@ -98,7 +98,8 @@ export default function NewBusinessTab({ isMobile, phase, initialSubmissionId }:
   const [filter, setFilter] = useState<Filter>('all')
 
   const refresh = useCallback(() => {
-    fetch('/api/agents/new-business')
+    const url = previewToken ? `/api/agents/new-business?preview=${previewToken}` : '/api/agents/new-business'
+    fetch(url)
       .then(r => r.ok ? r.json() : null)
       .then((d: { submissions: Submission[]; locked?: boolean; minPhase?: number } | null) => {
         if (d?.submissions) setSubmissions(d.submissions)
@@ -107,7 +108,7 @@ export default function NewBusinessTab({ isMobile, phase, initialSubmissionId }:
         setLoading(false)
       })
       .catch(() => setLoading(false))
-  }, [])
+  }, [previewToken])
 
   useEffect(() => { refresh() }, [refresh])
 

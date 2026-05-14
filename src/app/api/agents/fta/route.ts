@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { resolveAgentIdentity } from '@/lib/agent-identity'
 import type { FtaCategory, FtaStatus } from '@/generated/prisma/client'
 
 const VALID_CATEGORIES: FtaCategory[] = [
@@ -39,21 +38,10 @@ async function tickNextFtaPhaseItem(profileId: string) {
   })
 }
 
-async function getAgentProfileId() {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') return null
-  const email = session.user!.email
-  if (typeof email !== 'string' || email.trim().length === 0) return null
-  const p = await db.agentProfile.findFirst({
-    where: { agentUser: { email: { equals: email, mode: 'insensitive' } } },
-    select: { id: true },
-  })
-  return p?.id ?? null
-}
-
-export async function GET() {
-  const profileId = await getAgentProfileId()
-  if (!profileId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export async function GET(req: NextRequest) {
+  const identity = await resolveAgentIdentity(req)
+  if ('error' in identity) return identity.error
+  const profileId = identity.profileId
   const ftas = await db.fieldTrainingAppointment.findMany({
     where: { agentProfileId: profileId },
     orderBy: { appointmentDate: 'desc' },
@@ -67,8 +55,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const profileId = await getAgentProfileId()
-  if (!profileId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const identity = await resolveAgentIdentity(req)
+  if ('error' in identity) return identity.error
+  const profileId = identity.profileId
   const body = await req.json() as Record<string, unknown>
   if (!body.appointmentDate) {
     return NextResponse.json({ error: 'appointmentDate is required' }, { status: 400 })

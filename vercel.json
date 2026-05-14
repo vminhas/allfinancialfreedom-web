@@ -48,6 +48,10 @@
     {
       "path": "/api/cron/scan-ica-pdfs",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/tevah-sync",
+      "schedule": "0 * * * *"
     }
   ]
 }

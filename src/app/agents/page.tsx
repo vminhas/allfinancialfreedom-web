@@ -295,12 +295,13 @@ function AgentDashboardInner() {
   const [recruitClaimItemKey, setRecruitClaimItemKey] = useState<string | null>(null)
 
   const fetchCoordinatorRequests = useCallback(async () => {
-    const res = await fetch('/api/agents/coordinator-requests')
+    const url = previewToken ? `/api/agents/coordinator-requests?preview=${previewToken}` : '/api/agents/coordinator-requests'
+    const res = await fetch(url)
     if (res.ok) {
       const d = await res.json() as { requests: CoordinatorRequest[] }
       setCoordinatorRequests(d.requests ?? [])
     }
-  }, [])
+  }, [previewToken])
 
   useEffect(() => { fetchCoordinatorRequests() }, [fetchCoordinatorRequests])
 
@@ -1923,15 +1924,16 @@ function AgentDashboardInner() {
 
         {/* ── PARTNERS / CALLS / PROFILE TABS ── */}
         {activeTab === 'partners' && <BusinessPartnersTab isMobile={isMobile} previewToken={previewToken} />}
-        {activeTab === 'fta' && <FtaTab isMobile={isMobile} />}
+        {activeTab === 'fta' && <FtaTab isMobile={isMobile} previewToken={previewToken} />}
         {activeTab === 'new-business' && (
           <NewBusinessTab
             isMobile={isMobile}
             phase={data.phase}
             initialSubmissionId={submissionParam}
+            previewToken={previewToken}
           />
         )}
-        {activeTab === 'calls' && <CallLogsTab hasCft={(data.badges ?? []).includes('CFT')} />}
+        {activeTab === 'calls' && <CallLogsTab hasCft={(data.badges ?? []).includes('CFT')} previewToken={previewToken} />}
         {activeTab === 'climb' && <ClimbTab isMobile={isMobile} previewToken={previewToken} />}
         {activeTab === 'team' && <MyTeamTab isMobile={isMobile} previewToken={previewToken} />}
         {activeTab === 'profile' && (
@@ -4526,7 +4528,7 @@ interface CallLogRow {
   } | null
 }
 
-function CallLogsTab({ hasCft }: { hasCft: boolean }) {
+function CallLogsTab({ hasCft, previewToken }: { hasCft: boolean; previewToken?: string | null }) {
   const isMobile = useIsMobile()
   const [calls, setCalls] = useState<CallLogRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -4553,13 +4555,14 @@ function CallLogsTab({ hasCft }: { hasCft: boolean }) {
   } | null>(null)
 
   const fetchCalls = useCallback(() => {
-    fetch('/api/agents/calls')
+    const url = previewToken ? `/api/agents/calls?preview=${previewToken}` : '/api/agents/calls'
+    fetch(url)
       .then(r => r.json())
       .then((d: { calls: CallLogRow[] }) => {
         setCalls(d.calls ?? [])
         setLoading(false)
       })
-  }, [])
+  }, [previewToken])
 
   useEffect(() => { fetchCalls() }, [fetchCalls])
 

@@ -57,18 +57,19 @@ interface FtaContactOption {
   occupation: string | null
 }
 
-export default function FtaTab({ isMobile }: { isMobile: boolean }) {
+export default function FtaTab({ isMobile, previewToken }: { isMobile: boolean; previewToken?: string | null }) {
   const [ftas, setFtas] = useState<Fta[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const refresh = useCallback(() => {
-    fetch('/api/agents/fta')
+    const url = previewToken ? `/api/agents/fta?preview=${previewToken}` : '/api/agents/fta'
+    fetch(url)
       .then(r => r.ok ? r.json() : { ftas: [] })
       .then((d: { ftas: Fta[] }) => { setFtas(d.ftas ?? []); setLoading(false) })
       .catch(() => setLoading(false))
-  }, [])
+  }, [previewToken])
 
   useEffect(() => { refresh() }, [refresh])
 

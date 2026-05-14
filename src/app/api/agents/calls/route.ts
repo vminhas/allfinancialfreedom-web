@@ -1,17 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { getAgentProfileIdFromEmail as getProfileId } from '@/lib/agent-identity'
+import { resolveAgentIdentity } from '@/lib/agent-identity'
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const profileId = await getProfileId(session.user!.email!)
-  if (!profileId) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+  const identity = await resolveAgentIdentity(req)
+  if ('error' in identity) return identity.error
+  const profileId = identity.profileId
 
   const { searchParams } = new URL(req.url)
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1'))
@@ -43,13 +37,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const profileId = await getProfileId(session.user!.email!)
-  if (!profileId) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+  const identity = await resolveAgentIdentity(req)
+  if ('error' in identity) return identity.error
+  const profileId = identity.profileId
 
   const VALID_OUTCOMES = new Set([
     'RECRUITED', 'APPOINTMENT_BOOKED', 'POLICY_CLOSED',

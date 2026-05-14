@@ -13,7 +13,8 @@ import { db } from '@/lib/db'
 // stored on the link itself stays as the fallback.
 export async function GET() {
   const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
+  const role = (session?.user as { role?: string } | undefined)?.role
+  if (!session || (role !== 'agent' && role !== 'admin' && role !== 'licensing_coordinator')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   const links = await getBookingLinks()

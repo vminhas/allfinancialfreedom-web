@@ -1119,8 +1119,11 @@ export default function SettingsPage() {
       {card(
         <>
           {cardHeader('Maintenance')}
-          <div style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <BackfillDiscordConnectRow />
+          <div style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <TevahSyncRow />
+            <div style={{ borderTop: '1px solid rgba(201,169,110,0.08)', paddingTop: 20 }}>
+              <BackfillDiscordConnectRow />
+            </div>
           </div>
         </>
       )}
@@ -1414,6 +1417,94 @@ function BookingPersonPicker({ link, onPick, onUnlink }: {
         Linking to a real user keeps their name &amp; headshot in sync automatically.
         Leave unlinked for external partners; you&rsquo;ll fill in name + photo manually below.
       </div>
+    </div>
+  )
+}
+
+// Triggers a full Tevah supervision + new-business sync from the vault.
+// Calls /api/admin/tevah-sync which runs the same logic as the cron job
+// but authenticated via admin session instead of CRON_SECRET.
+function TevahSyncRow() {
+  type SyncState = 'idle' | 'running' | 'done' | 'error'
+  interface SyncResult {
+    agents: { created?: number; updated?: number; pending?: number; errors?: number; created_codes?: string[] } | { error: string }
+    submissions: { created?: number; updated?: number; announced?: number; errors?: number } | { error: string }
+  }
+  const [state, setState] = useState<SyncState>('idle')
+  const [result, setResult] = useState<SyncResult | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const run = async () => {
+    setState('running')
+    setError(null)
+    setResult(null)
+    try {
+      const res = await fetch('/api/admin/tevah-sync', { method: 'POST' })
+      const d = await res.json() as { ok?: boolean; error?: string; agents?: SyncResult['agents']; submissions?: SyncResult['submissions'] }
+      if (!res.ok || !d.ok) {
+        setError(d.error ?? 'Sync failed')
+        setState('error')
+        return
+      }
+      setResult({ agents: d.agents ?? {}, submissions: d.submissions ?? {} })
+      setState('done')
+    } catch {
+      setError('Network error')
+      setState('error')
+    }
+  }
+
+  const agentLine = result
+    ? ('error' in result.agents
+        ? `Agents: failed (${result.agents.error})`
+        : `Agents: ${result.agents.created ?? 0} created, ${result.agents.updated ?? 0} updated, ${result.agents.pending ?? 0} pending Tevah code`)
+    : null
+
+  const subLine = result
+    ? ('error' in result.submissions
+        ? `Submissions: failed (${result.submissions.error})`
+        : `Submissions: ${result.submissions.created ?? 0} created, ${result.submissions.updated ?? 0} updated, ${result.submissions.announced ?? 0} announced`)
+    : null
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
+      <div style={{ flex: 1, minWidth: 240 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#fff', marginBottom: 4 }}>
+          Sync with Tevah
+        </div>
+        <div style={{ fontSize: 11, color: '#6B8299', lineHeight: 1.5 }}>
+          Pulls all agents and new business submissions from the Tevah supervision platform. New agents are created in the portal and connected to their upline. New submissions are announced in Discord. A summary posts to the admin activity channel when complete.
+        </div>
+        {state === 'done' && result && (
+          <div style={{
+            marginTop: 8, fontSize: 11, color: '#4ADE80',
+            background: 'rgba(74,222,128,0.08)',
+            border: '1px solid rgba(74,222,128,0.25)',
+            padding: '8px 12px', borderRadius: 4,
+            lineHeight: 1.6,
+          }}>
+            {agentLine && <div>{agentLine}</div>}
+            {subLine && <div>{subLine}</div>}
+          </div>
+        )}
+        {state === 'error' && error && (
+          <div style={{ marginTop: 8, fontSize: 11, color: '#f87171' }}>{error}</div>
+        )}
+      </div>
+      <button
+        onClick={run}
+        disabled={state === 'running'}
+        style={{
+          padding: '8px 16px', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+          background: state === 'done' ? 'rgba(74,222,128,0.10)' : 'rgba(201,169,110,0.10)',
+          border: `1px solid ${state === 'done' ? 'rgba(74,222,128,0.4)' : 'rgba(201,169,110,0.35)'}`,
+          color: state === 'done' ? '#4ADE80' : '#C9A96E',
+          borderRadius: 4, cursor: state === 'running' ? 'wait' : 'pointer',
+          flexShrink: 0,
+        }}
+      >
+        {state === 'running' ? 'Syncing...' : state === 'done' ? 'Sync again' : 'Sync now'}
+      </button>
     </div>
   )
 }
