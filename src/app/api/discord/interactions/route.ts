@@ -389,10 +389,16 @@ async function handleLeaderboardTab(customId: string) {
 
   const roster = await db.agentProfile.findMany({
     where: { status: 'ACTIVE', isTest: false },
-    select: { id: true, agentCode: true, firstName: true, lastName: true },
+    select: { id: true, agentCode: true, firstName: true, lastName: true, isLeadership: true, coupleDisplayName: true },
   })
   const rosterIds = roster.map(r => r.id)
   const idSet = new Set(rosterIds)
+  const leaderIds = new Set(roster.filter(r => r.isLeadership).map(r => r.id))
+
+  const LEADERSHIP_KEY = '__leadership__'
+  const leaders = roster.filter(r => r.isLeadership)
+  const leadershipLabel = leaders.find(l => l.coupleDisplayName)?.coupleDisplayName
+    ?? leaders.map(l => l.firstName).join(' & ')
 
   const MEDAL_EMOJI = ['🥇', '🥈', '🥉']
   const rankLine = (i: number, name: string, value: number, unit: string) => {
@@ -401,7 +407,11 @@ async function handleLeaderboardTab(customId: string) {
     const plural = value !== 1 ? unit + 's' : unit
     return `${prefix}  \`${padded}\`  **${value}** ${plural}`
   }
-  const toName = (id: string) => { const a = roster.find(r => r.id === id); return a ? `${a.firstName} ${a.lastName}` : id }
+  const toName = (id: string) => {
+    if (id === LEADERSHIP_KEY) return leadershipLabel
+    const a = roster.find(r => r.id === id)
+    return a ? `${a.firstName} ${a.lastName}` : id
+  }
 
   // Always query recruits and production so all tabs have fresh data.
   let subLines = '_No submissions this month._'
@@ -466,6 +476,16 @@ async function handleLeaderboardTab(customId: string) {
         if (!id) continue
         recruitCounts.set(id, (recruitCounts.get(id) ?? 0) + 1)
       }
+    }
+
+    // Bundle leadership agents into a single row (Vick & Melinee show as one entry).
+    if (leaderIds.size > 0) {
+      let leaderTotal = 0
+      for (const lid of leaderIds) {
+        leaderTotal += recruitCounts.get(lid) ?? 0
+        recruitCounts.delete(lid)
+      }
+      if (leaderTotal > 0) recruitCounts.set(LEADERSHIP_KEY, leaderTotal)
     }
 
     const topRec = [...recruitCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10)
