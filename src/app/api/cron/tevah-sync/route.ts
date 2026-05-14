@@ -171,21 +171,33 @@ async function syncTevahRecruits() {
     return
   }
 
+  console.log(`[tevah-sync/recruits] fetched ${recruitsMap.size} agents with recruits for ${monthLabel}`)
+
   const profiles = await db.agentProfile.findMany({
     where: { agentCode: { in: [...recruitsMap.keys()] } },
     select: { id: true, agentCode: true },
   })
 
+  console.log(`[tevah-sync/recruits] matched ${profiles.length} local profiles`)
+
+  let updated = 0
   await Promise.all(
-    profiles.map(p => {
+    profiles.map(async p => {
       const count = recruitsMap.get(p.agentCode.toUpperCase())
-      if (count === undefined) return Promise.resolve()
-      return db.agentProfile.update({
-        where: { id: p.id },
-        data: { tevahMonthlyRecruits: count, tevahRecruitsMonth: monthLabel },
-      })
+      if (count === undefined) return
+      try {
+        await db.agentProfile.update({
+          where: { id: p.id },
+          data: { tevahMonthlyRecruits: count, tevahRecruitsMonth: monthLabel },
+        })
+        updated++
+      } catch (err) {
+        console.error(`[tevah-sync/recruits] update failed for ${p.agentCode}:`, err)
+      }
     })
   )
+
+  console.log(`[tevah-sync/recruits] updated ${updated} profiles`)
 }
 
 // ─── Phase 1: Agent sync ──────────────────────────────────────────────────────
