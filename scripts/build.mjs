@@ -64,6 +64,11 @@ if (env === 'production' || !env) {
     ['prisma', 'migrate', 'resolve', '--rolled-back', '20260513000000_promotion_items_announce'],
     'Recovery: marking previously-failed promotion-items-announce migration as rolled-back so migrate deploy can retry it with the corrected column name (itemKey not item_key)',
   )
+  tryRun(
+    'npx',
+    ['prisma', 'migrate', 'resolve', '--rolled-back', '20260514050000_agent_preferred_name'],
+    'Recovery: marking previously-failed preferred-name migration as rolled-back so migrate deploy can retry it with the corrected table name (agent_profiles not AgentProfile)',
+  )
   run('npx', ['prisma', 'migrate', 'deploy'])
 } else {
   console.log(`\n[build] Skipping prisma migrate deploy on VERCEL_ENV=${env}`)
