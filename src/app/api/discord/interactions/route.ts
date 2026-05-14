@@ -166,13 +166,34 @@ async function handleReferralApprove(interaction: DiscordInteraction, referralId
   })
   const clientName = referral ? `${referral.firstName} ${referral.lastName}` : 'the referral'
 
+  // Linked-existing path: agent was already in the system from
+  // another flow (ICA submission, admin add). The referral is now
+  // closed and the recruiter has downline credit, but we don't
+  // claim a welcome email is on its way because it already went out.
+  if (result.linkedExisting) {
+    return NextResponse.json({
+      type: InteractionResponseType.UPDATE_MESSAGE,
+      data: {
+        embeds: [{
+          ...baseEmbed,
+          title: '🔗 Linked to existing agent',
+          description: `**${clientName}** was already in the system. Referral closed and recruiter credit applied where possible.`,
+          color: 0x60a5fa,
+          footer: { text: `Approved by ${clicker} · Agent code ${result.agentCode}` },
+          timestamp: new Date().toISOString(),
+        }],
+        components: [],
+      },
+    })
+  }
+
   return NextResponse.json({
     type: InteractionResponseType.UPDATE_MESSAGE,
     data: {
       embeds: [{
         ...baseEmbed,
         title: '✅ Approved',
-        description: `**${clientName}** has been approved and the welcome email is on its way.${result.emailSent ? '' : '\n\n_Welcome email send did not confirm — re-send from My Team if needed._'}`,
+        description: `**${clientName}** has been approved and the welcome email is on its way.${result.emailSent ? '' : '\n\n_Welcome email send did not confirm, re-send from My Team if needed._'}`,
         color: 0x4ADE80,
         footer: { text: `Approved by ${clicker} · Agent code ${result.agentCode}` },
         timestamp: new Date().toISOString(),

@@ -1554,7 +1554,7 @@ function ReferralsTab() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, action, cft: action === 'approve' ? cftInput || undefined : undefined }),
       })
-      const d = await res.json() as { ok?: boolean; error?: string; agentCode?: string }
+      const d = await res.json() as { ok?: boolean; error?: string; agentCode?: string; linkedExisting?: boolean; emailSent?: boolean }
       if (res.ok) {
         setReferrals(prev => prev.map(r => r.id === id ? {
           ...r,
@@ -1562,7 +1562,11 @@ function ReferralsTab() {
           approvedAt: new Date().toISOString(),
         } : r))
         if (d.agentCode) {
-          alert(`Agent created with code ${d.agentCode}. Invite email ${d.ok ? 'sent' : 'may not have sent'}.`)
+          if (d.linkedExisting) {
+            alert(`This recruit was already in the system as ${d.agentCode}. Referral closed and recruiter credit applied where the existing agent had no recruiter on file. No new welcome email sent.`)
+          } else {
+            alert(`Agent created with code ${d.agentCode}. Invite email ${d.emailSent ? 'sent' : 'may not have sent'}.`)
+          }
         }
       } else {
         alert(d.error ?? 'Action failed')

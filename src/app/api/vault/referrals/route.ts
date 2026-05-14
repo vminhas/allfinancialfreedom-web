@@ -119,9 +119,10 @@ export async function PATCH(req: NextRequest) {
 
   return NextResponse.json({
     ok: true,
-    status: 'APPROVED',
+    status: result.status,
     agentCode: result.agentCode,
     profileId: result.profileId,
     emailSent: result.emailSent,
+    linkedExisting: result.linkedExisting ?? false,
   })
 }
