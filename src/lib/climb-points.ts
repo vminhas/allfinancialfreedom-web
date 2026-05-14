@@ -3,11 +3,9 @@ import type { ClimbMilestone, AgentProfile } from '@/generated/prisma/client'
 
 // ─── Lifetime points ──────────────────────────────────────────────────────────
 //
-// Points are summed live from NewBusinessSubmission rows — the same source
-// of truth the leaderboard uses (src/app/api/agents/leaderboard/production
-// /route.ts pointsValues()) but with no time filter. AFF's split-credit
-// rule applies: a split-partner submission credits BOTH agents the full
-// point value. Mirrors the existing leaderboard math; do not duplicate.
+// Points are summed live from NewBusinessSubmission rows. Split submissions
+// divide points equally: each agent (writer + partner) earns half the
+// policy's point value. Mirrors the leaderboard math.
 
 export async function lifetimePointsForAgent(agentProfileId: string): Promise<number> {
   const subs = await db.newBusinessSubmission.findMany({
@@ -21,7 +19,8 @@ export async function lifetimePointsForAgent(agentProfileId: string): Promise<nu
   })
   let total = 0
   for (const s of subs) {
-    const pts = s.points ?? 0
+    const fullPts = s.points ?? 0
+    const pts = s.splitWithAgentId ? fullPts / 2 : fullPts
     if (s.agentProfileId === agentProfileId) total += pts
     if (s.splitWithAgentId === agentProfileId && s.agentProfileId !== agentProfileId) total += pts
   }
@@ -36,7 +35,8 @@ export async function lifetimePointsForAllAgents(): Promise<Map<string, number>>
   })
   const m = new Map<string, number>()
   for (const s of subs) {
-    const pts = s.points ?? 0
+    const fullPts = s.points ?? 0
+    const pts = s.splitWithAgentId ? fullPts / 2 : fullPts
     if (s.agentProfileId) m.set(s.agentProfileId, (m.get(s.agentProfileId) ?? 0) + pts)
     if (s.splitWithAgentId && s.splitWithAgentId !== s.agentProfileId) {
       m.set(s.splitWithAgentId, (m.get(s.splitWithAgentId) ?? 0) + pts)

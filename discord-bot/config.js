@@ -34,6 +34,10 @@ module.exports = {
     AFF_CONNECTED:  '1497712341364510933',
     // Legacy — may no longer exist; kept for reference only.
     REPRESENTATIVE: '1295044213372883017',
+    // Inactive members — see announcements + training, request access via #your-access.
+    AFF_OBSERVER:     '1504284584882475111',
+    // External referral partners — see announcements, blog, leaderboard, training schedule.
+    REFERRAL_PARTNER: '1504284587650580531',
   },
 
   // Users allowed to edit bot messages (Admin role OR these user IDs)

@@ -117,7 +117,8 @@ async function pointsValues(agentIds: string[], start: Date | null, end: Date) {
   const m = new Map<string, number>()
   const idSet = new Set(agentIds)
   for (const s of subs) {
-    const pts = s.points ?? 0
+    const fullPts = s.points ?? 0
+    const pts = s.splitWithAgentId ? fullPts / 2 : fullPts
     if (idSet.has(s.agentProfileId)) m.set(s.agentProfileId, (m.get(s.agentProfileId) ?? 0) + pts)
     if (s.splitWithAgentId && idSet.has(s.splitWithAgentId)) m.set(s.splitWithAgentId, (m.get(s.splitWithAgentId) ?? 0) + pts)
   }

@@ -319,8 +319,6 @@ async function submissionsValues(agentIds: string[], start: Date | null, end: Da
 }
 
 async function pointsValues(agentIds: string[], start: Date | null, end: Date) {
-  // Same split-credit rule as submissions: writer + split partner both
-  // get the full points value. Mirrors AFF's commission-points policy.
   const subs = await db.newBusinessSubmission.findMany({
     where: {
       applicationDate: start ? { gte: start, lte: end } : { lte: end },
@@ -334,7 +332,9 @@ async function pointsValues(agentIds: string[], start: Date | null, end: Date) {
   const m = new Map<string, number>()
   const idSet = new Set(agentIds)
   for (const s of subs) {
-    const pts = s.points ?? 0
+    const fullPts = s.points ?? 0
+    // Split submissions divide points equally between both agents.
+    const pts = s.splitWithAgentId ? fullPts / 2 : fullPts
     if (idSet.has(s.agentProfileId)) m.set(s.agentProfileId, (m.get(s.agentProfileId) ?? 0) + pts)
     if (s.splitWithAgentId && idSet.has(s.splitWithAgentId)) m.set(s.splitWithAgentId, (m.get(s.splitWithAgentId) ?? 0) + pts)
   }

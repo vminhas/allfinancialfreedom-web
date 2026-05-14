@@ -335,11 +335,23 @@ export default function VaultNewBusinessPage() {
                 const canClaim = s.status === 'PENDING'
                 return (
                   <tr key={s.id} onClick={() => setOpenId(s.id)} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', cursor: 'pointer' }}>
-                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{s.agentProfile.firstName} {s.agentProfile.lastName}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>
+                      {s.agentProfile.firstName} {s.agentProfile.lastName}
+                      {s.splitWithAgent && (
+                        <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2 }}>
+                          Split: {s.splitWithAgent.firstName} {s.splitWithAgent.lastName}
+                        </div>
+                      )}
+                    </td>
                     <td style={{ padding: '10px 12px', fontSize: 12, color: '#fff' }}>{s.clientFirstName} {s.clientLastName}</td>
                     <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{s.carrier}</td>
                     <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{POLICY_LABEL[s.policyType] ?? s.policyType}</td>
-                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#C9A96E' }}>{s.points ?? '—'}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#C9A96E' }}>
+                      {s.points != null ? (s.splitWithAgent ? (s.points / 2) : s.points) : '—'}
+                      {s.splitWithAgent && s.points != null && (
+                        <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2 }}>of {s.points} (split)</div>
+                      )}
+                    </td>
                     <td style={{ padding: '10px 12px', fontSize: 11 }}><StatusPill status={s.status} /></td>
                     <td style={{ padding: '10px 12px', fontSize: 11 }}>
                       {s.assignedTo ? (
@@ -609,7 +621,13 @@ function SubmissionDrawer({ id, onClose, onChanged }: { id: string; onClose: () 
 
         <DetailRow k="Carrier" v={detail.carrier} />
         <DetailRow k="Policy Type" v={POLICY_LABEL[detail.policyType] ?? detail.policyType} />
-        <DetailRow k="Points" v={detail.points?.toString() ?? '—'} />
+        <DetailRow k="Points" v={
+          detail.points != null
+            ? detail.splitWithAgent
+              ? `${detail.points / 2} (${detail.points} split equally)`
+              : detail.points.toString()
+            : '—'
+        } />
         <DetailRow k="Application Date" v={new Date(detail.applicationDate).toLocaleDateString()} />
         {detail.splitWithAgent && <DetailRow k="Split With" v={`${detail.splitWithAgent.firstName} ${detail.splitWithAgent.lastName}`} />}
         <DetailRow k="Client Phone" v={detail.clientPhone ?? '—'} />
