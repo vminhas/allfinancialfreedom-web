@@ -816,6 +816,13 @@ export default function OrgPage() {
   // so the admin doesn't have to scroll-find them in a long dropdown.
   const [addAgentDefault, setAddAgentDefault] = useState<{ recruiterId: string; recruiterName: string } | null>(null)
   const [showTrainers, setShowTrainers] = useState(false)
+  // Default to active-only. The org tree API includes INACTIVE agents so
+  // the upline branch keeps shape, but the CEO wants the page to lead
+  // with the live roster; inactive teammates are a toggle, not the
+  // default. Filtering is recursive: an INACTIVE node is kept only when
+  // it has at least one active descendant (otherwise it'd dangle a
+  // truncated branch).
+  const [showInactive, setShowInactive] = useState(false)
   const [expandedSet, setExpandedSet] = useState<Set<string> | 'all'>('all')
   const isMobile = useIsMobile()
 
@@ -828,6 +835,15 @@ export default function OrgPage() {
 
   useEffect(() => { load() }, [load])
 
+  // Visible tree + stats reflect the Inactive toggle. allAgents stays
+  // the full roster so mentor / trainer dropdowns can still point to
+  // anyone the admin needs to reach, including INACTIVE alumni.
+  const visibleTree = data
+    ? (showInactive ? data.tree : filterActiveOnly(data.tree))
+    : []
+  const visibleStats = data
+    ? (showInactive ? data.stats : statsFromTree(visibleTree))
+    : { totalAgents: 0, byTitle: [] as { title: string; count: number }[] }
   const allAgents = data ? flattenTree(data.tree) : []
 
   const collapseAll = () => setExpandedSet(new Set())
@@ -860,6 +876,13 @@ export default function OrgPage() {
             borderRadius: 4, padding: '10px 14px', fontSize: 10, fontWeight: 700,
             letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', minHeight: 40,
           }}>{showTrainers ? '✓ Trainers' : 'Trainers'}</button>
+          <button onClick={() => setShowInactive(!showInactive)} title="Toggle inactive teammates. Defaults off so the page leads with the live roster." style={{
+            background: showInactive ? 'rgba(155,109,255,0.15)' : 'transparent',
+            color: showInactive ? '#9B6DFF' : '#6B8299',
+            border: `1px solid ${showInactive ? 'rgba(155,109,255,0.4)' : 'rgba(255,255,255,0.12)'}`,
+            borderRadius: 4, padding: '10px 14px', fontSize: 10, fontWeight: 700,
+            letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', minHeight: 40,
+          }}>{showInactive ? '✓ Inactive' : 'Inactive'}</button>
           <button onClick={() => { setSelectedNode(null); setShowAddAgent(true) }} style={{
             background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4,
             padding: '10px 18px', fontSize: 10, fontWeight: 700,
@@ -872,10 +895,10 @@ export default function OrgPage() {
       {data && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 28 }}>
           <div style={{ padding: '12px 18px', background: '#132238', borderRadius: 6, border: '1px solid rgba(201,169,110,0.12)' }}>
-            <div style={{ fontSize: 22, fontWeight: 300, color: '#fff', fontFamily: "'Cormorant Garamond', Georgia, serif" }}>{data.stats.totalAgents}</div>
-            <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#C9A96E' }}>Total Agents</div>
+            <div style={{ fontSize: 22, fontWeight: 300, color: '#fff', fontFamily: "'Cormorant Garamond', Georgia, serif" }}>{visibleStats.totalAgents}</div>
+            <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#C9A96E' }}>{showInactive ? 'Total Agents' : 'Active Agents'}</div>
           </div>
-          {data.stats.byTitle.map(t => {
+          {visibleStats.byTitle.map(t => {
             const color = TITLE_COLORS[t.title] ?? '#C9A96E'
             return (
               <div key={t.title} style={{ padding: '12px 18px', background: '#132238', borderRadius: 6, border: `1px solid ${color}20` }}>
@@ -899,7 +922,7 @@ export default function OrgPage() {
 
           {/* Agent tree (skip the synthetic _leadership root, render its children directly) */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
-            {data.tree.flatMap(root =>
+            {visibleTree.flatMap(root =>
               root.id.startsWith('_')
                 ? root.children.map(child => (
                     <TreeNode key={child.id} node={child} depth={0} onSelect={n => { setShowAddAgent(false); setSelectedNode(n) }} showTrainers={showTrainers} expandedSet={expandedSet} onAvatarUploaded={load} />
@@ -910,9 +933,11 @@ export default function OrgPage() {
         </div>
       )}
 
-      {data && data.tree.length === 0 && !loading && (
+      {data && visibleTree.length === 0 && !loading && (
         <div style={{ color: '#6B8299', fontSize: 13, padding: 40, textAlign: 'center' }}>
-          No agents found. Click &quot;+ Add Agent&quot; to add your first team member.
+          {showInactive
+            ? 'No agents found. Click "+ Add Agent" to add your first team member.'
+            : 'No active agents to show. Toggle "Inactive" to see former teammates.'}
         </div>
       )}
 
@@ -959,6 +984,51 @@ export default function OrgPage() {
       )}
     </div>
   )
+}
+
+// Drop INACTIVE leaves. An INACTIVE node is kept only when at least
+// one of its descendants is ACTIVE; otherwise we'd leave a stub in the
+// upline branch with no live roster below it, which reads as visual
+// noise. Synthetic nodes (id starting with '_', e.g. leadership) are
+// always kept.
+function filterActiveOnly(nodes: OrgNode[]): OrgNode[] {
+  const out: OrgNode[] = []
+  for (const n of nodes) {
+    const kids = filterActiveOnly(n.children)
+    const isSynthetic = n.id.startsWith('_')
+    if (!isSynthetic && n.status === 'INACTIVE' && kids.length === 0) continue
+    out.push({ ...n, children: kids })
+  }
+  return out
+}
+
+// Count agents and group by title from a (possibly filtered) tree so
+// the stats pills match what's visible. Skips synthetic nodes (`_` ids).
+function statsFromTree(nodes: OrgNode[]): {
+  totalAgents: number
+  byTitle: { title: string; count: number }[]
+} {
+  const counts = new Map<string, number>()
+  let total = 0
+  function walk(n: OrgNode) {
+    if (!n.id.startsWith('_')) {
+      total++
+      counts.set(n.title, (counts.get(n.title) ?? 0) + 1)
+    }
+    for (const c of n.children) walk(c)
+  }
+  for (const n of nodes) walk(n)
+  // Preserve rank order; fall back to insertion order for unknown titles.
+  const order = ['NVP', 'EMD', 'Marketing Director', 'Senior Associate', 'Associate']
+  const seen = new Set<string>()
+  const byTitle: { title: string; count: number }[] = []
+  for (const t of order) {
+    if (counts.has(t)) { byTitle.push({ title: t, count: counts.get(t)! }); seen.add(t) }
+  }
+  for (const [t, c] of counts) {
+    if (!seen.has(t)) byTitle.push({ title: t, count: c })
+  }
+  return { totalAgents: total, byTitle }
 }
 
 function flattenTree(nodes: OrgNode[]): FlatAgent[] {

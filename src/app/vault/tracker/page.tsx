@@ -2902,7 +2902,7 @@ function JoinReannounceButton({ agentId, agentName }: { agentId: string; agentNa
     <button
       onClick={click}
       disabled={state === "sending"}
-      title={`Post the NEW BUSINESS PARTNER card for ${agentName} to #announcements. Useful for backfilling Tevah-created agents that joined before the auto-announce wiring.`}
+      title={`Posts the public NEW BUSINESS PARTNER celebration card for ${agentName} to the #announcements Discord channel. The card credits their recruiter (their supervisor) as the protagonist and @-mentions them, so the whole team sees who shared the opportunity.`}
       style={{
         marginTop: 8, width: "100%",
         background: state === "sent" ? "rgba(74,222,128,0.10)"
@@ -2919,7 +2919,7 @@ function JoinReannounceButton({ agentId, agentName }: { agentId: string; agentNa
         : state === "sent" ? "✓ Card posted"
         : state === "error" ? "Failed, retry"
         : state === "no_recruiter" ? "Set recruiter first"
-        : "Announce join to Discord"}
+        : "Announce New Business Partner"}
     </button>
   )
 }
