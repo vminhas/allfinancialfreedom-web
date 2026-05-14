@@ -45,10 +45,12 @@ export async function PATCH(
   const body = await req.json() as {
     name?: string
     newPassword?: string
+    isTest?: boolean
   }
 
   const data: Record<string, unknown> = {}
   if (body.name) data.name = body.name.trim()
+  if (typeof body.isTest === 'boolean') data.isTest = body.isTest
   if (body.newPassword) {
     if (body.newPassword.length < 8) {
       return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
@@ -63,7 +65,7 @@ export async function PATCH(
   const user = await db.adminUser.update({
     where: { id },
     data,
-    select: { id: true, email: true, name: true, createdAt: true, lastLoginAt: true },
+    select: { id: true, email: true, name: true, role: true, isTest: true, createdAt: true, lastLoginAt: true },
   })
 
   return NextResponse.json({ user })

@@ -17,8 +17,11 @@ export async function GET(req: NextRequest) {
   const statusParam = searchParams.get('status')
   const agent = searchParams.get('agent')
   const carrier = searchParams.get('carrier')
+  const policyType = searchParams.get('policyType')
   const search = searchParams.get('q')
   const assignment = searchParams.get('assignment') // 'me' | 'unassigned' | '<adminId>'
+  const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10))
+  const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') ?? '50', 10)))
   const { from, to } = parseRangeFromSearch(searchParams)
   const dateClause = prismaDateClause(from, to)
   const selfId = (session!.user as { id?: string }).id
@@ -30,6 +33,7 @@ export async function GET(req: NextRequest) {
   }
   if (agent) where.agentProfileId = agent
   if (carrier) where.carrier = { contains: carrier, mode: 'insensitive' }
+  if (policyType) where.policyType = policyType as Prisma.NewBusinessSubmissionWhereInput['policyType']
   if (search) {
     where.OR = [
       { clientFirstName: { contains: search, mode: 'insensitive' } },
@@ -43,15 +47,20 @@ export async function GET(req: NextRequest) {
   // Date range filters createdAt — i.e. when the submission was filed.
   if (dateClause) where.createdAt = dateClause
 
-  const submissions = await db.newBusinessSubmission.findMany({
-    where,
-    orderBy: { createdAt: 'desc' },
-    include: {
-      agentProfile: { select: { id: true, firstName: true, lastName: true, agentCode: true } },
-      splitWithAgent: { select: { firstName: true, lastName: true, agentCode: true } },
-      assignedTo: { select: { id: true, name: true } },
-      _count: { select: { notes: true } },
-    },
-  })
-  return NextResponse.json({ submissions })
+  const [total, submissions] = await Promise.all([
+    db.newBusinessSubmission.count({ where }),
+    db.newBusinessSubmission.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      include: {
+        agentProfile: { select: { id: true, firstName: true, lastName: true, agentCode: true } },
+        splitWithAgent: { select: { firstName: true, lastName: true, agentCode: true } },
+        assignedTo: { select: { id: true, name: true } },
+        _count: { select: { notes: true } },
+      },
+    }),
+  ])
+  return NextResponse.json({ submissions, total, page, pageSize })
 }

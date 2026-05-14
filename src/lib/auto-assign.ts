@@ -5,7 +5,7 @@ import { db } from './db'
 // Returns null if no LCs exist in the system yet.
 export async function getAutoAssignee(): Promise<string | null> {
   const lcs = await db.adminUser.findMany({
-    where: { role: 'LICENSING_COORDINATOR' },
+    where: { role: 'LICENSING_COORDINATOR', isTest: false },
     select: {
       id: true,
       _count: {

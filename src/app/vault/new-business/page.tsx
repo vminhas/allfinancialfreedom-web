@@ -92,6 +92,11 @@ export default function VaultNewBusinessPage() {
   const [customFrom, setCustomFrom] = useState<string>('')
   const [customTo, setCustomTo] = useState<string>('')
   const [openId, setOpenId] = useState<string | null>(null)
+  const [carrierFilter, setCarrierFilter] = useState('')
+  const [policyTypeFilter, setPolicyTypeFilter] = useState('')
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const PAGE_SIZE = 50
   // Agent picker options. Loaded once on mount and not refiltered as the
   // list narrows so the dropdown always shows every agent that has at
   // least one submission on file.
@@ -132,17 +137,25 @@ export default function VaultNewBusinessPage() {
     if (assignment) p.set('assignment', assignment)
     if (agentFilter) p.set('agent', agentFilter)
     if (search.trim()) p.set('q', search.trim())
+    if (carrierFilter.trim()) p.set('carrier', carrierFilter.trim())
+    if (policyTypeFilter) p.set('policyType', policyTypeFilter)
     if (activeRange.from) p.set('from', activeRange.from.toISOString())
     if (activeRange.to) p.set('to', activeRange.to.toISOString())
+    p.set('page', String(page))
+    p.set('pageSize', String(PAGE_SIZE))
     Promise.all([
-      fetch(`/api/vault/new-business?${p.toString()}`).then(r => r.ok ? r.json() : { submissions: [] }),
+      fetch(`/api/vault/new-business?${p.toString()}`).then(r => r.ok ? r.json() : { submissions: [], total: 0 }),
       fetch(`/api/vault/new-business/stats?${p.toString()}`).then(r => r.ok ? r.json() : null),
-    ]).then(([listRes, statsRes]: [{ submissions: SubmissionListItem[] }, Stats | null]) => {
+    ]).then(([listRes, statsRes]: [{ submissions: SubmissionListItem[]; total: number }, Stats | null]) => {
       setList(listRes.submissions ?? [])
+      setTotal(listRes.total ?? 0)
       if (statsRes) setStats(statsRes)
       setLoading(false)
     }).catch(() => setLoading(false))
-  }, [statusFilter, assignment, agentFilter, search, activeRange])
+  }, [statusFilter, assignment, agentFilter, search, carrierFilter, policyTypeFilter, activeRange, page])
+
+  // Reset to page 1 whenever any filter changes.
+  useEffect(() => { setPage(1) }, [statusFilter, assignment, agentFilter, search, carrierFilter, policyTypeFilter, rangeKey, customFrom, customTo])
 
   useEffect(() => { refresh() }, [refresh])
 
@@ -238,7 +251,7 @@ export default function VaultNewBusinessPage() {
         />
       </div>
 
-      {(statusFilter || assignment || agentFilter || search.trim()) && (
+      {(statusFilter || assignment || agentFilter || search.trim() || carrierFilter.trim() || policyTypeFilter) && (
         <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 11, color: '#6B8299' }}>Active filters:</span>
           {statusFilter && <FilterPill label={`Status: ${statusFilter.replace('_', ' ')}`} onClear={() => setStatusFilter('')} />}
@@ -249,9 +262,11 @@ export default function VaultNewBusinessPage() {
             const label = a ? `Agent: ${a.firstName} ${a.lastName}` : 'Agent: (selected)'
             return <FilterPill label={label} onClear={() => setAgentFilter('')} />
           })()}
+          {carrierFilter.trim() && <FilterPill label={`Carrier: ${carrierFilter.trim()}`} onClear={() => setCarrierFilter('')} />}
+          {policyTypeFilter && <FilterPill label={`Type: ${POLICY_LABEL[policyTypeFilter] ?? policyTypeFilter}`} onClear={() => setPolicyTypeFilter('')} />}
           {search.trim() && <FilterPill label={`Search: "${search.trim()}"`} onClear={() => setSearch('')} />}
           <button
-            onClick={() => { setStatusFilter(''); setAssignment(''); setAgentFilter(''); setSearch('') }}
+            onClick={() => { setStatusFilter(''); setAssignment(''); setAgentFilter(''); setSearch(''); setCarrierFilter(''); setPolicyTypeFilter('') }}
             style={{ background: 'transparent', border: 'none', color: '#9B6DFF', fontSize: 11, cursor: 'pointer', textDecoration: 'underline' }}
           >Clear all</button>
         </div>
@@ -301,6 +316,17 @@ export default function VaultNewBusinessPage() {
               </option>
             ))}
           </select>
+        </div>
+        <div style={{ minWidth: 170 }}>
+          <label style={fieldLabel}>Type</label>
+          <select style={inputStyle} value={policyTypeFilter} onChange={e => setPolicyTypeFilter(e.target.value)}>
+            <option value="">All types</option>
+            {Object.entries(POLICY_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </div>
+        <div style={{ minWidth: 160 }}>
+          <label style={fieldLabel}>Carrier</label>
+          <input style={inputStyle} value={carrierFilter} onChange={e => setCarrierFilter(e.target.value)} placeholder="Corebridge..." />
         </div>
         <div style={{ flex: 1, minWidth: 220 }}>
           <label style={fieldLabel}>Search (client / policy #)</label>
@@ -401,6 +427,27 @@ export default function VaultNewBusinessPage() {
           </div>
         }
       </div>
+
+      {total > PAGE_SIZE && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, padding: '0 4px' }}>
+          <span style={{ fontSize: 12, color: '#6B8299' }}>
+            Showing {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}
+          </span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              style={{ background: 'rgba(201,169,110,0.1)', border: '1px solid rgba(201,169,110,0.25)', color: '#C9A96E', borderRadius: 4, padding: '5px 14px', fontSize: 12, fontWeight: 600, cursor: page === 1 ? 'default' : 'pointer', opacity: page === 1 ? 0.4 : 1 }}
+            >← Prev</button>
+            <span style={{ fontSize: 12, color: '#9BB0C4', alignSelf: 'center' }}>Page {page} of {Math.ceil(total / PAGE_SIZE)}</span>
+            <button
+              onClick={() => setPage(p => Math.min(Math.ceil(total / PAGE_SIZE), p + 1))}
+              disabled={page >= Math.ceil(total / PAGE_SIZE)}
+              style={{ background: 'rgba(201,169,110,0.1)', border: '1px solid rgba(201,169,110,0.25)', color: '#C9A96E', borderRadius: 4, padding: '5px 14px', fontSize: 12, fontWeight: 600, cursor: page >= Math.ceil(total / PAGE_SIZE) ? 'default' : 'pointer', opacity: page >= Math.ceil(total / PAGE_SIZE) ? 0.4 : 1 }}
+            >Next →</button>
+          </div>
+        </div>
+      )}
 
       {openId && <SubmissionDrawer id={openId} onClose={() => setOpenId(null)} onChanged={refresh} />}
     </div>

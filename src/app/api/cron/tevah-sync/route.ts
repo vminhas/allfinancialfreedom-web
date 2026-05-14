@@ -500,11 +500,23 @@ export async function syncClients() {
     }
   }
 
-  // Backfill: assign any existing PENDING submissions that have no assignee.
-  // This handles records created before auto-assign was introduced.
+  // Backfill: assign any PENDING submissions that are unassigned or assigned
+  // to a test account. Handles records created before auto-assign was
+  // introduced and fixes bad assignments to test-flagged LC accounts.
   if (autoAssignee) {
+    const testAdminIds = (await db.adminUser.findMany({
+      where: { isTest: true },
+      select: { id: true },
+    })).map(a => a.id)
+
     await db.newBusinessSubmission.updateMany({
-      where: { status: 'PENDING', assignedToId: null },
+      where: {
+        status: 'PENDING',
+        OR: [
+          { assignedToId: null },
+          ...(testAdminIds.length > 0 ? [{ assignedToId: { in: testAdminIds } }] : []),
+        ],
+      },
       data: { assignedToId: autoAssignee },
     })
   }
