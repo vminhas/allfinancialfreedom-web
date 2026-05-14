@@ -22,6 +22,7 @@
 // flavors don't require touching every call site.
 
 import type { DiscordEmbed } from './discord'
+import { displayFirstName } from './display-name'
 
 export type CardFlavor =
   | 'MILESTONE'             // phase-item announcement (the prototype)
@@ -54,7 +55,12 @@ const FLAVORS: Record<CardFlavor, FlavorMeta> = {
   // promotions and the RECOGNITION (non-Elite milestone) flavor.
   MILESTONE:             { title: '✦  M I L E S T O N E  ✦',         defaultAccent: 0xCBD5E1, footerCloser: 'Way to go!' },
   PROMOTION:             { title: '↑  P R O M O T I O N',             defaultAccent: 0xC9A96E, footerCloser: "Onward and upward!" },
-  NEW_RECRUIT:           { title: '🎉  N E W   R E C R U I T',        defaultAccent: 0x4ADE80, footerCloser: 'Welcome to the family.' },
+  // NEW_RECRUIT keeps its internal flavor key for source-code stability,
+  // but the user-visible title was renamed: the CEO wants the team
+  // celebrated as a Business Partner, not as a "recruit." A new agent
+  // joining is a generous act by the recruiter, not a hire — the
+  // language follows.
+  NEW_RECRUIT:           { title: '🎉  N E W   B U S I N E S S   P A R T N E R', defaultAccent: 0x4ADE80, footerCloser: 'Welcome to the family.' },
   RECOGNITION:           { title: '🏆  R E C O G N I T I O N',        defaultAccent: 0xC9A96E, footerCloser: 'Earned and well-deserved.' },
   ELITE_TRAINER:         { title: '✨  E L I T E   T R A I N E R  ✨', defaultAccent: 0xE6C26F, footerCloser: 'A rare achievement.' },
   POLICY_ISSUED:         { title: '📈  P O L I C Y   I S S U E D',     defaultAccent: 0x4ADE80, footerCloser: 'Another family helped.' },
@@ -64,6 +70,9 @@ const FLAVORS: Record<CardFlavor, FlavorMeta> = {
 export interface AchievementProtagonist {
   firstName: string
   lastName: string
+  // Agent-set "I go by" override for first name. Headline renders
+  // "{preferredName ?? firstName} {lastName}".
+  preferredName?: string | null
   agentCode?: string | null
   avatarUrl?: string | null
 }
@@ -90,7 +99,8 @@ export interface BuildAchievementEmbedArgs {
 
 export function buildAchievementEmbed(args: BuildAchievementEmbedArgs): DiscordEmbed {
   const meta = FLAVORS[args.flavor]
-  const fullName = `${args.protagonist.firstName} ${args.protagonist.lastName}`.trim()
+  const first = displayFirstName(args.protagonist)
+  const fullName = `${first} ${args.protagonist.lastName}`.trim()
   const headline = args.headline ?? `# ${fullName}`
   return {
     title: meta.title,

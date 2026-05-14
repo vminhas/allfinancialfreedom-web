@@ -15,7 +15,7 @@ import { buildAchievementEmbed } from './discord-card'
 
 interface CelebrateInput {
   milestoneKey: string
-  agent: { firstName: string; lastName: string; agentCode?: string | null; avatarUrl?: string | null; discordUserId: string | null }
+  agent: { firstName: string; lastName: string; preferredName?: string | null; agentCode?: string | null; avatarUrl?: string | null; discordUserId: string | null }
 }
 
 const ELITE_TRAINER_KEY = 'elite_trainer'
@@ -43,6 +43,7 @@ export async function celebrateMilestone({ milestoneKey, agent }: CelebrateInput
     protagonist: {
       firstName: agent.firstName,
       lastName: agent.lastName,
+      preferredName: agent.preferredName,
       agentCode: agent.agentCode,
       avatarUrl: agent.avatarUrl,
     },

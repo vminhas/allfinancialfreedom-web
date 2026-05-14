@@ -35,8 +35,11 @@ function titleAbbrev(title: string): string {
   return title
 }
 
+// Display labels for each metric. Internal metric key stays 'recruits'
+// for API/code stability; user-visible label is 'Builders' (positive
+// framing of team-building over the word "recruiting").
 const METRIC_LABELS: Record<Metric, string> = {
-  submissions: 'Submissions', recruits: 'Recruits', points: 'Points',
+  submissions: 'Submissions', recruits: 'Builders', points: 'Points',
 }
 const TIMEFRAME_LABELS: Record<Timeframe, string> = {
   week: 'This Week', month: 'This Month', quarter: 'This Quarter', ytd: 'Year to Date', all: 'All Time',
@@ -101,7 +104,7 @@ export default function VaultLeaderboardPage() {
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 24, flexWrap: 'wrap' }}>
         <select style={selectStyle} value={metric} onChange={e => setMetric(e.target.value as Metric)}>
           <option value="submissions">Submissions</option>
-          <option value="recruits">Recruits</option>
+          <option value="recruits">Builders</option>
           <option value="points">Points</option>
         </select>
         <select style={selectStyle} value={timeframe} onChange={e => setTimeframe(e.target.value as Timeframe)}>

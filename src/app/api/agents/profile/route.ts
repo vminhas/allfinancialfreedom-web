@@ -19,6 +19,7 @@ export async function PUT(req: NextRequest) {
     licenseNumber?: string
     discordUserId?: string
     calendlyUrl?: string
+    preferredName?: string
     ssn?: string
     addressLine1?: string
     addressLine2?: string
@@ -65,6 +66,11 @@ export async function PUT(req: NextRequest) {
       ...(body.licenseNumber !== undefined && { licenseNumber: body.licenseNumber || null }),
       ...(body.discordUserId !== undefined && { discordUserId: body.discordUserId || null }),
       ...(body.calendlyUrl !== undefined && { calendlyUrl: body.calendlyUrl || null }),
+      // Length cap mirrors a reasonable display name; trim whitespace
+      // and treat empty input as "remove the override".
+      ...(body.preferredName !== undefined && {
+        preferredName: body.preferredName.trim().slice(0, 40) || null,
+      }),
       ...(body.addressLine1 !== undefined && { addressLine1: body.addressLine1 || null }),
       ...(body.addressLine2 !== undefined && { addressLine2: body.addressLine2 || null }),
       ...(body.city !== undefined && { city: body.city || null }),

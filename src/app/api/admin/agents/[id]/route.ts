@@ -115,7 +115,8 @@ export async function PUT(
 
   // Whitelist updatable fields
   const allowed = [
-    'firstName', 'lastName', 'state', 'phone', 'dateOfBirth', 'npn',
+    'firstName', 'lastName', 'preferredName',
+    'state', 'phone', 'dateOfBirth', 'npn',
     'icaDate', 'recruiterId', 'cft', 'eliteCft', 'status', 'phase',
     'phaseStartedAt', 'goal', 'initialPointOfContact', 'examDate',
     'licenseNumber', 'licenseLines', 'dateSubmittedToGfi', 'discordJoinDate',

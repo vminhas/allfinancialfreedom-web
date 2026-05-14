@@ -29,6 +29,7 @@ import FtaTab from '@/components/FtaTab'
 import { AgentTradingCardModal } from '@/components/AgentTradingCard'
 import { CallButton, EmailButton } from '@/components/ContactActions'
 import { MILESTONE_BY_KEY, isSubmittable } from '@/lib/milestones'
+import { displayFirstName, displayFullName } from '@/lib/display-name'
 import MarkdownDescription from '@/components/MarkdownDescription'
 import ChecklistItemVideo from '@/components/ChecklistItemVideo'
 import AnnouncementBanner from '@/components/AnnouncementBanner'
@@ -70,6 +71,7 @@ interface AgentData {
   agentCode: string
   firstName: string
   lastName: string
+  preferredName: string | null
   state: string | null
   phone: string | null
   dateOfBirth: string | null
@@ -2654,6 +2656,7 @@ function ProfileTab({ data, onSaved, discordParam, discordReason, discordUsernam
     zip: data.zip ?? '',
     country: data.country ?? 'US',
     calendlyUrl: (data as AgentData & { calendlyUrl?: string }).calendlyUrl ?? '',
+    preferredName: (data as AgentData & { preferredName?: string | null }).preferredName ?? '',
   })
   const [ssnFocused, setSsnFocused] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -2720,6 +2723,7 @@ function ProfileTab({ data, onSaved, discordParam, discordReason, discordUsernam
       // dropped this field, so the PUT body never carried calendlyUrl
       // and the server never wrote it. Include it explicitly.
       calendlyUrl: form.calendlyUrl,
+      preferredName: form.preferredName,
     }
     if (form.ssn.replace(/\D/g, '').length > 0) {
       payload.ssn = form.ssn
@@ -2833,6 +2837,20 @@ function ProfileTab({ data, onSaved, discordParam, discordReason, discordUsernam
 
       {/* Editable form */}
       <form onSubmit={save} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div>
+          <label style={fieldLabel}>What I go by (Preferred Name)</label>
+          <input
+            type="text"
+            value={form.preferredName}
+            onChange={e => setForm(f => ({ ...f, preferredName: e.target.value }))}
+            placeholder={form.preferredName ? '' : `e.g. ${data.firstName === 'Karmvir' ? 'Vick' : 'Chris'}`}
+            maxLength={40}
+            style={inputStyle}
+          />
+          <div style={{ fontSize: 11, color: '#6B8299', marginTop: 4, lineHeight: 1.4 }}>
+            Shown in place of your first name on Discord posts, the leaderboard, and your welcome email greeting. Leave blank to use your legal first name. Your last name stays legal everywhere.
+          </div>
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
           <div>
             <label style={fieldLabel}>Phone Number</label>
@@ -5166,6 +5184,7 @@ interface TeamNode {
   agentCode: string
   firstName: string
   lastName: string
+  preferredName: string | null
   phase: number
   title: string
   state: string | null
@@ -5311,7 +5330,7 @@ function TeamMemberNode({ node, depth, isMobile, onOpenCard }: { node: TeamNode;
             title="Open trading card"
             style={{ fontSize: 13, fontWeight: 600, color: '#fff', cursor: 'pointer', display: 'inline-block' }}
           >
-            {node.firstName} {node.lastName}
+            {displayFullName(node)}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
             <span style={{
@@ -5406,7 +5425,7 @@ function TeamMemberNode({ node, depth, isMobile, onOpenCard }: { node: TeamNode;
             Hasn&apos;t activated yet
           </div>
           <div style={{ fontSize: 11, color: '#9BB0C4', lineHeight: 1.6 }}>
-            {`${node.firstName} hasn't set their password yet. If they didn't get the welcome email (or never received one), tap Resend invite to send it now.`}
+            {`${displayFirstName(node)} hasn't set their password yet. If they didn't get the welcome email (or never received one), tap Resend invite to send it now.`}
             {node.inviteEmail && <><br /><strong style={{ color: '#fff' }}>Email:</strong> {node.inviteEmail}</>}
             {node.inviteSentAt && <><br /><strong style={{ color: '#fff' }}>Approved:</strong> {new Date(node.inviteSentAt).toLocaleDateString()}</>}
             {node.inviteExpiresAt && (
@@ -5432,7 +5451,7 @@ function TeamMemberNode({ node, depth, isMobile, onOpenCard }: { node: TeamNode;
             Awaiting admin approval
           </div>
           <div style={{ fontSize: 11, color: '#9BB0C4', lineHeight: 1.6 }}>
-            You referred {node.firstName} {node.lastName} on {node.inviteSentAt ? new Date(node.inviteSentAt).toLocaleDateString() : 'recently'}.
+            You referred {displayFullName(node)} on {node.inviteSentAt ? new Date(node.inviteSentAt).toLocaleDateString() : 'recently'}.
             An admin or licensing coordinator will review the referral and send the welcome email.
           </div>
         </div>

@@ -26,7 +26,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   const agent = await db.agentProfile.findUnique({
     where: { id },
     select: {
-      firstName: true, lastName: true, agentCode: true, avatarUrl: true,
+      firstName: true, lastName: true, preferredName: true, agentCode: true, avatarUrl: true,
       phase: true, discordUserId: true,
     },
   })
@@ -55,6 +55,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     protagonist: {
       firstName: agent.firstName,
       lastName: agent.lastName,
+      preferredName: agent.preferredName,
       agentCode: agent.agentCode,
       avatarUrl: agent.avatarUrl,
     },
