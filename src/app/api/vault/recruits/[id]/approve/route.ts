@@ -119,7 +119,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const recruiter = recruiterCode
     ? await db.agentProfile.findUnique({
         where: { agentCode: recruiterCode },
-        select: { firstName: true, lastName: true, agentCode: true, discordUserId: true },
+        select: { firstName: true, lastName: true, preferredName: true, agentCode: true, discordUserId: true },
       })
     : null
 
@@ -203,9 +203,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         fields.push({ name: 'State', value: (body.state ?? submission.state) as string, inline: true })
       }
       if (recruiter) {
+        const { displayFullName } = await import('@/lib/display-name')
         fields.push({
           name: 'Recruited by',
-          value: `${recruiter.firstName} ${recruiter.lastName} (\`${recruiter.agentCode}\`)`,
+          value: `${displayFullName(recruiter)} (\`${recruiter.agentCode}\`)`,
           inline: false,
         })
       }

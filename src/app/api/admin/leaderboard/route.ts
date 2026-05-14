@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
   const roster = await db.agentProfile.findMany({
     where: { status: 'ACTIVE', isTest: false },
-    select: { id: true, agentCode: true, firstName: true, lastName: true, avatarUrl: true, phase: true, recruiterId: true },
+    select: { id: true, agentCode: true, firstName: true, lastName: true, preferredName: true, avatarUrl: true, phase: true, recruiterId: true },
   })
 
   const { start, end } = boundsFor(timeframe)
@@ -35,10 +35,12 @@ export async function GET(req: NextRequest) {
   const recruiters = recruiterCodes.length > 0
     ? await db.agentProfile.findMany({
         where: { agentCode: { in: recruiterCodes } },
-        select: { agentCode: true, firstName: true, lastName: true },
+        select: { agentCode: true, firstName: true, lastName: true, preferredName: true },
       })
     : []
-  const recruiterByCode = new Map(recruiters.map(r => [r.agentCode, `${r.firstName} ${r.lastName}`.trim()]))
+  const recruiterByCode = new Map(
+    recruiters.map(r => [r.agentCode, `${(r.preferredName?.trim() || r.firstName)} ${r.lastName}`.trim()]),
+  )
 
   const rosterIds = roster.map(r => r.id)
   const promoItems = await db.phaseItem.findMany({
@@ -70,6 +72,7 @@ export async function GET(req: NextRequest) {
       agentCode: a.agentCode,
       firstName: a.firstName,
       lastName: a.lastName,
+      preferredName: a.preferredName,
       avatarUrl: a.avatarUrl,
       phase: a.phase,
       title: resolveAgentTitle({ completedItemKeys: promoKeysByAgent.get(a.id) ?? [] }),

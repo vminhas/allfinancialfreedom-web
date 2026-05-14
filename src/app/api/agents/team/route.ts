@@ -133,6 +133,7 @@ export async function GET(req: NextRequest) {
       agentCode: true,
       firstName: true,
       lastName: true,
+      preferredName: true,
       phase: true,
       phaseStartedAt: true,
       state: true,
@@ -248,6 +249,7 @@ export async function GET(req: NextRequest) {
       agentCode: a.agentCode,
       firstName: a.firstName,
       lastName: a.lastName,
+      preferredName: a.preferredName,
       phase: a.phase,
       title: resolveAgentTitle({
         phase: a.phase,

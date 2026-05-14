@@ -13,6 +13,7 @@ import {
 } from './leaderboard-icons'
 import AgentBadges from '@/components/AgentBadges'
 import { PHASE_COLORS } from '@/lib/phase-colors'
+import { displayFullName } from '@/lib/display-name'
 
 // Production leaderboard. Premium-themed counterpart to the existing
 // onboarding-progress matrix. Three metrics, two scopes, five timeframes.
@@ -29,6 +30,7 @@ interface Row {
   agentCode: string
   firstName: string
   lastName: string
+  preferredName: string | null
   avatarUrl: string | null
   phase: number
   title: string
@@ -428,7 +430,7 @@ function PodiumCard({ row, viewerId, metric, isMobile }: { row: Row; viewerId: s
         </div>
 
         <div style={{ fontSize: 14, color: '#ffffff', fontWeight: 600, marginBottom: 2, lineHeight: 1.15 }}>
-          {row.firstName} {row.lastName}
+          {displayFullName(row)}
           {isYou && <YouBadge />}
         </div>
         <div style={{ fontSize: 10, color: '#6B8299', letterSpacing: '0.05em', marginBottom: 10, display: 'inline-flex', alignItems: 'center', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -574,7 +576,7 @@ function RankRow({ row, viewerId, metric, isMobile }: { row: Row; viewerId: stri
         <Avatar firstName={row.firstName} lastName={row.lastName} avatarUrl={row.avatarUrl} size={32} ringColor={isYou ? '#C9A96E' : 'transparent'} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: isYou ? 700 : 500, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.firstName} {row.lastName}</span>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayFullName(row)}</span>
             <AgentBadges badges={row.badges} variant="star" size="sm" />
             {isYou && <YouBadge />}
           </div>
@@ -609,7 +611,7 @@ function RankRow({ row, viewerId, metric, isMobile }: { row: Row; viewerId: stri
         <Avatar firstName={row.firstName} lastName={row.lastName} avatarUrl={row.avatarUrl} size={28} ringColor={isYou ? '#C9A96E' : 'transparent'} />
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: isYou ? 700 : 500, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.firstName} {row.lastName}</span>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayFullName(row)}</span>
             <AgentBadges badges={row.badges} variant="star" size="sm" />
             {isYou && <YouBadge />}
           </div>

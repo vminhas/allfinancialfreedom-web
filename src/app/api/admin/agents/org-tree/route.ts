@@ -4,20 +4,14 @@ import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/permissions'
 import { getSetting } from '@/lib/settings'
-
-const PHASE_TITLES: Record<number, string> = {
-  1: 'Agent',
-  2: 'Associate',
-  3: 'Senior Associate',
-  4: 'Marketing Director',
-  5: 'Executive Marketing Director',
-}
+import { resolveAgentTitle, TITLE_OVERRIDE_ITEM_KEYS, DEFAULT_AGENT_TITLE } from '@/lib/agent-title'
 
 export interface OrgNode {
   id: string
   agentCode: string
   firstName: string
   lastName: string
+  preferredName: string | null
   phase: number
   title: string
   state: string | null
@@ -47,12 +41,19 @@ export async function GET() {
       agentCode: true,
       firstName: true,
       lastName: true,
+      preferredName: true,
       phase: true,
       state: true,
       avatarUrl: true,
       status: true,
       recruiterId: true,
       cft: true,
+      // Only the title-override items, not the whole phaseItems list,
+      // so resolveAgentTitle() can decide each agent's rank.
+      phaseItems: {
+        where: { completed: true, itemKey: { in: TITLE_OVERRIDE_ITEM_KEYS } },
+        select: { itemKey: true },
+      },
     },
     orderBy: [{ status: 'asc' }, { phase: 'desc' }, { firstName: 'asc' }],
   })
@@ -80,8 +81,12 @@ export async function GET() {
       agentCode: a.agentCode,
       firstName: a.firstName,
       lastName: a.lastName,
+      preferredName: a.preferredName,
       phase: a.phase,
-      title: PHASE_TITLES[a.phase - 1] ?? 'Agent',
+      title: resolveAgentTitle({
+        phase: a.phase,
+        completedItemKeys: a.phaseItems.map(i => i.itemKey),
+      }),
       state: a.state,
       avatarUrl: a.avatarUrl,
       status: a.status,
@@ -104,6 +109,7 @@ export async function GET() {
       agentCode: '_AFF',
       firstName: 'Vick & Melinee',
       lastName: 'Minhas',
+      preferredName: null,
       phase: 6,
       title: 'CEO & COO',
       state: null,
@@ -120,13 +126,23 @@ export async function GET() {
     { id: '_melinee', firstName: 'Melinee', lastName: 'Minhas', title: 'COO', avatarUrl: melineeAvatar || null },
   ]
 
+  // Group counts by resolved title rather than by phase number, since
+  // title is what the UI shows everywhere now. Order matches the
+  // resolver's precedence: highest rank first.
+  const titleOrder = ['NVP', 'EMD', 'Marketing Director', 'Senior Associate', DEFAULT_AGENT_TITLE]
+  const counts = new Map<string, number>()
+  for (const a of agents) {
+    const t = resolveAgentTitle({
+      phase: a.phase,
+      completedItemKeys: a.phaseItems.map(i => i.itemKey),
+    })
+    counts.set(t, (counts.get(t) ?? 0) + 1)
+  }
   const stats = {
     totalAgents: agents.length,
-    byPhase: [1, 2, 3, 4, 5, 6].map(p => ({
-      phase: p,
-      title: PHASE_TITLES[p],
-      count: agents.filter(a => a.phase === p).length,
-    })),
+    byTitle: titleOrder
+      .filter(t => (counts.get(t) ?? 0) > 0)
+      .map(title => ({ title, count: counts.get(title) ?? 0 })),
   }
 
   return NextResponse.json({ tree, leadership, stats })

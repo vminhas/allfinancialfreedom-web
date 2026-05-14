@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
   if (partner.status === 'NEW') {
     const receivingAgent = await db.agentProfile.findUnique({
       where: { id: agent.id },
-      select: { firstName: true, lastName: true, agentCode: true, avatarUrl: true },
+      select: { firstName: true, lastName: true, preferredName: true, agentCode: true, avatarUrl: true },
     })
     if (receivingAgent) {
       import('@/lib/business-partner-announce')
@@ -106,6 +106,7 @@ export async function POST(req: NextRequest) {
           announceBPWelcome({
             agentFirstName: receivingAgent.firstName,
             agentLastName: receivingAgent.lastName,
+            agentPreferredName: receivingAgent.preferredName,
             agentCode: receivingAgent.agentCode,
             agentAvatarUrl: receivingAgent.avatarUrl,
             bpName: partner.name,

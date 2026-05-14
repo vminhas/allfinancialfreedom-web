@@ -198,6 +198,7 @@ export async function GET(req: NextRequest) {
     agentCode: p.agentCode,
     firstName: p.firstName,
     lastName: p.lastName,
+    preferredName: p.preferredName,
     // Earned recognitions (e.g. 'CFT'). Drives feature gates on the
     // agent portal — the AI call analyzer is locked until CFT.
     badges: p.badges ?? [],

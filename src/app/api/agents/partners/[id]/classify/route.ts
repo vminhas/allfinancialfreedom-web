@@ -88,13 +88,14 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (body.action === 'classify' && body.category === 'business_partner') {
     db.agentProfile.findUnique({
       where: { id: existing.agentProfileId },
-      select: { firstName: true, lastName: true, agentCode: true, avatarUrl: true },
+      select: { firstName: true, lastName: true, preferredName: true, agentCode: true, avatarUrl: true },
     }).then(agent => {
       if (!agent) return
       import('@/lib/business-partner-announce').then(({ announceBPWelcome }) =>
         announceBPWelcome({
           agentFirstName: agent.firstName,
           agentLastName: agent.lastName,
+          agentPreferredName: agent.preferredName,
           agentCode: agent.agentCode,
           agentAvatarUrl: agent.avatarUrl,
           bpName: updated.name,

@@ -231,6 +231,11 @@ model AgentProfile {
   agentCode             String    @unique
   firstName             String
   lastName              String
+  // Agent-set "I go by" name. When non-null, every user-facing render
+  // (Discord cards, leaderboards, team directory, welcome-email
+  // greeting) substitutes this for firstName. Legal first/last on
+  // file are unchanged; only admins can edit those.
+  preferredName         String?   @map("preferred_name")
   state                 String?
   phone                 String?
   dateOfBirth           DateTime?

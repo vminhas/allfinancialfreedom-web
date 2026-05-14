@@ -4,6 +4,7 @@ import { sendChannelMessage } from './discord'
 interface BPAnnounceArgs {
   agentFirstName: string
   agentLastName: string
+  agentPreferredName?: string | null
   agentCode: string
   agentAvatarUrl: string | null
   bpName: string
@@ -20,6 +21,7 @@ export async function announceBPWelcome(args: BPAnnounceArgs): Promise<void> {
     protagonist: {
       firstName: args.agentFirstName,
       lastName: args.agentLastName,
+      preferredName: args.agentPreferredName,
       agentCode: args.agentCode,
       avatarUrl: args.agentAvatarUrl,
     },

@@ -136,11 +136,12 @@ export async function PUT(req: NextRequest) {
       })
       const profile = await db.agentProfile.findUnique({
         where: { id: agentUser.profile.id },
-        select: { firstName: true, lastName: true, agentCode: true, avatarUrl: true },
+        select: { firstName: true, lastName: true, preferredName: true, agentCode: true, avatarUrl: true },
       })
 
       if (def && profile && (def.postToActivity || def.postToAnnouncements)) {
-        const agentName = `${profile.firstName} ${profile.lastName}`.trim()
+        const { displayFullName } = await import('@/lib/display-name')
+        const agentName = displayFullName(profile)
         const { sendChannelMessage } = await import('@/lib/discord')
         let activityMsgId: string | null = null
         let announcementMsgId: string | null = null
@@ -174,6 +175,7 @@ export async function PUT(req: NextRequest) {
                 protagonist: {
                   firstName: profile.firstName,
                   lastName: profile.lastName,
+                  preferredName: profile.preferredName,
                   agentCode: profile.agentCode,
                   avatarUrl: profile.avatarUrl,
                 },

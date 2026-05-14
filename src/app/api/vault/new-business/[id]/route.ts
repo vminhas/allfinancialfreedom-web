@@ -53,7 +53,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const existing = await db.newBusinessSubmission.findUnique({
     where: { id },
     include: {
-      agentProfile: { select: { firstName: true, lastName: true, agentCode: true, avatarUrl: true, discordUserId: true } },
+      agentProfile: { select: { firstName: true, lastName: true, preferredName: true, agentCode: true, avatarUrl: true, discordUserId: true } },
       // splitWithAgent loaded so the POLICY ISSUED card can shout
       // out both writers when a split was set on this submission.
       splitWithAgent: { select: { firstName: true, lastName: true, agentCode: true, discordUserId: true } },
@@ -146,6 +146,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       agentName,
       agentFirstName: existing.agentProfile.firstName,
       agentLastName: existing.agentProfile.lastName,
+      agentPreferredName: existing.agentProfile.preferredName,
       agentCode: existing.agentProfile.agentCode,
       agentAvatarUrl: existing.agentProfile.avatarUrl,
       clientName,

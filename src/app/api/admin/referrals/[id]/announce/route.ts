@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/permissions'
 import { buildAchievementEmbed } from '@/lib/discord-card'
+import { displayFullName } from '@/lib/display-name'
 
 // POST /api/admin/referrals/[id]/announce
 //
@@ -28,6 +29,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
         select: {
           firstName: true,
           lastName: true,
+          preferredName: true,
           agentCode: true,
           avatarUrl: true,
           discordUserId: true,
@@ -46,7 +48,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   }
 
   const referrer = referral.referringAgent
-  const refName = `${referrer.firstName} ${referrer.lastName}`
+  const refName = displayFullName(referrer)
   const recruitName = `${referral.firstName} ${referral.lastName}`
 
   const card = buildAchievementEmbed({
@@ -54,6 +56,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     protagonist: {
       firstName: referrer.firstName,
       lastName: referrer.lastName,
+      preferredName: referrer.preferredName,
       agentCode: referrer.agentCode,
       avatarUrl: referrer.avatarUrl,
     },

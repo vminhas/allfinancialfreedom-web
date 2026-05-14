@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { CallButton, TextButton, EmailButton } from './ContactActions'
 import { PHASE_COLORS } from '@/lib/phase-colors'
+import { displayFullName } from '@/lib/display-name'
 
 // Reusable trading-card shell. The same component will eventually power
 // birthday and milestone announcement cards (different `variant`,
@@ -16,6 +17,7 @@ export interface CardData {
   agentCode: string
   firstName: string
   lastName: string
+  preferredName: string | null
   state: string | null
   avatarUrl: string | null
   phase: number
@@ -122,7 +124,7 @@ export function AgentTradingCardModal({
         }
         if (nav.share && nav.canShare && nav.canShare({ files: [file] })) {
           try {
-            await nav.share({ files: [file], title: data ? `${data.firstName} ${data.lastName}` : 'Trading card' })
+            await nav.share({ files: [file], title: data ? displayFullName(data) : 'Trading card' })
             return
           } catch (err) {
             if ((err as Error).name === 'AbortError') return
@@ -184,7 +186,7 @@ export function AgentTradingCardModal({
         }
         if (nav.share && nav.canShare && nav.canShare({ files: [file] })) {
           try {
-            await nav.share({ files: [file], title: `${data.firstName} ${data.lastName}` })
+            await nav.share({ files: [file], title: displayFullName(data) })
             return
           } catch (err) {
             // User cancelled or share failed -- silently fall through
@@ -286,7 +288,7 @@ export function AgentTradingCardModal({
                 </div>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ fontSize: 22, fontWeight: 700, color: '#fff', lineHeight: 1.1, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
-                    {data.firstName} {data.lastName}
+                    {displayFullName(data)}
                   </div>
                   <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <span style={{

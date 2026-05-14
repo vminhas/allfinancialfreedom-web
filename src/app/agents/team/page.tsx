@@ -5,12 +5,14 @@ import { useRouter } from 'next/navigation'
 import { AgentTradingCardModal } from '@/components/AgentTradingCard'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { PHASE_COLORS } from '@/lib/phase-colors'
+import { displayFullName } from '@/lib/display-name'
 
 interface DirectoryAgent {
   id: string
   agentCode: string
   firstName: string
   lastName: string
+  preferredName: string | null
   avatarUrl: string | null
   phase: number
   title: string
@@ -37,7 +39,7 @@ function Avatar({ agent, size }: { agent: DirectoryAgent; size: number }) {
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={agent.avatarUrl}
-        alt={`${agent.firstName} ${agent.lastName}`}
+        alt={displayFullName(agent)}
         style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', display: 'block' }}
       />
     )
@@ -65,7 +67,9 @@ export default function TeamPhotosPage() {
   const filtered = agents.filter(a => {
     if (!search.trim()) return true
     const q = search.toLowerCase()
-    return `${a.firstName} ${a.lastName}`.toLowerCase().includes(q)
+    // Search both the legal first name and the preferred name so
+    // "vick" finds Karmvir Minhas and "karmvir" still works too.
+    return `${a.firstName} ${a.preferredName ?? ''} ${a.lastName}`.toLowerCase().includes(q)
   })
 
   const downloadHeadshot = useCallback(async (agent: DirectoryAgent) => {
@@ -85,7 +89,7 @@ export default function TeamPhotosPage() {
         const file = new File([blob], filename, { type: blob.type || 'image/jpeg' })
         const nav = navigator as Navigator & { canShare?: (d: { files: File[] }) => boolean; share?: (d: { files: File[]; title?: string }) => Promise<void> }
         if (nav.share && nav.canShare && nav.canShare({ files: [file] })) {
-          try { await nav.share({ files: [file], title: `${agent.firstName} ${agent.lastName}` }); return }
+          try { await nav.share({ files: [file], title: displayFullName(agent) }); return }
           catch (err) { if ((err as Error).name === 'AbortError') return }
         }
         const url = URL.createObjectURL(blob)
@@ -187,7 +191,7 @@ export default function TeamPhotosPage() {
                   style={{ cursor: 'pointer', textAlign: 'center', lineHeight: 1.3 }}
                 >
                   <div style={{ fontSize: 12, fontWeight: 600, color: '#fff' }}>
-                    {agent.firstName} {agent.lastName}
+                    {displayFullName(agent)}
                   </div>
                   <div style={{ fontSize: 10, color: PHASE_COLORS[agent.phase] ?? '#6B8299', fontWeight: 600, marginTop: 2 }}>
                     {agent.title}

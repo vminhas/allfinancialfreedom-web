@@ -25,7 +25,7 @@ export async function celebrateClimbAchievement(
 
   const agent = await db.agentProfile.findUnique({
     where: { id: agentProfileId },
-    select: { firstName: true, lastName: true, agentCode: true, avatarUrl: true, discordUserId: true },
+    select: { firstName: true, lastName: true, preferredName: true, agentCode: true, avatarUrl: true, discordUserId: true },
   })
   if (!agent) return
 
@@ -48,6 +48,7 @@ export async function celebrateClimbAchievement(
     protagonist: {
       firstName: agent.firstName,
       lastName: agent.lastName,
+      preferredName: agent.preferredName,
       agentCode: agent.agentCode,
       avatarUrl: agent.avatarUrl,
     },

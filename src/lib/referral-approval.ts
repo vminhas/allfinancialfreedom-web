@@ -59,6 +59,7 @@ export async function approveReferral(input: ApprovalInput): Promise<ApprovalRes
       agentCode: true,
       firstName: true,
       lastName: true,
+      preferredName: true,
       avatarUrl: true,
       discordUserId: true,
     },
@@ -174,8 +175,9 @@ export async function approveReferral(input: ApprovalInput): Promise<ApprovalRes
     try {
       const { sendChannelMessage } = await import('./discord')
       const { buildAchievementEmbed } = await import('./discord-card')
+      const { displayFullName } = await import('./display-name')
       const announcementsChannel = process.env.DISCORD_ANNOUNCEMENTS_CHANNEL_ID ?? '1295044213590982724'
-      const refName = `${referringAgent.firstName} ${referringAgent.lastName}`
+      const refName = displayFullName(referringAgent)
       const recruitName = `${referral.firstName} ${referral.lastName}`
       const recruiterMention = referringAgent.discordUserId
         ? `<@${referringAgent.discordUserId}>`
@@ -185,6 +187,7 @@ export async function approveReferral(input: ApprovalInput): Promise<ApprovalRes
         protagonist: {
           firstName: referringAgent.firstName,
           lastName: referringAgent.lastName,
+          preferredName: referringAgent.preferredName,
           agentCode: referringAgent.agentCode,
           avatarUrl: referringAgent.avatarUrl,
         },
@@ -214,9 +217,8 @@ export async function approveReferral(input: ApprovalInput): Promise<ApprovalRes
   if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_ADMIN_CHANNEL_ID) {
     try {
       const { sendChannelMessage } = await import('./discord')
-      const refName = referringAgent
-        ? `${referringAgent.firstName} ${referringAgent.lastName}`
-        : null
+      const { displayFullName } = await import('./display-name')
+      const refName = referringAgent ? displayFullName(referringAgent) : null
       const approverLabel = input.approvedByLabel ?? 'admin'
       sendChannelMessage(process.env.DISCORD_ADMIN_CHANNEL_ID, {
         embeds: [{

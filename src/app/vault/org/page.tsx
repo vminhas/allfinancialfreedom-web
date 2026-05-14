@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { US_STATES } from '@/lib/agent-constants'
 import { PHASE_COLORS } from '@/lib/phase-colors'
+import { displayFirstName, displayFullName } from '@/lib/display-name'
 import { AgentTradingCardModal } from '@/components/AgentTradingCard'
 import AgentNotes from '@/components/AgentNotes'
 
@@ -13,6 +14,7 @@ interface OrgNode {
   agentCode: string
   firstName: string
   lastName: string
+  preferredName: string | null
   phase: number
   title: string
   state: string | null
@@ -36,14 +38,28 @@ interface OrgData {
   leadership: LeadershipPerson[]
   stats: {
     totalAgents: number
-    byPhase: { phase: number; title: string; count: number }[]
+    byTitle: { title: string; count: number }[]
   }
 }
 
-
+// Used by the phase-pickers below. Phase 1 is "Associate" now — there
+// is no "Agent" rank. Higher ranks (Senior Associate / MD / EMD / NVP)
+// are awarded by the promotion items, not by phase number, so the
+// pickers stop at phase 5 (EMD Focus) and the top-rank stat pills
+// derive their label from the title resolver server-side.
 const PHASE_TITLES: Record<number, string> = {
-  1: 'Agent', 2: 'Associate', 3: 'Senior Associate',
-  4: 'Marketing Director', 5: 'Executive Marketing Director', 6: 'NVP',
+  1: 'Associate', 2: 'Field Training', 3: 'CFT',
+  4: 'MD Focus', 5: 'EMD Focus', 6: 'NVP Focus',
+}
+
+// Stat-pill color per title. Falls back to AFF gold for any unmapped
+// rank (e.g. NVP additions). Mirrors the gradient in PHASE_COLORS.
+const TITLE_COLORS: Record<string, string> = {
+  'Associate':          '#60a5fa',
+  'Senior Associate':   '#4ade80',
+  'Marketing Director': '#818cf8',
+  'EMD':                '#e879f9',
+  'NVP':                '#fbbf24',
 }
 
 // US states list now lives in agent-constants so every state-picker in
@@ -72,7 +88,7 @@ const labelStyle: React.CSSProperties = {
   textTransform: 'uppercase', color: '#C9A96E', marginBottom: 5,
 }
 
-interface FlatAgent { agentCode: string; firstName: string; lastName: string; phase: number }
+interface FlatAgent { agentCode: string; firstName: string; lastName: string; preferredName: string | null; phase: number; title: string }
 
 // ─── Leadership Card ──────────────────────────────────────────────────────────
 
@@ -265,7 +281,7 @@ function TreeNode({ node, depth, onSelect, showTrainers, expandedSet, onAvatarUp
 
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {node.firstName} {node.lastName}
+              {displayFullName(node)}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
               <span style={{
@@ -357,6 +373,7 @@ function EditPanel({ node, allAgents, onSave, onClose, onDeactivate, onAddRecrui
   const [form, setForm] = useState({
     firstName: node.firstName,
     lastName: node.lastName,
+    preferredName: node.preferredName ?? '',
     phase: node.phase,
     state: node.state ?? '',
     recruiterId: node.recruiterId ?? '',
@@ -383,6 +400,7 @@ function EditPanel({ node, allAgents, onSave, onClose, onDeactivate, onAddRecrui
         body: JSON.stringify({
           firstName: form.firstName,
           lastName: form.lastName,
+          preferredName: form.preferredName.trim() || null,
           phase: parseInt(String(form.phase)),
           state: form.state || null,
           recruiterId: form.recruiterId || null,
@@ -475,7 +493,7 @@ function EditPanel({ node, allAgents, onSave, onClose, onDeactivate, onAddRecrui
             <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 2 }}>
               {isLeadership ? 'Leadership' : 'Edit Agent'}
             </div>
-            <div style={{ fontSize: 15, fontWeight: 500, color: '#fff' }}>{node.firstName} {node.lastName}</div>
+            <div style={{ fontSize: 15, fontWeight: 500, color: '#fff' }}>{displayFullName(node)}</div>
             <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2 }}>{isLeadership ? node.title : node.agentCode}</div>
           </div>
         </div>
@@ -506,7 +524,7 @@ function EditPanel({ node, allAgents, onSave, onClose, onDeactivate, onAddRecrui
       {isLeadership ? (
         <div style={{ flex: 1, padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, color: '#6B8299', fontSize: 13, textAlign: 'center' }}>
           <div style={{ fontSize: 40 }}>👑</div>
-          <div>{node.firstName} {node.lastName}</div>
+          <div>{displayFullName(node)}</div>
           <div style={{ fontSize: 11 }}>{node.title} · All Financial Freedom</div>
           {!isLeadership && <div style={{ fontSize: 10, color: '#4B5563' }}>Click the avatar to upload a photo</div>}
         </div>
@@ -520,6 +538,19 @@ function EditPanel({ node, allAgents, onSave, onClose, onDeactivate, onAddRecrui
             <div>
               <label style={labelStyle}>Last Name</label>
               <input value={form.lastName} onChange={set('lastName')} style={inputStyle} />
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Goes By (Preferred Name)</label>
+            <input
+              value={form.preferredName}
+              onChange={set('preferredName')}
+              placeholder={form.firstName ? `Leave blank to keep "${form.firstName}"` : ''}
+              style={inputStyle}
+            />
+            <div style={{ fontSize: 10, color: '#6B8299', marginTop: 4 }}>
+              Shown in place of first name on Discord cards, leaderboards, the team page, and the welcome email greeting. Last name stays legal.
             </div>
           </div>
 
@@ -548,11 +579,11 @@ function EditPanel({ node, allAgents, onSave, onClose, onDeactivate, onAddRecrui
               {/* filter blocked legitimate reassignment cases (e.g. Sadie entered */}
               {/* a referral but Morgan actually recruited the person). */}
               {allAgents.filter(a => a.agentCode !== node.agentCode).map(a => (
-                <option key={a.agentCode} value={a.agentCode}>{a.firstName} {a.lastName} ({PHASE_TITLES[a.phase - 1] ?? 'Agent'})</option>
+                <option key={a.agentCode} value={a.agentCode}>{displayFullName(a)} ({a.title})</option>
               ))}
             </select>
             <div style={{ fontSize: 10, color: '#6B8299', marginTop: 4 }}>
-              Reassigning will move {node.firstName} under the new mentor on the org chart.
+              Reassigning will move {displayFirstName(node)} under the new mentor on the org chart.
             </div>
           </div>
 
@@ -564,7 +595,7 @@ function EditPanel({ node, allAgents, onSave, onClose, onDeactivate, onAddRecrui
               <option value="Melinee Minhas">Melinee Minhas — COO</option>
               {trainers.map(a => (
                 <option key={a.agentCode} value={`${a.firstName} ${a.lastName}`}>
-                  {a.firstName} {a.lastName} — {PHASE_TITLES[a.phase - 1] ?? 'Agent'}
+                  {displayFullName(a)} &middot; {a.title}
                 </option>
               ))}
             </select>
@@ -598,7 +629,7 @@ function EditPanel({ node, allAgents, onSave, onClose, onDeactivate, onAddRecrui
         <button
           onClick={() => onAddRecruitUnder(
             isLeadership ? '' : node.agentCode,
-            isLeadership ? 'Leadership' : `${node.firstName} ${node.lastName}`,
+            isLeadership ? 'Leadership' : displayFullName(node),
           )}
           style={{
             background: 'rgba(201,169,110,0.08)',
@@ -608,7 +639,7 @@ function EditPanel({ node, allAgents, onSave, onClose, onDeactivate, onAddRecrui
             cursor: 'pointer', width: '100%',
           }}
         >
-          + Add Recruit Under {isLeadership ? 'Leadership' : node.firstName}
+          + Add Recruit Under {isLeadership ? 'Leadership' : displayFirstName(node)}
         </button>
       </div>
 
@@ -616,7 +647,7 @@ function EditPanel({ node, allAgents, onSave, onClose, onDeactivate, onAddRecrui
       {!isLeadership && (
         <div style={{ padding: '0 24px 8px' }}>
           <button
-            onClick={() => { if (window.confirm(`Deactivate ${node.firstName} ${node.lastName}? They will be removed from the org chart.`)) onDeactivate(node.id) }}
+            onClick={() => { if (window.confirm(`Deactivate ${displayFullName(node)}? They will be removed from the org chart.`)) onDeactivate(node.id) }}
             style={{
               background: 'transparent', border: '1px solid rgba(248,113,113,0.25)',
               color: '#f87171', borderRadius: 4, padding: '8px 14px', fontSize: 10,
@@ -757,7 +788,7 @@ function AddAgentPanel({ allAgents, onCreated, onClose, defaultRecruiterId, defa
         <div><label style={labelStyle}>Reports To (Mentor)</label>
           <select value={form.recruiterId} onChange={set('recruiterId')} style={{ ...inputStyle, appearance: 'auto' }}>
             <option value="">Vick & Melinee Minhas (Leadership)</option>
-            {allAgents.map(a => (<option key={a.agentCode} value={a.agentCode}>{a.firstName} {a.lastName} ({a.agentCode})</option>))}
+            {allAgents.map(a => (<option key={a.agentCode} value={a.agentCode}>{displayFullName(a)} ({a.agentCode})</option>))}
           </select>
         </div>
         {error && <div style={{ fontSize: 12, color: '#f87171', padding: '8px 12px', background: 'rgba(248,113,113,0.08)', borderRadius: 4, border: '1px solid rgba(248,113,113,0.2)' }}>{error}</div>}
@@ -844,12 +875,15 @@ export default function OrgPage() {
             <div style={{ fontSize: 22, fontWeight: 300, color: '#fff', fontFamily: "'Cormorant Garamond', Georgia, serif" }}>{data.stats.totalAgents}</div>
             <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#C9A96E' }}>Total Agents</div>
           </div>
-          {data.stats.byPhase.filter(p => p.count > 0).map(p => (
-            <div key={p.phase} style={{ padding: '12px 18px', background: '#132238', borderRadius: 6, border: `1px solid ${PHASE_COLORS[p.phase]}20` }}>
-              <div style={{ fontSize: 22, fontWeight: 300, color: PHASE_COLORS[p.phase], fontFamily: "'Cormorant Garamond', Georgia, serif" }}>{p.count}</div>
-              <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#6B8299' }}>{p.title}</div>
-            </div>
-          ))}
+          {data.stats.byTitle.map(t => {
+            const color = TITLE_COLORS[t.title] ?? '#C9A96E'
+            return (
+              <div key={t.title} style={{ padding: '12px 18px', background: '#132238', borderRadius: 6, border: `1px solid ${color}20` }}>
+                <div style={{ fontSize: 22, fontWeight: 300, color, fontFamily: "'Cormorant Garamond', Georgia, serif" }}>{t.count}</div>
+                <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#6B8299' }}>{t.title}</div>
+              </div>
+            )
+          })}
         </div>
       )}
 
@@ -930,7 +964,7 @@ export default function OrgPage() {
 function flattenTree(nodes: OrgNode[]): FlatAgent[] {
   const result: FlatAgent[] = []
   function walk(n: OrgNode) {
-    if (!n.id.startsWith('_')) result.push({ agentCode: n.agentCode, firstName: n.firstName, lastName: n.lastName, phase: n.phase })
+    if (!n.id.startsWith('_')) result.push({ agentCode: n.agentCode, firstName: n.firstName, lastName: n.lastName, preferredName: n.preferredName, phase: n.phase, title: n.title })
     for (const c of n.children) walk(c)
   }
   for (const n of nodes) walk(n)

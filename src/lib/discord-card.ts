@@ -22,6 +22,7 @@
 // flavors don't require touching every call site.
 
 import type { DiscordEmbed } from './discord'
+import { displayFirstName } from './display-name'
 
 export type CardFlavor =
   | 'MILESTONE'             // phase-item announcement (the prototype)
@@ -64,6 +65,9 @@ const FLAVORS: Record<CardFlavor, FlavorMeta> = {
 export interface AchievementProtagonist {
   firstName: string
   lastName: string
+  // Agent-set "I go by" override for first name. Headline renders
+  // "{preferredName ?? firstName} {lastName}".
+  preferredName?: string | null
   agentCode?: string | null
   avatarUrl?: string | null
 }
@@ -90,7 +94,8 @@ export interface BuildAchievementEmbedArgs {
 
 export function buildAchievementEmbed(args: BuildAchievementEmbedArgs): DiscordEmbed {
   const meta = FLAVORS[args.flavor]
-  const fullName = `${args.protagonist.firstName} ${args.protagonist.lastName}`.trim()
+  const first = displayFirstName(args.protagonist)
+  const fullName = `${first} ${args.protagonist.lastName}`.trim()
   const headline = args.headline ?? `# ${fullName}`
   return {
     title: meta.title,

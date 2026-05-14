@@ -26,6 +26,7 @@ interface Row {
   agentCode: string
   firstName: string
   lastName: string
+  preferredName: string | null
   avatarUrl: string | null
   phase: number
   title: string
@@ -136,10 +137,12 @@ export async function GET(req: Request) {
   const recruiters = recruiterCodes.length > 0
     ? await db.agentProfile.findMany({
       where: { agentCode: { in: recruiterCodes } },
-      select: { agentCode: true, firstName: true, lastName: true },
+      select: { agentCode: true, firstName: true, lastName: true, preferredName: true },
     })
     : []
-  const recruiterByCode = new Map(recruiters.map(r => [r.agentCode, `${r.firstName} ${r.lastName}`.trim()]))
+  const recruiterByCode = new Map(
+    recruiters.map(r => [r.agentCode, `${(r.preferredName?.trim() || r.firstName)} ${r.lastName}`.trim()]),
+  )
 
   // Resolve DB-driven titles for all roster agents in one batch query.
   const promoItems = await db.phaseItem.findMany({
@@ -184,6 +187,7 @@ export async function GET(req: Request) {
       agentCode: a.agentCode,
       firstName: a.firstName,
       lastName: a.lastName,
+      preferredName: a.preferredName,
       avatarUrl: a.avatarUrl,
       phase: a.phase,
       title: resolveAgentTitle({ completedItemKeys: promoKeysByAgent.get(a.id) ?? [] }),
@@ -238,6 +242,7 @@ interface RosterAgent {
   agentCode: string
   firstName: string
   lastName: string
+  preferredName: string | null
   avatarUrl: string | null
   phase: number
   recruiterId: string | null
@@ -247,7 +252,7 @@ interface RosterAgent {
 async function rosterAll(): Promise<RosterAgent[]> {
   const rows = await db.agentProfile.findMany({
     where: { status: 'ACTIVE', isTest: false },
-    select: { id: true, agentCode: true, firstName: true, lastName: true, avatarUrl: true, phase: true, recruiterId: true, badges: true },
+    select: { id: true, agentCode: true, firstName: true, lastName: true, preferredName: true, avatarUrl: true, phase: true, recruiterId: true, badges: true },
   })
   return rows.map(r => ({ ...r, badges: r.badges ?? [] }))
 }
@@ -258,22 +263,23 @@ async function rosterAll(): Promise<RosterAgent[]> {
 // downline is empty. Bounded to 10 levels of depth as a safety belt
 // against any cyclic data; AFF's tree is realistically <6 levels deep.
 async function rosterDownline(rootCode: string, viewerId: string): Promise<RosterAgent[]> {
-  const rows = await db.$queryRaw<Array<RosterAgent & { is_test: boolean; status: string; badges: string[] | null }>>`
+  const rows = await db.$queryRaw<Array<RosterAgent & { is_test: boolean; status: string; badges: string[] | null; preferred_name: string | null }>>`
     WITH RECURSIVE downline AS (
-      SELECT id, "agentCode", "firstName", "lastName", "avatarUrl", phase, "recruiterId", badges, "is_test", status, 0 AS depth
+      SELECT id, "agentCode", "firstName", "lastName", preferred_name, "avatarUrl", phase, "recruiterId", badges, "is_test", status, 0 AS depth
         FROM agent_profiles WHERE id = ${viewerId}
       UNION ALL
-      SELECT a.id, a."agentCode", a."firstName", a."lastName", a."avatarUrl", a.phase, a."recruiterId", a.badges, a."is_test", a.status, d.depth + 1
+      SELECT a.id, a."agentCode", a."firstName", a."lastName", a.preferred_name, a."avatarUrl", a.phase, a."recruiterId", a.badges, a."is_test", a.status, d.depth + 1
         FROM agent_profiles a
         JOIN downline d ON a."recruiterId" = d."agentCode"
        WHERE d.depth < 10
     )
-    SELECT id, "agentCode", "firstName", "lastName", "avatarUrl", phase, "recruiterId", badges, "is_test", status FROM downline
+    SELECT id, "agentCode", "firstName", "lastName", preferred_name, "avatarUrl", phase, "recruiterId", badges, "is_test", status FROM downline
   `
   return rows
     .filter(r => r.status === 'ACTIVE' && !r.is_test)
     .map(r => ({
       id: r.id, agentCode: r.agentCode, firstName: r.firstName, lastName: r.lastName,
+      preferredName: r.preferred_name,
       avatarUrl: r.avatarUrl, phase: r.phase, recruiterId: r.recruiterId,
       badges: r.badges ?? [],
     }))
