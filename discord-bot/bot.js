@@ -131,17 +131,13 @@ function buildPhaseEmbed(phaseData) {
 client.on(Events.GuildMemberAdd, async (member) => {
   if (member.user?.bot) return;
 
-  // 0. Grant the Representative role. Every joiner gets it; the role
-  //    carries the 'Change Nickname' permission so agents can rename
-  //    themselves day one without broader server perms. Best-effort:
-  //    if the bot's role is below Representative in the hierarchy or
-  //    the role no longer exists, we log and move on.
+  // 0. Grant AFF Member to every joiner so they can see and interact
+  //    with all public channels immediately. Best-effort: log and
+  //    continue if the bot lacks permissions.
   try {
-    if (ROLES.REPRESENTATIVE) {
-      await member.roles.add(ROLES.REPRESENTATIVE, 'Auto-granted on join');
-    }
+    await member.roles.add(ROLES.AFF_MEMBER, 'Auto-granted on join');
   } catch (err) {
-    console.warn('[GuildMemberAdd] role grant failed:', err?.message ?? err);
+    console.warn('[GuildMemberAdd] AFF Member role grant failed:', err?.message ?? err);
   }
 
   // 1. Personal DM with onboarding links. Member may have DMs

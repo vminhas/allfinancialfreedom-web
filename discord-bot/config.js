@@ -27,9 +27,12 @@ module.exports = {
     PHASE_3:        '1295044213372883025',
     PHASE_4:        '1300845918937157652',
     LICENSED:       '1295044213360296053',
-    // Granted to every member at server-join. Carries the
-    // 'Change Nickname' permission so agents can rename themselves
-    // to their real name without needing broader server perms.
+    // Granted to every member at server-join so they can see and interact
+    // with all public channels immediately.
+    AFF_MEMBER:     '1295044213360296057',
+    // Granted by the portal when an agent links their Discord account.
+    AFF_CONNECTED:  '1497712341364510933',
+    // Legacy — may no longer exist; kept for reference only.
     REPRESENTATIVE: '1295044213372883017',
   },
 
