@@ -2,15 +2,18 @@
 // the trainer's name as a free-text string ("Vick Minhas", "Mercedes
 // Grubb", etc.), not an FK. There's no reverse index, so finding
 // "agents I'm training" means filtering on a normalized string match
-// against the caller's own full name.
+// against the caller's own name(s).
 //
-// Edge cases this normalization handles:
+// Edge cases the normalization handles:
 //   - "Vick Minhas" vs "Vick MInhas" (typo in tracker)
 //   - extra spaces, casing, accidental trailing spaces
 //   - empty cft (most agents don't have a trainer assigned)
-//   - preferred-name vs legal-name (a trainer's cft entry is their
-//     legal name on the profile; we match the trainer's legal name
-//     too, not preferredName)
+//   - preferred-name vs legal-name. A trainer whose legal first name
+//     is "Karmvir" but who is universally called "Vick" will have
+//     preferredName="Vick" on their profile, and every other agent's
+//     `cft` string will say "Vick Minhas". We try BOTH the legal full
+//     name AND the preferred-name form so the match works regardless
+//     of which one a tracker user typed in.
 //
 // Used by:
 //   /api/agents/trainees                 — list of trainees
@@ -27,39 +30,51 @@ export function normalizeName(s: string | null | undefined): string {
 export interface TrainerContext {
   trainerProfileId: string
   trainerLegalFullName: string
-  normalizedName: string
+  // Every name variant we'll accept on a trainee's cft field. Always
+  // includes the legal "First Last" form and, if preferredName is on
+  // file, also "Preferred Last". Both stored pre-normalized so the
+  // matcher just does a Set.has() check.
+  acceptedNames: Set<string>
 }
 
-// Resolve the caller's "trainer identity" — the normalized legal name
-// we'll compare against AgentProfile.cft on each candidate trainee.
-// Returns null when the calling profile can't be resolved (caller
-// should 404 in that case).
 export async function loadTrainerContext(
   profileId: string,
 ): Promise<TrainerContext | null> {
   const me = await db.agentProfile.findUnique({
     where: { id: profileId },
-    select: { firstName: true, lastName: true },
+    select: { firstName: true, lastName: true, preferredName: true },
   })
   if (!me) return null
+
   const legalFullName = `${me.firstName} ${me.lastName}`.trim()
+  const accepted = new Set<string>()
+  const legal = normalizeName(legalFullName)
+  if (legal) accepted.add(legal)
+
+  // Also accept the preferred-name form. Two real cases this catches:
+  //   1. The CEO: legal "Karmvir Minhas", preferred "Vick", and every
+  //      cft on a profile reads "Vick Minhas".
+  //   2. Anyone who later set a preferredName in their portal profile
+  //      after agents already typed their preferred form into cft.
+  if (me.preferredName?.trim()) {
+    const preferred = normalizeName(`${me.preferredName.trim()} ${me.lastName}`)
+    if (preferred) accepted.add(preferred)
+  }
+
   return {
     trainerProfileId: profileId,
     trainerLegalFullName: legalFullName,
-    normalizedName: normalizeName(legalFullName),
+    acceptedNames: accepted,
   }
 }
 
-// Return all AgentProfile rows where cft normalizes to the trainer's
-// name. Used both to list trainees and to authorize per-trainee
-// drilldowns (we re-check the target's cft inside each endpoint).
 export async function findTraineeProfiles(ctx: TrainerContext) {
-  if (!ctx.normalizedName) return []
+  if (ctx.acceptedNames.size === 0) return []
 
-  // Pull every profile that has a non-null cft and let the
-  // normalizer do the comparison in app code. Doing this in Postgres
-  // would require an immutable lower-trim-collapse function; the row
-  // count is small enough that filtering in JS is fine.
+  // Pull every profile with a non-null cft and let the normalizer do
+  // the comparison in app code. Doing this in Postgres would require
+  // an immutable lower-trim-collapse function; row count is small
+  // enough that filtering in JS is fine.
   const candidates = await db.agentProfile.findMany({
     where: { cft: { not: null }, isTest: false },
     select: {
@@ -78,12 +93,9 @@ export async function findTraineeProfiles(ctx: TrainerContext) {
     orderBy: [{ status: 'asc' }, { phase: 'desc' }, { firstName: 'asc' }],
   })
 
-  return candidates.filter(c => normalizeName(c.cft) === ctx.normalizedName)
+  return candidates.filter(c => ctx.acceptedNames.has(normalizeName(c.cft)))
 }
 
-// Verify that the caller (a trainer) is actually training the agent
-// identified by agentCode. Returns the trainee's profile row or null
-// if no match (caller should 403 in that case).
 export async function authorizeTraineeAccess(
   ctx: TrainerContext,
   agentCode: string,
@@ -93,6 +105,6 @@ export async function authorizeTraineeAccess(
     select: { id: true, cft: true, firstName: true, lastName: true },
   })
   if (!trainee) return null
-  if (normalizeName(trainee.cft) !== ctx.normalizedName) return null
+  if (!ctx.acceptedNames.has(normalizeName(trainee.cft))) return null
   return trainee
 }
