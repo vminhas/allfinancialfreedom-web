@@ -500,5 +500,14 @@ export async function syncClients() {
     }
   }
 
+  // Backfill: assign any existing PENDING submissions that have no assignee.
+  // This handles records created before auto-assign was introduced.
+  if (autoAssignee) {
+    await db.newBusinessSubmission.updateMany({
+      where: { status: 'PENDING', assignedToId: null },
+      data: { assignedToId: autoAssignee },
+    })
+  }
+
   return results
 }
