@@ -282,7 +282,7 @@ export default function NewBusinessTab({ isMobile, phase, initialSubmissionId, p
                   )}
                 </td>
                 <td style={{ padding: '10px 12px', fontSize: 11 }}><StatusPill status={s.status} /></td>
-                <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{new Date(s.createdAt).toLocaleDateString()}</td>
+                <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{new Date(s.applicationDate).toLocaleDateString()}</td>
                 {showAnniversaryCol && (
                   <td style={{ padding: '10px 12px', fontSize: 11 }}>
                     {s.daysUntilAnniversary != null ? (
@@ -331,7 +331,7 @@ export default function NewBusinessTab({ isMobile, phase, initialSubmissionId, p
                       {writer ? <>{writer.firstName} {writer.lastName} <span style={{ color: '#4B5563' }}>· {writer.agentCode}</span></> : '—'}
                     </td>
                     <td style={{ padding: '10px 12px', fontSize: 11 }}><StatusPill status={s.status} /></td>
-                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{new Date(s.createdAt).toLocaleDateString()}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{new Date(s.applicationDate).toLocaleDateString()}</td>
                   </tr>
                 )
               })}
