@@ -1514,6 +1514,12 @@ function AgentDrawer({
             Hidden for Phase 1 since there's no promotion to celebrate
             from there. */}
         {agent.phase > 1 && <PromotionReannounceButton agentId={agent.id} phase={agent.phase} />}
+        {/* Re-fire the public NEW BUSINESS PARTNER card for this agent.
+            Useful when Tevah created the agent before the auto-announce
+            wiring shipped, or when the recruiter got set manually after
+            creation. Visible for every agent; the endpoint returns a
+            clear error if there's no recruiter to credit. */}
+        <JoinReannounceButton agentId={agent.id} agentName={`${agent.firstName} ${agent.lastName}`} />
       </div>
 
       {/* Invite */}
@@ -2863,6 +2869,57 @@ function PromotionReannounceButton({ agentId, phase }: { agentId: string; phase:
         : state === "sent" ? "✓ Card posted"
         : state === "error" ? "Failed, retry"
         : "Re-announce promotion to Discord"}
+    </button>
+  )
+}
+
+function JoinReannounceButton({ agentId, agentName }: { agentId: string; agentName: string }) {
+  // Fires POST /api/admin/agents/[id]/announce-join. The endpoint
+  // returns 409 with a clear message when the agent has no recruiter
+  // on file (no protagonist for the card); we surface that to the
+  // admin instead of just showing a generic "failed" state.
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "error" | "no_recruiter">("idle")
+  const click = async () => {
+    setState("sending")
+    try {
+      const res = await fetch(`/api/admin/agents/${agentId}/announce-join`, { method: "POST" })
+      if (res.ok) {
+        setState("sent")
+      } else {
+        const body = await res.json().catch(() => ({})) as { reason?: string }
+        setState(body.reason === "no_recruiter" ? "no_recruiter" : "error")
+      }
+      setTimeout(() => setState("idle"), 5000)
+    } catch {
+      setState("error")
+    }
+  }
+  const accent = state === "sent" ? "#4ADE80"
+    : state === "error" ? "#f87171"
+    : state === "no_recruiter" ? "#f59e0b"
+    : "#C9A96E"
+  return (
+    <button
+      onClick={click}
+      disabled={state === "sending"}
+      title={`Post the NEW BUSINESS PARTNER card for ${agentName} to #announcements. Useful for backfilling Tevah-created agents that joined before the auto-announce wiring.`}
+      style={{
+        marginTop: 8, width: "100%",
+        background: state === "sent" ? "rgba(74,222,128,0.10)"
+          : state === "error" ? "rgba(248,113,113,0.10)"
+          : state === "no_recruiter" ? "rgba(245,158,11,0.10)"
+          : "transparent",
+        border: `1px solid ${accent}40`,
+        color: accent,
+        borderRadius: 4, padding: "7px", fontSize: 10, fontWeight: 700,
+        cursor: state === "sending" ? "wait" : "pointer", letterSpacing: "0.08em", textTransform: "uppercase",
+      }}
+    >
+      {state === "sending" ? "Posting..."
+        : state === "sent" ? "✓ Card posted"
+        : state === "error" ? "Failed, retry"
+        : state === "no_recruiter" ? "Set recruiter first"
+        : "Announce join to Discord"}
     </button>
   )
 }
