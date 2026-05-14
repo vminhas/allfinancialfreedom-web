@@ -89,37 +89,23 @@ jobs:
           echo "title=$TITLE" >> $GITHUB_OUTPUT
           echo "excerpt=$EXCERPT" >> $GITHUB_OUTPUT
 
-      # ── Notify Discord (both triggers) ────────────────────────────────────
+      # ── Notify Discord via AFF Concierge bot ─────────────────────────────
       - name: Notify Discord (push trigger)
         if: github.event_name == 'push' && steps.detect.outputs.has_article == 'true'
         env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          curl -s -H "Content-Type: application/json" \
-          -d "{
-            \"embeds\": [{
-              \"title\": \"New Article: ${{ steps.detect.outputs.title }}\",
-              \"description\": \"${{ steps.detect.outputs.excerpt }}\",
-              \"url\": \"https://allfinancialfreedom.com/blog/${{ steps.detect.outputs.slug }}\",
-              \"color\": 1714756,
-              \"footer\": { \"text\": \"All Financial Freedom · Wealth · Protection · Legacy\" }
-            }]
-          }" \
-          "$DISCORD_WEBHOOK_URL"
+          curl -s -X POST https://allfinancialfreedom.com/api/cron/blog-notify \
+          -H "Content-Type: application/json" \
+          -H "x-cron-secret: $CRON_SECRET" \
+          -d "{\"title\":\"${{ steps.detect.outputs.title }}\",\"excerpt\":\"${{ steps.detect.outputs.excerpt }}\",\"slug\":\"${{ steps.detect.outputs.slug }}\"}"
 
       - name: Notify Discord (manual trigger)
         if: github.event_name == 'workflow_dispatch' && steps.check.outputs.has_draft == 'true'
         env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          curl -s -H "Content-Type: application/json" \
-          -d "{
-            \"embeds\": [{
-              \"title\": \"New Article: ${{ steps.meta.outputs.title }}\",
-              \"description\": \"${{ steps.meta.outputs.excerpt }}\",
-              \"url\": \"https://allfinancialfreedom.com/blog/${{ steps.meta.outputs.slug }}\",
-              \"color\": 1714756,
-              \"footer\": { \"text\": \"All Financial Freedom · Wealth · Protection · Legacy\" }
-            }]
-          }" \
-          "$DISCORD_WEBHOOK_URL"
+          curl -s -X POST https://allfinancialfreedom.com/api/cron/blog-notify \
+          -H "Content-Type: application/json" \
+          -H "x-cron-secret: $CRON_SECRET" \
+          -d "{\"title\":\"${{ steps.meta.outputs.title }}\",\"excerpt\":\"${{ steps.meta.outputs.excerpt }}\",\"slug\":\"${{ steps.meta.outputs.slug }}\"}"

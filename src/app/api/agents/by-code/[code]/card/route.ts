@@ -79,6 +79,7 @@ export async function GET(
   const profile = await db.agentProfile.findUnique({
     where: { agentCode: code },
     select: {
+      id: true,
       agentCode: true,
       firstName: true,
       lastName: true,
@@ -103,10 +104,17 @@ export async function GET(
         orderBy: { completedAt: 'asc' },
       },
       carrierAppointments: { where: { status: 'APPOINTED' }, select: { id: true } },
-      submissions: { select: { status: true, points: true } },
+      submissions: { select: { id: true, status: true, points: true, splitWithAgentId: true } },
     },
   })
   if (!profile) return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
+
+  // Fetch submissions where this agent is the split partner (not the writer).
+  // These don't appear in profile.submissions (which is writer-only).
+  const splitPartnerSubs = await db.newBusinessSubmission.findMany({
+    where: { splitWithAgentId: profile.id },
+    select: { id: true, status: true, points: true },
+  })
 
   // Direct downline = agents whose recruiterId === this agent's code.
   // Total downline = recursive descendants. We do this in JS off a
@@ -149,12 +157,22 @@ export async function GET(
     ? Math.max(0, Math.floor((today.getTime() - new Date(profile.phaseStartedAt).getTime()) / 86400000))
     : null
 
-  const totalSubmissions = profile.submissions.length
-  const issuedClients = profile.submissions.filter(s => s.status === 'ISSUED').length
-  const totalTargetPremium = profile.submissions.reduce(
-    (sum, s) => sum + (typeof s.points === 'number' ? s.points : 0),
-    0,
-  )
+  // Combine writer submissions + split-partner submissions for accurate totals.
+  // Split submissions give each agent half the points.
+  const allSubs = [
+    ...profile.submissions.map(s => ({
+      status: s.status,
+      points: s.splitWithAgentId ? (s.points ?? 0) / 2 : (s.points ?? 0),
+    })),
+    ...splitPartnerSubs.map(s => ({
+      status: s.status,
+      points: (s.points ?? 0) / 2,
+    })),
+  ]
+
+  const totalSubmissions = allSubs.length
+  const issuedClients = allSubs.filter(s => s.status === 'ISSUED').length
+  const totalTargetPremium = allSubs.reduce((sum, s) => sum + s.points, 0)
 
   const milestoneBadges = profile.milestones
     .map(m => ({ key: m.milestone, label: MILESTONE_BY_KEY[m.milestone]?.label ?? m.milestone }))

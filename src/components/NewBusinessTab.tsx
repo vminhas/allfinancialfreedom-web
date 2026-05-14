@@ -270,7 +270,16 @@ export default function NewBusinessTab({ isMobile, phase, initialSubmissionId }:
                 <td style={{ padding: '10px 12px', fontSize: 12, color: '#ffffff' }}>{s.clientFirstName} {s.clientLastName}</td>
                 <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{s.carrier}</td>
                 <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{POLICY_TYPES.find(p => p.value === s.policyType)?.label ?? s.policyType}</td>
-                <td style={{ padding: '10px 12px', fontSize: 12, color: '#C9A96E' }}>{s.points != null ? `$${s.points.toLocaleString()}` : '—'}</td>
+                <td style={{ padding: '10px 12px', fontSize: 12, color: '#C9A96E' }}>
+                  {s.points != null
+                    ? `$${(s.splitWithAgent ? s.points / 2 : s.points).toLocaleString()}`
+                    : '—'}
+                  {s.splitWithAgent && (
+                    <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2 }}>
+                      Split: {s.splitWithAgent.firstName} {s.splitWithAgent.lastName}
+                    </div>
+                  )}
+                </td>
                 <td style={{ padding: '10px 12px', fontSize: 11 }}><StatusPill status={s.status} /></td>
                 <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{new Date(s.createdAt).toLocaleDateString()}</td>
                 {showAnniversaryCol && (
@@ -858,7 +867,13 @@ function SubmissionDrawer({ submission, onClose, onChanged }: { submission: Subm
           <>
             <DetailRow k="Carrier" v={submission.carrier} />
             <DetailRow k="Policy Type" v={POLICY_TYPES.find(p => p.value === submission.policyType)?.label ?? submission.policyType} />
-            <DetailRow k="Target Premium" v={submission.points != null ? `$${submission.points.toLocaleString()}` : '—'} />
+            <DetailRow k="Target Premium" v={
+              submission.points != null
+                ? submission.splitWithAgent
+                  ? `$${(submission.points / 2).toLocaleString()} (your share of $${submission.points.toLocaleString()} split)`
+                  : `$${submission.points.toLocaleString()}`
+                : '—'
+            } />
             <DetailRow k="Application Date" v={new Date(submission.applicationDate).toLocaleDateString()} />
             {submission.policyNumber && <DetailRow k="Policy Number" v={submission.policyNumber} />}
             {submission.issuedDate && <DetailRow k="Issued" v={new Date(submission.issuedDate).toLocaleDateString()} />}
