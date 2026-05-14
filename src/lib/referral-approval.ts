@@ -274,13 +274,15 @@ export async function approveReferral(input: ApprovalInput): Promise<ApprovalRes
         },
         subline: `Welcome **${recruitName}** to the AFF family.`,
         fields: [
-          { name: 'Recruit', value: recruitName, inline: true },
+          { name: 'New Business Partner', value: recruitName, inline: true },
           { name: 'State', value: referral.state ?? 'Not set', inline: true },
-          { name: 'Recruited by', value: `${refName} (\`${referringAgent.agentCode}\`)`, inline: false },
+          { name: 'Shared by', value: `${refName} (\`${referringAgent.agentCode}\`)`, inline: false },
         ],
       })
       sendChannelMessage(announcementsChannel, {
-        content: `${recruiterMention} brought a new agent to the team! Let's go!`,
+        // Selfless framing: name the recruiter's act (sharing the
+        // opportunity) and center the new person, not a hype "let's go."
+        content: `${recruiterMention} shared the opportunity with **${recruitName}**.`,
         embeds: [card],
       }).catch((err) => {
         console.error('[approveReferral] public announcement failed:', err)

@@ -437,8 +437,8 @@ async function handleLeaderboardTab(customId: string) {
   // Always query recruits and production so all tabs have fresh data.
   let subLines = '_No submissions this month._'
   let submissionSummary = 'No submissions recorded this month.'
-  let recLines = '_No new recruits this month._'
-  let recruitSummary = 'No recruits recorded this month.'
+  let recLines = '_No new business partners this month._'
+  let recruitSummary = 'No new business partners recorded this month.'
   let promoLines = '_No promotions recorded yet this month._'
 
   if (rosterIds.length > 0) {
@@ -511,9 +511,9 @@ async function handleLeaderboardTab(customId: string) {
 
     const topRec = [...recruitCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10)
     if (topRec.length > 0) {
-      recLines = topRec.map(([id, v], i) => rankLine(i, toName(id), v, 'recruit')).join('\n')
+      recLines = topRec.map(([id, v], i) => rankLine(i, toName(id), v, 'business partner')).join('\n')
       const totalRec = [...recruitCounts.values()].reduce((a, b) => a + b, 0)
-      recruitSummary = `**${totalRec}** recruit${totalRec !== 1 ? 's' : ''} · ${recruitCounts.size} recruiter${recruitCounts.size !== 1 ? 's' : ''}`
+      recruitSummary = `**${totalRec}** new business partner${totalRec !== 1 ? 's' : ''} · ${recruitCounts.size} builder${recruitCounts.size !== 1 ? 's' : ''}`
     }
 
     // Promotions: title-bearing phase items completed this month
@@ -554,7 +554,7 @@ async function handleLeaderboardTab(customId: string) {
   } else if (view === 'recruits') {
     embed = {
       color: 0x1a2744,
-      title: `\u{1F91D}  Top Recruiters · ${monthLabel}`,
+      title: `\u{1F91D}  Top Builders · ${monthLabel}`,
       description: (recruitSummary ? `${recruitSummary}\n\n` : '') + recLines,
       footer: { text: `Updated ${updatedAt} ET · allfinancialfreedom.com/agents/leaderboard` },
     }
@@ -580,7 +580,7 @@ async function handleLeaderboardTab(customId: string) {
   const buttons = {
     type: 1,
     components: [
-      btn('lb_recruits',    '\u{1F91D} Recruits',    view === 'recruits'),
+      btn('lb_recruits',    '\u{1F91D} Builders',    view === 'recruits'),
       btn('lb_production',  '\u{1F3C6} Production',  view === 'production'),
       btn('lb_promotions',  '\u{1F396}️ Promotions', view === 'promotions'),
       btn('lb_movers',      '\u{1F331} Movers',      view === 'movers'),

@@ -62,9 +62,9 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     },
     subline: `Welcome **${recruitName}** to the AFF family.`,
     fields: [
-      { name: 'Recruit',  value: recruitName, inline: true },
-      { name: 'State',    value: referral.state ?? 'Not set', inline: true },
-      { name: 'Recruited by', value: `${refName} (\`${referrer.agentCode}\`)`, inline: false },
+      { name: 'New Business Partner', value: recruitName, inline: true },
+      { name: 'State',                value: referral.state ?? 'Not set', inline: true },
+      { name: 'Shared by',            value: `${refName} (\`${referrer.agentCode}\`)`, inline: false },
     ],
   })
 
@@ -73,7 +73,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
 
   const { sendChannelMessage } = await import('@/lib/discord')
   const result = await sendChannelMessage(announcementsChannel, {
-    content: `${recruiterMention} brought a new agent to the team! Let's go!`,
+    content: `${recruiterMention} shared the opportunity with **${recruitName}**.`,
     embeds: [card],
   })
 

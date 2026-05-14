@@ -69,9 +69,13 @@ function titleAbbrev(title: string): string {
   return title
 }
 
+// Display labels for each metric. The internal metric key stays
+// 'recruits' for source-code stability and API back-compat; the
+// user-visible label is 'Builders' (positive framing of team-building
+// over "recruiting").
 const METRIC_LABEL: Record<Metric, string> = {
   submissions: 'Submissions',
-  recruits: 'Recruits',
+  recruits: 'Builders',
   points: 'Points',
 }
 
@@ -210,7 +214,7 @@ function FilterBar({
     }}>
       <SegmentGroup label="Metric">
         <Segment active={metric === 'submissions'} onClick={() => setMetric('submissions')} icon={<SubmissionIcon size={13} />}>Submissions</Segment>
-        <Segment active={metric === 'recruits'} onClick={() => setMetric('recruits')} icon={<RecruitsIcon size={13} />}>Recruits</Segment>
+        <Segment active={metric === 'recruits'} onClick={() => setMetric('recruits')} icon={<RecruitsIcon size={13} />}>Builders</Segment>
         <Segment active={metric === 'points'} onClick={() => setMetric('points')} icon={<PointsIcon size={13} />}>Points</Segment>
       </SegmentGroup>
       {metric === 'points' && (
@@ -320,7 +324,7 @@ function StandingBanner({
           <div style={{ fontSize: 20, color: '#ffffff', fontWeight: 300, marginTop: 4, letterSpacing: '-0.01em' }}>
             {viewer.rank
               ? <>You&apos;re <span style={{ color: '#C9A96E', fontWeight: 600 }}>#{viewer.rank}</span> of <span style={{ fontVariantNumeric: 'tabular-nums' }}>{total}</span></>
-              : <>You haven&apos;t logged a {metric === 'recruits' ? 'recruit' : 'submission'} {timeframe === 'all' ? 'yet' : timeframeShort(timeframe)}</>
+              : <>You haven&apos;t logged a {metric === 'recruits' ? 'builder' : 'submission'} {timeframe === 'all' ? 'yet' : timeframeShort(timeframe)}</>
             }
           </div>
           <div style={{ fontSize: 11, color: '#9BB0C4', marginTop: 4 }}>
@@ -708,7 +712,7 @@ function ErrorState({ message }: { message: string }) {
 
 function EmptyState({ metric, scope }: { metric: Metric; scope: Scope }) {
   const cta = metric === 'recruits'
-    ? { label: 'View recruiting tools', href: '/agents' }
+    ? { label: 'View team-building tools', href: '/agents' }
     : { label: 'Log a new submission', href: '/agents/new-business' }
   return (
     <div style={{
@@ -722,11 +726,11 @@ function EmptyState({ metric, scope }: { metric: Metric; scope: Scope }) {
       <div style={{ color: '#9BB0C4', fontSize: 14, fontWeight: 500, marginBottom: 6 }}>
         {scope === 'downline'
           ? 'No activity from your downline yet'
-          : `No ${metric === 'recruits' ? 'recruits' : 'submissions'} logged yet`}
+          : `No ${metric === 'recruits' ? 'builders' : 'submissions'} logged yet`}
       </div>
       <div style={{ color: '#6B8299', fontSize: 12, marginBottom: 16, maxWidth: 360, margin: '0 auto 16px' }}>
         {scope === 'downline'
-          ? 'Recruits you bring on will appear in this view as they ramp up.'
+          ? 'Builders you bring on will appear in this view as they ramp up.'
           : 'Be the first to put points on the board for this period.'}
       </div>
       <Link href={cta.href} style={{

@@ -205,7 +205,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (recruiter) {
         const { displayFullName } = await import('@/lib/display-name')
         fields.push({
-          name: 'Recruited by',
+          name: 'Shared by',
           value: `${displayFullName(recruiter)} (\`${recruiter.agentCode}\`)`,
           inline: false,
         })
