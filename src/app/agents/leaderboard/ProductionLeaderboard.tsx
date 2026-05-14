@@ -213,7 +213,7 @@ function FilterBar({
       </SegmentGroup>
       {metric === 'points' && (
         <div style={{ fontSize: 10, color: '#4B6280', marginTop: 6, paddingLeft: 2 }}>
-          Points count when policies are issued.
+          Points are based on rolling 12-month persistency, sourced from Tevah.
         </div>
       )}
 

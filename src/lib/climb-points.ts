@@ -1,11 +1,13 @@
 import { db } from './db'
 import type { ClimbMilestone, AgentProfile } from '@/generated/prisma/client'
 
-// ─── Lifetime points ──────────────────────────────────────────────────────────
+// ─── Points source ───────────────────────────────────────────────────────────
 //
-// Points are summed live from NewBusinessSubmission rows. Split submissions
-// divide points equally: each agent (writer + partner) earns half the
-// policy's point value. Mirrors the leaderboard math.
+// AFF uses rolling-12-month persistency points from Tevah as the source of
+// truth for all production recognition (Climb milestones, leaderboard Points
+// tab). These are stored on AgentProfile.tevahPoints and refreshed by the
+// Tevah sync cron. The fallback (ISSUED-only sum from our submissions) is
+// only used for agents not yet linked to Tevah.
 
 export async function lifetimePointsForAgent(agentProfileId: string): Promise<number> {
   // Prefer Tevah's verified all-time total (stored by the sync).

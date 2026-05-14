@@ -113,7 +113,9 @@ export async function getAllTevahAgents(): Promise<TevahAgent[]> {
   return all
 }
 
-// Fetch all-time production points for every agent from Tevah's team report.
+// Fetch rolling-12-month persistency points for every agent from Tevah's team report.
+// Uses byPersistency over a rolling 12-month window — this is the metric AFF uses
+// for official recognition (phase promotions, climb milestones).
 // Returns a map of agentCode (uppercase) → totalPoints.
 export async function getAllTevahAgentPoints(): Promise<Map<string, number>> {
   const { jwt, userId, agentId } = await getTevahToken()
@@ -121,12 +123,22 @@ export async function getAllTevahAgentPoints(): Promise<Map<string, number>> {
   const all: Array<{ subjectAgentNumber: string; totalPoints: string }> = []
   let page = 1
 
+  // Rolling 12-month window, formatted as Tevah expects: "13+May+2026"
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  const fmt = (d: Date) => `${d.getDate()}+${MONTHS[d.getMonth()]}+${d.getFullYear()}`
+  const endDt = new Date()
+  const startDt = new Date(endDt)
+  startDt.setFullYear(startDt.getFullYear() - 1)
+  startDt.setDate(startDt.getDate() + 1)
+  const startDate = fmt(startDt)
+  const endDate   = fmt(endDt)
+
   while (true) {
     const url =
       `${TEVAH_API}/api/team/getFilteredTeamReportAgents` +
       `?id=${agentId}&page=${page}&pageSize=${pageSize}` +
       `&search=&level=&sortDirection=desc&type=base&top=All` +
-      `&selectedType=byPoints&startDate=1+Jan+2020&endDate=31+Dec+2099`
+      `&selectedType=byPersistency&startDate=${startDate}&endDate=${endDate}`
 
     const res = await fetch(url, { headers: headers(jwt, userId, agentId) })
     if (!res.ok) throw new Error(`Tevah points fetch HTTP ${res.status}`)
