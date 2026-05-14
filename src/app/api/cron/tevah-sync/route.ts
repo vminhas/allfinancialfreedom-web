@@ -322,7 +322,8 @@ export async function syncClients() {
   for (const client of clients) {
     try {
       const existing = existingByTevahId.get(client.id)
-      const newStatus = tevahStatusToAff(client.status) as NewBusinessStatus
+      // Prefer policyStatus (more specific) over status when available.
+      const newStatus = tevahStatusToAff(client.policyStatus || client.status) as NewBusinessStatus
 
       if (existing) {
         if (existing.status !== newStatus || existing.policyNumber !== client.policyNumber) {

@@ -358,7 +358,7 @@ async function recruitsValues(roster: RosterAgent[], agentIds: string[], start: 
       // No status filter: agents who later go inactive still count toward
       // their recruiter's recruitment total — they were recruited.
       recruiterId: { in: codesOfInterest },
-      createdAt: start ? { gte: start, lte: end } : { lte: end },
+      icaDate: start ? { gte: start, lte: end } : { lte: end },
     },
     select: { recruiterId: true },
   })

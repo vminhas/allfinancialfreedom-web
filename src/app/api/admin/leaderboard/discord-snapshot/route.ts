@@ -174,7 +174,7 @@ export async function GET(req: NextRequest) {
   const newAgents = await db.agentProfile.findMany({
     where: {
       isTest: false,
-      createdAt: { gte: monthStart, lte: now },
+      icaDate: { gte: monthStart, lte: now },
     },
     select: { recruiterId: true },
   })

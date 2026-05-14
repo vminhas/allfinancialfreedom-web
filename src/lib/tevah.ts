@@ -187,10 +187,16 @@ export function tevahProductToAffPolicyType(productType: string, insuranceType: 
   return 'OTHER'
 }
 
+// Accepts either the Tevah `status` or `policyStatus` field; call with
+// whichever is more specific (policyStatus preferred when set).
 export function tevahStatusToAff(status: string): string {
-  const s = (status || '').toLowerCase()
-  if (s === 'inforce' || s === 'issued') return 'ISSUED'
-  if (s.includes('decline') || s.includes('not taken')) return 'DECLINED'
+  const s = (status || '').toLowerCase().replace(/[\s_-]+/g, '')
+  // Active / issued / paid / inforce / approved all mean the policy is live.
+  if (
+    s === 'inforce' || s === 'issued' || s === 'active' || s === 'paid' ||
+    s === 'approved' || s === 'placed' || s === 'activepolicyholder'
+  ) return 'ISSUED'
+  if (s.includes('decline') || s.includes('nottaken') || s.includes('cancelled') || s.includes('canceled')) return 'DECLINED'
   if (s.includes('lapse')) return 'LAPSED'
   return 'PENDING'
 }
