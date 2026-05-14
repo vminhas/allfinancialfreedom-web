@@ -55,6 +55,7 @@ interface TeamNode {
   agentCode: string
   firstName: string
   lastName: string
+  preferredName: string | null
   phase: number
   title: string
   state: string | null
@@ -292,6 +293,7 @@ export async function GET(req: NextRequest) {
     agentCode: '',
     firstName: r.firstName,
     lastName: r.lastName,
+    preferredName: null,
     phase: 0,
     title: 'Pending Review',
     state: r.state,
