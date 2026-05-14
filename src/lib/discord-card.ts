@@ -60,7 +60,13 @@ const FLAVORS: Record<CardFlavor, FlavorMeta> = {
   // celebrated as a Business Partner, not as a "recruit." A new agent
   // joining is a generous act by the recruiter, not a hire — the
   // language follows.
-  NEW_RECRUIT:           { title: '🎉  N E W   B U S I N E S S   P A R T N E R', defaultAccent: 0x4ADE80, footerCloser: 'Welcome to the family.' },
+  //
+  // Title drops the letter-spaced "banner" rhythm the shorter card
+  // titles use because "NEW BUSINESS PARTNER" is too long to fit on a
+  // single line in mobile Discord embeds, which gave us a trailing
+  // "R" wrapping onto its own line. Plain spacing keeps it readable
+  // across all clients.
+  NEW_RECRUIT:           { title: '🎉 NEW BUSINESS PARTNER', defaultAccent: 0x4ADE80, footerCloser: 'Welcome to the family.' },
   RECOGNITION:           { title: '🏆  R E C O G N I T I O N',        defaultAccent: 0xC9A96E, footerCloser: 'Earned and well-deserved.' },
   ELITE_TRAINER:         { title: '✨  E L I T E   T R A I N E R  ✨', defaultAccent: 0xE6C26F, footerCloser: 'A rare achievement.' },
   POLICY_ISSUED:         { title: '📈  P O L I C Y   I S S U E D',     defaultAccent: 0x4ADE80, footerCloser: 'Another family helped.' },
