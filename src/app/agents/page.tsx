@@ -360,13 +360,14 @@ function AgentDashboardInner() {
   // trainee list with counts, not the full BP/FTA drilldown. Tab
   // contents fetch lazily when the tab is activated.
   useEffect(() => {
-    fetch('/api/agents/trainees')
+    const url = previewToken ? `/api/agents/trainees?preview=${previewToken}` : '/api/agents/trainees'
+    fetch(url)
       .then(r => r.ok ? r.json() : null)
       .then((d: { trainees?: { id: string }[] } | null) => {
         if (d?.trainees) setTraineeCount(d.trainees.length)
       })
       .catch(() => {})
-  }, [])
+  }, [previewToken])
 
   useEffect(() => {
     fetch('/api/agents/phase-items')
@@ -782,7 +783,7 @@ function AgentDashboardInner() {
               ].map(({ href, Icon, label, desc }) => (
                 <a
                   key={href}
-                  href={href}
+                  href={previewToken ? `${href}?preview=${encodeURIComponent(previewToken)}` : href}
                   onClick={() => setMenuOpen(false)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 14,
@@ -1952,7 +1953,7 @@ function AgentDashboardInner() {
         {activeTab === 'calls' && <CallLogsTab hasCft={(data.badges ?? []).includes('CFT')} previewToken={previewToken} />}
         {activeTab === 'climb' && <ClimbTab isMobile={isMobile} previewToken={previewToken} />}
         {activeTab === 'team' && <MyTeamTab isMobile={isMobile} previewToken={previewToken} />}
-        {activeTab === 'trainees' && <MyTraineesTab isMobile={isMobile} />}
+        {activeTab === 'trainees' && <MyTraineesTab isMobile={isMobile} previewToken={previewToken} />}
         {activeTab === 'profile' && (
           <ProfileTab
             data={data}
@@ -5407,9 +5408,21 @@ function TabStrip({
 function NavbarLink({ href, Icon, label }: {
   href: string; Icon: LucideIcon; label: string
 }) {
+  // Preserve ?preview=<token> across navigation so admin "view portal
+  // as X" doesn't lose the preview identity when clicking into
+  // Leaderboard / Directory / Trainings / etc. Without this, those
+  // pages fall back to the admin's own session and the agent-side API
+  // routes 401 because the admin's auth cookie is scoped to /vault.
+  const search = typeof window !== 'undefined' ? window.location.search : ''
+  const params = new URLSearchParams(search)
+  const previewToken = params.get('preview')
+  const finalHref = previewToken && !href.includes('?')
+    ? `${href}?preview=${encodeURIComponent(previewToken)}`
+    : href
+
   return (
     <a
-      href={href}
+      href={finalHref}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 5,
         padding: '6px 10px', borderRadius: 4,
@@ -5805,28 +5818,38 @@ interface TraineeFta {
   businessPartner?: { id: string; name: string; phone: string | null; email: string | null; occupation: string | null; category: string | null } | null
 }
 
-function MyTraineesTab({ isMobile }: { isMobile: boolean }) {
+function MyTraineesTab({ isMobile, previewToken }: { isMobile: boolean; previewToken?: string | null }) {
   const [trainees, setTrainees] = useState<TraineeRow[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedCode, setExpandedCode] = useState<string | null>(null)
   const [drilldown, setDrilldown] = useState<Record<string, { partners?: TraineePartner[]; ftas?: TraineeFta[]; loading?: boolean }>>({})
 
+  // Append ?preview=<token> on every fetch when an admin is browsing
+  // through "view portal as agent." resolveAgentIdentity recognizes
+  // the token; without it the route falls back to the admin's own
+  // session and returns 0 trainees (or 401 if the agent-auth cookie
+  // isn't on this path).
+  const withPreview = useCallback((url: string) => {
+    if (!previewToken) return url
+    return url + (url.includes('?') ? '&' : '?') + `preview=${encodeURIComponent(previewToken)}`
+  }, [previewToken])
+
   useEffect(() => {
     setLoading(true)
-    fetch('/api/agents/trainees')
+    fetch(withPreview('/api/agents/trainees'))
       .then(r => r.ok ? r.json() : { trainees: [] })
       .then((d: { trainees?: TraineeRow[] }) => setTrainees(d.trainees ?? []))
       .catch(() => setTrainees([]))
       .finally(() => setLoading(false))
-  }, [])
+  }, [withPreview])
 
   const loadDrilldown = useCallback(async (code: string) => {
     if (drilldown[code]?.partners && drilldown[code]?.ftas) return
     setDrilldown(prev => ({ ...prev, [code]: { ...prev[code], loading: true } }))
     try {
       const [pRes, fRes] = await Promise.all([
-        fetch(`/api/agents/trainees/${code}/partners`),
-        fetch(`/api/agents/trainees/${code}/fta`),
+        fetch(withPreview(`/api/agents/trainees/${code}/partners`)),
+        fetch(withPreview(`/api/agents/trainees/${code}/fta`)),
       ])
       const pd = pRes.ok ? await pRes.json() as { partners?: TraineePartner[] } : { partners: [] }
       const fd = fRes.ok ? await fRes.json() as { ftas?: TraineeFta[] } : { ftas: [] }
@@ -5837,7 +5860,7 @@ function MyTraineesTab({ isMobile }: { isMobile: boolean }) {
     } catch {
       setDrilldown(prev => ({ ...prev, [code]: { ...prev[code], loading: false } }))
     }
-  }, [drilldown])
+  }, [drilldown, withPreview])
 
   const toggle = (code: string) => {
     if (expandedCode === code) {
