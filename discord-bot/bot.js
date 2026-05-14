@@ -213,6 +213,65 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
+  // ── Request Access (from #get-started quarantine channel) ──────────────────
+  if (interaction.isButton() && interaction.customId === 'request-access') {
+    await interaction.reply({
+      content: 'Your request has been received. A member of our team will reach out to you shortly.',
+      ephemeral: true,
+    });
+    const adminActivity = interaction.guild?.channels.cache.get(CHANNELS.ADMIN_ACTIVITY);
+    if (adminActivity) {
+      const name = interaction.member?.displayName || interaction.user.globalName || interaction.user.username;
+      await adminActivity.send({
+        content: `<@&${ROLES.ADMIN}> — **${name}** (<@${interaction.user.id}>) clicked Request Access from <#${interaction.channelId}>. Assign them the appropriate role to grant access.`,
+      }).catch(err => console.error('[request-access] admin post failed:', err));
+    }
+    return;
+  }
+
+  // ── Request Reactivation (from #your-access — AFF Observer members) ────────
+  if (interaction.isButton() && interaction.customId === 'request-reactivation') {
+    await interaction.reply({
+      content: 'Your request for full access has been submitted. A member of leadership will review it shortly.',
+      ephemeral: true,
+    });
+    const adminActivity = interaction.guild?.channels.cache.get(CHANNELS.ADMIN_ACTIVITY);
+    if (adminActivity) {
+      const name = interaction.member?.displayName || interaction.user.globalName || interaction.user.username;
+      const approveRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`approve_member_${interaction.user.id}`)
+          .setLabel('Approve: Grant AFF Member')
+          .setStyle(ButtonStyle.Success)
+      );
+      await adminActivity.send({
+        content: `<@&${ROLES.ADMIN}> — **${name}** (<@${interaction.user.id}>) requested reactivation from <#${interaction.channelId}>.`,
+        components: [approveRow],
+      }).catch(err => console.error('[request-reactivation] admin post failed:', err));
+    }
+    return;
+  }
+
+  // ── Approve member reactivation (admin clicks the button in #admin-activity) ─
+  if (interaction.isButton() && interaction.customId.startsWith('approve_member_')) {
+    if (!canEdit(interaction)) {
+      return interaction.reply({ content: 'You need the Admin role to approve access.', ephemeral: true });
+    }
+    const targetId = interaction.customId.replace('approve_member_', '');
+    const targetMember = await interaction.guild.members.fetch(targetId).catch(() => null);
+    if (!targetMember) {
+      return interaction.reply({ content: 'Could not find that member. They may have left the server.', ephemeral: true });
+    }
+    await targetMember.roles.add(ROLES.AFF_MEMBER, 'Reactivation approved by admin');
+    const name = targetMember.displayName || targetMember.user.username;
+    await interaction.reply({ content: `Done. **${name}** has been granted AFF Member access.`, ephemeral: true });
+    await interaction.message.edit({
+      content: interaction.message.content + `\n\nApproved by <@${interaction.user.id}>`,
+      components: [],
+    }).catch(() => {});
+    return;
+  }
+
   // ── Button click → open edit modal ─────────────────────────────────────────
   if (interaction.isButton() && interaction.customId.startsWith('edit_btn_')) {
     if (!canEdit(interaction)) {
