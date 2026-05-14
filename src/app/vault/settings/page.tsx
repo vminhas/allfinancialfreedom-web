@@ -1122,6 +1122,9 @@ export default function SettingsPage() {
           <div style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: 24 }}>
             <TevahSyncRow />
             <div style={{ borderTop: '1px solid rgba(201,169,110,0.08)', paddingTop: 20 }}>
+              <PurgeTevahRow />
+            </div>
+            <div style={{ borderTop: '1px solid rgba(201,169,110,0.08)', paddingTop: 20 }}>
               <BackfillDiscordConnectRow />
             </div>
           </div>
@@ -1505,6 +1508,72 @@ function TevahSyncRow() {
       >
         {state === 'running' ? 'Syncing...' : state === 'done' ? 'Sync again' : 'Sync now'}
       </button>
+    </div>
+  )
+}
+
+// Deletes all submissions that were imported via the Tevah sync.
+// Use this to wipe a bad historical import before re-running the sync.
+function PurgeTevahRow() {
+  const [state, setState] = useState<'idle' | 'confirm' | 'running' | 'done' | 'error'>('idle')
+  const [deleted, setDeleted] = useState<number | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const run = async () => {
+    setState('running')
+    setError(null)
+    try {
+      const res = await fetch('/api/admin/tevah-sync/purge', { method: 'POST' })
+      const d = await res.json() as { ok?: boolean; deleted?: number; error?: string }
+      if (!res.ok || !d.ok) { setError(d.error ?? 'Purge failed'); setState('error'); return }
+      setDeleted(d.deleted ?? 0)
+      setState('done')
+    } catch { setError('Network error'); setState('error') }
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
+      <div style={{ flex: 1, minWidth: 240 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#f87171', marginBottom: 4 }}>
+          Purge Tevah Imports
+        </div>
+        <div style={{ fontSize: 11, color: '#6B8299', lineHeight: 1.5 }}>
+          Deletes all new business submissions that were created by the Tevah sync. Use this to clear a bad import before re-syncing with corrected logic. Manual submissions are not affected.
+        </div>
+        {state === 'done' && (
+          <div style={{ marginTop: 8, fontSize: 11, color: '#4ADE80', background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.25)', padding: '8px 12px', borderRadius: 4 }}>
+            Deleted {deleted} Tevah-imported submissions. Run Sync Now to re-import.
+          </div>
+        )}
+        {state === 'error' && error && (
+          <div style={{ marginTop: 8, fontSize: 11, color: '#f87171' }}>{error}</div>
+        )}
+        {state === 'confirm' && (
+          <div style={{ marginTop: 8, fontSize: 11, color: '#f87171' }}>
+            This will permanently delete all Tevah-imported submissions. Are you sure?
+          </div>
+        )}
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        {state === 'confirm' && (
+          <button onClick={() => setState('idle')} style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, background: 'transparent', border: '1px solid rgba(107,130,153,0.4)', color: '#6B8299', borderRadius: 4, cursor: 'pointer' }}>
+            Cancel
+          </button>
+        )}
+        <button
+          onClick={state === 'idle' ? () => setState('confirm') : state === 'confirm' ? run : undefined}
+          disabled={state === 'running' || state === 'done'}
+          style={{
+            padding: '8px 16px', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+            background: state === 'done' ? 'rgba(74,222,128,0.10)' : 'rgba(248,113,113,0.10)',
+            border: `1px solid ${state === 'done' ? 'rgba(74,222,128,0.4)' : 'rgba(248,113,113,0.35)'}`,
+            color: state === 'done' ? '#4ADE80' : '#f87171',
+            borderRadius: 4, cursor: (state === 'running' || state === 'done') ? 'not-allowed' : 'pointer', flexShrink: 0,
+          }}
+        >
+          {state === 'running' ? 'Purging...' : state === 'done' ? 'Done' : state === 'confirm' ? 'Yes, Delete All' : 'Purge Tevah Data'}
+        </button>
+      </div>
     </div>
   )
 }

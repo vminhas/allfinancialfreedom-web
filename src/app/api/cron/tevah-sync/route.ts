@@ -306,6 +306,10 @@ export async function syncClients() {
   const existingByTevahId = new Map(existingSubs.map(s => [s.tevahClientId!, s]))
 
   // Detect split pairs by grouping on policyNumber.
+  // For each split pair, only the record with the lowest Tevah ID is the
+  // "primary" — we create one AFF submission for it and link the other
+  // agent via splitWithAgentId. Secondary records are skipped to avoid
+  // creating duplicate submissions that double-count points and apps.
   const byPolicyNumber = new Map<string, TevahClient[]>()
   for (const c of clients) {
     if (c.policyNumber?.trim()) {
@@ -316,11 +320,26 @@ export async function syncClients() {
     }
   }
 
+  const skipTevahIds = new Set<number>()
+  for (const group of byPolicyNumber.values()) {
+    if (group.length >= 2) {
+      const sorted = [...group].sort((a, b) => a.id - b.id)
+      // Everything after the lowest-ID record is secondary — skip them.
+      sorted.slice(1).forEach(c => skipTevahIds.add(c.id))
+    }
+  }
+
   const results = { created: 0, updated: 0, skipped: 0, errors: 0, announced: 0 }
   const now = Date.now()
 
   for (const client of clients) {
     try {
+      // Skip secondary split records — they're linked via the primary's splitWithAgentId.
+      if (skipTevahIds.has(client.id)) {
+        results.skipped++
+        continue
+      }
+
       const existing = existingByTevahId.get(client.id)
       // Prefer policyStatus (more specific) over status when available.
       const newStatus = tevahStatusToAff(client.policyStatus || client.status) as NewBusinessStatus
@@ -366,14 +385,29 @@ export async function syncClients() {
 
       const { firstName: clientFirst, lastName: clientLast } = parseTevahClientName(client.clientName)
       const policyType = tevahProductToAffPolicyType(client.productType, client.insuranceType) as PolicyType
+
+      // Store the full policy premium as points. The leaderboard already
+      // halves points for submissions where splitWithAgentId is set, matching
+      // the behaviour for manually-entered splits.
       const points = client.annualPremiumAmount
         ? parseFloat(client.annualPremiumAmount)
         : client.premiumAmount
           ? parseFloat(client.premiumAmount)
           : null
+
+      // Application date priority: submitDate (application sent to carrier) >
+      // policyIssueDate (reliable for issued policies) > createdDate only if
+      // the record is genuinely old (> 60 days) so today's bulk-import date
+      // doesn't pollute the leaderboard time-buckets.
+      const createdMs = new Date(client.createdDate).getTime()
+      const createdIsOld = Date.now() - createdMs > 60 * 24 * 60 * 60 * 1000
       const applicationDate = client.submitDate
         ? new Date(client.submitDate)
-        : new Date(client.createdDate)
+        : client.policyIssueDate
+          ? new Date(client.policyIssueDate)
+          : createdIsOld
+            ? new Date(client.createdDate)
+            : new Date() // unknown date — use today, will show as imported today
 
       await db.newBusinessSubmission.create({
         data: {
@@ -397,10 +431,10 @@ export async function syncClients() {
       })
       results.created++
 
-      // Only announce submissions created recently so the first historical
-      // bulk import doesn't flood Discord with hundreds of old submissions.
-      const createdMs = new Date(client.createdDate).getTime()
-      if (now - createdMs < ANNOUNCE_WINDOW_MS) {
+      // Only announce when the application date is genuinely recent (within
+      // the 48-hour window). Using applicationDate (not createdDate) ensures
+      // historical policies entered into Tevah today don't flood Discord.
+      if (now - applicationDate.getTime() < ANNOUNCE_WINDOW_MS) {
         const agentName  = `${writerProfile.firstName} ${writerProfile.lastName}`.trim()
         const clientName = `${clientFirst} ${clientLast}`.trim()
         const splitWith  = splitPartnerProfile
