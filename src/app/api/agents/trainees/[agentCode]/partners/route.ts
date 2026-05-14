@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { resolveAgentIdentity } from '@/lib/agent-identity'
-import { loadTrainerContext, authorizeTraineeAccess } from '@/lib/trainer-trainees'
+import { authorizeTeamMemberAccess } from '@/lib/trainer-trainees'
 
 // GET /api/agents/trainees/[agentCode]/partners
 //
-// Returns the trainee's Business Partner list, read-only. The trainer
-// view of the same data the trainee sees in their own CRM tab.
-//
-// Authorization: caller must be a signed-in agent whose legal name
-// matches the target trainee's `cft` field. Anything else 403s; we
-// never want a random agent pulling another agent's contacts.
+// Returns the agent's Business Partner list, read-only, when the
+// caller has team-member-level access: either they recruited the
+// target OR they're listed as the target's cft trainer. Anything
+// else 403s. The URL keeps "trainees" for backward compat with
+// existing callers; the auth model is broader (My Team unified).
 export async function GET(
   req: NextRequest,
   ctx: { params: Promise<{ agentCode: string }> },
@@ -18,14 +17,11 @@ export async function GET(
   const id = await resolveAgentIdentity(req)
   if ('error' in id) return id.error
 
-  const tctx = await loadTrainerContext(id.profileId)
-  if (!tctx) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
-
   const { agentCode } = await ctx.params
-  const trainee = await authorizeTraineeAccess(tctx, agentCode)
+  const trainee = await authorizeTeamMemberAccess(id.profileId, agentCode)
   if (!trainee) {
     return NextResponse.json(
-      { error: "You aren't listed as this agent's trainer." },
+      { error: "You don't have access to this agent's contacts. You need to be their recruiter or assigned trainer." },
       { status: 403 },
     )
   }

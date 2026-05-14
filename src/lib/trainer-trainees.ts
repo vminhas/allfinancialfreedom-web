@@ -108,3 +108,44 @@ export async function authorizeTraineeAccess(
   if (!ctx.acceptedNames.has(normalizeName(trainee.cft))) return null
   return trainee
 }
+
+// Broader authorization used by the unified My Team drill-down:
+// access granted when the caller is either (a) the agent's recruiter
+// or (b) listed as the agent's cft trainer. Lets a recruiter drill
+// into anyone they brought on AND a trainer drill into anyone they're
+// training, even if those two groups don't overlap.
+export async function authorizeTeamMemberAccess(
+  callerProfileId: string,
+  agentCode: string,
+) {
+  const [caller, target] = await Promise.all([
+    db.agentProfile.findUnique({
+      where: { id: callerProfileId },
+      select: { agentCode: true, firstName: true, lastName: true, preferredName: true },
+    }),
+    db.agentProfile.findUnique({
+      where: { agentCode },
+      select: { id: true, recruiterId: true, cft: true, firstName: true, lastName: true },
+    }),
+  ])
+  if (!caller || !target) return null
+
+  // Recruiter path: AgentProfile.recruiterId stores the recruiter's
+  // agentCode (per CLAUDE.md). Direct upline.
+  if (target.recruiterId && target.recruiterId.toUpperCase() === caller.agentCode.toUpperCase()) {
+    return target
+  }
+
+  // Trainer path: cft normalization match (same logic as the trainee
+  // endpoints, with preferred-name support).
+  const accepted = new Set<string>()
+  const legal = normalizeName(`${caller.firstName} ${caller.lastName}`)
+  if (legal) accepted.add(legal)
+  if (caller.preferredName?.trim()) {
+    const preferred = normalizeName(`${caller.preferredName.trim()} ${caller.lastName}`)
+    if (preferred) accepted.add(preferred)
+  }
+  if (accepted.has(normalizeName(target.cft))) return target
+
+  return null
+}

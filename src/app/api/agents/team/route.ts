@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { getSetting, setSetting } from '@/lib/settings'
 import { PHASE_ITEMS } from '@/lib/agent-constants'
 import { resolveAgentTitle } from '@/lib/agent-title'
+import { loadTrainerContext, findTraineeProfiles } from '@/lib/trainer-trainees'
 
 // Static checklist totals per phase. Used to compute "X / Y complete"
 // for each team member without an extra DB query. If the checklist is
@@ -328,5 +329,75 @@ export async function GET(req: NextRequest) {
   }
   count(team)
 
-  return NextResponse.json({ team, totalTeamSize, activeTeamSize })
+  // "Also training" — agents whose cft (trainer) field normalizes to
+  // me, but who aren't already in my downline tree (i.e. someone else
+  // recruited them, I just got assigned as their trainer). These get
+  // their own flat section in the UI under the main team tree, with
+  // BP/FTA drill-down auth granted via the trainee-endpoint match.
+  let cftOnlyMembers: Array<{
+    id: string
+    agentCode: string
+    firstName: string
+    lastName: string
+    preferredName: string | null
+    avatarUrl: string | null
+    phase: number
+    state: string | null
+    status: string
+    partnerCount: number
+    ftaCount: number
+  }> = []
+  if (myProfileId) {
+    const ctx = await loadTrainerContext(myProfileId)
+    if (ctx) {
+      const trainees = await findTraineeProfiles(ctx)
+      // Exclude anyone already in the recruited tree so we don't show
+      // them in two places. We keep the recruited-tree entry as the
+      // primary surface since it carries phase progress + invite
+      // status; cft-only members are listed flat with just the
+      // contact-list drill-down.
+      const inTreeCodes = new Set<string>()
+      function collect(nodes: TeamNode[]) {
+        for (const n of nodes) {
+          if (n.agentCode) inTreeCodes.add(n.agentCode)
+          collect(n.children)
+        }
+      }
+      collect(team)
+
+      const cftOnly = trainees.filter(t => !inTreeCodes.has(t.agentCode))
+      if (cftOnly.length > 0) {
+        const ids = cftOnly.map(t => t.id)
+        const [bp, fta] = await Promise.all([
+          db.businessPartner.groupBy({
+            by: ['agentProfileId'],
+            where: { agentProfileId: { in: ids } },
+            _count: { _all: true },
+          }),
+          db.fieldTrainingAppointment.groupBy({
+            by: ['agentProfileId'],
+            where: { agentProfileId: { in: ids } },
+            _count: { _all: true },
+          }),
+        ])
+        const bpByAgent = new Map(bp.map(r => [r.agentProfileId, r._count._all]))
+        const ftaByAgent = new Map(fta.map(r => [r.agentProfileId, r._count._all]))
+        cftOnlyMembers = cftOnly.map(t => ({
+          id: t.id,
+          agentCode: t.agentCode,
+          firstName: t.firstName,
+          lastName: t.lastName,
+          preferredName: t.preferredName,
+          avatarUrl: t.avatarUrl,
+          phase: t.phase,
+          state: t.state,
+          status: t.status,
+          partnerCount: bpByAgent.get(t.id) ?? 0,
+          ftaCount: ftaByAgent.get(t.id) ?? 0,
+        }))
+      }
+    }
+  }
+
+  return NextResponse.json({ team, totalTeamSize, activeTeamSize, cftOnlyMembers })
 }

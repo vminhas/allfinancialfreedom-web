@@ -207,20 +207,16 @@ function AgentDashboardInner() {
 
   const [data, setData] = useState<AgentData | null>(null)
   const [loading, setLoading] = useState(true)
-  // Whether the signed-in agent is the trainer for at least one other
-  // agent (their cft string matches). Drives whether the "My Trainees"
-  // tab is shown at all. We don't want to clutter every junior agent's
-  // tab strip with a tab they'll never have content in.
-  const [traineeCount, setTraineeCount] = useState<number>(0)
-  const [activeTab, setActiveTab] = useState<'checklist' | 'licensing' | 'carriers' | 'partners' | 'fta' | 'new-business' | 'calls' | 'climb' | 'team' | 'trainees' | 'profile'>(
+  const [activeTab, setActiveTab] = useState<'checklist' | 'licensing' | 'carriers' | 'partners' | 'fta' | 'new-business' | 'calls' | 'climb' | 'team' | 'profile'>(
     discordParam ? 'profile'
     : tabParam === 'new-business' ? 'new-business'
     : tabParam === 'partners' ? 'partners'
     : tabParam === 'fta' ? 'fta'
     : tabParam === 'calls' ? 'calls'
     : tabParam === 'climb' ? 'climb'
-    : tabParam === 'team' ? 'team'
-    : tabParam === 'trainees' ? 'trainees'
+    // 'trainees' param redirects to 'team' since the trainees view
+    // got merged into the team tab as an "Also training" section.
+    : tabParam === 'team' || tabParam === 'trainees' ? 'team'
     : tabParam === 'profile' ? 'profile'
     : tabParam === 'licensing' ? 'licensing'
     : tabParam === 'carriers' ? 'carriers'
@@ -353,21 +349,6 @@ function AgentDashboardInner() {
       .then((d: { resources: Record<string, string> }) => setSetupResources(d.resources ?? {}))
       .catch(() => {})
   }, [])
-
-  // Fire a single lightweight call to /api/agents/trainees on mount
-  // so we know whether to render the "My Trainees" tab. This is the
-  // cheapest way to gate the tab — the endpoint returns just the
-  // trainee list with counts, not the full BP/FTA drilldown. Tab
-  // contents fetch lazily when the tab is activated.
-  useEffect(() => {
-    const url = previewToken ? `/api/agents/trainees?preview=${previewToken}` : '/api/agents/trainees'
-    fetch(url)
-      .then(r => r.ok ? r.json() : null)
-      .then((d: { trainees?: { id: string }[] } | null) => {
-        if (d?.trainees) setTraineeCount(d.trainees.length)
-      })
-      .catch(() => {})
-  }, [previewToken])
 
   useEffect(() => {
     fetch('/api/agents/phase-items')
@@ -614,11 +595,10 @@ function AgentDashboardInner() {
     return manuallyDone
   }).length
 
-  // "My Trainees" tab is gated on traineeCount > 0 so it doesn't
-  // clutter every junior agent's tab strip. The check runs against
-  // a normalized cft string match in /api/agents/trainees, so an
-  // agent only sees the tab once someone's profile lists them as
-  // a trainer.
+  // My Team tab now also surfaces agents whose `cft` field matches
+  // me (the trainer-only case). Used to be a separate "My Trainees"
+  // tab but the CEO consolidated them — see /api/agents/team's
+  // cftOnlyMembers in the response.
   const TABS: { key: typeof activeTab; label: string }[] = [
     { key: 'checklist', label: 'Checklist' },
     { key: 'licensing', label: 'Licensing' },
@@ -629,7 +609,6 @@ function AgentDashboardInner() {
     { key: 'calls', label: 'Calls' },
     { key: 'climb', label: 'Climb' },
     { key: 'team', label: 'My Team' },
-    ...(traineeCount > 0 ? [{ key: 'trainees' as typeof activeTab, label: 'My Trainees' }] : []),
     { key: 'profile', label: 'Profile' },
   ]
 
@@ -1953,7 +1932,6 @@ function AgentDashboardInner() {
         {activeTab === 'calls' && <CallLogsTab hasCft={(data.badges ?? []).includes('CFT')} previewToken={previewToken} />}
         {activeTab === 'climb' && <ClimbTab isMobile={isMobile} previewToken={previewToken} />}
         {activeTab === 'team' && <MyTeamTab isMobile={isMobile} previewToken={previewToken} />}
-        {activeTab === 'trainees' && <MyTraineesTab isMobile={isMobile} previewToken={previewToken} />}
         {activeTab === 'profile' && (
           <ProfileTab
             data={data}
@@ -5460,9 +5438,14 @@ function ProgressStat({ label, value, color }: { label: string; value: string; c
   )
 }
 
-function TeamMemberNode({ node, depth, isMobile, onOpenCard }: { node: TeamNode; depth: number; isMobile: boolean; onOpenCard: (code: string) => void }) {
+function TeamMemberNode({ node, depth, isMobile, onOpenCard, previewToken }: { node: TeamNode; depth: number; isMobile: boolean; onOpenCard: (code: string) => void; previewToken?: string | null }) {
   const [expanded, setExpanded] = useState(depth < 2)
   const [showProgress, setShowProgress] = useState(false)
+  // Separate toggle for Business Partners + FTA drill-down. Lazy-loaded
+  // so the team tree stays cheap when nobody opens contacts. Backed
+  // by the same /api/agents/trainees/[code]/* endpoints, which authorize
+  // on either recruiter OR cft-trainer match.
+  const [showContacts, setShowContacts] = useState(false)
   const [resending, setResending] = useState(false)
   const [resendMsg, setResendMsg] = useState<string | null>(null)
   const color = TEAM_PHASE_COLORS[node.phase] ?? '#C9A96E'
@@ -5612,6 +5595,24 @@ function TeamMemberNode({ node, depth, isMobile, onOpenCard }: { node: TeamNode;
         >
           {showProgress ? 'Hide' : 'View'} {node.memberStatus === 'ACTIVE' ? 'progress' : 'details'}
         </button>
+        {/* Contacts toggle. Only meaningful for ACTIVE members — an
+            INVITED / PENDING agent has no profile to fetch from. The
+            endpoint auth allows both recruiter and trainer drill-in,
+            so a recruiter can review what their downline is working on. */}
+        {node.memberStatus === 'ACTIVE' && node.agentCode && (
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowContacts(s => !s) }}
+            style={{
+              padding: '4px 10px', borderRadius: 4,
+              background: showContacts ? 'rgba(201,169,110,0.18)' : 'transparent',
+              border: '1px solid rgba(201,169,110,0.35)', color: '#C9A96E',
+              fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+              cursor: 'pointer', flexShrink: 0,
+            }}
+          >
+            {showContacts ? 'Hide' : 'View'} contacts
+          </button>
+        )}
         {node.children.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
             <span style={{ fontSize: 9, color: '#6B8299', fontWeight: 600 }}>{descendants}</span>
@@ -5760,8 +5761,24 @@ function TeamMemberNode({ node, depth, isMobile, onOpenCard }: { node: TeamNode;
       {expanded && node.children.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
           {node.children.map(c => (
-            <TeamMemberNode key={c.id} node={c} depth={depth + 1} isMobile={isMobile} onOpenCard={onOpenCard} />
+            <TeamMemberNode key={c.id} node={c} depth={depth + 1} isMobile={isMobile} onOpenCard={onOpenCard} previewToken={previewToken} />
           ))}
+        </div>
+      )}
+      {showContacts && node.agentCode && (
+        <div style={{
+          marginLeft: isMobile ? depth * 16 + 14 : depth * 32 + 14,
+          marginTop: 6,
+          padding: '12px 14px',
+          background: 'rgba(201,169,110,0.04)',
+          border: '1px solid rgba(201,169,110,0.15)',
+          borderRadius: 6,
+        }}>
+          <ContactsDrilldown
+            agentCode={node.agentCode}
+            agentFirstName={node.firstName}
+            previewToken={previewToken}
+          />
         </div>
       )}
     </div>
@@ -5818,145 +5835,120 @@ interface TraineeFta {
   businessPartner?: { id: string; name: string; phone: string | null; email: string | null; occupation: string | null; category: string | null } | null
 }
 
-function MyTraineesTab({ isMobile, previewToken }: { isMobile: boolean; previewToken?: string | null }) {
-  const [trainees, setTrainees] = useState<TraineeRow[]>([])
+// ContactsDrilldown — shared component used by MyTeamTab in two
+// places: inside each recruited TeamMemberNode (so a recruiter can
+// drill into anyone they brought on) and in the "Also training"
+// flat section (so a trainer can drill into anyone they're assigned
+// to but didn't recruit). Hits the unified team-member-access
+// endpoints which authorize on either recruiter OR trainer match.
+function ContactsDrilldown({ agentCode, agentFirstName, previewToken }: {
+  agentCode: string; agentFirstName: string; previewToken?: string | null
+}) {
+  const [data, setData] = useState<{ partners: TraineePartner[]; ftas: TraineeFta[] } | null>(null)
   const [loading, setLoading] = useState(true)
-  const [expandedCode, setExpandedCode] = useState<string | null>(null)
-  const [drilldown, setDrilldown] = useState<Record<string, { partners?: TraineePartner[]; ftas?: TraineeFta[]; loading?: boolean }>>({})
-
-  // Append ?preview=<token> on every fetch when an admin is browsing
-  // through "view portal as agent." resolveAgentIdentity recognizes
-  // the token; without it the route falls back to the admin's own
-  // session and returns 0 trainees (or 401 if the agent-auth cookie
-  // isn't on this path).
-  const withPreview = useCallback((url: string) => {
-    if (!previewToken) return url
-    return url + (url.includes('?') ? '&' : '?') + `preview=${encodeURIComponent(previewToken)}`
-  }, [previewToken])
+  const [error, setError] = useState<string | null>(null)
+  const withPreview = (url: string) => previewToken
+    ? url + (url.includes('?') ? '&' : '?') + `preview=${encodeURIComponent(previewToken)}`
+    : url
 
   useEffect(() => {
-    setLoading(true)
-    fetch(withPreview('/api/agents/trainees'))
-      .then(r => r.ok ? r.json() : { trainees: [] })
-      .then((d: { trainees?: TraineeRow[] }) => setTrainees(d.trainees ?? []))
-      .catch(() => setTrainees([]))
+    setLoading(true); setError(null)
+    Promise.all([
+      fetch(withPreview(`/api/agents/trainees/${agentCode}/partners`)),
+      fetch(withPreview(`/api/agents/trainees/${agentCode}/fta`)),
+    ])
+      .then(async ([pRes, fRes]) => {
+        if (!pRes.ok || !fRes.ok) {
+          setError("You don't have access to this agent's contacts.")
+          return
+        }
+        const pd = await pRes.json() as { partners?: TraineePartner[] }
+        const fd = await fRes.json() as { ftas?: TraineeFta[] }
+        setData({ partners: pd.partners ?? [], ftas: fd.ftas ?? [] })
+      })
+      .catch(() => setError('Failed to load contacts.'))
       .finally(() => setLoading(false))
-  }, [withPreview])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentCode, previewToken])
 
-  const loadDrilldown = useCallback(async (code: string) => {
-    if (drilldown[code]?.partners && drilldown[code]?.ftas) return
-    setDrilldown(prev => ({ ...prev, [code]: { ...prev[code], loading: true } }))
-    try {
-      const [pRes, fRes] = await Promise.all([
-        fetch(withPreview(`/api/agents/trainees/${code}/partners`)),
-        fetch(withPreview(`/api/agents/trainees/${code}/fta`)),
-      ])
-      const pd = pRes.ok ? await pRes.json() as { partners?: TraineePartner[] } : { partners: [] }
-      const fd = fRes.ok ? await fRes.json() as { ftas?: TraineeFta[] } : { ftas: [] }
-      setDrilldown(prev => ({
-        ...prev,
-        [code]: { partners: pd.partners ?? [], ftas: fd.ftas ?? [], loading: false },
-      }))
-    } catch {
-      setDrilldown(prev => ({ ...prev, [code]: { ...prev[code], loading: false } }))
-    }
-  }, [drilldown, withPreview])
-
-  const toggle = (code: string) => {
-    if (expandedCode === code) {
-      setExpandedCode(null)
-      return
-    }
-    setExpandedCode(code)
-    void loadDrilldown(code)
-  }
-
-  if (loading) {
-    return <div style={{ color: '#6B8299', fontSize: 13, padding: 40, textAlign: 'center' }}>Loading...</div>
-  }
-  if (trainees.length === 0) {
-    return (
-      <div style={{ color: '#6B8299', fontSize: 13, padding: 40, textAlign: 'center', lineHeight: 1.6 }}>
-        You are not currently listed as a trainer for any active agents. When an admin assigns you in the tracker, those agents will appear here with their Business Partner and FTA lists ready to review.
-      </div>
-    )
-  }
-
+  if (loading) return <div style={{ color: '#6B8299', fontSize: 11, padding: 8 }}>Loading {agentFirstName}&apos;s contacts...</div>
+  if (error) return <div style={{ color: '#f87171', fontSize: 11, padding: 8 }}>{error}</div>
+  if (!data) return null
   return (
-    <div style={{ padding: isMobile ? '16px 4px' : 0 }}>
-      <div style={{ fontSize: 11, color: '#6B8299', marginBottom: 16, lineHeight: 1.5 }}>
-        Read-only view of your trainees&apos; Business Partners and FTAs so you can coach without asking them to screen-share. Click a name to expand.
+    <>
+      <DrillSection title="Business Partners">
+        {data.partners.length === 0
+          ? <div style={{ color: '#4B5563', fontSize: 11, padding: 8 }}>No business partners on file yet.</div>
+          : data.partners.map(p => <PartnerRow key={p.id} p={p} />)}
+      </DrillSection>
+      <DrillSection title="Field Training Appointments">
+        {data.ftas.length === 0
+          ? <div style={{ color: '#4B5563', fontSize: 11, padding: 8 }}>No FTAs logged yet.</div>
+          : data.ftas.map(f => <FtaRow key={f.id} f={f} />)}
+      </DrillSection>
+    </>
+  )
+}
+
+// Flat "Also training" section — appears below the recruited tree
+// in MyTeamTab when /api/agents/team returned cft-only members
+// (people I'm listed as the trainer for but didn't recruit).
+function AlsoTrainingSection({ members, previewToken }: {
+  members: TraineeRow[]; previewToken?: string | null
+}) {
+  const [expandedCode, setExpandedCode] = useState<string | null>(null)
+  return (
+    <div style={{ marginTop: 24 }}>
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 8 }}>
+        Also training &middot; {members.length}
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {trainees.map(t => {
+      <div style={{ fontSize: 11, color: '#6B8299', marginBottom: 10, lineHeight: 1.5 }}>
+        Agents who list you as their trainer but were recruited by someone else. You have read-only access to their contacts so you can coach.
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {members.map(t => {
           const isExpanded = expandedCode === t.agentCode
-          const drill = drilldown[t.agentCode]
           const display = (t.preferredName?.trim() || t.firstName) + ' ' + t.lastName
           return (
             <div key={t.agentCode} style={{
               background: '#132238', borderRadius: 8,
               border: `1px solid ${isExpanded ? 'rgba(201,169,110,0.35)' : 'rgba(255,255,255,0.06)'}`,
-              transition: 'border-color 0.15s',
             }}>
               <button
-                onClick={() => toggle(t.agentCode)}
+                onClick={() => setExpandedCode(isExpanded ? null : t.agentCode)}
                 style={{
                   width: '100%', background: 'transparent', border: 'none', cursor: 'pointer',
-                  padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12,
-                  textAlign: 'left',
+                  padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left',
                 }}
               >
                 <div style={{
-                  width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+                  width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
                   background: t.avatarUrl ? `url(${t.avatarUrl}) center/cover` : 'rgba(201,169,110,0.15)',
                   border: '1px solid rgba(201,169,110,0.25)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 11, fontWeight: 700, color: '#C9A96E',
+                  fontSize: 10, fontWeight: 700, color: '#C9A96E',
                 }}>
                   {!t.avatarUrl && `${t.firstName[0] ?? ''}${t.lastName[0] ?? ''}`.toUpperCase()}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>
                     {display}
+                    <span style={{ marginLeft: 8, fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#C9A96E', padding: '2px 6px', background: 'rgba(201,169,110,0.10)', border: '1px solid rgba(201,169,110,0.25)', borderRadius: 3 }}>Trainee</span>
                     {t.status === 'INACTIVE' && (
-                      <span style={{ marginLeft: 8, fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6B8299', padding: '2px 6px', background: 'rgba(107,130,153,0.12)', borderRadius: 3 }}>Inactive</span>
+                      <span style={{ marginLeft: 6, fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6B8299', padding: '2px 6px', background: 'rgba(107,130,153,0.12)', borderRadius: 3 }}>Inactive</span>
                     )}
                   </div>
                   <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2 }}>
                     {t.agentCode}{t.state ? ` · ${t.state}` : ''} · Phase {t.phase}
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
-                  <Pill label="BP" count={t.partnerCount} accent="#4ADE80" />
-                  <Pill label="FTA" count={t.ftaCount} accent="#60A5FA" />
-                </div>
+                <Pill label="BP" count={t.partnerCount} accent="#4ADE80" />
+                <Pill label="FTA" count={t.ftaCount} accent="#60A5FA" />
                 <div style={{ fontSize: 12, color: '#C9A96E', marginLeft: 6, transform: isExpanded ? 'rotate(90deg)' : 'rotate(0)', transition: 'transform 0.15s' }}>›</div>
               </button>
-
               {isExpanded && (
                 <div style={{ borderTop: '1px solid rgba(201,169,110,0.15)', padding: '14px 16px' }}>
-                  {drill?.loading && (
-                    <div style={{ color: '#6B8299', fontSize: 12, padding: 12, textAlign: 'center' }}>Loading {t.firstName}&apos;s contacts...</div>
-                  )}
-                  {!drill?.loading && drill && (
-                    <>
-                      <DrillSection title="Business Partners">
-                        {(drill.partners?.length ?? 0) === 0 ? (
-                          <div style={{ color: '#4B5563', fontSize: 11, padding: 8 }}>No business partners on file yet.</div>
-                        ) : (
-                          drill.partners!.map(p => <PartnerRow key={p.id} p={p} />)
-                        )}
-                      </DrillSection>
-
-                      <DrillSection title="Field Training Appointments">
-                        {(drill.ftas?.length ?? 0) === 0 ? (
-                          <div style={{ color: '#4B5563', fontSize: 11, padding: 8 }}>No FTAs logged yet.</div>
-                        ) : (
-                          drill.ftas!.map(f => <FtaRow key={f.id} f={f} />)
-                        )}
-                      </DrillSection>
-                    </>
-                  )}
+                  <ContactsDrilldown agentCode={t.agentCode} agentFirstName={t.firstName} previewToken={previewToken} />
                 </div>
               )}
             </div>
@@ -6031,6 +6023,10 @@ function FtaRow({ f }: { f: TraineeFta }) {
 
 function MyTeamTab({ isMobile, previewToken }: { isMobile: boolean; previewToken?: string | null }) {
   const [team, setTeam] = useState<TeamNode[]>([])
+  // Agents whose `cft` is me but who I didn't recruit. Surfaced as
+  // a flat "Also training" section under the recruited tree so a
+  // trainer assigned outside their own downline still gets visibility.
+  const [cftOnly, setCftOnly] = useState<TraineeRow[]>([])
   const [totalSize, setTotalSize] = useState(0)
   const [activeSize, setActiveSize] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -6052,10 +6048,11 @@ function MyTeamTab({ isMobile, previewToken }: { isMobile: boolean; previewToken
     const url = qs ? `/api/agents/team?${qs}` : '/api/agents/team'
     fetch(url)
       .then(r => { if (!r.ok) throw new Error(); return r.json() })
-      .then((d: { team: TeamNode[]; totalTeamSize: number; activeTeamSize?: number }) => {
+      .then((d: { team: TeamNode[]; totalTeamSize: number; activeTeamSize?: number; cftOnlyMembers?: TraineeRow[] }) => {
         setTeam(d.team ?? [])
         setTotalSize(d.totalTeamSize ?? 0)
         setActiveSize(d.activeTeamSize ?? 0)
+        setCftOnly(d.cftOnlyMembers ?? [])
       })
       .catch(() => { /* no team data available */ })
       .finally(() => setLoading(false))
@@ -6131,9 +6128,12 @@ function MyTeamTab({ isMobile, previewToken }: { isMobile: boolean; previewToken
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {team.map(node => (
-          <TeamMemberNode key={node.id} node={node} depth={0} isMobile={isMobile} onOpenCard={setCardCode} />
+          <TeamMemberNode key={node.id} node={node} depth={0} isMobile={isMobile} onOpenCard={setCardCode} previewToken={previewToken} />
         ))}
       </div>
+      {cftOnly.length > 0 && (
+        <AlsoTrainingSection members={cftOnly} previewToken={previewToken} />
+      )}
       {cardCode && <AgentTradingCardModal agentCode={cardCode} onClose={() => setCardCode(null)} />}
     </div>
   )
