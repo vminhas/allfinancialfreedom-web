@@ -1,45 +1,60 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { db } from '@/lib/db'
 import { requireRole } from '@/lib/permissions'
+import { db } from '@/lib/db'
+import { ensureEmailTemplateSeed } from '@/lib/email-template-seed'
 
-const DEFAULT_TEMPLATES = [
-  { key: 'agent_invite', label: 'Agent Portal Invite', subject: 'Welcome to All Financial Freedom — Set Up Your Portal', description: 'Sent when a new agent is invited to the portal', bodyHtml: '<p>Hi {{firstName}},</p><p>Your agent portal is ready. Click the button below to set your password and get started.</p><p><a href="{{inviteUrl}}">Set Up Your Portal</a></p>' },
-  { key: 'agent_reminder', label: 'Phase Progress Reminder', subject: 'Your Phase {{phase}} checklist — let\'s get you caught up', description: 'Daily nudge for agents falling behind their phase timeline', bodyHtml: '<p>Hi {{firstName}},</p><p>You\'ve completed {{completed}} of {{total}} items in Phase {{phase}}. You started {{daysAgo}} days ago.</p><p><a href="{{portalUrl}}">Open Your Portal</a></p>' },
-  { key: 'referral_approved', label: 'Referral Approved', subject: 'Welcome to All Financial Freedom — Set Up Your Portal', description: 'Sent when a referral is approved and the new agent is created', bodyHtml: '<p>Hi {{firstName}},</p><p>You\'ve been invited to join the AFF team. Click below to set up your portal.</p><p><a href="{{inviteUrl}}">Set Up Your Portal</a></p><p><a href="{{discordInvite}}">Join Discord</a></p>' },
-  { key: 'promotion_celebration', label: 'Promotion Celebration DM', subject: 'Congratulations on your promotion!', description: 'Discord DM sent when an agent is promoted to a new phase', bodyHtml: 'Congratulations! You\'ve been promoted to Phase {{phase}}: {{phaseTitle}}. You\'ve unlocked new training channels and resources.' },
-]
+// List + create email templates. Per-row update / delete / test-send
+// live in ./[id]/route.ts and ./[id]/test-send/route.ts.
 
 export async function GET() {
   const session = await getServerSession(authOptions)
   const denied = requireRole(session, 'admin')
   if (denied) return denied
 
-  let templates = await db.emailTemplate.findMany({ orderBy: { key: 'asc' } })
+  await ensureEmailTemplateSeed()
 
-  if (templates.length === 0) {
-    await db.emailTemplate.createMany({ data: DEFAULT_TEMPLATES, skipDuplicates: true })
-    templates = await db.emailTemplate.findMany({ orderBy: { key: 'asc' } })
-  }
-
+  const templates = await db.emailTemplate.findMany({
+    include: { sender: { select: { id: true, key: true, name: true, email: true, role: true } } },
+    orderBy: [{ eventType: 'asc' }, { label: 'asc' }],
+  })
   return NextResponse.json({ templates })
 }
 
-export async function PUT(req: NextRequest) {
+export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   const denied = requireRole(session, 'admin')
   if (denied) return denied
 
-  const body = await req.json() as { id: string; subject?: string; bodyHtml?: string; label?: string; description?: string }
-  if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+  const body = await req.json() as {
+    key?: string; label?: string; description?: string;
+    eventType?: string; recipient?: 'CONTACT' | 'INTERNAL'; internalTo?: string;
+    filterJson?: unknown; subject?: string; bodyHtml?: string;
+    senderId?: string; enabled?: boolean
+  }
+  if (!body.key || !body.label || !body.eventType || !body.subject || !body.bodyHtml || !body.senderId) {
+    return NextResponse.json(
+      { error: 'key, label, eventType, subject, bodyHtml, senderId required' },
+      { status: 400 },
+    )
+  }
 
-  const data: Record<string, unknown> = {}
-  if (body.subject !== undefined) data.subject = body.subject
-  if (body.bodyHtml !== undefined) data.bodyHtml = body.bodyHtml
-  if (body.label !== undefined) data.label = body.label
-  if (body.description !== undefined) data.description = body.description
-
-  const template = await db.emailTemplate.update({ where: { id: body.id }, data })
-  return NextResponse.json(template)
+  const template = await db.emailTemplate.create({
+    data: {
+      key: body.key.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-'),
+      label: body.label.trim(),
+      description: body.description?.trim() || null,
+      eventType: body.eventType.trim(),
+      recipient: body.recipient ?? 'CONTACT',
+      internalTo: body.internalTo?.trim() || null,
+      filterJson: (body.filterJson as object | null) ?? undefined,
+      subject: body.subject.trim(),
+      bodyHtml: body.bodyHtml,
+      senderId: body.senderId,
+      enabled: body.enabled ?? true,
+    },
+    include: { sender: true },
+  })
+  return NextResponse.json({ template })
 }
