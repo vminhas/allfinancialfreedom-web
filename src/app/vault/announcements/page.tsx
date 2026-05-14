@@ -126,7 +126,10 @@ export default function AnnouncementsPage() {
             </div>
             <div style={{ gridColumn: isMobile ? undefined : 'span 2' }}>
               <div style={lbl}>Message *</div>
-              <textarea value={form.message} onChange={e => setForm(f => ({ ...f, message: e.target.value }))} rows={3} style={{ ...inp, resize: 'vertical', fontFamily: 'inherit' }} placeholder="What do you want agents to know?" />
+              <textarea value={form.message} onChange={e => setForm(f => ({ ...f, message: e.target.value }))} rows={4} style={{ ...inp, resize: 'vertical', fontFamily: 'inherit' }} placeholder="What do you want agents to know?" />
+              <div style={{ fontSize: 11, color: '#6B8299', marginTop: 6, lineHeight: 1.5 }}>
+                Markdown supported: **bold**, *italic*, [link text](https://example.com), and bullet lists with &ldquo;- item&rdquo; on each line.
+              </div>
             </div>
             <div>
               <div style={lbl}>Target Phase (optional)</div>
