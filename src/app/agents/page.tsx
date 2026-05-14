@@ -207,7 +207,12 @@ function AgentDashboardInner() {
 
   const [data, setData] = useState<AgentData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'checklist' | 'licensing' | 'carriers' | 'partners' | 'fta' | 'new-business' | 'calls' | 'climb' | 'team' | 'profile'>(
+  // Whether the signed-in agent is the trainer for at least one other
+  // agent (their cft string matches). Drives whether the "My Trainees"
+  // tab is shown at all. We don't want to clutter every junior agent's
+  // tab strip with a tab they'll never have content in.
+  const [traineeCount, setTraineeCount] = useState<number>(0)
+  const [activeTab, setActiveTab] = useState<'checklist' | 'licensing' | 'carriers' | 'partners' | 'fta' | 'new-business' | 'calls' | 'climb' | 'team' | 'trainees' | 'profile'>(
     discordParam ? 'profile'
     : tabParam === 'new-business' ? 'new-business'
     : tabParam === 'partners' ? 'partners'
@@ -215,6 +220,7 @@ function AgentDashboardInner() {
     : tabParam === 'calls' ? 'calls'
     : tabParam === 'climb' ? 'climb'
     : tabParam === 'team' ? 'team'
+    : tabParam === 'trainees' ? 'trainees'
     : tabParam === 'profile' ? 'profile'
     : tabParam === 'licensing' ? 'licensing'
     : tabParam === 'carriers' ? 'carriers'
@@ -345,6 +351,20 @@ function AgentDashboardInner() {
     fetch('/api/agents/setup-resources')
       .then(r => r.ok ? r.json() : { resources: {} })
       .then((d: { resources: Record<string, string> }) => setSetupResources(d.resources ?? {}))
+      .catch(() => {})
+  }, [])
+
+  // Fire a single lightweight call to /api/agents/trainees on mount
+  // so we know whether to render the "My Trainees" tab. This is the
+  // cheapest way to gate the tab — the endpoint returns just the
+  // trainee list with counts, not the full BP/FTA drilldown. Tab
+  // contents fetch lazily when the tab is activated.
+  useEffect(() => {
+    fetch('/api/agents/trainees')
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { trainees?: { id: string }[] } | null) => {
+        if (d?.trainees) setTraineeCount(d.trainees.length)
+      })
       .catch(() => {})
   }, [])
 
@@ -593,7 +613,12 @@ function AgentDashboardInner() {
     return manuallyDone
   }).length
 
-  const TABS = [
+  // "My Trainees" tab is gated on traineeCount > 0 so it doesn't
+  // clutter every junior agent's tab strip. The check runs against
+  // a normalized cft string match in /api/agents/trainees, so an
+  // agent only sees the tab once someone's profile lists them as
+  // a trainer.
+  const TABS: { key: typeof activeTab; label: string }[] = [
     { key: 'checklist', label: 'Checklist' },
     { key: 'licensing', label: 'Licensing' },
     { key: 'carriers', label: 'Carriers' },
@@ -603,8 +628,9 @@ function AgentDashboardInner() {
     { key: 'calls', label: 'Calls' },
     { key: 'climb', label: 'Climb' },
     { key: 'team', label: 'My Team' },
+    ...(traineeCount > 0 ? [{ key: 'trainees' as typeof activeTab, label: 'My Trainees' }] : []),
     { key: 'profile', label: 'Profile' },
-  ] as const
+  ]
 
   return (
     <div style={{ minHeight: '100vh', background: '#0A1628' }}>
@@ -1940,6 +1966,7 @@ function AgentDashboardInner() {
         {activeTab === 'calls' && <CallLogsTab hasCft={(data.badges ?? []).includes('CFT')} previewToken={previewToken} />}
         {activeTab === 'climb' && <ClimbTab isMobile={isMobile} previewToken={previewToken} />}
         {activeTab === 'team' && <MyTeamTab isMobile={isMobile} previewToken={previewToken} />}
+        {activeTab === 'trainees' && <MyTraineesTab isMobile={isMobile} />}
         {activeTab === 'profile' && (
           <ProfileTab
             data={data}
@@ -5556,6 +5583,257 @@ function TeamMemberNode({ node, depth, isMobile, onOpenCard }: { node: TeamNode;
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── My Trainees Tab ───────────────────────────────────────────────────────
+//
+// Shown only when traineeCount > 0 (other agents have this profile's
+// name in their cft field). Lists each trainee with a phase badge +
+// counts; clicking a row expands a read-only panel showing that
+// trainee's Business Partner list and FTA contacts. Mercedes (D2161)
+// asked for this so she could review what her trainees were doing in
+// the field without needing to ask them to share.
+//
+// All three fetches go through /api/agents/trainees... which scopes
+// on the server by normalized cft match, so we never need to pass
+// the trainer's name from the client.
+
+interface TraineeRow {
+  id: string
+  agentCode: string
+  firstName: string
+  lastName: string
+  preferredName: string | null
+  avatarUrl: string | null
+  phase: number
+  phaseStartedAt: string | null
+  state: string | null
+  status: string
+  partnerCount: number
+  ftaCount: number
+}
+
+interface TraineePartner {
+  id: string
+  name: string
+  email: string | null
+  phone: string | null
+  category: string | null
+  status: string | null
+  notes: string | null
+  occupation: string | null
+  age: string | null
+  lastContactAt: string | null
+  createdAt: string
+}
+
+interface TraineeFta {
+  id: string
+  appointmentDate: string
+  status: string
+  notes: string | null
+  businessPartner?: { id: string; name: string; phone: string | null; email: string | null; occupation: string | null; category: string | null } | null
+}
+
+function MyTraineesTab({ isMobile }: { isMobile: boolean }) {
+  const [trainees, setTrainees] = useState<TraineeRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [expandedCode, setExpandedCode] = useState<string | null>(null)
+  const [drilldown, setDrilldown] = useState<Record<string, { partners?: TraineePartner[]; ftas?: TraineeFta[]; loading?: boolean }>>({})
+
+  useEffect(() => {
+    setLoading(true)
+    fetch('/api/agents/trainees')
+      .then(r => r.ok ? r.json() : { trainees: [] })
+      .then((d: { trainees?: TraineeRow[] }) => setTrainees(d.trainees ?? []))
+      .catch(() => setTrainees([]))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const loadDrilldown = useCallback(async (code: string) => {
+    if (drilldown[code]?.partners && drilldown[code]?.ftas) return
+    setDrilldown(prev => ({ ...prev, [code]: { ...prev[code], loading: true } }))
+    try {
+      const [pRes, fRes] = await Promise.all([
+        fetch(`/api/agents/trainees/${code}/partners`),
+        fetch(`/api/agents/trainees/${code}/fta`),
+      ])
+      const pd = pRes.ok ? await pRes.json() as { partners?: TraineePartner[] } : { partners: [] }
+      const fd = fRes.ok ? await fRes.json() as { ftas?: TraineeFta[] } : { ftas: [] }
+      setDrilldown(prev => ({
+        ...prev,
+        [code]: { partners: pd.partners ?? [], ftas: fd.ftas ?? [], loading: false },
+      }))
+    } catch {
+      setDrilldown(prev => ({ ...prev, [code]: { ...prev[code], loading: false } }))
+    }
+  }, [drilldown])
+
+  const toggle = (code: string) => {
+    if (expandedCode === code) {
+      setExpandedCode(null)
+      return
+    }
+    setExpandedCode(code)
+    void loadDrilldown(code)
+  }
+
+  if (loading) {
+    return <div style={{ color: '#6B8299', fontSize: 13, padding: 40, textAlign: 'center' }}>Loading...</div>
+  }
+  if (trainees.length === 0) {
+    return (
+      <div style={{ color: '#6B8299', fontSize: 13, padding: 40, textAlign: 'center', lineHeight: 1.6 }}>
+        You are not currently listed as a trainer for any active agents. When an admin assigns you in the tracker, those agents will appear here with their Business Partner and FTA lists ready to review.
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ padding: isMobile ? '16px 4px' : 0 }}>
+      <div style={{ fontSize: 11, color: '#6B8299', marginBottom: 16, lineHeight: 1.5 }}>
+        Read-only view of your trainees&apos; Business Partners and FTAs so you can coach without asking them to screen-share. Click a name to expand.
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {trainees.map(t => {
+          const isExpanded = expandedCode === t.agentCode
+          const drill = drilldown[t.agentCode]
+          const display = (t.preferredName?.trim() || t.firstName) + ' ' + t.lastName
+          return (
+            <div key={t.agentCode} style={{
+              background: '#132238', borderRadius: 8,
+              border: `1px solid ${isExpanded ? 'rgba(201,169,110,0.35)' : 'rgba(255,255,255,0.06)'}`,
+              transition: 'border-color 0.15s',
+            }}>
+              <button
+                onClick={() => toggle(t.agentCode)}
+                style={{
+                  width: '100%', background: 'transparent', border: 'none', cursor: 'pointer',
+                  padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12,
+                  textAlign: 'left',
+                }}
+              >
+                <div style={{
+                  width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+                  background: t.avatarUrl ? `url(${t.avatarUrl}) center/cover` : 'rgba(201,169,110,0.15)',
+                  border: '1px solid rgba(201,169,110,0.25)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 11, fontWeight: 700, color: '#C9A96E',
+                }}>
+                  {!t.avatarUrl && `${t.firstName[0] ?? ''}${t.lastName[0] ?? ''}`.toUpperCase()}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>
+                    {display}
+                    {t.status === 'INACTIVE' && (
+                      <span style={{ marginLeft: 8, fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6B8299', padding: '2px 6px', background: 'rgba(107,130,153,0.12)', borderRadius: 3 }}>Inactive</span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2 }}>
+                    {t.agentCode}{t.state ? ` · ${t.state}` : ''} · Phase {t.phase}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
+                  <Pill label="BP" count={t.partnerCount} accent="#4ADE80" />
+                  <Pill label="FTA" count={t.ftaCount} accent="#60A5FA" />
+                </div>
+                <div style={{ fontSize: 12, color: '#C9A96E', marginLeft: 6, transform: isExpanded ? 'rotate(90deg)' : 'rotate(0)', transition: 'transform 0.15s' }}>›</div>
+              </button>
+
+              {isExpanded && (
+                <div style={{ borderTop: '1px solid rgba(201,169,110,0.15)', padding: '14px 16px' }}>
+                  {drill?.loading && (
+                    <div style={{ color: '#6B8299', fontSize: 12, padding: 12, textAlign: 'center' }}>Loading {t.firstName}&apos;s contacts...</div>
+                  )}
+                  {!drill?.loading && drill && (
+                    <>
+                      <DrillSection title="Business Partners">
+                        {(drill.partners?.length ?? 0) === 0 ? (
+                          <div style={{ color: '#4B5563', fontSize: 11, padding: 8 }}>No business partners on file yet.</div>
+                        ) : (
+                          drill.partners!.map(p => <PartnerRow key={p.id} p={p} />)
+                        )}
+                      </DrillSection>
+
+                      <DrillSection title="Field Training Appointments">
+                        {(drill.ftas?.length ?? 0) === 0 ? (
+                          <div style={{ color: '#4B5563', fontSize: 11, padding: 8 }}>No FTAs logged yet.</div>
+                        ) : (
+                          drill.ftas!.map(f => <FtaRow key={f.id} f={f} />)
+                        )}
+                      </DrillSection>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function Pill({ label, count, accent }: { label: string; count: number; accent: string }) {
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
+      padding: '4px 10px', borderRadius: 4,
+      background: count > 0 ? `${accent}10` : 'transparent',
+      border: `1px solid ${count > 0 ? `${accent}30` : 'rgba(255,255,255,0.06)'}`,
+      minWidth: 44,
+    }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: count > 0 ? accent : '#4B5563', lineHeight: 1 }}>{count}</div>
+      <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#6B8299' }}>{label}</div>
+    </div>
+  )
+}
+
+function DrillSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 8 }}>
+        {title}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{children}</div>
+    </div>
+  )
+}
+
+function PartnerRow({ p }: { p: TraineePartner }) {
+  return (
+    <div style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 4, fontSize: 12, color: '#9BB0C4', lineHeight: 1.5 }}>
+      <div style={{ color: '#fff', fontWeight: 600 }}>{p.name}</div>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 2, fontSize: 11 }}>
+        {p.category && <span>{p.category.replace(/_/g, ' ')}</span>}
+        {p.status && <span>&middot; {p.status.toLowerCase()}</span>}
+        {p.occupation && <span>&middot; {p.occupation}</span>}
+        {p.age && <span>&middot; {p.age}</span>}
+      </div>
+      {(p.email || p.phone) && (
+        <div style={{ marginTop: 2, fontSize: 11, color: '#6B8299' }}>
+          {p.email}{p.email && p.phone ? ' · ' : ''}{p.phone}
+        </div>
+      )}
+      {p.notes && <div style={{ marginTop: 4, fontSize: 11, color: '#6B8299', fontStyle: 'italic' }}>{p.notes}</div>}
+    </div>
+  )
+}
+
+function FtaRow({ f }: { f: TraineeFta }) {
+  const when = new Date(f.appointmentDate).toLocaleString('en-US', {
+    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+  })
+  return (
+    <div style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 4, fontSize: 12, color: '#9BB0C4', lineHeight: 1.5 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+        <div style={{ color: '#fff', fontWeight: 600 }}>{f.businessPartner?.name ?? 'Walk-in / unnamed'}</div>
+        <div style={{ fontSize: 11, color: '#6B8299' }}>{when}</div>
+      </div>
+      <div style={{ marginTop: 2, fontSize: 11, color: '#6B8299' }}>{f.status.toLowerCase()}</div>
+      {f.notes && <div style={{ marginTop: 4, fontSize: 11, color: '#6B8299', fontStyle: 'italic' }}>{f.notes}</div>}
     </div>
   )
 }
