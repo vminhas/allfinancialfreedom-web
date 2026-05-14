@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import {
   getAllTevahAgents,
   getAllTevahClients,
+  getAllTevahAgentPoints,
   tevahLevelToPhase,
   tevahProductToAffPolicyType,
   tevahStatusToAff,
@@ -56,6 +57,7 @@ export async function GET(req: NextRequest) {
 
   const agentResults = await syncAgents()
   const clientResults = await syncClients()
+  syncTevahPoints().catch(() => {})
   postSyncSummary(agentResults, clientResults).catch(() => {})
   return NextResponse.json({ ok: true, agents: agentResults, submissions: clientResults })
 }
@@ -65,6 +67,7 @@ export async function POST(req: NextRequest) {
 
   const agentResults = await syncAgents()
   const clientResults = await syncClients()
+  syncTevahPoints().catch(() => {})
   postSyncSummary(agentResults, clientResults).catch(() => {})
   return NextResponse.json({ ok: true, agents: agentResults, submissions: clientResults })
 }
@@ -79,6 +82,11 @@ async function postSyncSummary(
 
   if ('error' in agents && 'error' in clients) return
 
+  // Only post to Discord when something actually changed — no noise for quiet syncs.
+  const agentActivity = !('error' in agents) && ((agents.created ?? 0) > 0 || (agents.invited ?? 0) > 0)
+  const clientActivity = !('error' in clients) && ((clients.created ?? 0) > 0 || (clients.announced ?? 0) > 0)
+  if (!agentActivity && !clientActivity) return
+
   const agentLines = 'error' in agents
     ? [`Agents: sync failed (${agents.error})`]
     : (() => {
@@ -88,7 +96,7 @@ async function postSyncSummary(
           ? names.slice(0, MAX_NAMES).join(', ') + ` + ${names.length - MAX_NAMES} more`
           : names.join(', ')
         return [
-          `Agents: ${agents.created ?? 0} created, ${agents.updated ?? 0} updated, ${agents.pending ?? 0} pending Tevah code`,
+          agents.created ? `Agents: ${agents.created} new, ${agents.updated ?? 0} updated` : '',
           agents.invited ? `Invite emails sent: ${agents.invited}` : '',
           names.length ? `New: ${nameList}` : '',
         ].filter(Boolean)
@@ -96,19 +104,51 @@ async function postSyncSummary(
 
   const clientLines = 'error' in clients
     ? [`Submissions: sync failed (${clients.error})`]
-    : [
-        `Submissions: ${clients.created ?? 0} created, ${clients.updated ?? 0} updated, ${clients.announced ?? 0} announced`,
-      ]
+    : clients.created || clients.announced
+      ? [`Submissions: ${clients.created ?? 0} new, ${clients.updated ?? 0} updated, ${clients.announced ?? 0} announced`]
+      : []
+
+  const lines = [...agentLines, ...clientLines].filter(Boolean)
+  if (lines.length === 0) return
 
   await sendChannelMessage(channelId, {
     embeds: [{
-      title: 'Tevah Sync Complete',
-      description: [...agentLines, ...clientLines].join('\n'),
+      title: 'Tevah Sync',
+      description: lines.join('\n'),
       color: 0x1a2744,
       timestamp: new Date().toISOString(),
       footer: { text: 'All Financial Freedom · Tevah Sync' },
     }],
   })
+}
+
+// Phase 3: Sync Tevah all-time points onto AgentProfile.tevahPoints.
+// Runs fire-and-forget after the main sync so a points-fetch failure
+// never blocks agent/submission processing.
+async function syncTevahPoints() {
+  let pointsMap: Map<string, number>
+  try {
+    pointsMap = await getAllTevahAgentPoints()
+  } catch (err) {
+    console.error('[tevah-sync/points] fetch failed:', err)
+    return
+  }
+
+  const profiles = await db.agentProfile.findMany({
+    where: { agentCode: { in: [...pointsMap.keys()] } },
+    select: { id: true, agentCode: true },
+  })
+
+  await Promise.all(
+    profiles.map(p => {
+      const pts = pointsMap.get(p.agentCode.toUpperCase())
+      if (pts === undefined) return Promise.resolve()
+      return db.agentProfile.update({
+        where: { id: p.id },
+        data: { tevahPoints: pts },
+      })
+    })
+  )
 }
 
 // ─── Phase 1: Agent sync ──────────────────────────────────────────────────────

@@ -135,11 +135,12 @@ export default function TrackerPage() {
   const [stats, setStats] = useState<DashStats | null>(null)
 
   // Date range state (chart only)
-  type Preset = '3m' | '6m' | '12m' | 'ytd' | 'all' | 'custom'
+  type Preset = '3m' | '6m' | '12m' | 'mtd' | 'ytd' | 'all' | 'custom'
   const [preset, setPreset] = useState<Preset>('12m')
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
   const [trendData, setTrendData] = useState<TrendPoint[]>([])
+  const [trendGranularity, setTrendGranularity] = useState<'day' | 'week' | 'month'>('month')
 
   // Table-only filters
   const [newThisMonthOnly, setNewThisMonthOnly] = useState(false)
@@ -163,6 +164,10 @@ export default function TrackerPage() {
       return { start: customStart, end: customEnd || fmt(today) }
     }
     const end = fmt(today)
+    if (preset === 'mtd') {
+      const y = today.getFullYear(), m = String(today.getMonth() + 1).padStart(2, '0')
+      return { start: `${y}-${m}-01`, end }
+    }
     if (preset === 'ytd') return { start: `${today.getFullYear()}-01-01`, end }
     const months = preset === '3m' ? 3 : preset === '6m' ? 6 : 12
     const start = new Date(today)
@@ -170,15 +175,26 @@ export default function TrackerPage() {
     return { start: fmt(start), end }
   }
 
+  function autoGranularity(range: { start: string; end: string } | null): 'day' | 'week' | 'month' {
+    if (!range?.start) return 'month'
+    const days = (new Date(range.end).getTime() - new Date(range.start).getTime()) / 86400000
+    if (days <= 45) return 'day'
+    if (days <= 150) return 'week'
+    return 'month'
+  }
+
   const fetchTrends = useCallback(async () => {
     const range = getDateRange()
+    const granularity = autoGranularity(range)
     const params = new URLSearchParams()
     if (range?.start) params.set('startDate', range.start)
     if (range?.end)   params.set('endDate', range.end)
+    params.set('granularity', granularity)
     const res = await fetch(`/api/admin/trends?${params}`)
     if (res.ok) {
-      const d = await res.json() as { months: TrendPoint[] }
+      const d = await res.json() as { months: TrendPoint[]; granularity?: 'day' | 'week' | 'month' }
       setTrendData(d.months)
+      setTrendGranularity(d.granularity ?? granularity)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preset, customStart, customEnd])
@@ -622,7 +638,7 @@ export default function TrackerPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <div>
                   <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C9A96E' }}>
-                    New Agents / Month
+                    New Agents / {trendGranularity === 'day' ? 'Day' : trendGranularity === 'week' ? 'Week' : 'Month'}
                   </div>
                   {trendData.length > 0 && (
                     <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>
@@ -631,7 +647,7 @@ export default function TrackerPage() {
                   )}
                 </div>
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                  {(['3m', '6m', '12m', 'ytd', 'all'] as Preset[]).map(p => (
+                  {(['3m', '6m', '12m', 'mtd', 'ytd', 'all'] as Preset[]).map(p => (
                     <button
                       key={p}
                       onClick={() => setPreset(p)}
@@ -643,7 +659,7 @@ export default function TrackerPage() {
                         transition: 'all 0.1s',
                       }}
                     >
-                      {p === 'all' ? 'All' : p.toUpperCase()}
+                      {p === 'all' ? 'All' : p === 'mtd' ? 'MTD' : p.toUpperCase()}
                     </button>
                   ))}
                   <button

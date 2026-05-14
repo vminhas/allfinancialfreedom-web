@@ -8,8 +8,18 @@ import type { ClimbMilestone, AgentProfile } from '@/generated/prisma/client'
 // policy's point value. Mirrors the leaderboard math.
 
 export async function lifetimePointsForAgent(agentProfileId: string): Promise<number> {
+  // Prefer Tevah's verified all-time total (stored by the sync).
+  // Fall back to summing our ISSUED submissions so the Climb still works
+  // for agents not yet in Tevah or before the first sync runs.
+  const profile = await db.agentProfile.findUnique({
+    where: { id: agentProfileId },
+    select: { tevahPoints: true },
+  })
+  if (profile?.tevahPoints != null) return Math.round(profile.tevahPoints)
+
   const subs = await db.newBusinessSubmission.findMany({
     where: {
+      status: 'ISSUED',
       OR: [
         { agentProfileId },
         { splitWithAgentId: agentProfileId },
@@ -27,23 +37,46 @@ export async function lifetimePointsForAgent(agentProfileId: string): Promise<nu
   return Math.round(total)
 }
 
-// Batched: sum lifetime points for every active agent in one pass.
-// Used by the admin recompute-all sweep so we don't N+1 the database.
+// Batched: lifetime points for every active agent in one pass.
+// Prefers Tevah's verified total; falls back to ISSUED-only sum.
 export async function lifetimePointsForAllAgents(): Promise<Map<string, number>> {
-  const subs = await db.newBusinessSubmission.findMany({
-    select: { agentProfileId: true, splitWithAgentId: true, points: true },
+  const profiles = await db.agentProfile.findMany({
+    select: { id: true, tevahPoints: true },
   })
   const m = new Map<string, number>()
-  for (const s of subs) {
-    const fullPts = s.points ?? 0
-    const pts = s.splitWithAgentId ? fullPts / 2 : fullPts
-    if (s.agentProfileId) m.set(s.agentProfileId, (m.get(s.agentProfileId) ?? 0) + pts)
-    if (s.splitWithAgentId && s.splitWithAgentId !== s.agentProfileId) {
-      m.set(s.splitWithAgentId, (m.get(s.splitWithAgentId) ?? 0) + pts)
+  const needsFallback: string[] = []
+
+  for (const p of profiles) {
+    if (p.tevahPoints != null) {
+      m.set(p.id, Math.round(p.tevahPoints))
+    } else {
+      needsFallback.push(p.id)
     }
   }
-  // Round to whole points for stable threshold comparisons.
-  for (const [k, v] of m) m.set(k, Math.round(v))
+
+  if (needsFallback.length > 0) {
+    const subs = await db.newBusinessSubmission.findMany({
+      where: {
+        status: 'ISSUED',
+        OR: [
+          { agentProfileId: { in: needsFallback } },
+          { splitWithAgentId: { in: needsFallback } },
+        ],
+      },
+      select: { agentProfileId: true, splitWithAgentId: true, points: true },
+    })
+    for (const s of subs) {
+      const fullPts = s.points ?? 0
+      const pts = s.splitWithAgentId ? fullPts / 2 : fullPts
+      if (s.agentProfileId && needsFallback.includes(s.agentProfileId)) {
+        m.set(s.agentProfileId, Math.round((m.get(s.agentProfileId) ?? 0) + pts))
+      }
+      if (s.splitWithAgentId && needsFallback.includes(s.splitWithAgentId) && s.splitWithAgentId !== s.agentProfileId) {
+        m.set(s.splitWithAgentId, Math.round((m.get(s.splitWithAgentId) ?? 0) + pts))
+      }
+    }
+  }
+
   return m
 }
 

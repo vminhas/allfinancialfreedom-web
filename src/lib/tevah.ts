@@ -113,6 +113,40 @@ export async function getAllTevahAgents(): Promise<TevahAgent[]> {
   return all
 }
 
+// Fetch all-time production points for every agent from Tevah's team report.
+// Returns a map of agentCode (uppercase) → totalPoints.
+export async function getAllTevahAgentPoints(): Promise<Map<string, number>> {
+  const { jwt, userId, agentId } = await getTevahToken()
+  const pageSize = 200
+  const all: Array<{ subjectAgentNumber: string; totalPoints: string }> = []
+  let page = 1
+
+  while (true) {
+    const url =
+      `${TEVAH_API}/api/team/getFilteredTeamReportAgents` +
+      `?id=${agentId}&page=${page}&pageSize=${pageSize}` +
+      `&search=&level=&sortDirection=desc&type=base&top=All` +
+      `&selectedType=byPoints&startDate=1+Jan+2020&endDate=31+Dec+2099`
+
+    const res = await fetch(url, { headers: headers(jwt, userId, agentId) })
+    if (!res.ok) throw new Error(`Tevah points fetch HTTP ${res.status}`)
+
+    const json = await res.json() as { data?: typeof all; count?: number }
+    const rows = json.data ?? []
+    all.push(...rows)
+    if (all.length >= (json.count ?? 0) || rows.length === 0) break
+    page++
+  }
+
+  const m = new Map<string, number>()
+  for (const r of all) {
+    if (r.subjectAgentNumber) {
+      m.set(r.subjectAgentNumber.toUpperCase(), parseFloat(r.totalPoints) || 0)
+    }
+  }
+  return m
+}
+
 // Tevah level code → AFF phase number
 export function tevahLevelToPhase(level: string | null): number {
   switch (level) {

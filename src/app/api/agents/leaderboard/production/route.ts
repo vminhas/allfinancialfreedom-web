@@ -321,6 +321,7 @@ async function submissionsValues(agentIds: string[], start: Date | null, end: Da
 async function pointsValues(agentIds: string[], start: Date | null, end: Date) {
   const subs = await db.newBusinessSubmission.findMany({
     where: {
+      status: 'ISSUED',
       applicationDate: start ? { gte: start, lte: end } : { lte: end },
       OR: [
         { agentProfileId: { in: agentIds } },

@@ -275,6 +275,10 @@ model AgentProfile {
   lastSeenPhase         Int?
   badges                String[]  @default([])
   clientReminderPrefs   Json?     @map("client_reminder_prefs")
+  // Tevah-sourced production points (all-time), updated on each sync.
+  // Used by the Climb as the authoritative lifetime total so milestones
+  // reflect Tevah's verified issued-policy numbers, not raw premium sums.
+  tevahPoints           Float?    @map("tevah_points")
   // Power-couple pairing. Two-sided: both agents have AgentProfiles and each
   // stores the other's id. One-sided: partner has no profile, use displayName.
   partnerAgentProfileId String?   @map("partner_agent_profile_id")

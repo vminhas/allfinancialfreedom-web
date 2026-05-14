@@ -211,6 +211,11 @@ function FilterBar({
         <Segment active={metric === 'recruits'} onClick={() => setMetric('recruits')} icon={<RecruitsIcon size={13} />}>Recruits</Segment>
         <Segment active={metric === 'points'} onClick={() => setMetric('points')} icon={<PointsIcon size={13} />}>Points</Segment>
       </SegmentGroup>
+      {metric === 'points' && (
+        <div style={{ fontSize: 10, color: '#4B6280', marginTop: 6, paddingLeft: 2 }}>
+          Points count when policies are issued.
+        </div>
+      )}
 
       <Divider isMobile={isMobile} />
 
