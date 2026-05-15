@@ -34,6 +34,11 @@ export interface RenderContext {
 }
 
 const MUSTACHE = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g
+// Triple-brace form: pre-rendered HTML that should NOT be escaped.
+// Used by the builders (welcome email, CEO intro) to inject conditional
+// sub-sections that the template author can place but not author.
+// {{firstName}} = HTML-escaped, {{{personalGreeting}}} = raw.
+const MUSTACHE_RAW = /\{\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}\}/g
 
 // Apply {{var}} substitution against ctx. Missing keys collapse to ''
 // so a malformed template still sends without a "{{firstName}}"
@@ -49,13 +54,21 @@ export function substituteVars(text: string, ctx: RenderContext): string {
 // Same as substituteVars but the substituted values get HTML-escaped.
 // Use for any variable that will land inside an HTML attribute or
 // text node (every body variable, basically). For inline HTML you
-// want from a variable, use substituteVars + escape on the caller side.
+// want from a variable, use {{{tripleBrace}}} — those substitute raw
+// without escaping. Triple-brace pass runs first so its replacement
+// text isn't picked up by the single-brace pass.
 export function substituteVarsHtml(text: string, ctx: RenderContext): string {
-  return text.replace(MUSTACHE, (_, key) => {
-    const v = ctx[key]
-    if (v === null || v === undefined) return ''
-    return escapeHtml(String(v))
-  })
+  return text
+    .replace(MUSTACHE_RAW, (_, key) => {
+      const v = ctx[key]
+      if (v === null || v === undefined) return ''
+      return String(v)
+    })
+    .replace(MUSTACHE, (_, key) => {
+      const v = ctx[key]
+      if (v === null || v === undefined) return ''
+      return escapeHtml(String(v))
+    })
 }
 
 // The variables an editor can use per event. Surface this in the
@@ -82,6 +95,27 @@ export const VARS_BY_EVENT: Record<string, { name: string; description: string }
     { name: 'email',      description: "Applicant's email" },
     { name: 'bookingUrl', description: 'Discovery-call booking link' },
   ],
+  AgentInviteSent: [
+    { name: 'firstName',         description: "New agent's first name (auto-escaped)" },
+    { name: 'inviteUrl',         description: 'Portal activation link (expires in 72 hours)' },
+    { name: 'discordInvite',     description: 'AFF Discord invite link' },
+    { name: 'websiteUrl',        description: 'allfinancialfreedom.com' },
+    { name: 'referralLine',      description: '{{{raw}}} block: rendered when a recruiter is on file' },
+    { name: 'personalGreeting',  description: '{{{raw}}} block: rendered when Operations Contact is configured' },
+    { name: 'introVideoBlock',   description: '{{{raw}}} block: rendered when WELCOME_INTRO_VIDEO_URL is set' },
+    { name: 'meetAndGreetBlock', description: '{{{raw}}} block: rendered when Onboarding Host Calendly URL is set' },
+    { name: 'signOff',           description: '{{{raw}}} block: signature footer (Natalia vs team)' },
+    { name: 'replyHint',         description: '{{{raw}}} block: "reply to me at X" copy' },
+  ],
+  ProspectIntroSent: [
+    { name: 'prospectFirstName', description: "Prospect's first name" },
+    { name: 'agentFullName',     description: "Referring agent's full name" },
+    { name: 'agentFirstName',    description: "Referring agent's first name" },
+    { name: 'agentRoleLabel',    description: "Phase-based role label (e.g. 'an agent on our team')" },
+    { name: 'bookingUrl',        description: 'COO 15-minute discovery booking link' },
+    { name: 'websiteUrl',        description: 'allfinancialfreedom.com' },
+    { name: 'personalNoteBlock', description: '{{{raw}}} block: rendered when the agent added a note' },
+  ],
 }
 
 export const EVENT_TYPE_OPTIONS: { value: string; label: string; description: string }[] = [
@@ -94,6 +128,16 @@ export const EVENT_TYPE_OPTIONS: { value: string; label: string; description: st
     value: 'JoinFormSubmitted',
     label: 'Join form submitted',
     description: 'Fires when someone submits the public Join form on the marketing site.',
+  },
+  {
+    value: 'AgentInviteSent',
+    label: 'New agent welcome',
+    description: "Sent when a new agent is invited to the portal (referral approved, admin invite, Tevah sync, 'Resend invite').",
+  },
+  {
+    value: 'ProspectIntroSent',
+    label: 'CEO warm intro to prospect',
+    description: 'Sent when an agent clicks "Send CEO intro" on a Business Partner prospect row.',
   },
 ]
 
