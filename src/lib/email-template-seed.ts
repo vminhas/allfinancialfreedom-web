@@ -75,6 +75,74 @@ const PROPHOG_BRIEFING_BODY = `
 </table>
 `.trim()
 
+// Welcome email body. Authors edit the static copy + the position of
+// the {{{rawBlocks}}}; the blocks themselves (referralLine, the ops
+// contact's personal greeting, intro video, Meet & Greet with the
+// COO, sign-off, reply hint) are pre-rendered in code so the show/
+// hide-when-configured logic stays out of the WYSIWYG editor. See
+// lib/welcome-email.ts for the conditional rendering.
+const AGENT_INVITE_BODY = `
+<div style="background:#0A1628; padding:32px 16px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:600px; margin:0 auto; background:#0F1E33; border-radius:10px; padding:36px 32px; color:#ffffff;">
+    <h1 style="color:#C9A96E; font-size:24px; font-weight:600; margin:0 0 6px; letter-spacing:-0.01em;">Welcome to the All Financial Freedom family</h1>
+    <p style="color:#9BB0C4; font-size:13px; margin:0 0 24px;">We're so glad you said yes.</p>
+    <p style="color:#9BB0C4; margin:0 0 16px; line-height:1.6;">Hi {{firstName}},</p>
+    {{{referralLine}}}
+    <p style="color:#9BB0C4; margin:0 0 16px; line-height:1.6;">By joining us, you've taken a meaningful step toward something bigger than a career. It's a mission to help individuals and families build lasting financial legacies. We don't take that lightly. From this moment forward, you're not joining a company. You're joining a family.</p>
+    {{{personalGreeting}}}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 12px;">
+      {{{introVideoBlock}}}
+    </table>
+    <hr style="border:none; border-top:1px solid rgba(201,169,110,0.12); margin:24px 0;" />
+    <p style="color:#C9A96E; font-size:11px; font-weight:700; letter-spacing:0.18em; text-transform:uppercase; margin:0 0 16px;">Your 48-hour onboarding checklist</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      <tr><td style="padding:0;">
+        <p style="color:#fff; font-weight:700; margin:0 0 4px;">1 &middot; Activate your Agent Portal</p>
+        <p style="color:#9BB0C4; margin:0 0 10px; font-size:13px; line-height:1.55;">Your home base. Phase checklist, training schedule, carrier appointments, and progress tracker all live here.</p>
+        <a href="{{inviteUrl}}" style="display:inline-block; padding:13px 26px; background:#C9A96E; color:#142D48; font-weight:700; text-decoration:none; border-radius:4px; font-size:14px;">Activate your portal &rarr;</a>
+      </td></tr>
+      <tr><td style="height:22px;"></td></tr>
+      <tr><td style="padding:0;">
+        <p style="color:#fff; font-weight:700; margin:0 0 4px;">2 &middot; Join us on Discord</p>
+        <p style="color:#9BB0C4; margin:0 0 10px; font-size:13px; line-height:1.55;">Live trainings, announcements, recognition, real-time Q&amp;A, and the daily energy of the team.</p>
+        <a href="{{discordInvite}}" style="display:inline-block; padding:11px 22px; background:#5865F2; color:#fff; font-weight:700; text-decoration:none; border-radius:4px; font-size:13px;">Join the AFF Discord</a>
+      </td></tr>
+      <tr><td style="height:22px;"></td></tr>
+      {{{meetAndGreetBlock}}}
+    </table>
+    <hr style="border:none; border-top:1px solid rgba(201,169,110,0.12); margin:24px 0;" />
+    <p style="color:#9BB0C4; margin:0 0 8px; line-height:1.6; font-size:13px;">{{{replyHint}}}</p>
+    {{{signOff}}}
+    <hr style="border:none; border-top:1px solid rgba(255,255,255,0.06); margin:28px 0 16px;" />
+    <p style="color:#4B5563; font-size:11px; margin:0;">This portal link expires in 72 hours.&nbsp;&middot;&nbsp;<a href="{{websiteUrl}}" style="color:#6B8299; text-decoration:none;">allfinancialfreedom.com</a></p>
+  </div>
+</div>
+`.trim()
+
+// CEO warm intro body. Single conditional block: the agent's personal
+// note rendered as a blockquote when present. See lib/ceo-intro-email.ts.
+const PROSPECT_INTRO_BODY = `
+<div style="background:#0A1628; padding:32px 16px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:600px; margin:0 auto; background:#0F1E33; border-radius:10px; padding:36px 32px; color:#ffffff;">
+    <p style="color:#C9A96E; font-size:11px; font-weight:700; letter-spacing:0.18em; text-transform:uppercase; margin:0 0 12px;">A warm introduction</p>
+    <p style="color:#9BB0C4; margin:0 0 16px; line-height:1.6;">Hi {{prospectFirstName}},</p>
+    <p style="color:#9BB0C4; margin:0 0 16px; line-height:1.6;">I'm Vick Minhas, the founder and CEO of All Financial Freedom. <strong style="color:#fff;">{{agentFullName}}</strong>, {{agentRoleLabel}}, mentioned you to me, and thought you'd be a great fit for what we're building.</p>
+    {{{personalNoteBlock}}}
+    <p style="color:#9BB0C4; margin:0 0 16px; line-height:1.6;">We help everyday people build a financial business that gives them income, ownership, and a real path to time freedom. Not a job, not a side hustle, a business. We work with people from all walks of life: nurses, teachers, real-estate pros, business owners, parents who want something more flexible. What {{agentFirstName}} saw in you matters; that's usually the strongest signal.</p>
+    <p style="color:#9BB0C4; margin:0 0 24px; line-height:1.6;">If you're even a little curious, grab 15 minutes with someone on our team (usually our COO). No pitch, no pressure. Just a real conversation about what you're after and whether what we do could fit.</p>
+    <div style="text-align:center; margin:0 0 24px;">
+      <a href="{{bookingUrl}}" style="display:inline-block; padding:14px 32px; background:#C9A96E; color:#142D48; font-weight:700; text-decoration:none; border-radius:4px; font-size:14px;">Book a 15-minute conversation &rarr;</a>
+    </div>
+    <p style="color:#9BB0C4; margin:0 0 8px; line-height:1.6; font-size:13px;">If the calendar doesn't work, just reply to this email and we'll find a time.</p>
+    <p style="color:#fff; margin:24px 0 0; font-weight:600;">Talk soon,</p>
+    <p style="color:#fff; margin:6px 0 0; font-weight:700; font-size:15px;">Vick Minhas</p>
+    <p style="color:#C9A96E; margin:2px 0 0; font-weight:700; font-size:12px;">CEO &middot; All Financial Freedom</p>
+    <hr style="border:none; border-top:1px solid rgba(255,255,255,0.06); margin:28px 0 16px;" />
+    <p style="color:#4B5563; font-size:11px; margin:0;"><a href="{{websiteUrl}}" style="color:#6B8299; text-decoration:none;">allfinancialfreedom.com</a></p>
+  </div>
+</div>
+`.trim()
+
 const JOIN_BODY = `
 <p>Thanks for your interest in All Financial Freedom. We received your application and a member of our team will be in touch shortly.</p>
 <div style="background:#F5F9FF;border:1px solid rgba(201,169,110,0.25);border-left:4px solid #C9A96E;border-radius:4px;padding:24px 28px;margin:24px 0;">
@@ -130,6 +198,26 @@ const DEFAULT_TEMPLATES: DefaultTemplate[] = [
     subject: 'We received your application, {{firstName}}.',
     bodyHtml: JOIN_BODY,
     senderKey: 'contact',
+  },
+  {
+    key: 'agent-welcome',
+    label: 'New Agent Welcome',
+    description: 'The 48-hour onboarding welcome email. Sent on referral approval, admin direct invite, Tevah-sync auto-invite, and "Resend invite" from the My Team tab. Conditional sub-sections (referral line, ops personal greeting, intro video, Meet & Greet, sign-off) are pre-rendered in code based on /vault/settings and the optional WELCOME_INTRO_VIDEO_URL env var.',
+    eventType: 'AgentInviteSent',
+    recipient: 'CONTACT',
+    subject: 'Welcome to the All Financial Freedom family',
+    bodyHtml: AGENT_INVITE_BODY,
+    senderKey: 'operations',
+  },
+  {
+    key: 'ceo-warm-intro',
+    label: 'CEO Warm Intro to Prospect',
+    description: 'Fired when an agent clicks "Send CEO intro" on a Business Partner prospect row. Voice + signature stay Vick. The agent-personal-note block renders only when the agent typed one in the send dialog.',
+    eventType: 'ProspectIntroSent',
+    recipient: 'CONTACT',
+    subject: "{{agentFirstName}} thought you'd be a great fit",
+    bodyHtml: PROSPECT_INTRO_BODY,
+    senderKey: 'vick',
   },
 ]
 
