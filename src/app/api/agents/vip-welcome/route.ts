@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveAgentIdentity } from '@/lib/agent-identity'
 import { db } from '@/lib/db'
-import { getSettings } from '@/lib/settings'
 
 // GET /api/agents/vip-welcome
 //
@@ -15,21 +14,21 @@ export async function GET(req: NextRequest) {
 
   const profile = await db.agentProfile.findUnique({
     where: { id: id.profileId },
-    select: { agentCode: true, firstName: true, lastName: true, preferredName: true },
+    select: {
+      firstName: true,
+      lastName: true,
+      preferredName: true,
+      vipArrival: true,
+      vipArrivalTitle: true,
+    },
   })
-  if (!profile) return NextResponse.json({ show: false })
-
-  const cfg = await getSettings(['VIP_ARRIVAL_AGENT_CODE', 'VIP_ARRIVAL_TITLE'])
-  const vipCode = (cfg.VIP_ARRIVAL_AGENT_CODE ?? '').trim()
-  if (!vipCode || vipCode.toLowerCase() !== profile.agentCode.toLowerCase()) {
-    return NextResponse.json({ show: false })
-  }
+  if (!profile || !profile.vipArrival) return NextResponse.json({ show: false })
 
   const firstName = (profile.preferredName?.trim() || profile.firstName).trim()
   return NextResponse.json({
     show: true,
     firstName,
     name: `${firstName} ${profile.lastName}`.trim(),
-    title: (cfg.VIP_ARRIVAL_TITLE ?? '').trim(),
+    title: (profile.vipArrivalTitle ?? '').trim(),
   })
 }

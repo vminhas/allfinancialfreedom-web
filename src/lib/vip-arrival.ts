@@ -1,5 +1,4 @@
 import { sendChannelMessage, type DiscordEmbed } from './discord'
-import { getSettings } from './settings'
 import { db } from './db'
 
 // Manual "red carpet" for a single distinguished guest (currently a GFI
@@ -9,8 +8,9 @@ import { db } from './db'
 // intentionally left off (the guest sits above AFF). No metrics, no
 // faith references, no brand stamp. Just a classy welcome.
 //
-// Scoped hard to ONE configured agentCode so an accidental click on a
-// normal agent's profile can never blast a red-carpet @everyone.
+// Hard-gated on the profile's own vipArrival flag, so an accidental
+// click on a normal agent's profile can never blast a red-carpet
+// @everyone (the button doesn't even render unless the flag is on).
 
 const GOLD = 0xc9a84c
 const ANNOUNCEMENTS_CHANNEL =
@@ -35,27 +35,23 @@ export async function fireVipArrival(
   const profile = await db.agentProfile.findUnique({
     where: { id: agentProfileId },
     select: {
-      agentCode: true,
       firstName: true,
       lastName: true,
       preferredName: true,
       avatarUrl: true,
+      vipArrival: true,
+      vipArrivalTitle: true,
     },
   })
   if (!profile) return { ok: false, reason: 'no_profile' }
 
-  const cfg = await getSettings(['VIP_ARRIVAL_AGENT_CODE', 'VIP_ARRIVAL_TITLE'])
-  const vipCode = (cfg.VIP_ARRIVAL_AGENT_CODE ?? '').trim()
-  if (
-    !vipCode ||
-    vipCode.toLowerCase() !== profile.agentCode.toLowerCase()
-  ) {
+  if (!profile.vipArrival) {
     return { ok: false, reason: 'not_vip' }
   }
 
   const firstName = (profile.preferredName?.trim() || profile.firstName).trim()
   const fullName = `${firstName} ${profile.lastName}`.trim()
-  const title = (cfg.VIP_ARRIVAL_TITLE ?? '').trim()
+  const title = (profile.vipArrivalTitle ?? '').trim()
 
   const lines = [`# ${fullName}`]
   if (title) lines.push(`### ${title}`)

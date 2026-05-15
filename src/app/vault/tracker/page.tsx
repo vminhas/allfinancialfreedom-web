@@ -79,6 +79,8 @@ interface DetailedAgent extends Agent {
   notes: string | null
   isTest: boolean
   isLeadership?: boolean
+  vipArrival?: boolean
+  vipArrivalTitle?: string | null
   partnerAgentProfileId?: string | null
   partnerDisplayName?: string | null
   coupleDisplayName?: string | null
@@ -1273,6 +1275,8 @@ function AgentDrawer({
     notes: agent.notes ?? '',
     isTest: agent.isTest ?? false,
     isLeadership: agent.isLeadership ?? false,
+    vipArrival: agent.vipArrival ?? false,
+    vipArrivalTitle: agent.vipArrivalTitle ?? '',
     partnerAgentProfileId: agent.partnerAgentProfileId ?? '',
     partnerDisplayName: agent.partnerDisplayName ?? '',
     coupleDisplayName: agent.coupleDisplayName ?? '',
@@ -1317,6 +1321,7 @@ function AgentDrawer({
           city: editForm.city || null,
           zip: editForm.zip || null,
           notes: editForm.notes || null,
+          vipArrivalTitle: editForm.vipArrivalTitle || null,
         }),
       })
       if (!res.ok) {
@@ -1520,9 +1525,9 @@ function AgentDrawer({
             creation. Visible for every agent; the endpoint returns a
             clear error if there's no recruiter to credit. */}
         <JoinReannounceButton agentId={agent.id} agentName={`${agent.firstName} ${agent.lastName}`} />
-        {/* Red carpet. Self-hides unless this profile is the configured
-            VIP (Settings -> VIP Arrival). */}
-        <VipArrivalButton agentId={agent.id} agentCode={agent.agentCode} />
+        {/* Red carpet. Self-hides unless this profile's VIP Arrival
+            toggle (in the edit drawer) is on. */}
+        <VipArrivalButton agentId={agent.id} vipArrival={agent.vipArrival ?? false} />
       </div>
 
       {/* Invite */}
@@ -1990,6 +1995,46 @@ function AgentDrawer({
                 </div>
               </div>
             </label>
+
+            {/* One-off red carpet. When on: the "Announce VIP Arrival"
+                button appears on this profile (posts a bespoke gold card
+                to #announcements, no brand/metrics, nudges Vick + Melinee
+                to greet them) and a one-time welcome modal pops the first
+                time they sign into the portal. Flip off to retire both. */}
+            <div style={{
+              padding: '10px 12px', borderRadius: 4,
+              background: editForm.vipArrival ? 'rgba(216,184,96,0.10)' : 'rgba(255,255,255,0.02)',
+              border: editForm.vipArrival ? '1px solid rgba(216,184,96,0.45)' : '1px solid rgba(255,255,255,0.05)',
+            }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={editForm.vipArrival}
+                  onChange={e => setEditForm(f => ({ ...f, vipArrival: e.target.checked }))}
+                  style={{ flexShrink: 0 }}
+                />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: editForm.vipArrival ? '#D8B860' : '#9BB0C4', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                    ✦ VIP Arrival
+                  </div>
+                  <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2 }}>
+                    Rolls out the red carpet for a distinguished guest. Adds an &ldquo;Announce VIP Arrival&rdquo; button below and a one-time welcome when they first sign into the portal. Turn off to retire both.
+                  </div>
+                </div>
+              </label>
+              {editForm.vipArrival && (
+                <input
+                  value={editForm.vipArrivalTitle}
+                  onChange={e => setEditForm(f => ({ ...f, vipArrivalTitle: e.target.value }))}
+                  placeholder="Title line, e.g. Co-Founder, GFI"
+                  style={{
+                    marginTop: 10, width: '100%', boxSizing: 'border-box',
+                    background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(216,184,96,0.35)',
+                    color: '#F4ECDA', borderRadius: 4, padding: '8px 10px', fontSize: 12,
+                  }}
+                />
+              )}
+            </div>
 
             {/* Power-couple pairing. Two flavors:
                   - Both partners on platform (the typical 'Joey &
@@ -2927,30 +2972,16 @@ function JoinReannounceButton({ agentId, agentName }: { agentId: string; agentNa
   )
 }
 
-// Red-carpet button. Only renders on the ONE profile whose agentCode
-// matches the VIP Arrival setting, so it's invisible noise for every
-// other agent. Two-click confirm because it fires an @everyone card.
-// To retire it after the guest is done, clear the agent code under
-// Settings -> VIP Arrival: the button (and the portal welcome) vanish.
-function VipArrivalButton({ agentId, agentCode }: { agentId: string; agentCode: string }) {
-  const [isVip, setIsVip] = useState(false)
+// Red-carpet button. Renders only when the profile's own VIP Arrival
+// toggle is on (set in the edit drawer), so it's invisible noise for
+// every other agent. Two-click confirm because it fires an @everyone
+// card. Untoggling VIP Arrival on the profile retires this button and
+// the portal welcome together, no redeploy.
+function VipArrivalButton({ agentId, vipArrival }: { agentId: string; vipArrival: boolean }) {
   const [armed, setArmed] = useState(false)
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle")
 
-  useEffect(() => {
-    let cancelled = false
-    fetch("/api/admin/vip-arrival")
-      .then(r => r.json())
-      .then((d: { settings?: { VIP_ARRIVAL_AGENT_CODE?: string } }) => {
-        if (cancelled) return
-        const code = (d.settings?.VIP_ARRIVAL_AGENT_CODE ?? "").trim()
-        if (code && code.toLowerCase() === agentCode.toLowerCase()) setIsVip(true)
-      })
-      .catch(() => {})
-    return () => { cancelled = true }
-  }, [agentCode])
-
-  if (!isVip) return null
+  if (!vipArrival) return null
 
   const click = async () => {
     if (!armed) { setArmed(true); setTimeout(() => setArmed(false), 4000); return }
