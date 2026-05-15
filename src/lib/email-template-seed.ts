@@ -236,6 +236,23 @@ export async function ensureEmailTemplateSeed(): Promise<void> {
   return seedPromise
 }
 
+// Legacy stub template keys from the original placeholder system.
+// They have no real sender and aren't wired to any current flow. One
+// of them (referral_approved) got its eventType mis-set to
+// AppointmentCreate and started emailing a "Set Up Your Portal"
+// invite to every prospect who booked a discovery call. We hard-
+// disable + un-wire them on every seed run so they can't fire
+// regardless of what's in the DB, and so they stop cluttering the
+// vault editor's event groups. Deleting outright would also be fine,
+// but disabling + null-ing the event type is reversible and keeps
+// any historical reference intact.
+const LEGACY_STUB_KEYS = [
+  'referral_approved',
+  'agent_invite',
+  'agent_reminder',
+  'promotion_celebration',
+]
+
 async function doSeed() {
   // Senders first — templates depend on them via senderKey lookup.
   for (const s of DEFAULT_SENDERS) {
@@ -245,6 +262,14 @@ async function doSeed() {
       create: s,
     })
   }
+
+  // Self-heal: neutralize the legacy stubs. enabled=false stops them
+  // dispatching; eventType=null pulls them out of every webhook event
+  // group so they can't be the rogue "also fired" template again.
+  await db.emailTemplate.updateMany({
+    where: { key: { in: LEGACY_STUB_KEYS } },
+    data: { enabled: false, eventType: null },
+  })
 
   const senderByKey = new Map(
     (await db.emailSender.findMany({ where: { key: { in: DEFAULT_SENDERS.map(s => s.key) } } }))
