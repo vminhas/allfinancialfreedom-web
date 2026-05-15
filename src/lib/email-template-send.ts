@@ -50,17 +50,83 @@ export interface DispatchResult {
   details: DispatchTemplateResult[]
 }
 
+// Events the inbound GHL webhook is allowed to dispatch. Anything
+// not in this set is an "internal trigger" event (agent onboarding,
+// CEO intro) that is fired by code calling the template directly by
+// key, NEVER by an inbound webhook. A misconfigured DB row with one
+// of these eventTypes will not send from the webhook path.
+const WEBHOOK_DISPATCHABLE_EVENTS = new Set<string>([
+  'AppointmentCreate',
+  'JoinFormSubmitted',
+  'MeetAndGreetBooked',
+  'AppointmentNoShow',
+])
+
+// Hard blocklist: agent-onboarding / internal template keys that must
+// NEVER be sent from the inbound webhook, even if someone sets their
+// eventType to AppointmentCreate in the editor. This is the belt to
+// the WEBHOOK_DISPATCHABLE_EVENTS suspenders — it caught the bug
+// where a prospect booking a discovery call also received a "Set Up
+// Your Portal" agent invite. Keys cover both the new template system
+// and the legacy stub rows that predate it.
+const WEBHOOK_BLOCKED_TEMPLATE_KEYS = new Set<string>([
+  'agent-welcome',
+  'ceo-warm-intro',
+  'agent_invite',
+  'referral_approved',
+  'agent_reminder',
+  'promotion_celebration',
+])
+
 export async function dispatchTemplatesForEvent(
   input: DispatchInput,
 ): Promise<DispatchResult> {
-  const templates = await db.emailTemplate.findMany({
+  // First guardrail: the webhook can only ever fire prospect/event
+  // templates. An internal-trigger event type reaching here means a
+  // misconfiguration upstream; refuse rather than risk sending an
+  // agent invite to a cold prospect.
+  if (!WEBHOOK_DISPATCHABLE_EVENTS.has(input.eventType)) {
+    return {
+      fired: [],
+      skipped: [],
+      details: [{
+        templateKey: '(none)',
+        status: 'skipped',
+        reason: `event "${input.eventType}" is not webhook-dispatchable`,
+      }],
+    }
+  }
+
+  const rawTemplates = await db.emailTemplate.findMany({
     where: { eventType: input.eventType, enabled: true },
     include: { sender: true },
   })
 
+  // Second guardrail: drop any agent-onboarding/internal template
+  // that's mis-wired to a webhook event. This is what stops the
+  // "discovery booking sends a portal invite" class of bug for good,
+  // regardless of what an admin clicks in the editor.
+  const blockedHere: string[] = []
+  const templates = rawTemplates.filter(t => {
+    if (WEBHOOK_BLOCKED_TEMPLATE_KEYS.has(t.key)) {
+      blockedHere.push(t.key)
+      return false
+    }
+    return true
+  })
+  if (blockedHere.length > 0) {
+    console.warn(
+      `[email-dispatch] blocked agent-onboarding template(s) mis-wired to webhook event ${input.eventType}: ${blockedHere.join(', ')}`,
+    )
+  }
+
   const fired: string[] = []
-  const skipped: string[] = []
-  const details: DispatchTemplateResult[] = []
+  const skipped: string[] = [...blockedHere]
+  const details: DispatchTemplateResult[] = blockedHere.map(k => ({
+    templateKey: k,
+    status: 'skipped' as const,
+    reason: 'blocked: agent-onboarding template cannot fire from a webhook event',
+  }))
   const tags = input.contact?.tags ?? []
 
   // GHL config fetched once and reused across all sends in this event
@@ -68,12 +134,15 @@ export async function dispatchTemplatesForEvent(
   const config = templates.length > 0 ? await getGhlConfig().catch(() => null) : null
   if (templates.length > 0 && (!config?.apiKey || !config.locationId)) {
     return {
-      fired: [], skipped: templates.map(t => t.key),
-      details: templates.map(t => ({
-        templateKey: t.key,
-        status: 'failed',
-        error: 'GHL config not set in vault settings',
-      })),
+      fired: [], skipped: [...skipped, ...templates.map(t => t.key)],
+      details: [
+        ...details,
+        ...templates.map(t => ({
+          templateKey: t.key,
+          status: 'failed' as const,
+          error: 'GHL config not set in vault settings',
+        })),
+      ],
     }
   }
 
