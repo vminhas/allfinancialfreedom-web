@@ -282,7 +282,16 @@ export async function syncAgents() {
                                     ? { state: TEVAH_STATE_MAP[agent.stateId] } : {}),
             ...(agent.address       ? { addressLine1: agent.address }       : {}),
             ...(agent.zipCode       ? { zip: agent.zipCode }                : {}),
-            phase: tevahLevelToPhase(agent.level),
+            // DO NOT sync phase here. AFF `phase` is the agent's
+            // onboarding focus area, owned by the vault tracker
+            // (the "Advance to Phase X" button + promotion items).
+            // Tevah's `level` is a separate platform concept. Mapping
+            // it onto phase every hourly sync clobbered every manual
+            // promotion an admin made (they'd promote at night, the
+            // cron reverted them by morning because Tevah's level
+            // hadn't changed). Phase is still seeded from Tevah on
+            // NEW agent creation (see agentProfileData) as a sane
+            // default; after that it's AFF-owned.
           },
         })
         // Recompute milestones so any newly matched submissions fire announcements.
