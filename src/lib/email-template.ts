@@ -34,6 +34,11 @@ export interface RenderContext {
 }
 
 const MUSTACHE = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g
+// Triple-brace form: pre-rendered HTML that should NOT be escaped.
+// Used by the builders (welcome email, CEO intro) to inject conditional
+// sub-sections that the template author can place but not author.
+// {{firstName}} = HTML-escaped, {{{personalGreeting}}} = raw.
+const MUSTACHE_RAW = /\{\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}\}/g
 
 // Apply {{var}} substitution against ctx. Missing keys collapse to ''
 // so a malformed template still sends without a "{{firstName}}"
