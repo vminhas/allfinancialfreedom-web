@@ -1520,6 +1520,9 @@ function AgentDrawer({
             creation. Visible for every agent; the endpoint returns a
             clear error if there's no recruiter to credit. */}
         <JoinReannounceButton agentId={agent.id} agentName={`${agent.firstName} ${agent.lastName}`} />
+        {/* Red carpet. Self-hides unless this profile is the configured
+            VIP (Settings -> VIP Arrival). */}
+        <VipArrivalButton agentId={agent.id} agentCode={agent.agentCode} />
       </div>
 
       {/* Invite */}
@@ -2920,6 +2923,73 @@ function JoinReannounceButton({ agentId, agentName }: { agentId: string; agentNa
         : state === "error" ? "Failed, retry"
         : state === "no_recruiter" ? "Set recruiter first"
         : "Announce New Business Partner"}
+    </button>
+  )
+}
+
+// Red-carpet button. Only renders on the ONE profile whose agentCode
+// matches the VIP Arrival setting, so it's invisible noise for every
+// other agent. Two-click confirm because it fires an @everyone card.
+// To retire it after the guest is done, clear the agent code under
+// Settings -> VIP Arrival: the button (and the portal welcome) vanish.
+function VipArrivalButton({ agentId, agentCode }: { agentId: string; agentCode: string }) {
+  const [isVip, setIsVip] = useState(false)
+  const [armed, setArmed] = useState(false)
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle")
+
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/admin/vip-arrival")
+      .then(r => r.json())
+      .then((d: { settings?: { VIP_ARRIVAL_AGENT_CODE?: string } }) => {
+        if (cancelled) return
+        const code = (d.settings?.VIP_ARRIVAL_AGENT_CODE ?? "").trim()
+        if (code && code.toLowerCase() === agentCode.toLowerCase()) setIsVip(true)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [agentCode])
+
+  if (!isVip) return null
+
+  const click = async () => {
+    if (!armed) { setArmed(true); setTimeout(() => setArmed(false), 4000); return }
+    setArmed(false)
+    setState("sending")
+    try {
+      const res = await fetch(`/api/admin/agents/${agentId}/announce-vip`, { method: "POST" })
+      setState(res.ok ? "sent" : "error")
+      setTimeout(() => setState("idle"), 5000)
+    } catch {
+      setState("error")
+    }
+  }
+
+  const label = state === "sending" ? "Rolling out the carpet..."
+    : state === "sent" ? "✓ Red carpet live"
+    : state === "error" ? "Failed, retry"
+    : armed ? "Tap again to confirm"
+    : "✦ Announce VIP Arrival"
+
+  return (
+    <button
+      onClick={click}
+      disabled={state === "sending"}
+      title="Posts the bespoke gold welcome card to #announcements (no brand, no metrics), seeds reactions, and privately nudges Vick + Melinee to greet him personally."
+      style={{
+        marginTop: 8, width: "100%",
+        background: state === "sent" ? "rgba(201,168,76,0.16)"
+          : state === "error" ? "rgba(248,113,113,0.10)"
+          : armed ? "rgba(201,168,76,0.20)"
+          : "rgba(201,168,76,0.06)",
+        border: `1px solid ${state === "error" ? "rgba(248,113,113,0.4)" : "rgba(201,168,76,0.55)"}`,
+        color: state === "error" ? "#f87171" : "#D8B860",
+        borderRadius: 4, padding: "7px", fontSize: 10, fontWeight: 800,
+        cursor: state === "sending" ? "wait" : "pointer",
+        letterSpacing: "0.08em", textTransform: "uppercase",
+      }}
+    >
+      {label}
     </button>
   )
 }

@@ -27,6 +27,7 @@ import FeedbackButton from '@/components/FeedbackButton'
 import NewBusinessTab from '@/components/NewBusinessTab'
 import FtaTab from '@/components/FtaTab'
 import { AgentTradingCardModal } from '@/components/AgentTradingCard'
+import VipPortalWelcome from '@/components/VipPortalWelcome'
 import { CallButton, EmailButton } from '@/components/ContactActions'
 import { MILESTONE_BY_KEY, isSubmittable } from '@/lib/milestones'
 import { displayFirstName, displayFullName } from '@/lib/display-name'
@@ -630,6 +631,9 @@ function AgentDashboardInner() {
           the agent dashboard payload doesn't grow. Hides itself when
           there are no in-window contests. */}
       {data && <ContestBanner previewToken={previewToken} />}
+      {/* One-time red-carpet greeting for a configured distinguished
+          guest. Renders null for everyone else. */}
+      {data && <VipPortalWelcome previewToken={previewToken} />}
       {/* Top nav. Mobile gets a deliberately tighter treatment: the
           "Agent Portal" subtitle disappears, the avatar drops the name
           chip, the four quick-link pills become icon-only squares, and

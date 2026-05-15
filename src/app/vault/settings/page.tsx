@@ -267,6 +267,15 @@ export default function SettingsPage() {
   const [opsSaving, setOpsSaving] = useState(false)
   const [opsSaved, setOpsSaved] = useState(false)
 
+  // One-off VIP "red carpet". Clearing the agent code fully retires it:
+  // the tracker button and the portal welcome both disappear.
+  const [vipFields, setVipFields] = useState({
+    VIP_ARRIVAL_AGENT_CODE: '',
+    VIP_ARRIVAL_TITLE: '',
+  })
+  const [vipSaving, setVipSaving] = useState(false)
+  const [vipSaved, setVipSaved] = useState(false)
+
   // ── Booking Links (Trainers / Leadership / Support) ──────────────
   // Curated list shown on /agents/book. Edit-on-add pattern: we keep
   // the working array in state and replace the whole list on save.
@@ -295,6 +304,9 @@ export default function SettingsPage() {
     fetch('/api/admin/operations-contact').then(r => r.json()).then(d => {
       if (d.settings) setOpsFields(f => ({ ...f, ...d.settings }))
     })
+    fetch('/api/admin/vip-arrival').then(r => r.json()).then(d => {
+      if (d.settings) setVipFields(f => ({ ...f, ...d.settings }))
+    }).catch(() => {})
     fetch('/api/admin/booking-links').then(r => r.json()).then(d => {
       if (Array.isArray(d.links)) setBookings(d.links as BookingLink[])
       setBookingsLoaded(true)
@@ -379,6 +391,22 @@ export default function SettingsPage() {
     setOpsSaving(false)
     setOpsSaved(true)
     setTimeout(() => setOpsSaved(false), 2000)
+  }
+
+  const setVip = (key: keyof typeof vipFields) => (v: string) =>
+    setVipFields(f => ({ ...f, [key]: v }))
+
+  async function handleSaveVip() {
+    setVipSaving(true)
+    setVipSaved(false)
+    await fetch('/api/admin/vip-arrival', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(vipFields),
+    })
+    setVipSaving(false)
+    setVipSaved(true)
+    setTimeout(() => setVipSaved(false), 2000)
   }
 
   const set = (key: keyof typeof fields) => (v: string) => setFields(f => ({ ...f, [key]: v }))
@@ -633,6 +661,28 @@ export default function SettingsPage() {
               marginTop: 16,
             }}>
               {opsSaving ? 'Saving...' : opsSaved ? 'Saved ✓' : 'Save'}
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* One-off red carpet for a single distinguished guest */}
+      {card(
+        <>
+          {cardHeader('VIP Arrival')}
+          <div style={{ padding: '28px' }}>
+            <p style={{ color: '#6B8299', fontSize: 12, margin: '0 0 20px', lineHeight: 1.6 }}>
+              A one-off red carpet for a single distinguished guest. Enter their <strong style={{ color: '#9BB0C4' }}>agent code</strong> and a <strong style={{ color: '#9BB0C4' }}>title line</strong>. That unlocks an <strong style={{ color: '#D8B860' }}>&ldquo;Announce VIP Arrival&rdquo;</strong> button on their profile in the tracker (posts a bespoke gold card to the announcements channel, no brand or metrics, and privately nudges Vick &amp; Melinee to greet them), and a one-time welcome that pops up when they sign into the portal. Clear the agent code when they&rsquo;re done and both disappear, no redeploy needed.
+            </p>
+            <Field label="Agent Code" name="VIP_ARRIVAL_AGENT_CODE" value={vipFields.VIP_ARRIVAL_AGENT_CODE} onChange={setVip('VIP_ARRIVAL_AGENT_CODE')} placeholder="e.g. GFI001 (leave blank to disable)" />
+            <Field label="Title Line" name="VIP_ARRIVAL_TITLE" value={vipFields.VIP_ARRIVAL_TITLE} onChange={setVip('VIP_ARRIVAL_TITLE')} placeholder="e.g. Co-Founder, GFI" />
+            <button onClick={handleSaveVip} disabled={vipSaving} style={{
+              padding: '10px 24px', background: '#C9A96E', color: '#142D48', border: 'none',
+              borderRadius: 4, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em',
+              textTransform: 'uppercase', cursor: vipSaving ? 'not-allowed' : 'pointer',
+              marginTop: 16,
+            }}>
+              {vipSaving ? 'Saving...' : vipSaved ? 'Saved ✓' : 'Save'}
             </button>
           </div>
         </>
