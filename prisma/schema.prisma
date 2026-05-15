@@ -255,6 +255,13 @@ model AgentProfile {
   // login + flow capabilities so we can exercise the agent UX as them.
   isTest                Boolean     @default(false) @map("is_test")
   isLeadership          Boolean     @default(false) @map("is_leadership")
+  // One-off "red carpet" for a single distinguished guest. When true,
+  // the tracker shows an "Announce VIP Arrival" button on this profile
+  // and a one-time gold welcome modal pops the first time they sign in.
+  // vipArrivalTitle is the line shown under their name (e.g.
+  // "Co-Founder, GFI"). Flip off to retire both.
+  vipArrival            Boolean     @default(false) @map("vip_arrival")
+  vipArrivalTitle       String?     @map("vip_arrival_title")
   phase                 Int         @default(1)
   phaseStartedAt        DateTime?   // when they entered current phase
   goal                  String?     // "MD", "EMD", etc.
