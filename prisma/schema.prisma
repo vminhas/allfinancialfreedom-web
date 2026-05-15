@@ -333,6 +333,7 @@ model AgentProfile {
   authoredSubmissionNotes NewBusinessNote[]     @relation("SubmissionNoteAgent")
   ftas                  FieldTrainingAppointment[]
   trainingAttendances   TrainingAttendance[]
+  trainingExclusion     TrainingAttendanceExclusion?
   resolvedOrphans       TrainingAttendanceOrphan[] @relation("OrphanResolved")
   zoomAliases           AgentZoomAlias[]
   phaseItemReminders    PhaseItemReminder[]        @relation("ReminderRecipient")
@@ -1208,6 +1209,23 @@ model TrainingAttendance {
   @@index([trainingEventId, status])
   @@index([agentProfileId, status])
   @@map("training_attendances")
+}
+
+// Agents who are no longer attending trainings (left the team,
+// permanent leave). Every training auto-renders them red /
+// NOT_TRACKING in the attendance grid so the admin doesn't have to
+// mark them absent meeting after meeting. An explicit per-event
+// manualStatus override still wins if they ever do show up.
+model TrainingAttendanceExclusion {
+  id             String       @id @default(cuid())
+  agentProfileId String       @unique @map("agent_profile_id")
+  agentProfile   AgentProfile @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+  reason         String?
+  createdBy      String?      @map("created_by")
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  @@index([agentProfileId])
+  @@map("training_attendance_exclusions")
 }
 
 // Zoom participants we couldn't match to an AgentProfile by email or
