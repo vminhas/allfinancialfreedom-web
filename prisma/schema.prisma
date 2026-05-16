@@ -255,6 +255,13 @@ model AgentProfile {
   // login + flow capabilities so we can exercise the agent UX as them.
   isTest                Boolean     @default(false) @map("is_test")
   isLeadership          Boolean     @default(false) @map("is_leadership")
+  // One-off "red carpet" for a single distinguished guest. When true,
+  // the tracker shows an "Announce VIP Arrival" button on this profile
+  // and a one-time gold welcome modal pops the first time they sign in.
+  // vipArrivalTitle is the line shown under their name (e.g.
+  // "Co-Founder, GFI"). Flip off to retire both.
+  vipArrival            Boolean     @default(false) @map("vip_arrival")
+  vipArrivalTitle       String?     @map("vip_arrival_title")
   phase                 Int         @default(1)
   phaseStartedAt        DateTime?   // when they entered current phase
   goal                  String?     // "MD", "EMD", etc.
@@ -333,6 +340,7 @@ model AgentProfile {
   authoredSubmissionNotes NewBusinessNote[]     @relation("SubmissionNoteAgent")
   ftas                  FieldTrainingAppointment[]
   trainingAttendances   TrainingAttendance[]
+  trainingExclusion     TrainingAttendanceExclusion?
   resolvedOrphans       TrainingAttendanceOrphan[] @relation("OrphanResolved")
   zoomAliases           AgentZoomAlias[]
   phaseItemReminders    PhaseItemReminder[]        @relation("ReminderRecipient")
@@ -513,16 +521,37 @@ model ProgressionDefinition {
   @@map("progression_definitions")
 }
 
+// DB-driven email templates fired by the GHL webhook. Each row ties a
+// GHL event type ('AppointmentCreate', 'JoinFormSubmitted', etc.) to
+// a sender + subject + WYSIWYG body. The webhook iterates every
+// enabled template matching the inbound event, applies the row's
+// filter (e.g. "only fire for prophog-tagged contacts"), substitutes
+// {{variables}}, wraps the body in the AFF brand shell, and sends.
+// See src/lib/email-template.ts + src/lib/email-template-send.ts.
 model EmailTemplate {
   id          String  @id @default(cuid())
   key         String  @unique
   label       String
-  subject     String
-  bodyHtml    String
   description String?
+  subject     String
+  bodyHtml    String  @map("body_html") @db.Text
+  // GHL event that triggers this template. Multiple templates can
+  // share an eventType (e.g. one to the contact, one internal). Null
+  // for legacy template rows that pre-date the webhook system.
+  eventType   String? @map("event_type")
+  // 'CONTACT' = send to the GHL contact in the inbound event.
+  // 'INTERNAL' = send to internalTo (e.g. vick@allfinancialfreedom.com).
+  recipient   String  @default("CONTACT")
+  internalTo  String? @map("internal_to")
+  // Optional filter: { tagStartsWith: 'prophog' }.
+  filterJson  Json?   @map("filter_json")
+  senderId    String? @map("sender_id")
+  sender      EmailSender? @relation(fields: [senderId], references: [id])
+  enabled     Boolean @default(true)
   updatedAt   DateTime @updatedAt
   createdAt   DateTime @default(now())
 
+  @@index([eventType, enabled])
   @@map("email_templates")
 }
 
@@ -1189,6 +1218,23 @@ model TrainingAttendance {
   @@map("training_attendances")
 }
 
+// Agents who are no longer attending trainings (left the team,
+// permanent leave). Every training auto-renders them red /
+// NOT_TRACKING in the attendance grid so the admin doesn't have to
+// mark them absent meeting after meeting. An explicit per-event
+// manualStatus override still wins if they ever do show up.
+model TrainingAttendanceExclusion {
+  id             String       @id @default(cuid())
+  agentProfileId String       @unique @map("agent_profile_id")
+  agentProfile   AgentProfile @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+  reason         String?
+  createdBy      String?      @map("created_by")
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  @@index([agentProfileId])
+  @@map("training_attendance_exclusions")
+}
+
 // Zoom participants we couldn't match to an AgentProfile by email or
 // fuzzy name. Admin resolves them in a queue; resolution writes a real
 // TrainingAttendance row and deletes the orphan. Kept in its own table
@@ -1693,4 +1739,75 @@ model ClientReminderFire {
   @@unique([agentProfileId, submissionId, kind, periodKey])
   @@index([agentProfileId, firedAt])
   @@map("client_reminder_fires")
+}
+
+// ─── Email template system ────────────────────────────────────────────
+//
+// DB-driven replacement for the hardcoded HTML emails the GHL webhook
+// used to fire. Each EmailSender is a verified "from" identity; each
+// EmailTemplate ties a GHL event type to a sender + subject + body
+// (WYSIWYG, stored as HTML), and the webhook iterates every enabled
+// template matching the inbound event. See
+// src/app/api/ghl-webhook/route.ts and src/lib/email-template.ts.
+
+model EmailSender {
+  id        String          @id @default(cuid())
+  // Stable identifier for code-driven seeds + admin lookups.
+  // "vick", "operations", "contact", "melinee".
+  key       String          @unique
+  name      String          // Display name in the email From header.
+  email     String          // Verified mailbox.
+  role      String?         // "CEO", "Operations", "COO" — display only.
+  isDefault Boolean         @default(false) @map("is_default")
+  enabled   Boolean         @default(true)
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt      @map("updated_at")
+  templates EmailTemplate[]
+
+  @@map("email_senders")
+}
+
+// Log of every inbound GHL webhook hit. Powers the "connection
+// verification" surface in /vault/email-templates so an admin can
+// confirm GHL is actually pinging us and see which templates fired
+// per event. Also useful as an audit trail when a workflow runs but
+// no email lands in the recipient's inbox.
+model GhlWebhookEvent {
+  id               String   @id @default(cuid())
+  eventType        String   @map("event_type")
+  contactId        String?  @map("contact_id")
+  contactEmail     String?  @map("contact_email")
+  payload          Json
+  receivedAt       DateTime @default(now()) @map("received_at")
+  templatesFired   String[] @default([])    @map("templates_fired")
+  templatesSkipped String[] @default([])    @map("templates_skipped")
+  error            String?
+
+  @@index([eventType, receivedAt(sort: Desc)])
+  @@index([receivedAt(sort: Desc)])
+  @@map("ghl_webhook_events")
+}
+
+// The editable daily-motivation library. Seeded once from the static
+// MOTIVATION_SEED in src/lib/motivation-quotes.ts (see ensureMotivationSeeded);
+// after that the vault editor at /vault/motivation is the source of truth.
+// The cron picks deterministically by date over the *active* rows ordered
+// by (sortKey, createdAt, id) so the same date always yields the same line
+// and edits to inactive rows never shift the rotation mid-stream.
+model MotivationQuote {
+  id        String   @id @default(cuid())
+  text      String
+  // Tonal register, not an attribution: classic | decisive | maxout |
+  // state | warmth | courage | grit. Free-form so the editor can add more.
+  voice     String   @default("classic")
+  // Optional "in the spirit of <name>" credit shown under the line.
+  attribution String? @map("attribution")
+  active    Boolean  @default(true)
+  sortKey   Int      @default(0) @map("sort_key")
+  createdBy String?  @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt      @map("updated_at")
+
+  @@index([active, sortKey, createdAt])
+  @@map("motivation_quotes")
 }

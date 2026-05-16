@@ -79,6 +79,8 @@ interface DetailedAgent extends Agent {
   notes: string | null
   isTest: boolean
   isLeadership?: boolean
+  vipArrival?: boolean
+  vipArrivalTitle?: string | null
   partnerAgentProfileId?: string | null
   partnerDisplayName?: string | null
   coupleDisplayName?: string | null
@@ -1273,6 +1275,8 @@ function AgentDrawer({
     notes: agent.notes ?? '',
     isTest: agent.isTest ?? false,
     isLeadership: agent.isLeadership ?? false,
+    vipArrival: agent.vipArrival ?? false,
+    vipArrivalTitle: agent.vipArrivalTitle ?? '',
     partnerAgentProfileId: agent.partnerAgentProfileId ?? '',
     partnerDisplayName: agent.partnerDisplayName ?? '',
     coupleDisplayName: agent.coupleDisplayName ?? '',
@@ -1317,6 +1321,7 @@ function AgentDrawer({
           city: editForm.city || null,
           zip: editForm.zip || null,
           notes: editForm.notes || null,
+          vipArrivalTitle: editForm.vipArrivalTitle || null,
         }),
       })
       if (!res.ok) {
@@ -1514,6 +1519,15 @@ function AgentDrawer({
             Hidden for Phase 1 since there's no promotion to celebrate
             from there. */}
         {agent.phase > 1 && <PromotionReannounceButton agentId={agent.id} phase={agent.phase} />}
+        {/* Re-fire the public NEW BUSINESS PARTNER card for this agent.
+            Useful when Tevah created the agent before the auto-announce
+            wiring shipped, or when the recruiter got set manually after
+            creation. Visible for every agent; the endpoint returns a
+            clear error if there's no recruiter to credit. */}
+        <JoinReannounceButton agentId={agent.id} agentName={`${agent.firstName} ${agent.lastName}`} />
+        {/* Red carpet. Self-hides unless this profile's VIP Arrival
+            toggle (in the edit drawer) is on. */}
+        <VipArrivalButton agentId={agent.id} vipArrival={agent.vipArrival ?? false} />
       </div>
 
       {/* Invite */}
@@ -1981,6 +1995,46 @@ function AgentDrawer({
                 </div>
               </div>
             </label>
+
+            {/* One-off red carpet. When on: the "Announce VIP Arrival"
+                button appears on this profile (posts a bespoke gold card
+                to #announcements, no brand/metrics, nudges Vick + Melinee
+                to greet them) and a one-time welcome modal pops the first
+                time they sign into the portal. Flip off to retire both. */}
+            <div style={{
+              padding: '10px 12px', borderRadius: 4,
+              background: editForm.vipArrival ? 'rgba(216,184,96,0.10)' : 'rgba(255,255,255,0.02)',
+              border: editForm.vipArrival ? '1px solid rgba(216,184,96,0.45)' : '1px solid rgba(255,255,255,0.05)',
+            }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={editForm.vipArrival}
+                  onChange={e => setEditForm(f => ({ ...f, vipArrival: e.target.checked }))}
+                  style={{ flexShrink: 0 }}
+                />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: editForm.vipArrival ? '#D8B860' : '#9BB0C4', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                    ✦ VIP Arrival
+                  </div>
+                  <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2 }}>
+                    Rolls out the red carpet for a distinguished guest. Adds an &ldquo;Announce VIP Arrival&rdquo; button below and a one-time welcome when they first sign into the portal. Turn off to retire both.
+                  </div>
+                </div>
+              </label>
+              {editForm.vipArrival && (
+                <input
+                  value={editForm.vipArrivalTitle}
+                  onChange={e => setEditForm(f => ({ ...f, vipArrivalTitle: e.target.value }))}
+                  placeholder="Title line, e.g. Co-Founder, GFI"
+                  style={{
+                    marginTop: 10, width: '100%', boxSizing: 'border-box',
+                    background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(216,184,96,0.35)',
+                    color: '#F4ECDA', borderRadius: 4, padding: '8px 10px', fontSize: 12,
+                  }}
+                />
+              )}
+            </div>
 
             {/* Power-couple pairing. Two flavors:
                   - Both partners on platform (the typical 'Joey &
@@ -2863,6 +2917,110 @@ function PromotionReannounceButton({ agentId, phase }: { agentId: string; phase:
         : state === "sent" ? "✓ Card posted"
         : state === "error" ? "Failed, retry"
         : "Re-announce promotion to Discord"}
+    </button>
+  )
+}
+
+function JoinReannounceButton({ agentId, agentName }: { agentId: string; agentName: string }) {
+  // Fires POST /api/admin/agents/[id]/announce-join. The endpoint
+  // returns 409 with a clear message when the agent has no recruiter
+  // on file (no protagonist for the card); we surface that to the
+  // admin instead of just showing a generic "failed" state.
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "error" | "no_recruiter">("idle")
+  const click = async () => {
+    setState("sending")
+    try {
+      const res = await fetch(`/api/admin/agents/${agentId}/announce-join`, { method: "POST" })
+      if (res.ok) {
+        setState("sent")
+      } else {
+        const body = await res.json().catch(() => ({})) as { reason?: string }
+        setState(body.reason === "no_recruiter" ? "no_recruiter" : "error")
+      }
+      setTimeout(() => setState("idle"), 5000)
+    } catch {
+      setState("error")
+    }
+  }
+  const accent = state === "sent" ? "#4ADE80"
+    : state === "error" ? "#f87171"
+    : state === "no_recruiter" ? "#f59e0b"
+    : "#C9A96E"
+  return (
+    <button
+      onClick={click}
+      disabled={state === "sending"}
+      title={`Posts the public NEW BUSINESS PARTNER celebration card for ${agentName} to the #announcements Discord channel. The card credits their recruiter (their supervisor) as the protagonist and @-mentions them, so the whole team sees who shared the opportunity.`}
+      style={{
+        marginTop: 8, width: "100%",
+        background: state === "sent" ? "rgba(74,222,128,0.10)"
+          : state === "error" ? "rgba(248,113,113,0.10)"
+          : state === "no_recruiter" ? "rgba(245,158,11,0.10)"
+          : "transparent",
+        border: `1px solid ${accent}40`,
+        color: accent,
+        borderRadius: 4, padding: "7px", fontSize: 10, fontWeight: 700,
+        cursor: state === "sending" ? "wait" : "pointer", letterSpacing: "0.08em", textTransform: "uppercase",
+      }}
+    >
+      {state === "sending" ? "Posting..."
+        : state === "sent" ? "✓ Card posted"
+        : state === "error" ? "Failed, retry"
+        : state === "no_recruiter" ? "Set recruiter first"
+        : "Announce New Business Partner"}
+    </button>
+  )
+}
+
+// Red-carpet button. Renders only when the profile's own VIP Arrival
+// toggle is on (set in the edit drawer), so it's invisible noise for
+// every other agent. Two-click confirm because it fires an @everyone
+// card. Untoggling VIP Arrival on the profile retires this button and
+// the portal welcome together, no redeploy.
+function VipArrivalButton({ agentId, vipArrival }: { agentId: string; vipArrival: boolean }) {
+  const [armed, setArmed] = useState(false)
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle")
+
+  if (!vipArrival) return null
+
+  const click = async () => {
+    if (!armed) { setArmed(true); setTimeout(() => setArmed(false), 4000); return }
+    setArmed(false)
+    setState("sending")
+    try {
+      const res = await fetch(`/api/admin/agents/${agentId}/announce-vip`, { method: "POST" })
+      setState(res.ok ? "sent" : "error")
+      setTimeout(() => setState("idle"), 5000)
+    } catch {
+      setState("error")
+    }
+  }
+
+  const label = state === "sending" ? "Rolling out the carpet..."
+    : state === "sent" ? "✓ Red carpet live"
+    : state === "error" ? "Failed, retry"
+    : armed ? "Tap again to confirm"
+    : "✦ Announce VIP Arrival"
+
+  return (
+    <button
+      onClick={click}
+      disabled={state === "sending"}
+      title="Posts the bespoke gold welcome card to #announcements (no brand, no metrics), seeds reactions, and privately nudges Vick + Melinee to greet him personally."
+      style={{
+        marginTop: 8, width: "100%",
+        background: state === "sent" ? "rgba(201,168,76,0.16)"
+          : state === "error" ? "rgba(248,113,113,0.10)"
+          : armed ? "rgba(201,168,76,0.20)"
+          : "rgba(201,168,76,0.06)",
+        border: `1px solid ${state === "error" ? "rgba(248,113,113,0.4)" : "rgba(201,168,76,0.55)"}`,
+        color: state === "error" ? "#f87171" : "#D8B860",
+        borderRadius: 4, padding: "7px", fontSize: 10, fontWeight: 800,
+        cursor: state === "sending" ? "wait" : "pointer",
+        letterSpacing: "0.08em", textTransform: "uppercase",
+      }}
+    >
+      {label}
     </button>
   )
 }

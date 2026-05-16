@@ -21,6 +21,7 @@ import { recomputeClimbAchievements } from '@/lib/climb-points'
 import { getAutoAssignee } from '@/lib/auto-assign'
 import { sendChannelMessage } from '@/lib/discord'
 import { sendAgentInviteEmail } from '@/lib/send-agent-invite'
+import { celebrateNewBusinessPartner } from '@/lib/celebrate-new-business-partner'
 import type { PolicyType, NewBusinessStatus } from '@/generated/prisma/client'
 
 // GET /api/cron/tevah-sync (Vercel cron, runs hourly)
@@ -102,6 +103,13 @@ async function postSyncSummary(
         return [
           agents.created ? `Agents: ${agents.created} new, ${agents.updated ?? 0} updated` : '',
           agents.invited ? `Invite emails sent: ${agents.invited}` : '',
+          // Recruiterless new agents (no Tevah `reference` field, or
+          // a reference that didn't resolve) are skipped silently for
+          // the public card. The gap between `created` and `announced`
+          // tells ops how many of those there were.
+          typeof agents.announced === 'number' && agents.created
+            ? `Announced in #announcements: ${agents.announced} of ${agents.created}`
+            : '',
           names.length ? `New: ${nameList}` : '',
         ].filter(Boolean)
       })()
@@ -234,6 +242,11 @@ export async function syncAgents() {
     created_codes: [] as string[],
     created_names: [] as string[],
     milestone_checks: 0,
+    // How many of the created-this-sync agents got a public NEW BUSINESS
+    // PARTNER card posted to #announcements. Less than `created` is
+    // expected when an agent has no recruiterId on file (self-onboarded
+    // via the public site, or Tevah didn't ship a reference field).
+    announced: 0,
   }
 
   for (const agent of agentsWithCode) {
@@ -269,7 +282,16 @@ export async function syncAgents() {
                                     ? { state: TEVAH_STATE_MAP[agent.stateId] } : {}),
             ...(agent.address       ? { addressLine1: agent.address }       : {}),
             ...(agent.zipCode       ? { zip: agent.zipCode }                : {}),
-            phase: tevahLevelToPhase(agent.level),
+            // DO NOT sync phase here. AFF `phase` is the agent's
+            // onboarding focus area, owned by the vault tracker
+            // (the "Advance to Phase X" button + promotion items).
+            // Tevah's `level` is a separate platform concept. Mapping
+            // it onto phase every hourly sync clobbered every manual
+            // promotion an admin made (they'd promote at night, the
+            // cron reverted them by morning because Tevah's level
+            // hadn't changed). Phase is still seeded from Tevah on
+            // NEW agent creation (see agentProfileData) as a sane
+            // default; after that it's AFF-owned.
           },
         })
         // Recompute milestones so any newly matched submissions fire announcements.
@@ -323,6 +345,23 @@ export async function syncAgents() {
         if (newAgentUserId && email) {
           sendAgentInviteEmail(newAgentUserId).catch(() => {})
           results.invited++
+        }
+
+        // Public Discord celebration. Only fires when Tevah shipped a
+        // `reference` for this agent (resolving to a recruiterId on
+        // the profile) — without a recruiter, the card has no
+        // protagonist. The helper handles the lookup, embed build,
+        // and channel post; we just await it inline so the announced
+        // counter on the summary is accurate. Failure here doesn't
+        // abort the sync.
+        if (newProfileId) {
+          const announce = await celebrateNewBusinessPartner({
+            agentProfileId: newProfileId,
+          }).catch(err => {
+            console.error('[tevah-sync/agents] celebrate threw:', err)
+            return null
+          })
+          if (announce?.ok) results.announced++
         }
 
         results.created++
@@ -466,6 +505,65 @@ export async function syncClients() {
         continue
       }
 
+      const { firstName: clientFirst, lastName: clientLast } = parseTevahClientName(client.clientName)
+      const policyType = tevahProductToAffPolicyType(client.productType, client.insuranceType) as PolicyType
+
+      // Application date priority: submitDate > policyIssueDate > createdDate.
+      // Always fall back to Tevah's createdDate rather than today — using today
+      // as the fallback caused all historical imports to show the sync-run date.
+      const applicationDate = client.submitDate
+        ? new Date(client.submitDate)
+        : client.policyIssueDate
+          ? new Date(client.policyIssueDate)
+          : new Date(client.createdDate)
+
+      // Agent-portal submissions land with tevahClientId = null. Before
+      // creating a new row we try to find one of those and upgrade it
+      // in place, otherwise we'd double-count the policy on the
+      // leaderboard. Match strategy (strongest signal first):
+      //   1. Exact policyNumber match (same writer, no tevahClientId yet).
+      //      Carriers issue a policy number shortly after submission; the
+      //      agent will have entered it when the carrier emailed them.
+      //   2. Fuzzy match on writer + carrier + client first/last name +
+      //      applicationDate within ±14 days. Catches the case where the
+      //      agent submitted before the carrier issued a policy number.
+      // We never match across different writers — splits get one row per
+      // writer per the existing model, so cross-writer matching would
+      // collapse two legitimate rows into one.
+      const CARRIER = client.carrierDisplayName || client.carrierName
+      const FUZZY_WINDOW_MS = 14 * 24 * 60 * 60 * 1000
+
+      let matchedExistingId: string | null = null
+      if (client.policyNumber?.trim()) {
+        const byNumber = await db.newBusinessSubmission.findFirst({
+          where: {
+            tevahClientId: null,
+            policyNumber: client.policyNumber.trim(),
+            agentProfileId: writerProfile.id,
+          },
+          select: { id: true },
+        })
+        matchedExistingId = byNumber?.id ?? null
+      }
+      if (!matchedExistingId) {
+        const fuzzy = await db.newBusinessSubmission.findFirst({
+          where: {
+            tevahClientId: null,
+            agentProfileId: writerProfile.id,
+            carrier: CARRIER,
+            clientFirstName: { equals: clientFirst, mode: 'insensitive' },
+            clientLastName: { equals: clientLast, mode: 'insensitive' },
+            applicationDate: {
+              gte: new Date(applicationDate.getTime() - FUZZY_WINDOW_MS),
+              lte: new Date(applicationDate.getTime() + FUZZY_WINDOW_MS),
+            },
+          },
+          select: { id: true },
+          orderBy: { createdAt: 'asc' },
+        })
+        matchedExistingId = fuzzy?.id ?? null
+      }
+
       // Find split partner: same policyNumber, different writing agent code.
       let splitPartnerProfile: typeof writerProfile | undefined
       if (client.policyNumber) {
@@ -478,9 +576,6 @@ export async function syncClients() {
         }
       }
 
-      const { firstName: clientFirst, lastName: clientLast } = parseTevahClientName(client.clientName)
-      const policyType = tevahProductToAffPolicyType(client.productType, client.insuranceType) as PolicyType
-
       // Store the full policy premium as points. The leaderboard already
       // halves points for submissions where splitWithAgentId is set, matching
       // the behaviour for manually-entered splits.
@@ -490,14 +585,27 @@ export async function syncClients() {
           ? parseFloat(client.premiumAmount)
           : null
 
-      // Application date priority: submitDate > policyIssueDate > createdDate.
-      // Always fall back to Tevah's createdDate rather than today — using today
-      // as the fallback caused all historical imports to show the sync-run date.
-      const applicationDate = client.submitDate
-        ? new Date(client.submitDate)
-        : client.policyIssueDate
-          ? new Date(client.policyIssueDate)
-          : new Date(client.createdDate)
+      if (matchedExistingId) {
+        // Upgrade an agent-portal submission into a Tevah-tracked row.
+        // Status, policy number, premium come from Tevah (authoritative);
+        // the original agent-entered client name + carrier stay so we
+        // don't churn UI text that the agent's already familiar with.
+        await db.newBusinessSubmission.update({
+          where: { id: matchedExistingId },
+          data: {
+            tevahClientId: client.id,
+            status: newStatus,
+            policyNumber: client.policyNumber ?? undefined,
+            points: points ?? undefined,
+            splitWithAgentId: splitPartnerProfile?.id ?? undefined,
+            ...(newStatus === 'ISSUED' && client.policyIssueDate
+              ? { issuedDate: new Date(client.policyIssueDate) }
+              : {}),
+          },
+        })
+        results.updated++
+        continue
+      }
 
       await db.newBusinessSubmission.create({
         data: {
@@ -508,7 +616,7 @@ export async function syncClients() {
           clientLastName:   clientLast,
           clientPhone:      client.clientPhone ?? null,
           clientEmail:      client.clientEmail ?? null,
-          carrier:          client.carrierDisplayName || client.carrierName,
+          carrier:          CARRIER,
           policyType,
           points,
           policyNumber:     client.policyNumber ?? null,

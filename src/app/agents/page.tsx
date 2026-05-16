@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback, Suspense } from 'react'
+import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import {
@@ -27,6 +27,7 @@ import FeedbackButton from '@/components/FeedbackButton'
 import NewBusinessTab from '@/components/NewBusinessTab'
 import FtaTab from '@/components/FtaTab'
 import { AgentTradingCardModal } from '@/components/AgentTradingCard'
+import VipPortalWelcome from '@/components/VipPortalWelcome'
 import { CallButton, EmailButton } from '@/components/ContactActions'
 import { MILESTONE_BY_KEY, isSubmittable } from '@/lib/milestones'
 import { displayFirstName, displayFullName } from '@/lib/display-name'
@@ -214,7 +215,9 @@ function AgentDashboardInner() {
     : tabParam === 'fta' ? 'fta'
     : tabParam === 'calls' ? 'calls'
     : tabParam === 'climb' ? 'climb'
-    : tabParam === 'team' ? 'team'
+    // 'trainees' param redirects to 'team' since the trainees view
+    // got merged into the team tab as an "Also training" section.
+    : tabParam === 'team' || tabParam === 'trainees' ? 'team'
     : tabParam === 'profile' ? 'profile'
     : tabParam === 'licensing' ? 'licensing'
     : tabParam === 'carriers' ? 'carriers'
@@ -593,7 +596,11 @@ function AgentDashboardInner() {
     return manuallyDone
   }).length
 
-  const TABS = [
+  // My Team tab now also surfaces agents whose `cft` field matches
+  // me (the trainer-only case). Used to be a separate "My Trainees"
+  // tab but the CEO consolidated them — see /api/agents/team's
+  // cftOnlyMembers in the response.
+  const TABS: { key: typeof activeTab; label: string }[] = [
     { key: 'checklist', label: 'Checklist' },
     { key: 'licensing', label: 'Licensing' },
     { key: 'carriers', label: 'Carriers' },
@@ -604,7 +611,7 @@ function AgentDashboardInner() {
     { key: 'climb', label: 'Climb' },
     { key: 'team', label: 'My Team' },
     { key: 'profile', label: 'Profile' },
-  ] as const
+  ]
 
   return (
     <div style={{ minHeight: '100vh', background: '#0A1628' }}>
@@ -624,6 +631,9 @@ function AgentDashboardInner() {
           the agent dashboard payload doesn't grow. Hides itself when
           there are no in-window contests. */}
       {data && <ContestBanner previewToken={previewToken} />}
+      {/* One-time red-carpet greeting for a configured distinguished
+          guest. Renders null for everyone else. */}
+      {data && <VipPortalWelcome previewToken={previewToken} />}
       {/* Top nav. Mobile gets a deliberately tighter treatment: the
           "Agent Portal" subtitle disappears, the avatar drops the name
           chip, the four quick-link pills become icon-only squares, and
@@ -697,6 +707,7 @@ function AgentDashboardInner() {
             <>
               <NavbarLink href="/agents/leaderboard" Icon={Trophy} label="Leaderboard" />
               <NavbarLink href="/agents/team" Icon={Users} label="Directory" />
+              <NavbarLink href="/agents/trainings" Icon={CalendarDays} label="Trainings" />
               <NavbarLink href="/agents/guide" Icon={BookOpen} label="Guide" />
               <NavbarLink href="/agents/resources" Icon={Folder} label="Resources" />
               <NavbarLink href="/agents/book" Icon={CalendarDays} label="Book" />
@@ -748,13 +759,14 @@ function AgentDashboardInner() {
               {[
                 { href: '/agents/leaderboard', Icon: Trophy, label: 'Leaderboard', desc: 'See top performers' },
                 { href: '/agents/team', Icon: Users, label: 'Team Directory', desc: 'Browse and save headshots' },
+                { href: '/agents/trainings', Icon: CalendarDays, label: 'Trainings', desc: 'Upcoming sessions + downloadable flyers' },
                 { href: '/agents/guide', Icon: BookOpen, label: 'Agent Guide', desc: 'Your step-by-step playbook' },
                 { href: '/agents/resources', Icon: Folder, label: 'Resources', desc: 'Tools and materials' },
                 { href: '/agents/book', Icon: CalendarDays, label: 'Book a Call', desc: 'Schedule time with leadership' },
               ].map(({ href, Icon, label, desc }) => (
                 <a
                   key={href}
-                  href={href}
+                  href={previewToken ? `${href}?preview=${encodeURIComponent(previewToken)}` : href}
                   onClick={() => setMenuOpen(false)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 14,
@@ -1165,34 +1177,20 @@ function AgentDashboardInner() {
         </div>
 
         {/* ── Tab navigation ── */}
-        <div id="agent-tab-nav" style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid rgba(255,255,255,0.06)', overflowX: 'auto', scrollMarginTop: 80 }}>
-          {TABS.map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key as typeof activeTab)}
-              style={{
-                background: 'none', border: 'none', whiteSpace: 'nowrap',
-                padding: '8px 14px', cursor: 'pointer',
-                fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
-                color: activeTab === tab.key ? '#C9A96E' : '#6B8299',
-                borderBottom: activeTab === tab.key ? '2px solid #C9A96E' : '2px solid transparent',
-                marginBottom: -1,
-                ...(tab.key === 'licensing' && { position: 'relative' }),
-              }}
-            >
-              {tab.label}
-              {tab.key === 'licensing' && licensingCompleted < LICENSING_CHECKLIST.length && (
-                <span style={{
-                  marginLeft: 4, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  width: 14, height: 14, borderRadius: '50%', fontSize: 8, fontWeight: 700,
-                  background: '#f59e0b', color: '#0A1628',
-                }}>
-                  {LICENSING_CHECKLIST.length - licensingCompleted}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
+        {/* Wrapped to layer scroll affordances (left/right gradient
+            fades + chevron buttons) over the actual horizontal scroll
+            container. The strip has up to 11 tabs and overflows on
+            most screen sizes; without affordance the CEO + Mercedes
+            had no idea anything was to the right of "My Team".
+            Active-tab auto-scroll-into-view (smooth, centered) also
+            handles the case where the agent clicks a hamburger-menu
+            link that jumps to a tab off the current scroll viewport. */}
+        <TabStrip
+          tabs={TABS}
+          activeTab={activeTab}
+          onSelect={key => setActiveTab(key as typeof activeTab)}
+          licensingBadge={licensingCompleted < LICENSING_CHECKLIST.length ? LICENSING_CHECKLIST.length - licensingCompleted : 0}
+        />
 
         {/* ── PHASE CHECKLIST TAB ── */}
         {activeTab === 'checklist' && (
@@ -5206,13 +5204,207 @@ const MEMBER_STATUS_STYLE: Record<MemberStatus, { bg: string; border: string; fg
 
 const TEAM_PHASE_COLORS = PHASE_COLORS
 
+// ─── Tab strip with scroll affordance ──────────────────────────────────────
+//
+// Drop-in replacement for the original overflow-x scroll container. Adds:
+//   - left/right gradient fades that appear only when there's more to
+//     see in that direction, so the strip visually "leaks" off-screen
+//     instead of looking like a clean edge
+//   - chevron tap targets that scroll the strip by ~60% of its width;
+//     fades and chevrons hide together at each end so the affordance
+//     disappears when there's nothing more to scroll to
+//   - auto-scroll the active tab into the center of the viewport when
+//     activeTab changes from any external trigger (mobile drawer link,
+//     checklist deep-link, etc.), so the agent never has to manually
+//     find the tab they just clicked
+//
+// `licensingBadge` is the count of incomplete licensing checklist items;
+// passed in so the LICENSING tab can keep its small orange badge.
+
+interface TabStripTab { key: string; label: string }
+
+function TabStrip({
+  tabs, activeTab, onSelect, licensingBadge,
+}: {
+  tabs: ReadonlyArray<TabStripTab>
+  activeTab: string
+  onSelect: (key: string) => void
+  licensingBadge: number
+}) {
+  const scrollerRef = useRef<HTMLDivElement | null>(null)
+  const buttonRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(false)
+
+  const updateScrollState = useCallback(() => {
+    const el = scrollerRef.current
+    if (!el) return
+    // 1px slack so a fractional scroll position doesn't leave a fade
+    // visible when we're effectively at the edge.
+    setCanScrollLeft(el.scrollLeft > 1)
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1)
+  }, [])
+
+  // Recompute on mount + when the tab list changes (e.g. the My
+  // Trainees tab appearing once we know the agent is a trainer).
+  useEffect(() => {
+    updateScrollState()
+  }, [updateScrollState, tabs.length])
+
+  // Window resize can change clientWidth without firing scroll, so
+  // recompute on resize too.
+  useEffect(() => {
+    const handler = () => updateScrollState()
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [updateScrollState])
+
+  // Auto-scroll the active tab into view, centered. Uses inline:
+  // 'center' so on small screens the active tab sits in the middle
+  // of the strip with room on both sides — gives a clearer "you can
+  // scroll either way" affordance than aligning to the edge.
+  useEffect(() => {
+    const btn = buttonRefs.current[activeTab]
+    if (!btn) return
+    btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+    // scrollIntoView fires async; recompute fade state after the
+    // browser settles the new scrollLeft.
+    const t = window.setTimeout(updateScrollState, 350)
+    return () => window.clearTimeout(t)
+  }, [activeTab, updateScrollState])
+
+  const scrollBy = (delta: number) => {
+    const el = scrollerRef.current
+    if (!el) return
+    el.scrollBy({ left: delta, behavior: 'smooth' })
+    window.setTimeout(updateScrollState, 350)
+  }
+
+  return (
+    <div style={{ position: 'relative', marginBottom: 20 }}>
+      <div
+        id="agent-tab-nav"
+        ref={scrollerRef}
+        onScroll={updateScrollState}
+        style={{
+          display: 'flex', gap: 0,
+          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          overflowX: 'auto', scrollMarginTop: 80,
+          // Hide the native scrollbar across browsers. The fades + chevrons
+          // are the affordance; a chrome scrollbar on top of them is noise.
+          scrollbarWidth: 'none' as const,
+          msOverflowStyle: 'none' as const,
+        }}
+      >
+        {tabs.map(tab => (
+          <button
+            key={tab.key}
+            ref={el => { buttonRefs.current[tab.key] = el }}
+            onClick={() => onSelect(tab.key)}
+            style={{
+              background: 'none', border: 'none', whiteSpace: 'nowrap',
+              padding: '8px 14px', cursor: 'pointer',
+              fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
+              color: activeTab === tab.key ? '#C9A96E' : '#6B8299',
+              borderBottom: activeTab === tab.key ? '2px solid #C9A96E' : '2px solid transparent',
+              marginBottom: -1,
+              ...(tab.key === 'licensing' && { position: 'relative' }),
+            }}
+          >
+            {tab.label}
+            {tab.key === 'licensing' && licensingBadge > 0 && (
+              <span style={{
+                marginLeft: 4, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                width: 14, height: 14, borderRadius: '50%', fontSize: 8, fontWeight: 700,
+                background: '#f59e0b', color: '#0A1628',
+              }}>
+                {licensingBadge}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Left edge affordance */}
+      {canScrollLeft && (
+        <>
+          <div style={{
+            position: 'absolute', left: 0, top: 0, bottom: 1, width: 40,
+            background: 'linear-gradient(to right, #0A1628, rgba(10,22,40,0))',
+            pointerEvents: 'none',
+          }} />
+          <button
+            type="button"
+            onClick={() => scrollBy(-Math.max(150, (scrollerRef.current?.clientWidth ?? 300) * 0.6))}
+            aria-label="Scroll tabs left"
+            style={{
+              position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)',
+              width: 28, height: 28, borderRadius: '50%',
+              background: '#132238', border: '1px solid rgba(201,169,110,0.25)',
+              color: '#C9A96E', fontSize: 14, fontWeight: 700, lineHeight: 1,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+          >
+            ‹
+          </button>
+        </>
+      )}
+
+      {/* Right edge affordance */}
+      {canScrollRight && (
+        <>
+          <div style={{
+            position: 'absolute', right: 0, top: 0, bottom: 1, width: 40,
+            background: 'linear-gradient(to left, #0A1628, rgba(10,22,40,0))',
+            pointerEvents: 'none',
+          }} />
+          <button
+            type="button"
+            onClick={() => scrollBy(Math.max(150, (scrollerRef.current?.clientWidth ?? 300) * 0.6))}
+            aria-label="Scroll tabs right"
+            style={{
+              position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)',
+              width: 28, height: 28, borderRadius: '50%',
+              background: '#132238', border: '1px solid rgba(201,169,110,0.25)',
+              color: '#C9A96E', fontSize: 14, fontWeight: 700, lineHeight: 1,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+          >
+            ›
+          </button>
+        </>
+      )}
+
+      {/* WebKit scrollbar suppression — Firefox + Edge handled by the
+          inline `scrollbarWidth: 'none'`, but Safari/Chrome need this. */}
+      <style jsx>{`
+        #agent-tab-nav::-webkit-scrollbar { display: none; }
+      `}</style>
+    </div>
+  )
+}
+
 // Top-nav link styled to read as a real navigation item rather than
 function NavbarLink({ href, Icon, label }: {
   href: string; Icon: LucideIcon; label: string
 }) {
+  // Preserve ?preview=<token> across navigation so admin "view portal
+  // as X" doesn't lose the preview identity when clicking into
+  // Leaderboard / Directory / Trainings / etc. Without this, those
+  // pages fall back to the admin's own session and the agent-side API
+  // routes 401 because the admin's auth cookie is scoped to /vault.
+  const search = typeof window !== 'undefined' ? window.location.search : ''
+  const params = new URLSearchParams(search)
+  const previewToken = params.get('preview')
+  const finalHref = previewToken && !href.includes('?')
+    ? `${href}?preview=${encodeURIComponent(previewToken)}`
+    : href
+
   return (
     <a
-      href={href}
+      href={finalHref}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 5,
         padding: '6px 10px', borderRadius: 4,
@@ -5250,9 +5442,14 @@ function ProgressStat({ label, value, color }: { label: string; value: string; c
   )
 }
 
-function TeamMemberNode({ node, depth, isMobile, onOpenCard }: { node: TeamNode; depth: number; isMobile: boolean; onOpenCard: (code: string) => void }) {
+function TeamMemberNode({ node, depth, isMobile, onOpenCard, previewToken }: { node: TeamNode; depth: number; isMobile: boolean; onOpenCard: (code: string) => void; previewToken?: string | null }) {
   const [expanded, setExpanded] = useState(depth < 2)
   const [showProgress, setShowProgress] = useState(false)
+  // Separate toggle for Business Partners + FTA drill-down. Lazy-loaded
+  // so the team tree stays cheap when nobody opens contacts. Backed
+  // by the same /api/agents/trainees/[code]/* endpoints, which authorize
+  // on either recruiter OR cft-trainer match.
+  const [showContacts, setShowContacts] = useState(false)
   const [resending, setResending] = useState(false)
   const [resendMsg, setResendMsg] = useState<string | null>(null)
   const color = TEAM_PHASE_COLORS[node.phase] ?? '#C9A96E'
@@ -5402,6 +5599,24 @@ function TeamMemberNode({ node, depth, isMobile, onOpenCard }: { node: TeamNode;
         >
           {showProgress ? 'Hide' : 'View'} {node.memberStatus === 'ACTIVE' ? 'progress' : 'details'}
         </button>
+        {/* Contacts toggle. Only meaningful for ACTIVE members — an
+            INVITED / PENDING agent has no profile to fetch from. The
+            endpoint auth allows both recruiter and trainer drill-in,
+            so a recruiter can review what their downline is working on. */}
+        {node.memberStatus === 'ACTIVE' && node.agentCode && (
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowContacts(s => !s) }}
+            style={{
+              padding: '4px 10px', borderRadius: 4,
+              background: showContacts ? 'rgba(201,169,110,0.18)' : 'transparent',
+              border: '1px solid rgba(201,169,110,0.35)', color: '#C9A96E',
+              fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+              cursor: 'pointer', flexShrink: 0,
+            }}
+          >
+            {showContacts ? 'Hide' : 'View'} contacts
+          </button>
+        )}
         {node.children.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
             <span style={{ fontSize: 9, color: '#6B8299', fontWeight: 600 }}>{descendants}</span>
@@ -5550,16 +5765,272 @@ function TeamMemberNode({ node, depth, isMobile, onOpenCard }: { node: TeamNode;
       {expanded && node.children.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
           {node.children.map(c => (
-            <TeamMemberNode key={c.id} node={c} depth={depth + 1} isMobile={isMobile} onOpenCard={onOpenCard} />
+            <TeamMemberNode key={c.id} node={c} depth={depth + 1} isMobile={isMobile} onOpenCard={onOpenCard} previewToken={previewToken} />
           ))}
+        </div>
+      )}
+      {showContacts && node.agentCode && (
+        <div style={{
+          marginLeft: isMobile ? depth * 16 + 14 : depth * 32 + 14,
+          marginTop: 6,
+          padding: '12px 14px',
+          background: 'rgba(201,169,110,0.04)',
+          border: '1px solid rgba(201,169,110,0.15)',
+          borderRadius: 6,
+        }}>
+          <ContactsDrilldown
+            agentCode={node.agentCode}
+            agentFirstName={node.firstName}
+            previewToken={previewToken}
+          />
         </div>
       )}
     </div>
   )
 }
 
+// ─── My Trainees Tab ───────────────────────────────────────────────────────
+//
+// Shown only when traineeCount > 0 (other agents have this profile's
+// name in their cft field). Lists each trainee with a phase badge +
+// counts; clicking a row expands a read-only panel showing that
+// trainee's Business Partner list and FTA contacts. Mercedes (D2161)
+// asked for this so she could review what her trainees were doing in
+// the field without needing to ask them to share.
+//
+// All three fetches go through /api/agents/trainees... which scopes
+// on the server by normalized cft match, so we never need to pass
+// the trainer's name from the client.
+
+interface TraineeRow {
+  id: string
+  agentCode: string
+  firstName: string
+  lastName: string
+  preferredName: string | null
+  avatarUrl: string | null
+  phase: number
+  phaseStartedAt: string | null
+  state: string | null
+  status: string
+  partnerCount: number
+  ftaCount: number
+}
+
+interface TraineePartner {
+  id: string
+  name: string
+  email: string | null
+  phone: string | null
+  category: string | null
+  status: string | null
+  notes: string | null
+  occupation: string | null
+  age: string | null
+  lastContactAt: string | null
+  createdAt: string
+}
+
+interface TraineeFta {
+  id: string
+  appointmentDate: string
+  status: string
+  notes: string | null
+  businessPartner?: { id: string; name: string; phone: string | null; email: string | null; occupation: string | null; category: string | null } | null
+}
+
+// ContactsDrilldown — shared component used by MyTeamTab in two
+// places: inside each recruited TeamMemberNode (so a recruiter can
+// drill into anyone they brought on) and in the "Also training"
+// flat section (so a trainer can drill into anyone they're assigned
+// to but didn't recruit). Hits the unified team-member-access
+// endpoints which authorize on either recruiter OR trainer match.
+function ContactsDrilldown({ agentCode, agentFirstName, previewToken }: {
+  agentCode: string; agentFirstName: string; previewToken?: string | null
+}) {
+  const [data, setData] = useState<{ partners: TraineePartner[]; ftas: TraineeFta[] } | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const withPreview = (url: string) => previewToken
+    ? url + (url.includes('?') ? '&' : '?') + `preview=${encodeURIComponent(previewToken)}`
+    : url
+
+  useEffect(() => {
+    setLoading(true); setError(null)
+    Promise.all([
+      fetch(withPreview(`/api/agents/trainees/${agentCode}/partners`)),
+      fetch(withPreview(`/api/agents/trainees/${agentCode}/fta`)),
+    ])
+      .then(async ([pRes, fRes]) => {
+        if (!pRes.ok || !fRes.ok) {
+          setError("You don't have access to this agent's contacts.")
+          return
+        }
+        const pd = await pRes.json() as { partners?: TraineePartner[] }
+        const fd = await fRes.json() as { ftas?: TraineeFta[] }
+        setData({ partners: pd.partners ?? [], ftas: fd.ftas ?? [] })
+      })
+      .catch(() => setError('Failed to load contacts.'))
+      .finally(() => setLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentCode, previewToken])
+
+  if (loading) return <div style={{ color: '#6B8299', fontSize: 11, padding: 8 }}>Loading {agentFirstName}&apos;s contacts...</div>
+  if (error) return <div style={{ color: '#f87171', fontSize: 11, padding: 8 }}>{error}</div>
+  if (!data) return null
+  return (
+    <>
+      <DrillSection title="Business Partners">
+        {data.partners.length === 0
+          ? <div style={{ color: '#4B5563', fontSize: 11, padding: 8 }}>No business partners on file yet.</div>
+          : data.partners.map(p => <PartnerRow key={p.id} p={p} />)}
+      </DrillSection>
+      <DrillSection title="Field Training Appointments">
+        {data.ftas.length === 0
+          ? <div style={{ color: '#4B5563', fontSize: 11, padding: 8 }}>No FTAs logged yet.</div>
+          : data.ftas.map(f => <FtaRow key={f.id} f={f} />)}
+      </DrillSection>
+    </>
+  )
+}
+
+// Flat "Also training" section — appears below the recruited tree
+// in MyTeamTab when /api/agents/team returned cft-only members
+// (people I'm listed as the trainer for but didn't recruit).
+function AlsoTrainingSection({ members, previewToken }: {
+  members: TraineeRow[]; previewToken?: string | null
+}) {
+  const [expandedCode, setExpandedCode] = useState<string | null>(null)
+  return (
+    <div style={{ marginTop: 24 }}>
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 8 }}>
+        Also training &middot; {members.length}
+      </div>
+      <div style={{ fontSize: 11, color: '#6B8299', marginBottom: 10, lineHeight: 1.5 }}>
+        Agents who list you as their trainer but were recruited by someone else. You have read-only access to their contacts so you can coach.
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {members.map(t => {
+          const isExpanded = expandedCode === t.agentCode
+          const display = (t.preferredName?.trim() || t.firstName) + ' ' + t.lastName
+          return (
+            <div key={t.agentCode} style={{
+              background: '#132238', borderRadius: 8,
+              border: `1px solid ${isExpanded ? 'rgba(201,169,110,0.35)' : 'rgba(255,255,255,0.06)'}`,
+            }}>
+              <button
+                onClick={() => setExpandedCode(isExpanded ? null : t.agentCode)}
+                style={{
+                  width: '100%', background: 'transparent', border: 'none', cursor: 'pointer',
+                  padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left',
+                }}
+              >
+                <div style={{
+                  width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+                  background: t.avatarUrl ? `url(${t.avatarUrl}) center/cover` : 'rgba(201,169,110,0.15)',
+                  border: '1px solid rgba(201,169,110,0.25)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 10, fontWeight: 700, color: '#C9A96E',
+                }}>
+                  {!t.avatarUrl && `${t.firstName[0] ?? ''}${t.lastName[0] ?? ''}`.toUpperCase()}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>
+                    {display}
+                    <span style={{ marginLeft: 8, fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#C9A96E', padding: '2px 6px', background: 'rgba(201,169,110,0.10)', border: '1px solid rgba(201,169,110,0.25)', borderRadius: 3 }}>Trainee</span>
+                    {t.status === 'INACTIVE' && (
+                      <span style={{ marginLeft: 6, fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6B8299', padding: '2px 6px', background: 'rgba(107,130,153,0.12)', borderRadius: 3 }}>Inactive</span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2 }}>
+                    {t.agentCode}{t.state ? ` · ${t.state}` : ''} · Phase {t.phase}
+                  </div>
+                </div>
+                <Pill label="BP" count={t.partnerCount} accent="#4ADE80" />
+                <Pill label="FTA" count={t.ftaCount} accent="#60A5FA" />
+                <div style={{ fontSize: 12, color: '#C9A96E', marginLeft: 6, transform: isExpanded ? 'rotate(90deg)' : 'rotate(0)', transition: 'transform 0.15s' }}>›</div>
+              </button>
+              {isExpanded && (
+                <div style={{ borderTop: '1px solid rgba(201,169,110,0.15)', padding: '14px 16px' }}>
+                  <ContactsDrilldown agentCode={t.agentCode} agentFirstName={t.firstName} previewToken={previewToken} />
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function Pill({ label, count, accent }: { label: string; count: number; accent: string }) {
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
+      padding: '4px 10px', borderRadius: 4,
+      background: count > 0 ? `${accent}10` : 'transparent',
+      border: `1px solid ${count > 0 ? `${accent}30` : 'rgba(255,255,255,0.06)'}`,
+      minWidth: 44,
+    }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: count > 0 ? accent : '#4B5563', lineHeight: 1 }}>{count}</div>
+      <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#6B8299' }}>{label}</div>
+    </div>
+  )
+}
+
+function DrillSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 8 }}>
+        {title}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{children}</div>
+    </div>
+  )
+}
+
+function PartnerRow({ p }: { p: TraineePartner }) {
+  return (
+    <div style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 4, fontSize: 12, color: '#9BB0C4', lineHeight: 1.5 }}>
+      <div style={{ color: '#fff', fontWeight: 600 }}>{p.name}</div>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 2, fontSize: 11 }}>
+        {p.category && <span>{p.category.replace(/_/g, ' ')}</span>}
+        {p.status && <span>&middot; {p.status.toLowerCase()}</span>}
+        {p.occupation && <span>&middot; {p.occupation}</span>}
+        {p.age && <span>&middot; {p.age}</span>}
+      </div>
+      {(p.email || p.phone) && (
+        <div style={{ marginTop: 2, fontSize: 11, color: '#6B8299' }}>
+          {p.email}{p.email && p.phone ? ' · ' : ''}{p.phone}
+        </div>
+      )}
+      {p.notes && <div style={{ marginTop: 4, fontSize: 11, color: '#6B8299', fontStyle: 'italic' }}>{p.notes}</div>}
+    </div>
+  )
+}
+
+function FtaRow({ f }: { f: TraineeFta }) {
+  const when = new Date(f.appointmentDate).toLocaleString('en-US', {
+    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+  })
+  return (
+    <div style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 4, fontSize: 12, color: '#9BB0C4', lineHeight: 1.5 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+        <div style={{ color: '#fff', fontWeight: 600 }}>{f.businessPartner?.name ?? 'Walk-in / unnamed'}</div>
+        <div style={{ fontSize: 11, color: '#6B8299' }}>{when}</div>
+      </div>
+      <div style={{ marginTop: 2, fontSize: 11, color: '#6B8299' }}>{f.status.toLowerCase()}</div>
+      {f.notes && <div style={{ marginTop: 4, fontSize: 11, color: '#6B8299', fontStyle: 'italic' }}>{f.notes}</div>}
+    </div>
+  )
+}
+
 function MyTeamTab({ isMobile, previewToken }: { isMobile: boolean; previewToken?: string | null }) {
   const [team, setTeam] = useState<TeamNode[]>([])
+  // Agents whose `cft` is me but who I didn't recruit. Surfaced as
+  // a flat "Also training" section under the recruited tree so a
+  // trainer assigned outside their own downline still gets visibility.
+  const [cftOnly, setCftOnly] = useState<TraineeRow[]>([])
   const [totalSize, setTotalSize] = useState(0)
   const [activeSize, setActiveSize] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -5581,10 +6052,11 @@ function MyTeamTab({ isMobile, previewToken }: { isMobile: boolean; previewToken
     const url = qs ? `/api/agents/team?${qs}` : '/api/agents/team'
     fetch(url)
       .then(r => { if (!r.ok) throw new Error(); return r.json() })
-      .then((d: { team: TeamNode[]; totalTeamSize: number; activeTeamSize?: number }) => {
+      .then((d: { team: TeamNode[]; totalTeamSize: number; activeTeamSize?: number; cftOnlyMembers?: TraineeRow[] }) => {
         setTeam(d.team ?? [])
         setTotalSize(d.totalTeamSize ?? 0)
         setActiveSize(d.activeTeamSize ?? 0)
+        setCftOnly(d.cftOnlyMembers ?? [])
       })
       .catch(() => { /* no team data available */ })
       .finally(() => setLoading(false))
@@ -5660,9 +6132,12 @@ function MyTeamTab({ isMobile, previewToken }: { isMobile: boolean; previewToken
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {team.map(node => (
-          <TeamMemberNode key={node.id} node={node} depth={0} isMobile={isMobile} onOpenCard={setCardCode} />
+          <TeamMemberNode key={node.id} node={node} depth={0} isMobile={isMobile} onOpenCard={setCardCode} previewToken={previewToken} />
         ))}
       </div>
+      {cftOnly.length > 0 && (
+        <AlsoTrainingSection members={cftOnly} previewToken={previewToken} />
+      )}
       {cardCode && <AgentTradingCardModal agentCode={cardCode} onClose={() => setCardCode(null)} />}
     </div>
   )
