@@ -2,13 +2,19 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { assignDiscordPhaseRole, assignDiscordRole, REPRESENTATIVE_ROLE_ID } from '@/lib/discord-roles'
+import { addDiscordGuildMember, assignDiscordPhaseRole, assignDiscordRole, REPRESENTATIVE_ROLE_ID } from '@/lib/discord-roles'
 import { cookies } from 'next/headers'
 
+// CEO's permanent invite to the AFF server. Only used as a fallback
+// when the automatic OAuth join can't proceed (Discord refuses to add
+// accounts without a verified email/phone), so the agent can still
+// land in the server manually.
+const DISCORD_INVITE_URL = process.env.DISCORD_INVITE_URL ?? 'https://discord.gg/xdSPtjD6gA'
+
 // GET /api/agents/discord-callback?code=...&state=...
-// Discord redirects here after the agent authorizes. We exchange the code
-// for an access token, fetch the user's Discord ID, save it, and assign
-// their phase role.
+// Discord redirects here after the agent authorizes. We exchange the
+// code for an access token, fetch the user's Discord ID, save it, add
+// them to the AFF server, and assign their phase role.
 export async function GET(req: NextRequest) {
   const baseUrl = process.env.NEXTAUTH_URL ?? 'https://allfinancialfreedom.com'
   const portalUrl = `${baseUrl}/agents`
@@ -139,6 +145,13 @@ export async function GET(req: NextRequest) {
     })
   }
 
+  // Add the agent straight into the AFF server using their OAuth grant.
+  // Awaited so the role PUTs below land on a real guild member (Discord
+  // returns 204 if they were already in, 201 if newly added). A failed
+  // join is non-fatal: the portal link is saved either way and we send
+  // them to the manual invite at the end so they still get in.
+  const joined = await addDiscordGuildMember(discordUser.id, tokenData.access_token)
+
   // Assign Discord phase role + portal connected role + Representative
   // (non-blocking). Representative carries the 'Change Nickname'
   // permission so connected agents can rename themselves.
@@ -172,6 +185,16 @@ export async function GET(req: NextRequest) {
   }
 
   const displayName = discordUser.global_name ?? discordUser.username
+
+  // Account linked but Discord wouldn't auto-add them (almost always an
+  // unverified email/phone). Send them to the CEO's invite so they can
+  // finish joining by hand; the bot's GuildMemberAdd handler grants the
+  // base roles once they land, and the phase/Representative role PUTs
+  // above will have applied too.
+  if (!joined) {
+    return NextResponse.redirect(DISCORD_INVITE_URL)
+  }
+
   return NextResponse.redirect(
     `${portalUrl}?discord=connected&username=${encodeURIComponent(displayName)}`
   )
