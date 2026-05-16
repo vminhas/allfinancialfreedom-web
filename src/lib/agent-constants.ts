@@ -389,9 +389,10 @@ export const DISCORD_BOT_TOKEN_KEY = 'DISCORD_BOT_TOKEN'
 // coordinator. Surfaced alongside the "Message LC" button on every phase
 // item that needs LC interaction so the agent can either fire off a
 // quick async request or drop a synchronous appointment on the LC's
-// calendar. If the LC ever changes calendars, edit here (or move to
-// /vault/settings later if it needs to be runtime-configurable).
-export const LC_CALENDAR_URL = 'https://calendar.app.google/fSVryPX8wezQetsV6'
+// calendar. This is the built-in default/fallback: admins can override
+// it at runtime in /vault/settings (Setting key `LC_CALENDAR_URL`),
+// which is what the agent portal actually renders when set.
+export const LC_CALENDAR_URL = 'https://links.allfinancialfreedom.com/widget/booking/qT7hrY6pkxTGKmhPvsDe'
 
 export const CARRIERS = [
   'ANICO Life',
