@@ -20,7 +20,16 @@ export const SETTING_LAST_POSTED = 'MOTIVATION_LAST_POSTED_DATE'
 // Matches the announcements channel used elsewhere in the codebase.
 const DEFAULT_CHANNEL = '1295044213590982724'
 
-const EMBED_GOLD = 0xc9a84c
+// Morning motivation gets its OWN look, on purpose. The achievement-card
+// family (milestones, promotions, recognition) owns the gold / platinum /
+// phase palette with the ✦ B A N N E R ✦ titles and the "All Financial
+// Freedom · …" footer. If the daily nudge wears that same costume, a card
+// stops feeling earned: when everyone gets a gold card every single
+// morning, a real recognition card reads as just another Tuesday. So this
+// is deliberately warm and casual instead: a sunrise accent that appears
+// nowhere in the card palette, a plain greeting, a light footer, no
+// timestamp. Inspiring, not ceremonial.
+const SUNRISE = 0xff8c42
 
 // Insert the static seed exactly once. After this the vault editor is the
 // source of truth; we never re-sync from the file so CEO edits are not
@@ -54,9 +63,14 @@ export async function getActiveQuotes(): Promise<MotivationLine[]> {
 
 // The exact embed body for a line, so the cron, "Send now", and the
 // vault preview all render identically. No em-dashes (project rule).
+//
+// Bold, not block-quoted: a `>` quote reads like a framed citation (the
+// recognition-card look we are moving away from). A single bold line
+// lands like a coach saying it to your face, which is the casual,
+// inspiring register we want for the morning.
 export function renderMotivationBody(line: MotivationLine): string {
   const credit = line.attribution ? `\n\n*in the spirit of ${line.attribution}*` : ''
-  return `> ${line.text}${credit}`
+  return `**${line.text}**${credit}`
 }
 
 export async function isMotivationEnabled(): Promise<boolean> {
@@ -119,11 +133,10 @@ export async function postDailyMotivation(
 
   await sendChannelMessage(channelId, {
     embeds: [{
-      title: '✦  D A I L Y   M O T I V A T I O N  ✦',
+      title: '☀️  Good morning, team',
       description: renderMotivationBody(line),
-      color: EMBED_GOLD,
-      footer: { text: 'All Financial Freedom · Make today count' },
-      timestamp: now.toISOString(),
+      color: SUNRISE,
+      footer: { text: 'Now go make it a good one.' },
     }],
     // Explicitly no pings. This is a daily nudge, not an announcement.
     allowedMentions: { parse: [] },

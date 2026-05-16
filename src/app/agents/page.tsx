@@ -113,7 +113,6 @@ interface AgentData {
   counts: { businessPartners: number; callLogs: number }
 }
 
-// Compute which System Progressions are achieved
 // Pre-emptive heads-up shown next to every Connect Discord button.
 // Discord rejects OAuth authorization (specifically the guilds.join
 // scope we use) for accounts that don't have a verified email or
@@ -136,6 +135,7 @@ function DiscordVerifyHint() {
   )
 }
 
+// Compute which System Progressions are achieved
 function computeProgressions(data: AgentData): Record<string, boolean> {
   const has = (key: string, phase: number) =>
     data.phaseItems.some(i => i.itemKey === key && i.phase === phase && i.completed)
