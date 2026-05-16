@@ -2326,6 +2326,7 @@ interface InternalNote {
   body: string
   scope: 'LICENSING' | 'ADMIN_ONLY'
   createdAt: string
+  updatedAt?: string
   author: { id: string; name: string; role: string } | null
 }
 
@@ -2335,6 +2336,9 @@ function InternalNotesSection({ agentProfileId }: { agentProfileId: string }) {
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editBody, setEditBody] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
 
   const refresh = useCallback(() => {
     setLoading(true)
@@ -2365,6 +2369,34 @@ function InternalNotesSection({ agentProfileId }: { agentProfileId: string }) {
         refresh()
       }
     } finally { setSaving(false) }
+  }
+
+  const startEdit = (n: InternalNote) => {
+    setEditingId(n.id)
+    setEditBody(n.body)
+  }
+
+  const cancelEdit = () => {
+    setEditingId(null)
+    setEditBody('')
+  }
+
+  const saveEdit = async (noteId: string) => {
+    const body = editBody.trim()
+    if (!body) return
+    setSavingEdit(true)
+    try {
+      const res = await fetch(`/api/vault/licensing-agents/${agentProfileId}/notes`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ noteId, body }),
+      })
+      if (res.ok) {
+        setEditingId(null)
+        setEditBody('')
+        refresh()
+      }
+    } finally { setSavingEdit(false) }
   }
 
   return (
@@ -2437,8 +2469,65 @@ function InternalNotesSection({ agentProfileId }: { agentProfileId: string }) {
             <div key={n.id} style={{ marginBottom: 8, fontSize: 11, color: '#d1d9e2', lineHeight: 1.55 }}>
               <div style={{ color: '#9BB0C4', fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', marginBottom: 2 }}>
                 {n.author?.name ?? 'Admin'} &middot; {new Date(n.createdAt).toLocaleString()}
+                {n.updatedAt && new Date(n.updatedAt).getTime() - new Date(n.createdAt).getTime() > 1000 && (
+                  <span style={{ fontWeight: 400, fontStyle: 'italic', marginLeft: 6 }} title={`Edited ${new Date(n.updatedAt).toLocaleString()}`}>&middot; edited</span>
+                )}
               </div>
-              <div style={{ whiteSpace: 'pre-wrap' }}>{n.body}</div>
+              {editingId === n.id ? (
+                <div>
+                  <textarea
+                    value={editBody}
+                    onChange={e => setEditBody(e.target.value)}
+                    rows={3}
+                    style={{
+                      width: '100%', boxSizing: 'border-box',
+                      background: '#0A1628', border: '1px solid rgba(155,109,255,0.35)',
+                      color: '#d1d9e2', borderRadius: 4, padding: '8px 10px',
+                      fontSize: 12, fontFamily: 'inherit', resize: 'vertical', minHeight: 56,
+                    }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 6 }}>
+                    <button
+                      onClick={cancelEdit}
+                      disabled={savingEdit}
+                      style={{
+                        background: 'none', border: '1px solid rgba(107,130,153,0.4)', color: '#6B8299',
+                        borderRadius: 4, padding: '4px 10px', fontSize: 9, fontWeight: 700,
+                        letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer',
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => saveEdit(n.id)}
+                      disabled={savingEdit || editBody.trim().length === 0}
+                      style={{
+                        background: '#9B6DFF', color: '#fff', border: 'none', borderRadius: 4,
+                        padding: '4px 12px', fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                        cursor: savingEdit || editBody.trim().length === 0 ? 'not-allowed' : 'pointer',
+                        opacity: savingEdit || editBody.trim().length === 0 ? 0.6 : 1,
+                      }}
+                    >
+                      {savingEdit ? 'Saving...' : 'Save'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                  <div style={{ whiteSpace: 'pre-wrap', flex: 1 }}>{n.body}</div>
+                  <button
+                    onClick={() => startEdit(n)}
+                    title="Edit this note"
+                    style={{
+                      flexShrink: 0, background: 'none', border: '1px solid rgba(155,109,255,0.35)',
+                      color: '#9B6DFF', borderRadius: 4, padding: '2px 8px', fontSize: 9, fontWeight: 700,
+                      letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer',
+                    }}
+                  >
+                    Edit
+                  </button>
+                </div>
+              )}
             </div>
           ))}
           {!expanded && adminNotes.length > 1 && (

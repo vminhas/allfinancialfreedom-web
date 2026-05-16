@@ -83,3 +83,53 @@ export async function POST(
 
   return NextResponse.json({ note })
 }
+
+// PATCH /api/vault/licensing-agents/[id]/notes — edit a note's body
+// Admins can edit any note; everyone else only their own. LCs can't
+// touch ADMIN_ONLY notes (they can't even see them). Scope is not
+// changed here, just the text.
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await getServerSession(authOptions)
+  const denied = requireRole(session, 'admin', 'licensing_coordinator')
+  if (denied) return denied
+
+  const { id } = await params
+  const userId = (session!.user as { id?: string }).id
+
+  const payload = await req.json() as { noteId?: string; body?: string }
+  if (!payload.noteId) {
+    return NextResponse.json({ error: 'noteId required' }, { status: 400 })
+  }
+  if (!payload.body || payload.body.trim().length === 0) {
+    return NextResponse.json({ error: 'Note body required' }, { status: 400 })
+  }
+
+  const existing = await db.licensingNote.findUnique({
+    where: { id: payload.noteId },
+    select: { id: true, agentProfileId: true, authorId: true, scope: true },
+  })
+  if (!existing || existing.agentProfileId !== id) {
+    return NextResponse.json({ error: 'Note not found' }, { status: 404 })
+  }
+
+  const admin = isAdmin(session)
+  if (!admin && existing.authorId !== userId) {
+    return NextResponse.json({ error: 'You can only edit your own notes' }, { status: 403 })
+  }
+  if (!admin && existing.scope === 'ADMIN_ONLY') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const note = await db.licensingNote.update({
+    where: { id: existing.id },
+    data: { body: payload.body.trim() },
+    include: {
+      author: { select: { id: true, name: true, role: true } },
+    },
+  })
+
+  return NextResponse.json({ note })
+}

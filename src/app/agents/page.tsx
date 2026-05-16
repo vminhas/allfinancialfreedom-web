@@ -244,6 +244,10 @@ function AgentDashboardInner() {
   const [ftaEditSaving, setFtaEditSaving] = useState(false)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [setupResources, setSetupResources] = useState<Record<string, string>>({})
+  // LC booking link: admin-overridable via /vault/settings, falls back
+  // to the LC_CALENDAR_URL constant until the fetch lands / if unset.
+  const [lcCalendarSetting, setLcCalendarSetting] = useState('')
+  const lcCalendarUrl = lcCalendarSetting || LC_CALENDAR_URL
   const [ftaModalKey, setFtaModalKey] = useState<string | null>(null)
   const [dbPhaseItems, setDbPhaseItems] = useState<Record<number, typeof PHASE_ITEMS[1]> | null>(null)
   // Database-backed group definitions, keyed by phase. When the
@@ -348,6 +352,10 @@ function AgentDashboardInner() {
     fetch('/api/agents/setup-resources')
       .then(r => r.ok ? r.json() : { resources: {} })
       .then((d: { resources: Record<string, string> }) => setSetupResources(d.resources ?? {}))
+      .catch(() => {})
+    fetch('/api/agents/settings')
+      .then(r => r.ok ? r.json() : { settings: {} })
+      .then((d: { settings?: { LC_CALENDAR_URL?: string } }) => setLcCalendarSetting(d.settings?.LC_CALENDAR_URL ?? ''))
       .catch(() => {})
   }, [])
 
@@ -1446,6 +1454,7 @@ function AgentDashboardInner() {
                           items={groupItems.filter(i => i.coordinatorTopic)}
                           phaseItems={currentPhaseItems}
                           requests={coordinatorRequests}
+                          calendarUrl={lcCalendarUrl}
                           onRequestHelp={(itemKey) => setRequestModalItemKey(itemKey)}
                         />
                       )}
@@ -1808,7 +1817,7 @@ function AgentDashboardInner() {
                                   Message the coordinator
                                 </button>
                                 <a
-                                  href={LC_CALENDAR_URL}
+                                  href={lcCalendarUrl}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   onClick={e => e.stopPropagation()}
@@ -1959,6 +1968,7 @@ function AgentDashboardInner() {
           <LicensingRequestModal
             phaseItemKey={item.key}
             phaseItemLabel={item.label}
+            calendarUrl={lcCalendarUrl}
             defaultTopic={item.coordinatorTopic as LicensingRequestTopic}
             existingRequests={itemRequests.map(r => ({
               ...r,

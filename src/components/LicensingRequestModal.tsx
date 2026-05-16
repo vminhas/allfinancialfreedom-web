@@ -64,6 +64,8 @@ export interface LicensingRequestModalProps {
   existingRequests: CallItem[]
   onClose: () => void
   onSubmitted: (newRequest: CallItem) => void
+  // Admin-overridable LC booking link; falls back to the constant.
+  calendarUrl?: string
   // Set when an admin/LC opens the agent portal in "view as agent"
   // preview mode. Threaded through so the POST hits the agent endpoint
   // with the preview token, which resolveAgentIdentity accepts.
@@ -78,8 +80,10 @@ export default function LicensingRequestModal({
   onClose,
   onSubmitted,
   previewToken,
+  calendarUrl,
 }: LicensingRequestModalProps) {
   const isMobile = useIsMobile()
+  const calUrl = calendarUrl || LC_CALENDAR_URL
   const topic = defaultTopic
   const [message, setMessage] = useState(PREFILL_MESSAGES[phaseItemKey] ?? `Hi, I need help with: ${phaseItemLabel}.`)
   const [submitting, setSubmitting] = useState(false)
@@ -189,7 +193,7 @@ export default function LicensingRequestModal({
             {/* Calendar shortcut as a peer to the message form. Some agents */}
             {/* would rather just book 15 minutes than type out a message. */}
             <a
-              href={LC_CALENDAR_URL}
+              href={calUrl}
               target="_blank"
               rel="noopener noreferrer"
               style={{
