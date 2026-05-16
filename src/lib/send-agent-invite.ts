@@ -4,7 +4,8 @@
 
 import { randomUUID } from 'crypto'
 import { db } from './db'
-import { getGhlConfig, sendGhlEmail, ghlPost, ghlPut, OPS_MAILBOX } from './ghl'
+import { getGhlConfig, sendGhlEmail, ghlPost, OPS_MAILBOX } from './ghl'
+import { ensureTeamTagOnContact } from './ghl-team-tag'
 import { buildWelcomeEmailHtml } from './welcome-email'
 
 export async function sendAgentInviteEmail(agentUserId: string): Promise<{ emailSent: boolean; emailError: string | null }> {
@@ -55,7 +56,9 @@ export async function sendAgentInviteEmail(agentUserId: string): Promise<{ email
 
     if (!ghlContactId) return { emailSent: false, emailError: 'Could not find or create GHL contact' }
 
-    await ghlPut(`/contacts/${ghlContactId}`, { tags: ['AFF Team Member', 'agent-portal'] }, config).catch(() => {})
+    // Non-destructive: appends the AFF Team Member tag, keeps existing
+    // tags. Non-blocking — never fail the invite over tagging.
+    await ensureTeamTagOnContact(ghlContactId, config).catch(() => {})
 
     const html = await buildWelcomeEmailHtml({ firstName, inviteUrl })
     const msgRes = await sendGhlEmail({

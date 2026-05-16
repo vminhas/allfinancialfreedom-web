@@ -109,6 +109,8 @@ export default function SettingsPage() {
   const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null)
   const [pipelineMsg, setPipelineMsg] = useState<string | null>(null)
   const [pipelineLoading, setPipelineLoading] = useState(false)
+  const [teamTagSyncing, setTeamTagSyncing] = useState(false)
+  const [teamTagMsg, setTeamTagMsg] = useState<string | null>(null)
   const [pipelines, setPipelines] = useState<{ id: string; name: string }[]>([])
   const [selectedPipelineId, setSelectedPipelineId] = useState('')
   const [syncingPipeline, setSyncingPipeline] = useState(false)
@@ -462,6 +464,23 @@ export default function SettingsPage() {
       setPipelineMsg(`Error: ${data.error}`)
     }
     setPipelineLoading(false)
+  }
+
+  async function handleSyncTeamTags() {
+    setTeamTagSyncing(true)
+    setTeamTagMsg(null)
+    try {
+      const res = await fetch('/api/admin/agents/sync-ghl-team-tags', { method: 'POST' })
+      const d = await res.json() as { ok?: boolean; reason?: string; processed?: number; created?: number; tagged?: number; already?: number; failed?: number }
+      if (d.ok === false) {
+        setTeamTagMsg(`Error: ${d.reason ?? 'sync failed'}`)
+      } else {
+        setTeamTagMsg(`Done · ${d.processed ?? 0} agents · ${d.tagged ?? 0} newly tagged · ${d.created ?? 0} contacts created · ${d.already ?? 0} already tagged · ${d.failed ?? 0} failed`)
+      }
+    } catch {
+      setTeamTagMsg('Error: request failed')
+    }
+    setTeamTagSyncing(false)
   }
 
   async function handleLoadPipelines() {
@@ -920,6 +939,30 @@ export default function SettingsPage() {
             {pipelineMsg && (
               <p style={{ marginTop: 4, fontSize: 13, color: pipelineMsg.startsWith('Error') ? '#f87171' : '#4ade80' }}>
                 {pipelineMsg}
+              </p>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* GHL "AFF Team Member" tag sync */}
+      {card(
+        <>
+          {cardHeader('GHL Team Tag')}
+          <div style={{ padding: '28px' }}>
+            <p style={{ color: '#6B8299', fontSize: 13, lineHeight: 1.7, margin: '0 0 16px' }}>
+              Ensures every active agent&apos;s GHL contact carries the <strong style={{ color: '#9BB0C4' }}>AFF Team Member</strong> tag, so workflows can drop them out of recruiting drips once they&apos;re on the team. Applied automatically at invite and re-synced daily; run it here to backfill now. Safe to run repeatedly &middot; existing tags are kept.
+            </p>
+            <button onClick={handleSyncTeamTags} disabled={teamTagSyncing} style={{
+              padding: '10px 24px', background: '#C9A96E', color: '#142D48', border: 'none',
+              borderRadius: 4, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em',
+              textTransform: 'uppercase', cursor: teamTagSyncing ? 'not-allowed' : 'pointer',
+            }}>
+              {teamTagSyncing ? 'Syncing…' : 'Sync AFF Team tags now'}
+            </button>
+            {teamTagMsg && (
+              <p style={{ marginTop: 12, fontSize: 13, color: teamTagMsg.startsWith('Error') ? '#f87171' : '#4ade80' }}>
+                {teamTagMsg}
               </p>
             )}
           </div>
