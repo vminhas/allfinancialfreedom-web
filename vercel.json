@@ -52,6 +52,10 @@
     {
       "path": "/api/cron/tevah-sync",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/daily-motivation",
+      "schedule": "0 13 * * 1-5"
     }
   ]
 }
