@@ -1800,6 +1800,8 @@ model MotivationQuote {
   // Tonal register, not an attribution: classic | decisive | maxout |
   // state | warmth | courage | grit. Free-form so the editor can add more.
   voice     String   @default("classic")
+  // Optional "in the spirit of <name>" credit shown under the line.
+  attribution String? @map("attribution")
   active    Boolean  @default(true)
   sortKey   Int      @default(0) @map("sort_key")
   createdBy String?  @map("created_by")

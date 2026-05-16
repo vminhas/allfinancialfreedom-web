@@ -394,6 +394,20 @@ export type MotivationVoice =
   | 'courage'      // Brene-Brown energy: show up, be seen, dare anyway
   | 'grit'         // David-Goggins energy: suck it up, stay hard, no excuses
 
+// Optional "in the spirit of" credit shown under the line. Classic has
+// none. These are register inspirations, not claims of authorship: the
+// copy is original and only evokes the named speaker's energy. The CEO
+// can clear or change the credit per line in the vault editor.
+export const MOTIVATION_VOICE_ATTRIBUTION: Record<MotivationVoice, string | null> = {
+  classic: null,
+  decisive: 'Mel Robbins',
+  maxout: 'Ed Mylett',
+  state: 'Tony Robbins',
+  warmth: 'Zig Ziglar',
+  courage: 'Brené Brown',
+  grit: 'David Goggins',
+}
+
 // Original lines written to widen the tonal range. Added on top of the
 // 365 classic lines above; the DB seed (MOTIVATION_SEED) is the union.
 export const VOICED_QUOTES: { text: string; voice: MotivationVoice }[] = [
@@ -509,25 +523,31 @@ export const VOICED_QUOTES: { text: string; voice: MotivationVoice }[] = [
 // The full seed loaded into the DB on first run: the 365 classic lines
 // plus the voiced set. Editing happens in the vault after seeding; this
 // array is only the starting library and the offline fallback.
-export const MOTIVATION_SEED: { text: string; voice: MotivationVoice }[] = [
-  ...MOTIVATION_QUOTES.map(text => ({ text, voice: 'classic' as MotivationVoice })),
-  ...VOICED_QUOTES,
+export const MOTIVATION_SEED: { text: string; voice: MotivationVoice; attribution: string | null }[] = [
+  ...MOTIVATION_QUOTES.map(text => ({ text, voice: 'classic' as MotivationVoice, attribution: null })),
+  ...VOICED_QUOTES.map(q => ({ ...q, attribution: MOTIVATION_VOICE_ATTRIBUTION[q.voice] })),
 ]
 
-// Deterministic by calendar day: the same date always yields the same
-// line from `pool`, the set rotates across the year, and nothing repeats
-// within a `pool.length`-day window. Deterministic on purpose so a cron
-// retry posts the same line (not a different one) and so it is testable.
-// `pool` defaults to the static classic set so callers without DB access
-// (and tests) still work; the cron passes the active DB lines instead.
+// Deterministic 0-based index for a given calendar day over a list of
+// `length` entries: the same date always maps to the same slot, the set
+// rotates across the year, and nothing repeats within a `length`-day
+// window. Deterministic on purpose so a cron retry resolves to the same
+// line (not a different one) and so it is testable.
+export function dailyIndex(date: Date, length: number): number {
+  if (length <= 0) return 0
+  const start = Date.UTC(date.getUTCFullYear(), 0, 0)
+  const diff = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) - start
+  const dayOfYear = Math.floor(diff / 86_400_000) // 1..366
+  return (dayOfYear - 1) % length
+}
+
+// Text-only convenience used by tests / offline callers. The cron picks
+// over the live active library (with attribution) in @/lib/motivation.
 export function pickDailyMotivation(
   date: Date = new Date(),
   pool: string[] = MOTIVATION_QUOTES,
 ): { text: string; index: number } {
   const safe = pool.length > 0 ? pool : MOTIVATION_QUOTES
-  const start = Date.UTC(date.getUTCFullYear(), 0, 0)
-  const diff = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) - start
-  const dayOfYear = Math.floor(diff / 86_400_000) // 1..366
-  const index = (dayOfYear - 1) % safe.length
+  const index = dailyIndex(date, safe.length)
   return { text: safe[index], index }
 }

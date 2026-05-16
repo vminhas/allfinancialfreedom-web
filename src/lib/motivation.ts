@@ -1,7 +1,12 @@
 import { db } from '@/lib/db'
 import { sendChannelMessage } from '@/lib/discord'
 import { getSetting, setSetting } from '@/lib/settings'
-import { MOTIVATION_SEED, pickDailyMotivation } from '@/lib/motivation-quotes'
+import { MOTIVATION_SEED, dailyIndex } from '@/lib/motivation-quotes'
+
+export interface MotivationLine {
+  text: string
+  attribution: string | null
+}
 
 // Shared logic for the daily-motivation feature, used by both the weekday
 // cron (/api/cron/daily-motivation) and the vault "Send now" button so the
@@ -27,6 +32,7 @@ export async function ensureMotivationSeeded(): Promise<void> {
     data: MOTIVATION_SEED.map((q, i) => ({
       text: q.text,
       voice: q.voice,
+      attribution: q.attribution,
       active: true,
       sortKey: i,
     })),
@@ -36,14 +42,21 @@ export async function ensureMotivationSeeded(): Promise<void> {
 // Active lines in the stable order the deterministic picker walks. Order
 // is (sortKey, createdAt, id) so toggling a line inactive or adding a new
 // one does not reshuffle the existing rotation.
-export async function getActiveQuoteTexts(): Promise<string[]> {
+export async function getActiveQuotes(): Promise<MotivationLine[]> {
   await ensureMotivationSeeded()
   const rows = await db.motivationQuote.findMany({
     where: { active: true },
     orderBy: [{ sortKey: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
-    select: { text: true },
+    select: { text: true, attribution: true },
   })
-  return rows.map(r => r.text)
+  return rows.map(r => ({ text: r.text, attribution: r.attribution }))
+}
+
+// The exact embed body for a line, so the cron, "Send now", and the
+// vault preview all render identically. No em-dashes (project rule).
+export function renderMotivationBody(line: MotivationLine): string {
+  const credit = line.attribution ? `\n\n*in the spirit of ${line.attribution}*` : ''
+  return `> ${line.text}${credit}`
 }
 
 export async function isMotivationEnabled(): Promise<boolean> {
@@ -81,10 +94,11 @@ export function todayUtcDate(now: Date = new Date()): string {
 
 // The line that will (or did) post for a given date, computed over the
 // live active library. Used for the cron, the "Send now" action, and the
-// vault preview so all three agree.
-export async function getQuoteForDate(date: Date = new Date()): Promise<string> {
-  const pool = await getActiveQuoteTexts()
-  return pickDailyMotivation(date, pool).text
+// vault preview so all three agree. Null only when the library is empty.
+export async function getQuoteForDate(date: Date = new Date()): Promise<MotivationLine | null> {
+  const pool = await getActiveQuotes()
+  if (pool.length === 0) return null
+  return pool[dailyIndex(date, pool.length)]
 }
 
 // Post today's line to the configured channel with no pings. Records the
@@ -97,13 +111,16 @@ export async function postDailyMotivation(
   if (!process.env.DISCORD_BOT_TOKEN) {
     throw new Error('DISCORD_BOT_TOKEN not configured')
   }
+  const line = await getQuoteForDate(now)
+  if (!line) {
+    throw new Error('No active motivation lines to post')
+  }
   const channelId = await getMotivationChannelId()
-  const text = await getQuoteForDate(now)
 
   await sendChannelMessage(channelId, {
     embeds: [{
       title: '✦  D A I L Y   M O T I V A T I O N  ✦',
-      description: `> ${text}`,
+      description: renderMotivationBody(line),
       color: EMBED_GOLD,
       footer: { text: 'All Financial Freedom · Make today count' },
       timestamp: now.toISOString(),
@@ -113,5 +130,5 @@ export async function postDailyMotivation(
   })
 
   await setSetting(SETTING_LAST_POSTED, todayUtcDate(now))
-  return { text }
+  return { text: line.text }
 }

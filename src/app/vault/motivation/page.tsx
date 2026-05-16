@@ -7,6 +7,7 @@ interface Quote {
   id: string
   text: string
   voice: string
+  attribution: string | null
   active: boolean
   sortKey: number
 }
@@ -24,6 +25,18 @@ const VOICE_LABELS: Record<string, string> = {
 }
 const VOICE_OPTIONS = Object.keys(VOICE_LABELS)
 
+// Suggested "in the spirit of" credit per register. Picking a voice in
+// the add row prefills this (still editable / clearable). Matches
+// MOTIVATION_VOICE_ATTRIBUTION on the backend.
+const VOICE_ATTRIBUTION: Record<string, string> = {
+  decisive: 'Mel Robbins',
+  maxout: 'Ed Mylett',
+  state: 'Tony Robbins',
+  warmth: 'Zig Ziglar',
+  courage: 'Brené Brown',
+  grit: 'David Goggins',
+}
+
 export default function MotivationPage() {
   const isMobile = useIsMobile()
   const [loading, setLoading] = useState(true)
@@ -32,16 +45,19 @@ export default function MotivationPage() {
   const [channelId, setChannelId] = useState('')
   const [channelInput, setChannelInput] = useState('')
   const [today, setToday] = useState('')
+  const [todayAttribution, setTodayAttribution] = useState<string | null>(null)
 
   const [search, setSearch] = useState('')
   const [voiceFilter, setVoiceFilter] = useState<string>('all')
 
   const [newText, setNewText] = useState('')
   const [newVoice, setNewVoice] = useState('classic')
+  const [newAttribution, setNewAttribution] = useState('')
   const [adding, setAdding] = useState(false)
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
+  const [editAttribution, setEditAttribution] = useState('')
 
   const [busy, setBusy] = useState(false)
   const [flash, setFlash] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null)
@@ -54,12 +70,13 @@ export default function MotivationPage() {
   const load = () => {
     fetch('/api/admin/motivation')
       .then(r => r.json())
-      .then((d: { quotes: Quote[]; settings: { enabled: boolean; channelId: string }; today: string }) => {
+      .then((d: { quotes: Quote[]; settings: { enabled: boolean; channelId: string }; today: string; todayAttribution: string | null }) => {
         setQuotes(d.quotes ?? [])
         setEnabled(d.settings?.enabled ?? true)
         setChannelId(d.settings?.channelId ?? '')
         setChannelInput(d.settings?.channelId ?? '')
         setToday(d.today ?? '')
+        setTodayAttribution(d.todayAttribution ?? null)
         setLoading(false)
       })
       .catch(() => { setLoading(false); note('err', 'Could not load the library.') })
@@ -89,13 +106,14 @@ export default function MotivationPage() {
     setAdding(true)
     const res = await fetch('/api/admin/motivation', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, voice: newVoice }),
+      body: JSON.stringify({ text, voice: newVoice, attribution: newAttribution.trim() || null }),
     })
     setAdding(false)
     if (!res.ok) { note('err', (await res.json().catch(() => ({})))?.error || 'Could not add.'); return }
     const d = await res.json() as { quote: Quote }
     setQuotes(prev => [...prev, d.quote])
     setNewText('')
+    setNewAttribution('')
     note('ok', 'Line added.')
   }
 
@@ -104,7 +122,7 @@ export default function MotivationPage() {
     if (!text) return
     const res = await fetch(`/api/admin/motivation/${id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, attribution: editAttribution.trim() || null }),
     })
     if (!res.ok) { note('err', (await res.json().catch(() => ({})))?.error || 'Could not save.'); return }
     const d = await res.json() as { quote: Quote }
@@ -212,6 +230,11 @@ export default function MotivationPage() {
               borderRadius: 4, fontSize: 13, color: '#E8D9B5', fontStyle: 'italic', lineHeight: 1.5,
             }}>
               {today || 'No active lines.'}
+              {today && todayAttribution && (
+                <div style={{ marginTop: 6, fontSize: 11, color: '#9BB0C4' }}>
+                  in the spirit of {todayAttribution}
+                </div>
+              )}
             </div>
           </div>
           <div>
@@ -277,20 +300,38 @@ export default function MotivationPage() {
         </div>
 
         {/* Add new */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
-          <textarea
-            value={newText}
-            onChange={e => setNewText(e.target.value)}
-            rows={2}
-            placeholder="Add a new line (no em-dashes)..."
-            style={{ ...inp, resize: 'vertical', fontFamily: 'inherit', flex: 1, minWidth: isMobile ? '100%' : 0 }}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+            <textarea
+              value={newText}
+              onChange={e => setNewText(e.target.value)}
+              rows={2}
+              placeholder="Add a new line (no em-dashes)..."
+              style={{ ...inp, resize: 'vertical', fontFamily: 'inherit', flex: 1, minWidth: isMobile ? '100%' : 0 }}
+            />
+            <select
+              value={newVoice}
+              onChange={e => {
+                const v = e.target.value
+                setNewVoice(v)
+                // Prefill the suggested credit for the chosen register
+                // (still editable / clearable below).
+                setNewAttribution(VOICE_ATTRIBUTION[v] ?? '')
+              }}
+              style={{ ...inp, width: isMobile ? '60%' : 130, cursor: 'pointer' }}
+            >
+              {VOICE_OPTIONS.map(v => <option key={v} value={v}>{VOICE_LABELS[v]}</option>)}
+            </select>
+            <button onClick={addQuote} disabled={adding || !newText.trim()} style={{ ...goldBtn, opacity: adding || !newText.trim() ? 0.6 : 1 }}>
+              {adding ? '...' : 'Add'}
+            </button>
+          </div>
+          <input
+            value={newAttribution}
+            onChange={e => setNewAttribution(e.target.value)}
+            placeholder="In the spirit of... (optional credit, leave blank for none)"
+            style={{ ...inp, marginTop: 8 }}
           />
-          <select value={newVoice} onChange={e => setNewVoice(e.target.value)} style={{ ...inp, width: isMobile ? '60%' : 130, cursor: 'pointer' }}>
-            {VOICE_OPTIONS.map(v => <option key={v} value={v}>{VOICE_LABELS[v]}</option>)}
-          </select>
-          <button onClick={addQuote} disabled={adding || !newText.trim()} style={{ ...goldBtn, opacity: adding || !newText.trim() ? 0.6 : 1 }}>
-            {adding ? '...' : 'Add'}
-          </button>
         </div>
 
         {loading ? (
@@ -312,6 +353,12 @@ export default function MotivationPage() {
                       rows={2}
                       style={{ ...inp, resize: 'vertical', fontFamily: 'inherit' }}
                     />
+                    <input
+                      value={editAttribution}
+                      onChange={e => setEditAttribution(e.target.value)}
+                      placeholder="In the spirit of... (optional, leave blank for none)"
+                      style={{ ...inp, marginTop: 8 }}
+                    />
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
                       <button onClick={() => setEditingId(null)} style={ghostBtn}>Cancel</button>
                       <button onClick={() => saveEdit(q.id)} style={goldBtn}>Save</button>
@@ -322,14 +369,16 @@ export default function MotivationPage() {
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 13, color: '#D6E0EB', lineHeight: 1.5 }}>{q.text}</div>
                       <div style={{ fontSize: 10, color: '#6B8299', marginTop: 5, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                        {VOICE_LABELS[q.voice] ?? q.voice}{!q.active && ' · inactive'}
+                        {VOICE_LABELS[q.voice] ?? q.voice}
+                        {q.attribution && ` · in the spirit of ${q.attribution}`}
+                        {!q.active && ' · inactive'}
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                       <button onClick={() => toggleActive(q)} title={q.active ? 'Deactivate' : 'Activate'} style={ghostBtn}>
                         {q.active ? 'On' : 'Off'}
                       </button>
-                      <button onClick={() => { setEditingId(q.id); setEditText(q.text) }} style={ghostBtn}>Edit</button>
+                      <button onClick={() => { setEditingId(q.id); setEditText(q.text); setEditAttribution(q.attribution ?? '') }} style={ghostBtn}>Edit</button>
                       <button onClick={() => deleteQuote(q.id)} style={{ ...ghostBtn, color: '#fca5a5', borderColor: 'rgba(248,113,113,0.3)' }}>Delete</button>
                     </div>
                   </div>

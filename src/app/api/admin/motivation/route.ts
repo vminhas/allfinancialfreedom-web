@@ -29,7 +29,7 @@ export async function GET() {
   const [quotes, enabled, channelId, today] = await Promise.all([
     db.motivationQuote.findMany({
       orderBy: [{ sortKey: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
-      select: { id: true, text: true, voice: true, active: true, sortKey: true },
+      select: { id: true, text: true, voice: true, attribution: true, active: true, sortKey: true },
     }),
     isMotivationEnabled(),
     getMotivationChannelId(),
@@ -40,7 +40,8 @@ export async function GET() {
     quotes,
     activeCount: quotes.filter(q => q.active).length,
     settings: { enabled, channelId },
-    today,
+    today: today?.text ?? '',
+    todayAttribution: today?.attribution ?? null,
   })
 }
 
@@ -49,10 +50,14 @@ export async function POST(req: NextRequest) {
   const denied = requireRole(session, 'admin')
   if (denied) return denied
 
-  const body = await req.json() as { text?: string; voice?: string }
+  const body = await req.json() as { text?: string; voice?: string; attribution?: string }
   const text = body.text?.trim()
   if (!text) return NextResponse.json({ error: 'text required' }, { status: 400 })
   if (text.includes('—')) {
+    return NextResponse.json({ error: 'No em-dashes allowed in posted copy.' }, { status: 400 })
+  }
+  const attribution = body.attribution?.trim() || null
+  if (attribution?.includes('—')) {
     return NextResponse.json({ error: 'No em-dashes allowed in posted copy.' }, { status: 400 })
   }
 
@@ -64,10 +69,11 @@ export async function POST(req: NextRequest) {
     data: {
       text,
       voice: body.voice?.trim() || 'classic',
+      attribution,
       sortKey: (max._max.sortKey ?? 0) + 1,
       createdBy: userName,
     },
-    select: { id: true, text: true, voice: true, active: true, sortKey: true },
+    select: { id: true, text: true, voice: true, attribution: true, active: true, sortKey: true },
   })
 
   return NextResponse.json({ quote })

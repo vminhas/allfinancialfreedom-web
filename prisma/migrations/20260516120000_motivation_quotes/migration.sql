@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS "motivation_quotes" (
   "id"         TEXT NOT NULL,
   "text"       TEXT NOT NULL,
   "voice"      TEXT NOT NULL DEFAULT 'classic',
+  "attribution" TEXT,
   "active"     BOOLEAN NOT NULL DEFAULT true,
   "sort_key"   INTEGER NOT NULL DEFAULT 0,
   "created_by" TEXT,

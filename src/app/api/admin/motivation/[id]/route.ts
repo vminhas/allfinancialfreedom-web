@@ -16,7 +16,7 @@ export async function PATCH(
   if (denied) return denied
 
   const { id } = await ctx.params
-  const body = await req.json() as { text?: string; active?: boolean; voice?: string }
+  const body = await req.json() as { text?: string; active?: boolean; voice?: string; attribution?: string | null }
 
   if (body.text !== undefined) {
     const trimmed = body.text.trim()
@@ -25,6 +25,9 @@ export async function PATCH(
       return NextResponse.json({ error: 'No em-dashes allowed in posted copy.' }, { status: 400 })
     }
   }
+  if (typeof body.attribution === 'string' && body.attribution.includes('—')) {
+    return NextResponse.json({ error: 'No em-dashes allowed in posted copy.' }, { status: 400 })
+  }
 
   const quote = await db.motivationQuote.update({
     where: { id },
@@ -32,8 +35,10 @@ export async function PATCH(
       ...(body.text !== undefined && { text: body.text.trim() }),
       ...(typeof body.active === 'boolean' && { active: body.active }),
       ...(body.voice !== undefined && { voice: body.voice.trim() || 'classic' }),
+      // null or '' clears the credit; a string sets it.
+      ...(body.attribution !== undefined && { attribution: (body.attribution?.trim() || null) }),
     },
-    select: { id: true, text: true, voice: true, active: true, sortKey: true },
+    select: { id: true, text: true, voice: true, attribution: true, active: true, sortKey: true },
   })
 
   return NextResponse.json({ quote })
