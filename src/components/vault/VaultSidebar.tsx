@@ -3,8 +3,9 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useIsMobile } from '@/lib/useIsMobile'
+import VaultCommandPalette from '@/components/vault/VaultCommandPalette'
 
 interface NavItem { href: string; label: string; icon: string }
 interface NavGroup { key: string; label: string; items: NavItem[]; defaultOpen?: boolean }
@@ -32,26 +33,49 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/vault/partners/new', label: 'Hand Off Lead', icon: '⇲' },
     ],
   },
+  // The old single "Agents" group had 17 items and dominated the
+  // sidebar. Split into focused sub-groups; the less-used ones default
+  // collapsed (auto-expands when you're on a page inside them). AFF
+  // Tracker is the default landing and lives in the overview group, so
+  // it is not duplicated here.
   {
-    key: 'agents', label: 'Agents', defaultOpen: true,
+    key: 'people', label: 'People', defaultOpen: true,
     items: [
-      // AFF Tracker is also the default landing; promoted to the
-      // overview group above. Not duplicated here.
       { href: '/vault/progress', label: 'Progression Matrix', icon: '⊟' },
       { href: '/vault/org', label: 'Team Structure', icon: '⊞' },
+      { href: '/vault/team', label: 'Team Directory', icon: '◉' },
+      { href: '/vault/birthdays', label: 'Birthdays', icon: '✦' },
+    ],
+  },
+  {
+    key: 'operations', label: 'Operations', defaultOpen: true,
+    items: [
       { href: '/vault/new-business', label: 'New Business', icon: '◆' },
       { href: '/vault/renewals', label: 'Renewals', icon: '↻' },
       { href: '/vault/licensing', label: 'Licensing Inbox', icon: '◎' },
+    ],
+  },
+  {
+    key: 'training', label: 'Training', defaultOpen: false,
+    items: [
       { href: '/vault/trainings', label: 'Trainings', icon: '▶' },
       { href: '/vault/trainings/attendance', label: 'Attendance', icon: '⚏' },
+      { href: '/vault/call-review', label: 'Call Review', icon: '◐' },
+    ],
+  },
+  {
+    key: 'recognition', label: 'Recognition', defaultOpen: false,
+    items: [
       { href: '/vault/leaderboard', label: 'Leaderboard', icon: '▲' },
       { href: '/vault/climb', label: 'The Climb', icon: '🏔' },
       { href: '/vault/climb/articles', label: 'Climb Articles', icon: '✎' },
       { href: '/vault/contests', label: 'Contests', icon: '🏆' },
-      { href: '/vault/team', label: 'Team Directory', icon: '◉' },
-      { href: '/vault/call-review', label: 'Call Review', icon: '◐' },
-      { href: '/vault/birthdays', label: 'Birthdays', icon: '✦' },
       { href: '/vault/milestones', label: 'Milestones', icon: '🏆' },
+    ],
+  },
+  {
+    key: 'engagement', label: 'Engagement', defaultOpen: false,
+    items: [
       { href: '/vault/feedback', label: 'Feedback', icon: '✉' },
       { href: '/vault/announcements', label: 'Announcements', icon: '◈' },
     ],
@@ -114,6 +138,35 @@ export default function VaultSidebar() {
   const groups = isLC ? NAV_LC_GROUPS : NAV_GROUPS
   const brandSubtitle = isLC ? 'Licensing' : 'Vault'
   const userName = (session?.user as { name?: string } | undefined)?.name
+
+  const [paletteOpen, setPaletteOpen] = useState(false)
+
+  // Flat, de-duplicated page list for the Cmd/Ctrl+K quick-jump, tagged
+  // with the group label so results carry context.
+  const quickJumpItems = useMemo(() => {
+    const seen = new Set<string>()
+    const out: { href: string; label: string; icon: string; group?: string }[] = []
+    for (const g of groups) {
+      for (const it of g.items) {
+        if (seen.has(it.href)) continue
+        seen.add(it.href)
+        out.push({ ...it, group: g.label || undefined })
+      }
+    }
+    return out
+  }, [groups])
+
+  // Cmd/Ctrl+K toggles the quick-jump from anywhere in the vault.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setPaletteOpen(o => !o)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   const [counts, setCounts] = useState<SidebarCounts>({
     referralsPending: 0, newBusinessPending: 0, licensingOpen: 0, feedbackOpen: 0, renewalsToSend: 0,
@@ -239,8 +292,32 @@ export default function VaultSidebar() {
     )
   }
 
+  const quickJumpButton = (
+    <div style={{ padding: '0 12px 6px' }}>
+      <button
+        onClick={() => setPaletteOpen(true)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+          padding: '8px 12px', borderRadius: 6, cursor: 'pointer',
+          background: 'rgba(201,169,110,0.06)',
+          border: '1px solid rgba(201,169,110,0.18)',
+        }}
+      >
+        <span style={{ color: 'rgba(201,169,110,0.55)', fontSize: 12 }}>⌕</span>
+        <span style={{ color: '#6B8299', fontSize: 12, flex: 1, textAlign: 'left' }}>Quick jump</span>
+        <span style={{
+          color: '#4B5563', fontSize: 10, letterSpacing: '0.06em',
+          border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, padding: '1px 5px',
+        }}>
+          ⌘K
+        </span>
+      </button>
+    </div>
+  )
+
   const navList = (
     <nav style={{ flex: 1, padding: '14px 12px', overflowY: 'auto' }}>
+      {quickJumpButton}
       {groups.map(group => {
         const isCollapsed = collapsedGroups.has(group.key)
         const hasActiveItem = group.items.some(item =>
@@ -383,18 +460,22 @@ export default function VaultSidebar() {
           {navList}
           {signOutBtn}
         </aside>
+        <VaultCommandPalette items={quickJumpItems} open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       </>
     )
   }
 
   return (
-    <aside style={{
-      width: 220, background: '#142D48', display: 'flex', flexDirection: 'column',
-      padding: '32px 0', flexShrink: 0, borderRight: '1px solid rgba(201,169,110,0.1)',
-    }}>
-      {brand}
-      {navList}
-      {signOutBtn}
-    </aside>
+    <>
+      <aside style={{
+        width: 220, background: '#142D48', display: 'flex', flexDirection: 'column',
+        padding: '32px 0', flexShrink: 0, borderRight: '1px solid rgba(201,169,110,0.1)',
+      }}>
+        {brand}
+        {navList}
+        {signOutBtn}
+      </aside>
+      <VaultCommandPalette items={quickJumpItems} open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+    </>
   )
 }
