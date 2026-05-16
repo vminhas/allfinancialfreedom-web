@@ -3411,6 +3411,10 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  // Per-row read-only "full contact card" expander. Lets agents see the
+  // notes / character traits (MACHO read, past-interaction context) right
+  // in the list without opening the edit form.
+  const [expandedCardId, setExpandedCardId] = useState<string | null>(null)
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
   const emptyForm = { name: '', email: '', phone: '', timeZone: '', age: '', married: false, children: false, homeowner: false, occupation: '', characterTraits: '', category: '', appointmentDate: '', firstCallDate: '', secondCallDate: '', bookedAppt: false, notes: '' }
   const [form, setForm] = useState(emptyForm)
@@ -4074,18 +4078,32 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
                 const isSelected = effectiveSelection.has(p.id)
                 const isStale = (p.lastContactAt ?? p.createdAt) ? new Date(p.lastContactAt ?? p.createdAt!).getTime() < staleThreshold : true
                 const truncStyle: React.CSSProperties = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
+                const cardCols = 5 + (view !== 'queue' ? 1 : 0) + (!isMobile ? 2 : 0)
+                const cardLbl: React.CSSProperties = { fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 3 }
+                const cardVal: React.CSSProperties = { fontSize: 12, color: '#C7D3E0', lineHeight: 1.5, wordBreak: 'break-word' }
+                const yn = (b: boolean) => b ? 'Yes' : 'No'
+                const dt = (s: string | null) => s ? new Date(s).toLocaleDateString() : '—'
                 return (
-                  <tr key={p.id} style={{
-                    borderBottom: '1px solid rgba(255,255,255,0.03)',
+                  <React.Fragment key={p.id}>
+                  <tr style={{
+                    borderBottom: expandedCardId === p.id ? 'none' : '1px solid rgba(255,255,255,0.03)',
                     background: isSelected ? 'rgba(201,169,110,0.06)' : 'transparent',
                   }}>
                     <td style={{ ...tdStyle, padding: '8px 6px' }}>
                       <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(p.id)} />
                     </td>
                     <td
-                      title="Click name to edit"
+                      title="Chevron: full contact card · name: edit"
                       style={{ ...tdStyle, ...truncStyle, color: '#ffffff', fontWeight: 500 }}
                     >
+                      <button
+                        onClick={() => setExpandedCardId(cur => cur === p.id ? null : p.id)}
+                        title={expandedCardId === p.id ? 'Hide full contact card' : 'Show full contact card (notes, character traits, MACHO)'}
+                        aria-label="Toggle full contact card"
+                        style={{ background: 'none', border: 'none', color: expandedCardId === p.id ? '#C9A96E' : '#6B8299', cursor: 'pointer', padding: '0 6px 0 0', fontSize: 10, lineHeight: 1 }}
+                      >
+                        {expandedCardId === p.id ? '▾' : '▸'}
+                      </button>
                       <span onClick={() => startEdit(p)} style={{ cursor: 'pointer' }}>{p.name}</span>
                       <LinkedAgentChips linked={p.linkedAgentProfile} />
                     </td>
@@ -4205,6 +4223,49 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
                       <button onClick={() => deleteOne(p.id)} title="Delete permanently" style={{ background: 'none', border: 'none', color: '#f87171', fontSize: 12, cursor: 'pointer', padding: '0 4px' }}>&times;</button>
                     </td>
                   </tr>
+                  {expandedCardId === p.id && (
+                    <tr style={{ background: 'rgba(201,169,110,0.045)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <td colSpan={cardCols} style={{ padding: '14px 18px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: '10px 24px' }}>
+                          <div><div style={cardLbl}>Age</div><div style={cardVal}>{p.age || '—'}</div></div>
+                          <div><div style={cardLbl}>Occupation</div><div style={cardVal}>{p.occupation || '—'}</div></div>
+                          <div><div style={cardLbl}>Time Zone</div><div style={cardVal}>{p.timeZone || '—'}</div></div>
+                          <div><div style={cardLbl}>Category</div><div style={cardVal}>{p.category || '—'}</div></div>
+                          <div><div style={cardLbl}>Married</div><div style={cardVal}>{yn(p.married)}</div></div>
+                          <div><div style={cardLbl}>Children</div><div style={cardVal}>{yn(p.children)}</div></div>
+                          <div><div style={cardLbl}>Homeowner</div><div style={cardVal}>{yn(p.homeowner)}</div></div>
+                          <div><div style={cardLbl}>Booked Appt</div><div style={cardVal}>{yn(p.bookedAppt)}</div></div>
+                          <div><div style={cardLbl}>Appointment</div><div style={cardVal}>{dt(p.appointmentDate)}</div></div>
+                          <div><div style={cardLbl}>1st Call</div><div style={cardVal}>{dt(p.firstCallDate)}</div></div>
+                          <div><div style={cardLbl}>2nd Call</div><div style={cardVal}>{dt(p.secondCallDate)}</div></div>
+                          <div><div style={cardLbl}>Last Contact</div><div style={cardVal}>{dt(p.lastContactAt)}</div></div>
+                          {p.linkedAgentProfile && (
+                            <>
+                              <div><div style={cardLbl}>NPN</div><div style={cardVal}>{p.linkedAgentProfile.npn || '—'}</div></div>
+                              <div><div style={cardLbl}>License #</div><div style={cardVal}>{p.linkedAgentProfile.licenseNumber || '—'}</div></div>
+                            </>
+                          )}
+                        </div>
+                        <div style={{ marginTop: 14 }}>
+                          <div style={cardLbl}>Character Traits</div>
+                          <div style={{ ...cardVal, whiteSpace: 'pre-wrap' }}>{p.characterTraits || '—'}</div>
+                        </div>
+                        <div style={{ marginTop: 12 }}>
+                          <div style={cardLbl}>Notes</div>
+                          <div style={{ ...cardVal, whiteSpace: 'pre-wrap' }}>{p.notes || '—'}</div>
+                        </div>
+                        <div style={{ marginTop: 14, textAlign: 'right' }}>
+                          <button
+                            onClick={() => startEdit(p)}
+                            style={{ background: 'rgba(201,169,110,0.12)', border: '1px solid rgba(201,169,110,0.3)', color: '#C9A96E', fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '5px 12px', borderRadius: 3, cursor: 'pointer' }}
+                          >
+                            Edit full card
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
                 )
               })}</tbody>
             </table>
