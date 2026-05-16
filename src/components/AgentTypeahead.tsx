@@ -165,7 +165,20 @@ export default function AgentTypeahead({
   }
 
   return (
-    <div ref={wrapRef} style={{ position: 'relative', ...style }}>
+    <div
+      ref={wrapRef}
+      style={{
+        position: 'relative',
+        ...style,
+        // While the menu is open, lift the whole component into its own
+        // elevated stacking context. Without this the wrapper sits at
+        // the default level and the absolutely-positioned dropdown,
+        // despite its own z-index, renders BEHIND any later sibling
+        // (phase grid, action buttons) that forms its own stacking
+        // context. Reset when closed so we don't trap sibling overlays.
+        ...(open ? { zIndex: 1000 } : null),
+      }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <input
           ref={inputRef}
@@ -262,7 +275,7 @@ const clearBtn: React.CSSProperties = {
 
 const dropdownStyle: React.CSSProperties = {
   position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
-  zIndex: 100,
+  zIndex: 1000,
   background: '#142D48',
   border: '1px solid rgba(201,169,110,0.25)',
   borderRadius: 5,
