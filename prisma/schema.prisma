@@ -1787,3 +1787,27 @@ model GhlWebhookEvent {
   @@index([receivedAt(sort: Desc)])
   @@map("ghl_webhook_events")
 }
+
+// The editable daily-motivation library. Seeded once from the static
+// MOTIVATION_SEED in src/lib/motivation-quotes.ts (see ensureMotivationSeeded);
+// after that the vault editor at /vault/motivation is the source of truth.
+// The cron picks deterministically by date over the *active* rows ordered
+// by (sortKey, createdAt, id) so the same date always yields the same line
+// and edits to inactive rows never shift the rotation mid-stream.
+model MotivationQuote {
+  id        String   @id @default(cuid())
+  text      String
+  // Tonal register, not an attribution: classic | decisive | maxout |
+  // state | warmth | courage | grit. Free-form so the editor can add more.
+  voice     String   @default("classic")
+  // Optional "in the spirit of <name>" credit shown under the line.
+  attribution String? @map("attribution")
+  active    Boolean  @default(true)
+  sortKey   Int      @default(0) @map("sort_key")
+  createdBy String?  @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt      @map("updated_at")
+
+  @@index([active, sortKey, createdAt])
+  @@map("motivation_quotes")
+}
