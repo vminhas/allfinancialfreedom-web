@@ -380,12 +380,154 @@ export const MOTIVATION_QUOTES: string[] = [
   "You do not need a better year. You need a better today, repeated until it adds up.",
 ]
 
-// Same date in always yields the same line. Cycles across the full set
-// over the year and never repeats within a 365-day window.
-export function pickDailyMotivation(date: Date = new Date()): { text: string; index: number } {
+// Voice registers. These are *styles* (the energy of a kind of speaker),
+// not attributions. Nothing here is a real person's copyrighted line and
+// nothing is signed with their name: every entry below is original copy
+// written to evoke a register so the channel does not sound monotone.
+// The CEO can recategorize or rewrite any of these in the vault editor.
+export type MotivationVoice =
+  | 'classic'      // the original AFF house voice (the 365 above)
+  | 'decisive'     // Mel-Robbins energy: stop overthinking, move now
+  | 'maxout'       // Ed-Mylett energy: one more, raise the standard, faith + work
+  | 'state'        // Tony-Robbins energy: decisions, state, massive action
+  | 'warmth'       // Zig-Ziglar energy: attitude, serve others first
+  | 'courage'      // Brene-Brown energy: show up, be seen, dare anyway
+  | 'grit'         // David-Goggins energy: suck it up, stay hard, no excuses
+
+// Original lines written to widen the tonal range. Added on top of the
+// 365 classic lines above; the DB seed (MOTIVATION_SEED) is the union.
+export const VOICED_QUOTES: { text: string; voice: MotivationVoice }[] = [
+  // Decisive (move-now energy)
+  { voice: 'decisive', text: "You are not going to feel like it. Do it anyway and let the feeling catch up." },
+  { voice: 'decisive', text: "The moment you hesitate, count down from five and dial before you hit one." },
+  { voice: 'decisive', text: "Motivation is a coin flip. A decision is a hammer. Pick up the hammer." },
+  { voice: 'decisive', text: "You are one decision away from a completely different day. Make it now, not later." },
+  { voice: 'decisive', text: "Stop waiting to feel ready. Ready is something you build by starting." },
+  { voice: 'decisive', text: "Overthinking is just fear in a nicer outfit. Act before it finishes dressing." },
+  { voice: 'decisive', text: "Do not negotiate with the part of you that wants to wait. Move first, debate never." },
+  { voice: 'decisive', text: "The five seconds before the hard thing is the whole game. Win those and you win the day." },
+  { voice: 'decisive', text: "If you would not let a friend talk themselves out of it, do not let yourself either." },
+  { voice: 'decisive', text: "You do not have a knowledge problem. You have a hesitation problem. Close the gap with action." },
+  { voice: 'decisive', text: "Your dreams do not respond to feelings. They respond to motion. Start moving." },
+  { voice: 'decisive', text: "The hardest part is the deciding. The doing is lighter than the dread, every single time." },
+  { voice: 'decisive', text: "Stop researching the call and make it. Clarity lives on the other side of the dial." },
+  { voice: 'decisive', text: "You will never feel like changing your life. Do it on a day you do not feel like it." },
+  { voice: 'decisive', text: "Hesitation is expensive and action is free. Spend wisely this morning." },
+  { voice: 'decisive', text: "Push the button. The thinking was done yesterday. Today is for moving." },
+
+  // Max-out (one-more, raise-the-standard energy)
+  { voice: 'maxout', text: "Most people stop at enough. Make one more call and find out who you really are." },
+  { voice: 'maxout', text: "Raise your standard and your results have no choice but to follow it up." },
+  { voice: 'maxout', text: "Become the person who already has what you want, then act like it before lunch." },
+  { voice: 'maxout', text: "Blessed and competitive are not opposites. Be grateful and go take the day anyway." },
+  { voice: 'maxout', text: "The person you could become is watching the person you are being right now. Make them proud." },
+  { voice: 'maxout', text: "One percent better today is not small. It is the whole future arriving early." },
+  { voice: 'maxout', text: "Do not pray for an easier path. Pray to become the kind of person the path needs." },
+  { voice: 'maxout', text: "Your standard, not your wish, is what shows up to work. Lift the standard." },
+  { voice: 'maxout', text: "Max out today so the version of you in five years sends back a thank you." },
+  { voice: 'maxout', text: "Average is comfortable and crowded. The extra rep is where the room opens up." },
+  { voice: 'maxout', text: "Outwork the doubt, outlast the dip, and out-serve everyone who quit at noon." },
+  { voice: 'maxout', text: "The dream is rent and it is due every single day. Pay it before the day pays you." },
+  { voice: 'maxout', text: "You do not get what you want. You get who you become. Go become it today." },
+  { voice: 'maxout', text: "One more call when you are tired counts for ten when you are fresh. Make it." },
+  { voice: 'maxout', text: "Protect your peace and still bring your fire. You are allowed to have both." },
+  { voice: 'maxout', text: "Be so grateful it humbles you and so hungry it moves you. That combination is unstoppable." },
+
+  // State (decisions / energy / massive action)
+  { voice: 'state', text: "Change your physiology and you change your call. Stand up, breathe deep, then dial." },
+  { voice: 'state', text: "It is not a lack of resources. It is a lack of resourcefulness. Get creative and go." },
+  { voice: 'state', text: "The decisions you make in the next hour are quietly designing the next year." },
+  { voice: 'state', text: "Massive action drowns out small fears. Do more than feels reasonable today." },
+  { voice: 'state', text: "Where focus goes, energy flows. Point it at the next family you can help." },
+  { voice: 'state', text: "Progress is the real fuel. Make one inch of it before the doubt wakes up." },
+  { voice: 'state', text: "Lower your tolerance for excuses and watch your standard rise on its own." },
+  { voice: 'state', text: "Proximity is power. Spend today next to the work, not next to the worry." },
+  { voice: 'state', text: "Your state is a choice you make, not a weather report you receive. Choose strong." },
+  { voice: 'state', text: "Find the why that makes you cry and the how stops being the problem." },
+  { voice: 'state', text: "The map is not the territory. Stop studying the call and go walk into it." },
+  { voice: 'state', text: "Model the people who already do it well, then add your relentless on top." },
+  { voice: 'state', text: "Turn should into must and watch how fast the excuses pack up and leave." },
+  { voice: 'state', text: "Emotion is created by motion. Move the body and the belief comes online." },
+  { voice: 'state', text: "Decide once, with everything you have, and you will not have to decide again at noon." },
+  { voice: 'state', text: "The quality of your day is the quality of the questions you ask yourself this morning." },
+
+  // Warmth (attitude, serve-others-first)
+  { voice: 'warmth', text: "You can have just about anything you want if you help enough people get what they want first." },
+  { voice: 'warmth', text: "Your attitude, not your aptitude, will set the altitude of this entire day." },
+  { voice: 'warmth', text: "Motivation is like bathing. It does not last, which is exactly why we do it daily." },
+  { voice: 'warmth', text: "Failure is an event, never a person. You are not a no, you just heard one." },
+  { voice: 'warmth', text: "Do the ordinary things in this business extraordinarily well and you will go far." },
+  { voice: 'warmth', text: "People do not care how much you know until they know how much you care. So care, out loud." },
+  { voice: 'warmth', text: "You were born to win, but to be the winner you have to plan, prepare, and expect to." },
+  { voice: 'warmth', text: "A goal properly set is halfway reached. Set yours before the day sets one for you." },
+  { voice: 'warmth', text: "Some people find fault like there is a reward for it. Be the rare one who finds the good." },
+  { voice: 'warmth', text: "You do not have to be great to start, but you do have to start to be great. Start now." },
+  { voice: 'warmth', text: "Every family you serve well today is a referral you have not been introduced to yet." },
+  { voice: 'warmth', text: "The elevator to success is out of order. You are going to have to take the steps, gladly." },
+  { voice: 'warmth', text: "Be helpful before you are impressive. Trust grows in that exact order." },
+  { voice: 'warmth', text: "Expect the best, prepare for the rest, and pick up the phone with a smile they can hear." },
+  { voice: 'warmth', text: "Honesty and hard work will make you a future. Bring both to the very first call." },
+  { voice: 'warmth', text: "See the people you serve as souls to help, not sales to close, and watch what comes back." },
+
+  // Courage (show up, be seen, dare anyway)
+  { voice: 'courage', text: "Courage is not the absence of fear. It is making the call while the fear is still talking." },
+  { voice: 'courage', text: "Vulnerability is not weakness. It is the most honest thing you can bring to a conversation." },
+  { voice: 'courage', text: "The critics do not count. The person in the arena, dialing and trying, is the one who matters." },
+  { voice: 'courage', text: "You can choose comfort or you can choose growth. You cannot choose both today." },
+  { voice: 'courage', text: "Show up and let yourself be seen. That is the bravest sale you will make all day." },
+  { voice: 'courage', text: "Clear is kind. Tell people the truth about what they need before it is too late to matter." },
+  { voice: 'courage', text: "You are imperfect, you are wired for struggle, and you are absolutely worthy of this goal." },
+  { voice: 'courage', text: "Daring greatly means you will get knocked down. Get up where the people you serve can see." },
+  { voice: 'courage', text: "Talk to yourself the way you would talk to someone you love and believe in. Then go." },
+  { voice: 'courage', text: "Wholehearted work is not flawless work. It is showing up fully even when it is uncertain." },
+  { voice: 'courage', text: "Numbing the fear numbs the joy too. Feel it, and make the brave call anyway." },
+  { voice: 'courage', text: "The willingness to be seen trying is rarer than talent and worth far more." },
+  { voice: 'courage', text: "Connection is why we are here. Make one real one today and the numbers take care of themselves." },
+  { voice: 'courage', text: "Shame says you are not enough. The work says watch me. Let the work do the talking." },
+  { voice: 'courage', text: "Choose the discomfort of growth over the comfort of staying small and unseen." },
+  { voice: 'courage', text: "Brave does not mean unafraid. It means the call gets made with shaky hands and a steady why." },
+
+  // Grit (suck it up, stay hard, no excuses)
+  { voice: 'grit', text: "Nobody is coming to make the call for you. That is not bad news, that is your power." },
+  { voice: 'grit', text: "When your mind says you are done, you are only about forty percent done. Keep going." },
+  { voice: 'grit', text: "Callous your mind on the calls you do not want to make. That is the whole training." },
+  { voice: 'grit', text: "Suck it up, pick it up, and dial. The discomfort is the price of the person you are becoming." },
+  { voice: 'grit', text: "Stay hard on the days the results are quiet. The quiet days are the ones that pay later." },
+  { voice: 'grit', text: "Take souls. Outwork the version of you that wanted to stop and never look back." },
+  { voice: 'grit', text: "Motivation is fleeting and weak. Discipline shows up in the rain and dials anyway." },
+  { voice: 'grit', text: "You will not always be motivated. Be disciplined, and discipline will carry the day." },
+  { voice: 'grit', text: "The work you avoid is the work that builds you. Run straight at the thing you dread." },
+  { voice: 'grit', text: "Who is going to carry the load today. You are. So pick it up and stop negotiating." },
+  { voice: 'grit', text: "Comfort is the enemy. Get uncomfortable on purpose and watch how fast you grow." },
+  { voice: 'grit', text: "Embrace the suck. The hard part is not in the way, the hard part is the way." },
+  { voice: 'grit', text: "Do not look for easy. Easy built nobody. Hard is the forge and you are the blade." },
+  { voice: 'grit', text: "The only one keeping score that matters is you. Do not let yourself off easy today." },
+  { voice: 'grit', text: "When it hurts, that is the rep that counts. Everyone quits right before it pays." },
+  { voice: 'grit', text: "No excuses. No shortcuts. Just the next hard call, made on time, every single day." },
+]
+
+// The full seed loaded into the DB on first run: the 365 classic lines
+// plus the voiced set. Editing happens in the vault after seeding; this
+// array is only the starting library and the offline fallback.
+export const MOTIVATION_SEED: { text: string; voice: MotivationVoice }[] = [
+  ...MOTIVATION_QUOTES.map(text => ({ text, voice: 'classic' as MotivationVoice })),
+  ...VOICED_QUOTES,
+]
+
+// Deterministic by calendar day: the same date always yields the same
+// line from `pool`, the set rotates across the year, and nothing repeats
+// within a `pool.length`-day window. Deterministic on purpose so a cron
+// retry posts the same line (not a different one) and so it is testable.
+// `pool` defaults to the static classic set so callers without DB access
+// (and tests) still work; the cron passes the active DB lines instead.
+export function pickDailyMotivation(
+  date: Date = new Date(),
+  pool: string[] = MOTIVATION_QUOTES,
+): { text: string; index: number } {
+  const safe = pool.length > 0 ? pool : MOTIVATION_QUOTES
   const start = Date.UTC(date.getUTCFullYear(), 0, 0)
   const diff = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) - start
   const dayOfYear = Math.floor(diff / 86_400_000) // 1..366
-  const index = (dayOfYear - 1) % MOTIVATION_QUOTES.length
-  return { text: MOTIVATION_QUOTES[index], index }
+  const index = (dayOfYear - 1) % safe.length
+  return { text: safe[index], index }
 }
