@@ -20,6 +20,7 @@ interface Note {
   body: string
   scope: 'LICENSING' | 'ADMIN_ONLY'
   createdAt: string
+  updatedAt?: string
   author: { id: string; name: string; role: 'ADMIN' | 'LICENSING_COORDINATOR' }
 }
 
@@ -41,6 +42,10 @@ export default function AgentNotes({
   const [composing, setComposing] = useState('')
   const [scope, setScope] = useState<'LICENSING' | 'ADMIN_ONLY'>('LICENSING')
   const [posting, setPosting] = useState(false)
+  // Inline edit state for an existing note.
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editBody, setEditBody] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
   // Used to suppress poll-driven flicker while the admin is mid-edit.
   const focused = useRef(false)
 
@@ -94,6 +99,44 @@ export default function AgentNotes({
       setError(null)
     } finally {
       setPosting(false)
+    }
+  }
+
+  const startEdit = (n: Note) => {
+    setEditingId(n.id)
+    setEditBody(n.body)
+    focused.current = true
+  }
+
+  const cancelEdit = () => {
+    setEditingId(null)
+    setEditBody('')
+    focused.current = false
+  }
+
+  const saveEdit = async (noteId: string) => {
+    const body = editBody.trim()
+    if (!body) return
+    setSavingEdit(true)
+    try {
+      const res = await fetch(`/api/vault/licensing-agents/${agentProfileId}/notes`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ noteId, body }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({})) as { error?: string }
+        setError(d.error ?? 'edit failed')
+        return
+      }
+      const d = await res.json() as { note: Note }
+      setNotes(prev => prev ? prev.map(x => x.id === noteId ? d.note : x) : prev)
+      setError(null)
+      setEditingId(null)
+      setEditBody('')
+      focused.current = false
+    } finally {
+      setSavingEdit(false)
     }
   }
 
@@ -207,14 +250,79 @@ export default function AgentNotes({
                 </span>
                 <span style={{ fontSize: 10, color: '#6B8299' }} title={new Date(n.createdAt).toLocaleString()}>
                   {formatWhen(n.createdAt)}
+                  {n.updatedAt && new Date(n.updatedAt).getTime() - new Date(n.createdAt).getTime() > 1000 && (
+                    <span style={{ marginLeft: 6, fontStyle: 'italic' }} title={`Edited ${new Date(n.updatedAt).toLocaleString()}`}>· edited</span>
+                  )}
                   {n.scope === 'ADMIN_ONLY' && (
                     <span style={{ marginLeft: 6, color: '#f87171', fontWeight: 600 }}>· admins only</span>
                   )}
                 </span>
               </div>
-              <div style={{ fontSize: 12, color: '#d1d9e2', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
-                {n.body}
-              </div>
+              {editingId === n.id ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <textarea
+                    value={editBody}
+                    onChange={e => setEditBody(e.target.value)}
+                    onFocus={() => { focused.current = true }}
+                    rows={4}
+                    style={{
+                      width: '100%', boxSizing: 'border-box', resize: 'vertical',
+                      background: '#0C1E30', border: '1px solid rgba(201,169,110,0.25)',
+                      borderRadius: 4, outline: 'none', padding: 8,
+                      color: '#d1d9e2', fontSize: 12, fontFamily: 'inherit', lineHeight: 1.5,
+                    }}
+                  />
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                    <button
+                      onClick={cancelEdit}
+                      disabled={savingEdit}
+                      style={{
+                        padding: '6px 12px', borderRadius: 4, fontSize: 10, fontWeight: 700,
+                        letterSpacing: '0.08em', textTransform: 'uppercase',
+                        background: 'transparent', color: '#6B8299',
+                        border: '1px solid rgba(107,130,153,0.4)', cursor: 'pointer',
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => saveEdit(n.id)}
+                      disabled={!editBody.trim() || savingEdit}
+                      style={{
+                        padding: '6px 14px', borderRadius: 4, fontSize: 10, fontWeight: 700,
+                        letterSpacing: '0.08em', textTransform: 'uppercase',
+                        background: editBody.trim() && !savingEdit ? '#C9A96E' : 'rgba(201,169,110,0.3)',
+                        color: '#142D48', border: 'none',
+                        cursor: editBody.trim() && !savingEdit ? 'pointer' : 'not-allowed',
+                      }}
+                    >
+                      {savingEdit ? 'Saving…' : 'Save'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontSize: 12, color: '#d1d9e2', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                    {n.body}
+                  </div>
+                  {isAdmin && (
+                    <div style={{ marginTop: 6, textAlign: 'right' }}>
+                      <button
+                        onClick={() => startEdit(n)}
+                        style={{
+                          padding: '3px 10px', fontSize: 10, fontWeight: 600,
+                          letterSpacing: '0.06em', textTransform: 'uppercase',
+                          background: 'transparent', color: '#C9A96E',
+                          border: '1px solid rgba(201,169,110,0.35)',
+                          borderRadius: 4, cursor: 'pointer',
+                        }}
+                      >
+                        Edit
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           ))}
         </div>
