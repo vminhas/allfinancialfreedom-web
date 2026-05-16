@@ -226,12 +226,12 @@ export default function MotivationPage() {
           <div>
             <div style={lbl}>Today&apos;s line (preview)</div>
             <div style={{
-              padding: '12px 14px', background: '#0A1628', borderLeft: '3px solid #C9A96E',
-              borderRadius: 4, fontSize: 13, color: '#E8D9B5', fontStyle: 'italic', lineHeight: 1.5,
+              padding: '12px 14px', background: '#0A1628', borderLeft: '3px solid #FF8C42',
+              borderRadius: 4, fontSize: 13, color: '#F2E8DA', fontWeight: 600, lineHeight: 1.5,
             }}>
               {today || 'No active lines.'}
               {today && todayAttribution && (
-                <div style={{ marginTop: 6, fontSize: 11, color: '#9BB0C4' }}>
+                <div style={{ marginTop: 6, fontSize: 11, color: '#9BB0C4', fontWeight: 400, fontStyle: 'italic' }}>
                   in the spirit of {todayAttribution}
                 </div>
               )}
