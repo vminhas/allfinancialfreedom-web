@@ -24,10 +24,13 @@ export async function POST(req: NextRequest) {
 
   const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
   const blob = await put(`leadership/${who}.${ext}`, file, { access: 'public', allowOverwrite: true })
+  // Deterministic, overwritten-in-place path -> identical URL across
+  // re-uploads -> CDN/browser serve the stale image. Bust per upload.
+  const avatarUrl = `${blob.url}?v=${Date.now()}`
 
-  await setSetting(`LEADERSHIP_${who.toUpperCase()}_AVATAR`, blob.url)
+  await setSetting(`LEADERSHIP_${who.toUpperCase()}_AVATAR`, avatarUrl)
 
-  return NextResponse.json({ ok: true, avatarUrl: blob.url })
+  return NextResponse.json({ ok: true, avatarUrl })
 }
 
 export async function GET() {

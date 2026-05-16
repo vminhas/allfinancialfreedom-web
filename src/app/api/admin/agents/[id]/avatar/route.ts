@@ -28,8 +28,11 @@ export async function POST(
 
   const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
   const blob = await put(`agent-avatars/${id}.${ext}`, file, { access: 'public', allowOverwrite: true })
+  // Deterministic, overwritten-in-place path -> identical URL across
+  // re-uploads -> CDN/browser serve the stale image. Bust per upload.
+  const avatarUrl = `${blob.url}?v=${Date.now()}`
 
-  await db.agentProfile.update({ where: { id }, data: { avatarUrl: blob.url } })
+  await db.agentProfile.update({ where: { id }, data: { avatarUrl } })
 
-  return NextResponse.json({ ok: true, avatarUrl: blob.url })
+  return NextResponse.json({ ok: true, avatarUrl })
 }

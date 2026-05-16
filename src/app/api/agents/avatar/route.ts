@@ -35,11 +35,16 @@ export async function POST(req: NextRequest) {
   const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
   const filename = `agent-avatars/${agentUser.profile.id}.${ext}`
   const blob = await put(filename, file, { access: 'public', allowOverwrite: true })
+  // The blob path is deterministic + overwritten in place, so its URL is
+  // byte-identical across re-uploads and Vercel's CDN/browser cache it
+  // long-term. Without a changing query string the old photo keeps
+  // showing ("upload didn't stick"). Bust per upload.
+  const avatarUrl = `${blob.url}?v=${Date.now()}`
 
   await db.agentProfile.update({
     where: { id: agentUser.profile.id },
-    data: { avatarUrl: blob.url },
+    data: { avatarUrl },
   })
 
-  return NextResponse.json({ ok: true, avatarUrl: blob.url })
+  return NextResponse.json({ ok: true, avatarUrl })
 }
