@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import ImportWizard from '@/components/ImportWizard'
 
 interface ContactOption {
   id: string
@@ -13,6 +14,17 @@ interface ContactOption {
   wornOut: boolean
   importJobId?: string
   _count?: { messages: number }
+}
+
+interface ImportJobRow {
+  id: string
+  fileName: string
+  totalRows: number
+  importedCount: number
+  skippedCount: number
+  errorCount: number
+  status: string
+  createdAt: string
 }
 
 interface Template {
@@ -67,6 +79,8 @@ export default function OutreachPage() {
   const [advanceStage, setAdvanceStage] = useState(true)
   const [previewContact, setPreviewContact] = useState<ContactOption | null>(null)
   const [wornOutOnly, setWornOutOnly] = useState(false)
+  const [showImport, setShowImport] = useState(false)
+  const [recentJobs, setRecentJobs] = useState<ImportJobRow[]>([])
 
   useEffect(() => {
     fetch('/api/admin/saved-templates')
@@ -77,31 +91,69 @@ export default function OutreachPage() {
       .then(d => setDefaultTemplateName(d.templateName ?? null))
   }, [])
 
-  useEffect(() => {
-    fetch('/api/admin/contacts?outreachStatus=pending&ghlOnly=true&limit=200')
-      .then(r => r.json())
-      .then(async d => {
-        const loaded = d.contacts ?? []
-        setContacts(loaded)
-        if (loaded.length > 0) setPreviewContact(loaded[0])
+  const loadContacts = useCallback(async () => {
+    const r = await fetch('/api/admin/contacts?outreachStatus=pending&ghlOnly=true&limit=200')
+    const d = await r.json()
+    const loaded: ContactOption[] = d.contacts ?? []
+    setContacts(loaded)
+    if (loaded.length > 0) setPreviewContact(p => p ?? loaded[0])
 
-        // Auto-fill context from the most recent import job that has a contextPrompt
-        const jobIds = Array.from(new Set<string>(
-          loaded.map((c: ContactOption) => c.importJobId).filter(Boolean)
-        ))
-        for (const jobId of jobIds) {
-          const jobRes = await fetch(`/api/admin/import-job/${jobId}`)
-          if (jobRes.ok) {
-            const job = await jobRes.json()
-            if (job.contextPrompt) {
-              setContext(job.contextPrompt)
-              setContextSource(job.fileName)
-              break
-            }
-          }
+    // Auto-fill context from the most recent import job that has a contextPrompt
+    const jobIds = Array.from(new Set<string>(
+      loaded.map(c => c.importJobId).filter(Boolean) as string[]
+    ))
+    for (const jobId of jobIds) {
+      const jobRes = await fetch(`/api/admin/import-job/${jobId}`)
+      if (jobRes.ok) {
+        const job = await jobRes.json()
+        if (job.contextPrompt) {
+          setContext(job.contextPrompt)
+          setContextSource(job.fileName)
+          break
         }
-      })
+      }
+    }
   }, [])
+
+  const loadRecentJobs = useCallback(async () => {
+    const r = await fetch('/api/admin/import-status')
+    if (!r.ok) return
+    const d = await r.json()
+    setRecentJobs(d.jobs ?? [])
+  }, [])
+
+  const [resumingId, setResumingId] = useState<string | null>(null)
+
+  // Drain a stuck/paused job in the same resumable chunks the importer
+  // uses, refreshing the panel so progress is visible while it runs.
+  const resumeJob = useCallback(async (jobId: string) => {
+    setResumingId(jobId)
+    const poll = setInterval(() => { loadRecentJobs() }, 3000)
+    try {
+      let guard = 0
+      while (guard++ < 1000) {
+        const res = await fetch('/api/admin/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jobId }),
+        })
+        if (res.status === 409) { await new Promise(r => setTimeout(r, 3000)); continue }
+        if (!res.ok) break
+        const data = await res.json().catch(() => ({} as Record<string, unknown>))
+        if (data.dailyCap) break
+        if (data.hasMore) continue
+        break
+      }
+    } catch { /* surfaced via the row status on next refresh */ }
+    finally {
+      clearInterval(poll)
+      setResumingId(null)
+      loadRecentJobs()
+      loadContacts()
+    }
+  }, [loadRecentJobs, loadContacts])
+
+  useEffect(() => { loadContacts(); loadRecentJobs() }, [loadContacts, loadRecentJobs])
 
   const filteredContacts = wornOutOnly
     ? contacts.filter(c => c.wornOut)
@@ -235,6 +287,78 @@ export default function OutreachPage() {
         <p style={{ color: '#C9A96E', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 600, margin: '0 0 6px' }}>AI-Powered</p>
         <h1 style={{ color: '#ffffff', fontSize: 28, fontWeight: 300, margin: '0 0 6px' }}>Outreach</h1>
         <p style={{ color: '#6B8299', fontSize: 13, margin: 0 }}>Claude generates 3 email templates. Pick one, edit if needed, then send to all selected contacts. Tokens like {`{{firstName}}`} are replaced per contact at send time.</p>
+      </div>
+
+      {/* PropHog imports — visibility + inline import */}
+      <div style={{ background: '#142D48', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)', marginBottom: 24 }}>
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(201,169,110,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <div>
+            <p style={{ color: '#C9A96E', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 600, margin: '0 0 2px' }}>PropHog Imports</p>
+            <p style={{ color: '#6B8299', fontSize: 11, margin: 0 }}>Recent imports and their status. Import a new CSV without leaving this page.</p>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => loadRecentJobs()} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', color: '#6B8299', fontSize: 11, borderRadius: 4, padding: '6px 12px', cursor: 'pointer' }}>
+              Refresh
+            </button>
+            <button onClick={() => setShowImport(s => !s)} style={{ background: showImport ? 'transparent' : '#C9A96E', color: showImport ? '#C9A96E' : '#142D48', border: showImport ? '1px solid rgba(201,169,110,0.4)' : 'none', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', borderRadius: 4, padding: '6px 14px', cursor: 'pointer' }}>
+              {showImport ? 'Hide Importer' : 'Import PropHog CSV'}
+            </button>
+          </div>
+        </div>
+
+        {recentJobs.length === 0 ? (
+          <p style={{ color: '#6B8299', fontSize: 12, padding: '16px 18px', margin: 0 }}>
+            No imports yet. Click <strong style={{ color: '#C9A96E' }}>Import PropHog CSV</strong> to bring leads in.
+          </p>
+        ) : (
+          <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+            {recentJobs.map(j => {
+              const pct = j.totalRows > 0 ? Math.round((j.importedCount / j.totalRows) * 100) : 0
+              const sc = j.status === 'COMPLETE' ? '#4ade80'
+                : j.status === 'RUNNING' ? '#C9A96E'
+                : j.status === 'PAUSED' ? '#f59e0b'
+                : j.status === 'FAILED' ? '#f87171' : '#6B8299'
+              return (
+                <div key={j.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 18px', borderBottom: '1px solid rgba(255,255,255,0.03)', fontSize: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ color: '#ffffff', margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{j.fileName}</p>
+                    <p style={{ color: '#6B8299', fontSize: 10, margin: 0 }}>
+                      {new Date(j.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                      {j.skippedCount > 0 ? ` · ${j.skippedCount} skipped` : ''}
+                      {j.errorCount > 0 ? ` · ${j.errorCount} errors` : ''}
+                    </p>
+                  </div>
+                  <span style={{ color: '#9BB0C4', fontSize: 11, whiteSpace: 'nowrap' }}>
+                    {j.importedCount} / {j.totalRows}
+                  </span>
+                  <span style={{ color: sc, border: `1px solid ${sc}55`, background: `${sc}14`, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '2px 7px', borderRadius: 3, whiteSpace: 'nowrap' }}>
+                    {j.status === 'RUNNING' ? `${pct}%` : j.status}
+                  </span>
+                  {j.status !== 'COMPLETE' && j.importedCount < j.totalRows && (
+                    <button
+                      onClick={() => resumeJob(j.id)}
+                      disabled={resumingId !== null}
+                      title="Continue this import from where it stopped"
+                      style={{
+                        background: 'none', border: '1px solid rgba(201,169,110,0.4)', color: '#C9A96E',
+                        fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+                        borderRadius: 3, padding: '3px 9px', cursor: resumingId !== null ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {resumingId === j.id ? 'Resuming…' : 'Resume'}
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {showImport && (
+          <div style={{ padding: '20px 18px', borderTop: '1px solid rgba(201,169,110,0.1)' }}>
+            <ImportWizard embedded onComplete={() => { loadContacts(); loadRecentJobs() }} />
+          </div>
+        )}
       </div>
 
       {sentCount !== null && (

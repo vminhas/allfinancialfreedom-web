@@ -131,6 +131,7 @@ model ImportJob {
   contextPrompt   String?
   wornOutStrategy String?   // "flag_column" | "manual" | "none"
   createdAt       DateTime  @default(now())
+  startedAt       DateTime?
   completedAt     DateTime?
   contacts        Contact[]
 
