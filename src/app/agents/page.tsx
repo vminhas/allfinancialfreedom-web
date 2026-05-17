@@ -4181,6 +4181,7 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
                       {/* Business Partner lane: CEO intro + stage advance */}
                       {view === 'business_partners' && (
                         <>
+                          <button onClick={() => classifyOne(p.id, 'fta_contact')} title="Misclassified? Move this contact to FTA Contacts" style={{ background: 'rgba(96,165,250,0.12)', border: '1px solid rgba(96,165,250,0.35)', color: '#60A5FA', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: 'pointer', marginRight: 6 }}>&rarr; FTA</button>
                           {p.introSentAt ? (
                             <span style={{ fontSize: 9, color: '#4ade80', marginRight: 8, fontWeight: 700 }} title={`Sent ${new Date(p.introSentAt).toLocaleDateString()}`}>&check; INTRO</span>
                           ) : (
@@ -4197,6 +4198,7 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
                       {/* FTA lane: stage advance */}
                       {view === 'fta' && (
                         <>
+                          <button onClick={() => classifyOne(p.id, 'business_partner')} title="Misclassified? Move this contact to Business Partners" style={{ background: 'rgba(155,109,255,0.12)', border: '1px solid rgba(155,109,255,0.35)', color: '#9B6DFF', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: 'pointer', marginRight: 6 }}>&rarr; BP</button>
                           {p.status === 'NEW' && (
                             <button onClick={() => advanceOne(p.id, 'CONTACTED')} title="Mark as Contacted" style={{ background: 'rgba(201,169,110,0.12)', border: '1px solid rgba(201,169,110,0.3)', color: '#C9A96E', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: 'pointer', marginRight: 6 }}>CONTACTED</button>
                           )}
