@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
             // "Field Training 2").
             ftas: {
               where: { status: 'COMPLETED' },
-              orderBy: { completedAt: 'asc' },
+              orderBy: [{ completedAt: 'asc' }, { id: 'asc' }],
               select: {
                 id: true,
                 name: true,
@@ -256,7 +256,7 @@ function findAgentUser(agentUserId: string) {
           _count: { select: { businessPartners: true, callLogs: true } },
           ftas: {
             where: { status: 'COMPLETED' },
-            orderBy: { completedAt: 'asc' },
+            orderBy: [{ completedAt: 'asc' }, { id: 'asc' }],
             select: {
               id: true,
               name: true,
