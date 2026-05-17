@@ -4167,7 +4167,13 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
                       <td style={tdStyle}>
                         <select
                           value={p.status}
-                          onChange={e => advanceOne(p.id, e.target.value)}
+                          onChange={e => {
+                            if (e.target.value === 'BOOKED' && p.category === 'fta_contact') {
+                              setScheduleFtaPartner(p); setScheduleFtaDate(''); e.target.value = p.status
+                            } else {
+                              advanceOne(p.id, e.target.value)
+                            }
+                          }}
                           title="Change stage"
                           style={{
                             appearance: 'none',
@@ -4222,7 +4228,9 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
                             <button onClick={() => { setIntroModalPartner(p); setIntroNote(''); setIntroError(null) }} disabled={!p.email} title={p.email ? 'Have Vick send a warm intro' : 'Add an email first'} style={{ background: 'rgba(201,169,110,0.12)', border: '1px solid rgba(201,169,110,0.3)', color: p.email ? '#C9A96E' : '#4B5563', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: p.email ? 'pointer' : 'not-allowed', marginRight: 6 }}>CEO INTRO</button>
                           )}
                           {p.status !== 'BOOKED' && p.status !== 'CONVERTED' && (
-                            <button onClick={() => advanceOne(p.id, 'BOOKED')} title="Mark as Booked" style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.35)', color: '#F59E0B', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: 'pointer', marginRight: 6 }}>BOOKED</button>
+                            p.category === 'fta_contact'
+                              ? <button onClick={() => { setScheduleFtaPartner(p); setScheduleFtaDate('') }} title="Schedule an FTA with this contact" style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.35)', color: '#F59E0B', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: 'pointer', marginRight: 6 }}>SCHEDULE FTA</button>
+                              : <button onClick={() => advanceOne(p.id, 'BOOKED')} title="Mark as Booked" style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.35)', color: '#F59E0B', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: 'pointer', marginRight: 6 }}>BOOKED</button>
                           )}
                           {p.status !== 'CONVERTED' && (
                             <button onClick={() => advanceOne(p.id, 'CONVERTED')} title="Mark as Converted (joined / closed)" style={{ background: 'rgba(74,222,128,0.12)', border: '1px solid rgba(74,222,128,0.35)', color: '#4ade80', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: 'pointer', marginRight: 6 }}>CONVERTED</button>
