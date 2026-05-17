@@ -30,9 +30,9 @@ export async function GET() {
     adminIds.size
       ? db.adminUser.findMany({
           where: { id: { in: [...adminIds] } },
-          select: { id: true, name: true, avatarUrl: true } as Record<string, boolean>,
-        }).catch(() => [] as { id: string; name: string; avatarUrl?: string | null }[])
-      : Promise.resolve([] as { id: string; name: string; avatarUrl?: string | null }[]),
+          select: { id: true, name: true, avatarUrl: true },
+        })
+      : Promise.resolve([] as { id: string; name: string; avatarUrl: string | null }[]),
     agentIds.size
       ? db.agentProfile.findMany({
           where: { id: { in: [...agentIds] } },
@@ -47,7 +47,7 @@ export async function GET() {
   const resolved = links.map(l => {
     if (l.personType === 'admin' && l.personId) {
       const a = adminMap.get(l.personId)
-      if (a) return { ...l, name: a.name, avatarUrl: (a as { avatarUrl?: string | null }).avatarUrl ?? l.avatarUrl }
+      if (a) return { ...l, name: a.name, avatarUrl: a.avatarUrl ?? l.avatarUrl }
     }
     if (l.personType === 'agent' && l.personId) {
       const a = agentMap.get(l.personId)
