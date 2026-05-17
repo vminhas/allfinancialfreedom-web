@@ -22,6 +22,7 @@ export async function GET() {
       agentCode: true,
       firstName: true,
       lastName: true,
+      preferredName: true,
       avatarUrl: true,
       phase: true,
       state: true,
@@ -41,6 +42,7 @@ export async function GET() {
       agentCode: a.agentCode,
       firstName: a.firstName,
       lastName: a.lastName,
+      preferredName: a.preferredName,
       avatarUrl: a.avatarUrl,
       phase: a.phase,
       title: resolveAgentTitle({

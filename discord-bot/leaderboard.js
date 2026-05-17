@@ -1,6 +1,6 @@
 // Monthly leaderboard post for #leaderboard channel.
 // Fetches from /api/admin/leaderboard/discord-snapshot and posts a single embed
-// with 4 tab buttons: Recruits | Production | Promotions | Phase Movers.
+// with 4 tab buttons: Builders | Production | Promotions | Phase Movers.
 //
 // The message edits in place each day. Button interactions are handled by
 // the Vercel interactions endpoint (/api/discord/interactions), not this bot.
@@ -70,14 +70,14 @@ function buildEmbeds(data) {
     .setFooter({ text: `Updated ${updatedAt} ET · allfinancialfreedom.com/agents/leaderboard` });
 
   // Recruits
-  const recLines = recruits.map((r, i) => rankLine(i, nameFor(r), r.value, 'recruit')).join('\n');
+  const recLines = recruits.map((r, i) => rankLine(i, nameFor(r), r.value, 'business partner')).join('\n');
   const recruitSummary = totalRecruits > 0
-    ? `**${totalRecruits}** recruit${totalRecruits !== 1 ? 's' : ''} · ${activeRecruiters} recruiter${activeRecruiters !== 1 ? 's' : ''}`
+    ? `**${totalRecruits}** new business partner${totalRecruits !== 1 ? 's' : ''} · ${activeRecruiters} builder${activeRecruiters !== 1 ? 's' : ''}`
     : null;
   const recruitEmbed = new EmbedBuilder()
     .setColor(COLORS.NAVY)
-    .setTitle(`🤝  Top Recruiters · ${monthLabel}`)
-    .setDescription((recruitSummary ? `${recruitSummary}\n\n` : '') + (recLines || '_No new recruits this month._'))
+    .setTitle(`🤝  Top Builders · ${monthLabel}`)
+    .setDescription((recruitSummary ? `${recruitSummary}\n\n` : '') + (recLines || '_No new business partners this month._'))
     .setFooter({ text: `Updated ${updatedAt} ET · allfinancialfreedom.com/agents/leaderboard` });
 
   // Phase movers
@@ -150,7 +150,7 @@ function buildEmbeds(data) {
 function buildButtons(activeView) {
   const row = new ActionRowBuilder();
   row.addComponents(
-    new ButtonBuilder().setCustomId('lb_recruits').setLabel('🤝 Recruits')
+    new ButtonBuilder().setCustomId('lb_recruits').setLabel('🤝 Builders')
       .setStyle(activeView === 'recruits' ? ButtonStyle.Primary : ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('lb_production').setLabel('🏆 Production')
       .setStyle(activeView === 'production' ? ButtonStyle.Primary : ButtonStyle.Secondary),

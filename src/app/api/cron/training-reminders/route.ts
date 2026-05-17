@@ -86,10 +86,19 @@ export async function GET(req: NextRequest) {
         fields.push({ name: 'Tags', value: tagBits.join(' · '), inline: false })
       }
 
+      // Direct download link for the flyer. Only use the Blob CDN URL,
+      // never the Drive thumbnail (which is a small preview). Agents
+      // can long-press the embedded image on mobile, but a labeled
+      // link is the discoverable path for desktop + screenshot sharing.
+      const downloadFlyerLine = ev.flyerImageUrl
+        ? `📥 [Download flyer](${ev.flyerImageUrl})`
+        : null
+
       const description = [
         `**Starting in ${minutesAway} minutes**`,
         ev.subtitle,
         ev.category && `_${ev.category}_`,
+        downloadFlyerLine,
       ].filter(Boolean).join('\n')
 
       // Restricted audiences: drop @everyone ping, just post the embed

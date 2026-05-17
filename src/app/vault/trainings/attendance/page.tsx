@@ -27,6 +27,7 @@ interface AttendanceRow {
   agentCode: string
   firstName: string
   lastName: string
+  preferredName?: string | null
   cft: string | null
   phase: number
   avatarUrl: string | null
@@ -34,6 +35,9 @@ interface AttendanceRow {
   icaDate: string | null
   daysInCompany: number | null
   attendancePct: number | null
+  reportsTo?: string | null
+  excluded?: boolean
+  excludedReason?: string | null
   cells: AttendanceCell[]
 }
 
@@ -161,6 +165,8 @@ export default function AttendancePage() {
   const [publishMsg, setPublishMsg] = useState<{ ok: boolean; text: string } | null>(null)
   // Clicked agent name -> trading card modal.
   const [cardCode, setCardCode] = useState<string | null>(null)
+  // Agent whose "reports to / trainer / phase" hover card is showing.
+  const [hoverAgentId, setHoverAgentId] = useState<string | null>(null)
   const [popover, setPopover] = useState<{
     rowIdx: number
     colIdx: number
@@ -295,6 +301,26 @@ export default function AttendancePage() {
     const d = await res.json() as { orphans: OrphanRow[]; agents: AgentPicker[] }
     setOrphans(d.orphans)
     setOrphanAgents(d.agents)
+  }
+
+  // Add/remove an agent from the permanent do-not-track list, then
+  // reload the grid so their row flips red (or back) immediately.
+  const toggleExclusion = async (row: AttendanceRow) => {
+    if (row.excluded) {
+      await fetch(`/api/admin/attendance/exclusions?agentProfileId=${encodeURIComponent(row.agentProfileId)}`, { method: 'DELETE' })
+    } else {
+      const reason = window.prompt(
+        `Stop tracking ${row.firstName} ${row.lastName}'s attendance permanently? They'll show red on every training. Optional reason:`,
+        '',
+      )
+      if (reason === null) return  // cancelled
+      await fetch('/api/admin/attendance/exclusions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentProfileId: row.agentProfileId, reason: reason || undefined }),
+      })
+    }
+    await load()
   }
 
   useEffect(() => { load() }, [from, to])
@@ -741,7 +767,11 @@ export default function AttendancePage() {
                     {row.daysInCompany ?? '—'}
                   </td>
                   <td style={{ ...tdStyle, position: 'sticky', left: 78, zIndex: 2, background: '#0C1E30' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}
+                      onMouseEnter={() => setHoverAgentId(row.agentProfileId)}
+                      onMouseLeave={() => setHoverAgentId(null)}
+                    >
                       <span style={{
                         width: 22, height: 22, borderRadius: '50%',
                         background: row.avatarUrl ? `url(${row.avatarUrl}) center/cover` : 'rgba(201,169,110,0.15)',
@@ -754,19 +784,63 @@ export default function AttendancePage() {
                       <div style={{ minWidth: 0 }}>
                         <div
                           onClick={() => setCardCode(row.agentCode)}
-                          title="Open trading card · call · text · email"
                           style={{
-                            color: '#fff', fontWeight: 500, fontSize: 12, lineHeight: 1.2,
+                            color: row.excluded ? '#f87171' : '#fff', fontWeight: 500, fontSize: 12, lineHeight: 1.2,
                             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                             cursor: 'pointer',
                           }}
                         >
-                          {row.firstName} {row.lastName}
+                          {row.preferredName?.trim() || row.firstName} {row.lastName}
+                          {row.excluded && (
+                            <span style={{
+                              marginLeft: 6, fontSize: 8, fontWeight: 700, letterSpacing: '0.1em',
+                              textTransform: 'uppercase', color: '#f87171',
+                              background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.35)',
+                              borderRadius: 3, padding: '1px 5px',
+                            }}>Not tracking</span>
+                          )}
                         </div>
                         <div style={{ fontSize: 9, color: '#6B8299', letterSpacing: '0.04em' }}>
                           {row.agentCode}{row.cft ? ` · ${row.cft}` : ''}
                         </div>
                       </div>
+
+                      {hoverAgentId === row.agentProfileId && (
+                        <div style={{
+                          position: 'absolute', top: '100%', left: 26, zIndex: 30,
+                          marginTop: 4, minWidth: 230,
+                          background: '#132238', border: '1px solid rgba(201,169,110,0.35)',
+                          borderRadius: 6, padding: '10px 12px',
+                          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                        }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#fff', marginBottom: 6 }}>
+                            {row.preferredName?.trim() || row.firstName} {row.lastName}
+                          </div>
+                          <div style={{ fontSize: 11, color: '#9BB0C4', lineHeight: 1.7 }}>
+                            <div><span style={{ color: '#6B8299' }}>Reports to:</span> {row.reportsTo ?? '—'}</div>
+                            <div><span style={{ color: '#6B8299' }}>Trainer:</span> {row.cft ?? '—'}</div>
+                            <div><span style={{ color: '#6B8299' }}>Phase:</span> {row.phase}</div>
+                            {row.excluded && row.excludedReason && (
+                              <div style={{ color: '#f87171', marginTop: 2 }}>
+                                <span style={{ color: '#6B8299' }}>Not tracking:</span> {row.excludedReason}
+                              </div>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => toggleExclusion(row)}
+                            style={{
+                              marginTop: 8, width: '100%',
+                              background: row.excluded ? 'rgba(74,222,128,0.10)' : 'rgba(248,113,113,0.10)',
+                              border: `1px solid ${row.excluded ? 'rgba(74,222,128,0.4)' : 'rgba(248,113,113,0.4)'}`,
+                              color: row.excluded ? '#4ADE80' : '#f87171',
+                              borderRadius: 4, padding: '6px', fontSize: 9, fontWeight: 700,
+                              letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer',
+                            }}
+                          >
+                            {row.excluded ? 'Resume tracking' : 'Stop tracking permanently'}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'center', color: row.attendancePct == null ? '#4B5563' : row.attendancePct >= 80 ? '#4ade80' : row.attendancePct >= 50 ? '#FBBF24' : '#f87171', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
@@ -814,6 +888,19 @@ export default function AttendancePage() {
                               position: 'absolute', top: 1, right: 2,
                               fontSize: 8, color: meta.fg, fontWeight: 700,
                             }}>•</span>
+                          )}
+                          {cell.manualNote && (
+                            // Note indicator: a small folded-corner
+                            // triangle in the bottom-left, distinct
+                            // from the manual-override dot. Hover the
+                            // cell to read the note (title attribute).
+                            <span style={{
+                              position: 'absolute', bottom: 0, left: 0,
+                              width: 0, height: 0,
+                              borderBottom: `7px solid ${meta.fg}`,
+                              borderRight: '7px solid transparent',
+                              opacity: 0.85,
+                            }} />
                           )}
                         </button>
                       </td>

@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import { useIsMobile } from '@/lib/useIsMobile'
 import ProductionLeaderboard from './ProductionLeaderboard'
 import { PHASE_COLORS } from '@/lib/phase-colors'
+import { displayFullName } from '@/lib/display-name'
 import { LeaderboardTabsBar, useTabFromHash } from './LeaderboardTabs'
 
 // Agent-facing leaderboard. Same matrix-style visualization the admin
@@ -21,6 +22,7 @@ interface Agent {
   agentCode: string
   firstName: string
   lastName: string
+  preferredName: string | null
   phase: number
   avatarUrl: string | null
 }
@@ -449,7 +451,7 @@ function Matrix({
                 <Avatar firstName={agent.firstName} lastName={agent.lastName} avatarUrl={agent.avatarUrl} size={22} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 12, color: '#ffffff', fontWeight: isYou ? 700 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.15 }}>
-                    {agent.firstName} {agent.lastName}
+                    {displayFullName(agent)}
                     {isYou && (
                       <span style={{ marginLeft: 6, fontSize: 8, color: '#C9A96E', padding: '1px 6px', background: 'rgba(201,169,110,0.18)', border: '1px solid rgba(201,169,110,0.4)', borderRadius: 3, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.1em' }}>You</span>
                     )}
@@ -487,7 +489,7 @@ function Matrix({
                           borderLeft: idx === 0 ? `2px solid ${PHASE_COLORS[ph]}` : '1px solid rgba(255,255,255,0.04)',
                           transition: 'background 0.1s',
                         }}
-                        title={`${agent.firstName} ${agent.lastName} · ${it.label} · ${done ? 'Completed' : 'Not yet'}${done ? ` (${new Date(completedAt[`${agent.id}:${it.itemKey}`]).toLocaleDateString()})` : ''}`}
+                        title={`${displayFullName(agent)} · ${it.label} · ${done ? 'Completed' : 'Not yet'}${done ? ` (${new Date(completedAt[`${agent.id}:${it.itemKey}`]).toLocaleDateString()})` : ''}`}
                       >
                         <div style={{
                           width: '100%', height: '100%',
@@ -548,7 +550,7 @@ function MobileList({
             <Avatar firstName={agent.firstName} lastName={agent.lastName} avatarUrl={agent.avatarUrl} size={32} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 13, color: '#ffffff', fontWeight: isYou ? 700 : 600 }}>{agent.firstName} {agent.lastName}</span>
+                <span style={{ fontSize: 13, color: '#ffffff', fontWeight: isYou ? 700 : 600 }}>{displayFullName(agent)}</span>
                 {isYou && (
                   <span style={{ fontSize: 8, color: '#C9A96E', padding: '1px 6px', background: 'rgba(201,169,110,0.18)', border: '1px solid rgba(201,169,110,0.4)', borderRadius: 3, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.1em' }}>You</span>
                 )}

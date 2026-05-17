@@ -50,7 +50,7 @@ export const PHASE_GROUPS: Record<number, PhaseGroupDef[]> = {
     { key: 'step3', label: 'Step 3: Prepare for Field Training', icon: 'Target', description: 'Finish onboarding, master your scripts, and schedule your first 10 appointments.', showTrainer: true },
   ],
   2: [
-    { key: 'recruits', label: 'Recruit & Onboard', icon: 'UserPlus', description: 'Recruit and onboard your first 3 direct agents.' },
+    { key: 'recruits', label: 'Business Partner', icon: 'UserPlus', description: 'Expand your agency with your first 3 business partners.' },
     { key: 'fta', label: 'Field Training Appointments', icon: 'Target', description: 'Complete 10 live appointments with your CFT trainer.', showTrainer: true },
     { key: 'clients', label: 'Client Milestones', icon: 'Users', description: 'Help your first 3 clients and earn your first $1,000.' },
     { key: 'milestones', label: 'Promotions & Recognition', icon: 'TrendingUp', description: 'Earn your Senior Associate Promotion and Net License.' },
@@ -130,15 +130,15 @@ export const PHASE_ITEMS: Record<number, PhaseItemDef[]> = {
       action: { type: 'inline-form', modal: 'fta-schedule', label: 'Schedule appointments' } },
   ],
   2: [
-    // Recruit & Onboard
-    { key: 'direct_1', label: 'Recruit & Onboard Your 1st Agent', group: 'recruits',
-      description: 'Sponsor and onboard your first direct agent. Someone you personally recruited who has joined AFF. Building your team starts here.',
+    // Business Partner
+    { key: 'direct_1', label: '1st Business Partner', group: 'recruits',
+      description: 'Sponsor and onboard your first business partner. Someone you personally recruited who has joined AFF. Building your agency starts here.',
       action: { type: 'claim-recruit', label: 'Pick recruit' } },
-    { key: 'direct_2', label: 'Recruit & Onboard Your 2nd Agent', group: 'recruits',
-      description: 'Sponsor and onboard your second direct agent on your team.',
+    { key: 'direct_2', label: '2nd Business Partner', group: 'recruits',
+      description: 'Sponsor and onboard your second business partner on your team.',
       action: { type: 'claim-recruit', label: 'Pick recruit' } },
-    { key: 'direct_3', label: 'Recruit & Onboard Your 3rd Agent', group: 'recruits',
-      description: 'Sponsor and onboard your third direct agent. Three actives is the foundation of a growing agency.',
+    { key: 'direct_3', label: '3rd Business Partner', group: 'recruits',
+      description: 'Sponsor and onboard your third business partner. Three actives is the foundation of a growing agency.',
       action: { type: 'claim-recruit', label: 'Pick recruit' } },
 
     // Field Training Appointments
@@ -389,9 +389,10 @@ export const DISCORD_BOT_TOKEN_KEY = 'DISCORD_BOT_TOKEN'
 // coordinator. Surfaced alongside the "Message LC" button on every phase
 // item that needs LC interaction so the agent can either fire off a
 // quick async request or drop a synchronous appointment on the LC's
-// calendar. If the LC ever changes calendars, edit here (or move to
-// /vault/settings later if it needs to be runtime-configurable).
-export const LC_CALENDAR_URL = 'https://calendar.app.google/fSVryPX8wezQetsV6'
+// calendar. This is the built-in default/fallback: admins can override
+// it at runtime in /vault/settings (Setting key `LC_CALENDAR_URL`),
+// which is what the agent portal actually renders when set.
+export const LC_CALENDAR_URL = 'https://links.allfinancialfreedom.com/widget/booking/qT7hrY6pkxTGKmhPvsDe'
 
 export const CARRIERS = [
   'ANICO Life',

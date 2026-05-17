@@ -104,7 +104,7 @@ export default function ContestsAdminPage() {
     setRequirements([
       { order: 0, label: 'Get GFI Code',                 type: 'MANUAL',     phaseItemKey: null, milestoneKey: null, count: null },
       { order: 1, label: 'Complete Digital PFR',         type: 'PHASE_ITEM', phaseItemKey: 'pfr', milestoneKey: null, count: null },
-      { order: 2, label: '3 Recruits',                   type: 'RECRUITS',   phaseItemKey: null, milestoneKey: null, count: 3 },
+      { order: 2, label: '3 Builders',                   type: 'RECRUITS',   phaseItemKey: null, milestoneKey: null, count: 3 },
       { order: 3, label: '3 Policies',                   type: 'POLICIES',   phaseItemKey: null, milestoneKey: null, count: 3 },
       { order: 4, label: 'Pass Life License',            type: 'PHASE_ITEM', phaseItemKey: 'pass_license_test', milestoneKey: null, count: null },
       { order: 5, label: 'Make 1st $1,000 (Net Licensed)', type: 'MILESTONE', phaseItemKey: null, milestoneKey: 'first_1000', count: null },

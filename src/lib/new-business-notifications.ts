@@ -105,6 +105,7 @@ interface IssuedArgs {
   agentName: string
   agentFirstName: string
   agentLastName: string
+  agentPreferredName?: string | null
   agentCode: string
   agentAvatarUrl: string | null
   clientName: string
@@ -144,6 +145,7 @@ export async function notifyIssued(args: IssuedArgs): Promise<void> {
     protagonist: {
       firstName: args.agentFirstName,
       lastName: args.agentLastName,
+      preferredName: args.agentPreferredName,
       agentCode: args.agentCode,
       avatarUrl: args.agentAvatarUrl,
     },

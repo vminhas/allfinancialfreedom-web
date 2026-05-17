@@ -106,6 +106,42 @@ export async function assignPhase1StepRole(
 }
 
 /**
+ * Add the user to the AFF Discord guild using their OAuth access token.
+ *
+ * Requires the OAuth flow to have requested the `guilds.join` scope and
+ * the bot to hold CREATE_INSTANT_INVITE permission in the guild. Discord
+ * returns 201 when the user is newly added and 204 when they were
+ * already a member, so both count as success. Discord refuses to add
+ * accounts without a verified email/phone (returns 4xx): the caller
+ * treats that as a soft failure and falls back to a manual invite.
+ */
+export async function addDiscordGuildMember(
+  discordUserId: string,
+  accessToken: string
+): Promise<boolean> {
+  const creds = getCredentials()
+  if (!creds) return false
+
+  try {
+    const res = await fetch(
+      `https://discord.com/api/v10/guilds/${creds.guildId}/members/${discordUserId}`,
+      {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bot ${creds.botToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ access_token: accessToken }),
+      }
+    )
+    return res.ok || res.status === 204
+  } catch (err) {
+    console.error('[discord-roles] Failed to add guild member:', err)
+    return false
+  }
+}
+
+/**
  * Assign an arbitrary Discord role to a guild member.
  */
 export async function assignDiscordRole(

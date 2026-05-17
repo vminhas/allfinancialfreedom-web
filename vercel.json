@@ -52,6 +52,18 @@
     {
       "path": "/api/cron/tevah-sync",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/daily-motivation",
+      "schedule": "0 13 * * 1-5"
+    },
+    {
+      "path": "/api/cron/onboarding-watch",
+      "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/cron/sync-ghl-team-tags",
+      "schedule": "0 16 * * *"
     }
   ]
 }

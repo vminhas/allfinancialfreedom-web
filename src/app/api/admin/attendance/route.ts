@@ -62,13 +62,43 @@ export async function GET(req: NextRequest) {
       agentCode: true,
       firstName: true,
       lastName: true,
+      preferredName: true,
       icaDate: true,
       status: true,
       cft: true,
       phase: true,
       avatarUrl: true,
+      // recruiterId stores the recruiter's agentCode (per CLAUDE.md),
+      // resolved to a display name below for the hover card.
+      recruiterId: true,
     },
   })
+
+  // Resolve recruiter display names in one batch (same pattern as the
+  // leaderboard route). Powers the "Reports to: X" hover card.
+  const recruiterCodes = Array.from(
+    new Set(agents.map(a => a.recruiterId).filter((c): c is string => !!c)),
+  )
+  const recruiters = recruiterCodes.length > 0
+    ? await db.agentProfile.findMany({
+        where: { agentCode: { in: recruiterCodes } },
+        select: { agentCode: true, firstName: true, lastName: true, preferredName: true },
+      })
+    : []
+  const recruiterByCode = new Map(
+    recruiters.map(r => [
+      r.agentCode,
+      `${(r.preferredName?.trim() || r.firstName)} ${r.lastName}`.trim(),
+    ]),
+  )
+
+  // Permanent do-not-track list. Agents on it render red across every
+  // training unless an explicit per-event manualStatus override says
+  // otherwise (so an unexpected reappearance can still be marked).
+  const exclusions = await db.trainingAttendanceExclusion.findMany({
+    select: { agentProfileId: true, reason: true },
+  })
+  const exclusionByAgent = new Map(exclusions.map(e => [e.agentProfileId, e.reason]))
 
   // Day-in-company computed from icaDate. Agents with no icaDate
   // sort to the bottom (no tenure stat to show).
@@ -108,13 +138,30 @@ export async function GET(req: NextRequest) {
   // to a computed status so the column doesn't render as blank
   // ABSENTs that we can't trust.
   const rows = agentsWithDay.map(a => {
+    const isExcluded = exclusionByAgent.has(a.id)
     const cells = events.map(ev => {
       const r = byEventAgent.get(`${ev.id}:${a.id}`)
       if (r) {
-        const effective = r.manualStatus ?? r.status
+        // An explicit manual override always wins, even for excluded
+        // agents (lets the admin mark a surprise reappearance present).
+        if (r.manualStatus) {
+          return {
+            status: r.manualStatus,
+            manual: true,
+            manualNote: r.manualNote,
+            durationSeconds: r.durationSeconds,
+            zoomDisplayName: r.zoomDisplayName,
+            synced: true,
+          }
+        }
+        // No manual override: excluded agents are red regardless of
+        // any Zoom-derived value.
+        if (isExcluded) {
+          return { status: 'NOT_TRACKING' as const, manual: false, manualNote: r.manualNote, synced: true }
+        }
         return {
-          status: effective,
-          manual: r.manualStatus ? true : false,
+          status: r.status,
+          manual: false,
           manualNote: r.manualNote,
           durationSeconds: r.durationSeconds,
           zoomDisplayName: r.zoomDisplayName,
@@ -122,7 +169,7 @@ export async function GET(req: NextRequest) {
         }
       }
       // No row yet for this agent/event pair -- compute defaults.
-      if (a.status === 'INACTIVE') {
+      if (isExcluded || a.status === 'INACTIVE') {
         return { status: 'NOT_TRACKING' as const, manual: false, synced: false }
       }
       if (a.icaDate && a.icaDate > ev.startsAt) {
@@ -146,6 +193,7 @@ export async function GET(req: NextRequest) {
       agentCode: a.agentCode,
       firstName: a.firstName,
       lastName: a.lastName,
+      preferredName: a.preferredName,
       cft: a.cft,
       phase: a.phase,
       avatarUrl: a.avatarUrl,
@@ -153,6 +201,9 @@ export async function GET(req: NextRequest) {
       icaDate: a.icaDate?.toISOString() ?? null,
       daysInCompany: a.daysInCompany,
       attendancePct: counted > 0 ? Math.round((present / counted) * 100) : null,
+      reportsTo: a.recruiterId ? (recruiterByCode.get(a.recruiterId) ?? null) : null,
+      excluded: isExcluded,
+      excludedReason: exclusionByAgent.get(a.id) ?? null,
       cells,
     }
   })

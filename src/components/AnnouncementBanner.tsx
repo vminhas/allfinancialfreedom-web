@@ -21,6 +21,7 @@
 
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
+import MarkdownDescription from './MarkdownDescription'
 
 interface Announcement {
   id: string; title: string; message: string; createdAt: string
@@ -161,12 +162,10 @@ export default function AnnouncementBanner() {
             >
               {activeModal.title}
             </h2>
-            <p style={{
-              fontSize: 14, color: '#C5D0DC', lineHeight: 1.6, margin: 0,
-              whiteSpace: 'pre-wrap',
-            }}>
-              {activeModal.message}
-            </p>
+            <MarkdownDescription
+              text={activeModal.message}
+              style={{ fontSize: 14, color: '#C5D0DC', lineHeight: 1.6 }}
+            />
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24 }}>
               <button
@@ -201,9 +200,10 @@ export default function AnnouncementBanner() {
               <div style={{ fontSize: 13, fontWeight: 700, color: '#C9A96E', marginBottom: 4, letterSpacing: '0.01em' }}>
                 {a.title}
               </div>
-              <div style={{ fontSize: 12, color: '#C5D0DC', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                {a.message}
-              </div>
+              <MarkdownDescription
+                text={a.message}
+                style={{ fontSize: 12, color: '#C5D0DC', lineHeight: 1.6 }}
+              />
             </div>
             <button
               onClick={() => dismiss(a.id)}

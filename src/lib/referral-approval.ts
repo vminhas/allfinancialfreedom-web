@@ -18,10 +18,15 @@ export interface ApprovalInput {
 
 export interface ApprovalResult {
   ok: boolean
-  status: 'APPROVED' | 'ERROR' | 'INVALID' | 'CONFLICT'
+  status: 'APPROVED' | 'LINKED' | 'ERROR' | 'INVALID' | 'CONFLICT'
   agentCode?: string
   profileId?: string
   emailSent?: boolean
+  // True when approval linked the referral to an agent that already
+  // existed in the system (ICA flow / earlier admin add) rather than
+  // creating a new one. UI uses this to suppress the "Welcome email
+  // is on its way" copy because the welcome already went out.
+  linkedExisting?: boolean
   error?: string
 }
 
@@ -39,9 +44,97 @@ export async function approveReferral(input: ApprovalInput): Promise<ApprovalRes
     return { ok: false, status: 'CONFLICT', error: `Already processed (${referral.status})` }
   }
 
-  const existingUser = await db.agentUser.findUnique({ where: { email: referral.email } })
+  const referringAgent = await db.agentProfile.findUnique({
+    where: { id: referral.referringAgentId },
+    select: {
+      agentCode: true,
+      firstName: true,
+      lastName: true,
+      preferredName: true,
+      avatarUrl: true,
+      discordUserId: true,
+    },
+  })
+
+  // Already-in-the-system case. Happens when the recruit landed in our
+  // database through a different path (ICA submission auto-approved,
+  // admin "add agent" form, etc.) AFTER the referral row was created
+  // here. We don't want approval to be a dead-end — link the referral
+  // to the existing agent so the recruiter gets downline credit and
+  // the row stops blocking the queue.
+  const existingUser = await db.agentUser.findUnique({
+    where: { email: referral.email },
+    include: { profile: { select: { id: true, agentCode: true, recruiterId: true } } },
+  })
   if (existingUser) {
-    return { ok: false, status: 'CONFLICT', error: 'An agent with this email already exists' }
+    if (!existingUser.profile) {
+      return {
+        ok: false,
+        status: 'ERROR',
+        error: 'An AgentUser already exists for this email but has no profile. Reconcile manually before approving.',
+      }
+    }
+
+    // Credit the recruiter on the existing profile if and only if it
+    // has no recruiter yet. We don't overwrite a different recruiter
+    // silently — that should be a deliberate admin reassignment via
+    // the org tree, not a side-effect of approving a referral.
+    const recruiterAlreadySet =
+      existingUser.profile.recruiterId && existingUser.profile.recruiterId !== referringAgent?.agentCode
+    if (!existingUser.profile.recruiterId && referringAgent?.agentCode) {
+      await db.agentProfile.update({
+        where: { id: existingUser.profile.id },
+        data: { recruiterId: referringAgent.agentCode },
+      })
+    }
+
+    await db.agentReferral.update({
+      where: { id: input.referralId },
+      data: {
+        status: 'APPROVED',
+        approvedAt: new Date(),
+        approvedById: input.approvedById,
+        createdAgentId: existingUser.profile.id,
+      },
+    })
+
+    // Admin-channel audit note. Public NEW_RECRUIT celebration is
+    // skipped intentionally — the agent already exists, the team
+    // doesn't need to be told "welcome" again.
+    if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_ADMIN_CHANNEL_ID) {
+      try {
+        const { sendChannelMessage } = await import('./discord')
+        const { displayFullName } = await import('./display-name')
+        const refName = referringAgent ? displayFullName(referringAgent) : null
+        const approverLabel = input.approvedByLabel ?? 'admin'
+        sendChannelMessage(process.env.DISCORD_ADMIN_CHANNEL_ID, {
+          embeds: [{
+            title: '🔗 Referral linked to existing agent',
+            description: [
+              `**${referral.firstName} ${referral.lastName}** was already in the system.`,
+              '',
+              `Linked to: \`${existingUser.profile.agentCode}\``,
+              recruiterAlreadySet
+                ? `Recruiter on file: \`${existingUser.profile.recruiterId}\` (not changed${refName ? `; referral from ${refName} also recorded` : ''})`
+                : refName ? `Recruiter credit: ${refName}` : '',
+              `Approved by: ${approverLabel}`,
+            ].filter(Boolean).join('\n'),
+            color: 0x60a5fa,
+            timestamp: new Date().toISOString(),
+            footer: { text: 'AFF Concierge · Approvals' },
+          }],
+        }).catch(() => {})
+      } catch { /* non-fatal */ }
+    }
+
+    return {
+      ok: true,
+      status: 'LINKED',
+      agentCode: existingUser.profile.agentCode,
+      profileId: existingUser.profile.id,
+      emailSent: false,
+      linkedExisting: true,
+    }
   }
 
   // Generate a unique agent code (collisions extremely rare given the alphabet
@@ -52,17 +145,6 @@ export async function approveReferral(input: ApprovalInput): Promise<ApprovalRes
     if (!exists) break
     agentCode = generateAgentCode()
   }
-
-  const referringAgent = await db.agentProfile.findUnique({
-    where: { id: referral.referringAgentId },
-    select: {
-      agentCode: true,
-      firstName: true,
-      lastName: true,
-      avatarUrl: true,
-      discordUserId: true,
-    },
-  })
 
   const inviteToken = randomUUID()
   const inviteExpires = new Date(Date.now() + 72 * 60 * 60 * 1000)
@@ -174,8 +256,9 @@ export async function approveReferral(input: ApprovalInput): Promise<ApprovalRes
     try {
       const { sendChannelMessage } = await import('./discord')
       const { buildAchievementEmbed } = await import('./discord-card')
+      const { displayFullName } = await import('./display-name')
       const announcementsChannel = process.env.DISCORD_ANNOUNCEMENTS_CHANNEL_ID ?? '1295044213590982724'
-      const refName = `${referringAgent.firstName} ${referringAgent.lastName}`
+      const refName = displayFullName(referringAgent)
       const recruitName = `${referral.firstName} ${referral.lastName}`
       const recruiterMention = referringAgent.discordUserId
         ? `<@${referringAgent.discordUserId}>`
@@ -185,18 +268,21 @@ export async function approveReferral(input: ApprovalInput): Promise<ApprovalRes
         protagonist: {
           firstName: referringAgent.firstName,
           lastName: referringAgent.lastName,
+          preferredName: referringAgent.preferredName,
           agentCode: referringAgent.agentCode,
           avatarUrl: referringAgent.avatarUrl,
         },
         subline: `Welcome **${recruitName}** to the AFF family.`,
         fields: [
-          { name: 'Recruit', value: recruitName, inline: true },
+          { name: 'New Business Partner', value: recruitName, inline: true },
           { name: 'State', value: referral.state ?? 'Not set', inline: true },
-          { name: 'Recruited by', value: `${refName} (\`${referringAgent.agentCode}\`)`, inline: false },
+          { name: 'Shared by', value: `${refName} (\`${referringAgent.agentCode}\`)`, inline: false },
         ],
       })
       sendChannelMessage(announcementsChannel, {
-        content: `${recruiterMention} brought a new agent to the team! Let's go!`,
+        // Selfless framing: name the recruiter's act (sharing the
+        // opportunity) and center the new person, not a hype "let's go."
+        content: `${recruiterMention} shared the opportunity with **${recruitName}**.`,
         embeds: [card],
       }).catch((err) => {
         console.error('[approveReferral] public announcement failed:', err)
@@ -214,9 +300,8 @@ export async function approveReferral(input: ApprovalInput): Promise<ApprovalRes
   if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_ADMIN_CHANNEL_ID) {
     try {
       const { sendChannelMessage } = await import('./discord')
-      const refName = referringAgent
-        ? `${referringAgent.firstName} ${referringAgent.lastName}`
-        : null
+      const { displayFullName } = await import('./display-name')
+      const refName = referringAgent ? displayFullName(referringAgent) : null
       const approverLabel = input.approvedByLabel ?? 'admin'
       sendChannelMessage(process.env.DISCORD_ADMIN_CHANNEL_ID, {
         embeds: [{

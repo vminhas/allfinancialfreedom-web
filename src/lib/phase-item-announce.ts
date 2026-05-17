@@ -62,7 +62,7 @@ export async function announcePhaseItemCompletion(args: {
 
   const profile = await db.agentProfile.findUnique({
     where: { id: args.agentProfileId },
-    select: { firstName: true, lastName: true, agentCode: true, avatarUrl: true },
+    select: { firstName: true, lastName: true, preferredName: true, agentCode: true, avatarUrl: true },
   })
   if (!profile) {
     console.warn(`[announcePhaseItemCompletion] no AgentProfile for id="${args.agentProfileId}"`)
@@ -75,7 +75,8 @@ export async function announcePhaseItemCompletion(args: {
   }
 
   const { sendChannelMessage } = await import('./discord')
-  const agentName = `${profile.firstName} ${profile.lastName}`.trim()
+  const { displayFullName } = await import('./display-name')
+  const agentName = displayFullName(profile)
   const activityChannel = process.env.DISCORD_AGENT_ACTIVITY_CHANNEL_ID ?? ACTIVITY_CHANNEL_FALLBACK
   const announcementsChannel = process.env.DISCORD_ANNOUNCEMENTS_CHANNEL_ID ?? ANNOUNCEMENTS_FALLBACK
   const adminUserId = process.env.DISCORD_ADMIN_USER_ID
@@ -123,6 +124,7 @@ export async function announcePhaseItemCompletion(args: {
             protagonist: {
               firstName: profile.firstName,
               lastName: profile.lastName,
+              preferredName: profile.preferredName,
               agentCode: profile.agentCode,
               avatarUrl: profile.avatarUrl,
             },

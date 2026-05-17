@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
 
   const profile = await db.agentProfile.findUnique({
     where: { id: agentProfileId },
-    select: { id: true, firstName: true, lastName: true, agentCode: true, avatarUrl: true, discordUserId: true },
+    select: { id: true, firstName: true, lastName: true, preferredName: true, agentCode: true, avatarUrl: true, discordUserId: true },
   })
   if (!profile) return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
 

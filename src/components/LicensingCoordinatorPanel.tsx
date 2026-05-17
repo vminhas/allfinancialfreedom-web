@@ -26,6 +26,9 @@ interface Props {
   items: PhaseItemDef[]
   phaseItems: PhaseItemState[]
   requests: CoordinatorRequest[]
+  // Admin-overridable LC booking link. Falls back to the constant when
+  // the caller doesn't supply it (e.g. rendered outside the portal).
+  calendarUrl?: string
   onRequestHelp: (itemKey: string) => void
 }
 
@@ -36,7 +39,8 @@ const STATUS_COLORS: Record<string, string> = {
   CLOSED: '#6B8299',
 }
 
-export default function LicensingCoordinatorPanel({ items, phaseItems, requests, onRequestHelp }: Props) {
+export default function LicensingCoordinatorPanel({ items, phaseItems, requests, calendarUrl, onRequestHelp }: Props) {
+  const calUrl = calendarUrl || LC_CALENDAR_URL
   const openCount = requests.filter(r => r.status === 'OPEN' || r.status === 'IN_PROGRESS').length
 
   return (
@@ -119,7 +123,7 @@ export default function LicensingCoordinatorPanel({ items, phaseItems, requests,
                     Message
                   </button>
                   <a
-                    href={LC_CALENDAR_URL}
+                    href={calUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     title="Schedule time on the licensing coordinator's calendar"
@@ -150,7 +154,7 @@ export default function LicensingCoordinatorPanel({ items, phaseItems, requests,
       }}>
         <span>Need a live walkthrough? Book a 1:1 with the coordinator.</span>
         <a
-          href={LC_CALENDAR_URL}
+          href={calUrl}
           target="_blank"
           rel="noopener noreferrer"
           style={{ color: '#60A5FA', textDecoration: 'none', fontWeight: 700, fontSize: 10 }}

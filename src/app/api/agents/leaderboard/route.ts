@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
     db.agentProfile.findMany({
       where: { status: 'ACTIVE', isTest: false },
       select: {
-        id: true, agentCode: true, firstName: true, lastName: true,
+        id: true, agentCode: true, firstName: true, lastName: true, preferredName: true,
         phase: true, avatarUrl: true,
       },
       orderBy: [{ phase: 'desc' }, { agentCode: 'asc' }],

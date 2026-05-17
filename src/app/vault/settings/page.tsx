@@ -109,6 +109,8 @@ export default function SettingsPage() {
   const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null)
   const [pipelineMsg, setPipelineMsg] = useState<string | null>(null)
   const [pipelineLoading, setPipelineLoading] = useState(false)
+  const [teamTagSyncing, setTeamTagSyncing] = useState(false)
+  const [teamTagMsg, setTeamTagMsg] = useState<string | null>(null)
   const [pipelines, setPipelines] = useState<{ id: string; name: string }[]>([])
   const [selectedPipelineId, setSelectedPipelineId] = useState('')
   const [syncingPipeline, setSyncingPipeline] = useState(false)
@@ -267,6 +269,12 @@ export default function SettingsPage() {
   const [opsSaving, setOpsSaving] = useState(false)
   const [opsSaved, setOpsSaved] = useState(false)
 
+  // Licensing Coordinator booking calendar — linked from the agent
+  // Phase 1 licensing checklist items and the licensing request modal.
+  const [lcFields, setLcFields] = useState({ LC_CALENDAR_URL: '' })
+  const [lcSaving, setLcSaving] = useState(false)
+  const [lcSaved, setLcSaved] = useState(false)
+
   // ── Booking Links (Trainers / Leadership / Support) ──────────────
   // Curated list shown on /agents/book. Edit-on-add pattern: we keep
   // the working array in state and replace the whole list on save.
@@ -294,6 +302,9 @@ export default function SettingsPage() {
     })
     fetch('/api/admin/operations-contact').then(r => r.json()).then(d => {
       if (d.settings) setOpsFields(f => ({ ...f, ...d.settings }))
+    })
+    fetch('/api/admin/licensing-coordinator').then(r => r.json()).then(d => {
+      if (d.settings) setLcFields(f => ({ ...f, ...d.settings }))
     })
     fetch('/api/admin/booking-links').then(r => r.json()).then(d => {
       if (Array.isArray(d.links)) setBookings(d.links as BookingLink[])
@@ -381,6 +392,19 @@ export default function SettingsPage() {
     setTimeout(() => setOpsSaved(false), 2000)
   }
 
+  async function handleSaveLc() {
+    setLcSaving(true)
+    setLcSaved(false)
+    await fetch('/api/admin/licensing-coordinator', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(lcFields),
+    })
+    setLcSaving(false)
+    setLcSaved(true)
+    setTimeout(() => setLcSaved(false), 2000)
+  }
+
   const set = (key: keyof typeof fields) => (v: string) => setFields(f => ({ ...f, [key]: v }))
 
   async function handleSave() {
@@ -440,6 +464,23 @@ export default function SettingsPage() {
       setPipelineMsg(`Error: ${data.error}`)
     }
     setPipelineLoading(false)
+  }
+
+  async function handleSyncTeamTags() {
+    setTeamTagSyncing(true)
+    setTeamTagMsg(null)
+    try {
+      const res = await fetch('/api/admin/agents/sync-ghl-team-tags', { method: 'POST' })
+      const d = await res.json() as { ok?: boolean; reason?: string; processed?: number; created?: number; tagged?: number; already?: number; failed?: number }
+      if (d.ok === false) {
+        setTeamTagMsg(`Error: ${d.reason ?? 'sync failed'}`)
+      } else {
+        setTeamTagMsg(`Done · ${d.processed ?? 0} agents · ${d.tagged ?? 0} newly tagged · ${d.created ?? 0} contacts created · ${d.already ?? 0} already tagged · ${d.failed ?? 0} failed`)
+      }
+    } catch {
+      setTeamTagMsg('Error: request failed')
+    }
+    setTeamTagSyncing(false)
   }
 
   async function handleLoadPipelines() {
@@ -633,6 +674,29 @@ export default function SettingsPage() {
               marginTop: 16,
             }}>
               {opsSaving ? 'Saving...' : opsSaved ? 'Saved ✓' : 'Save'}
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Licensing Coordinator calendar — linked from the agent
+          Phase 1 licensing checklist + licensing request modal */}
+      {card(
+        <>
+          {cardHeader('Licensing Coordinator Calendar')}
+          <div style={{ padding: '28px' }}>
+            <p style={{ color: '#6B8299', fontSize: 12, margin: '0 0 24px', lineHeight: 1.6 }}>
+              The booking link agents use to schedule time with the Licensing Coordinator. It appears on every licensing-related Phase 1 checklist item and in the licensing request modal. Leave blank to use the built-in default.
+            </p>
+            <Field label="Booking / Calendar URL" name="LC_CALENDAR_URL" value={lcFields.LC_CALENDAR_URL} onChange={(v) => setLcFields(f => ({ ...f, LC_CALENDAR_URL: v }))} placeholder="https://links.allfinancialfreedom.com/widget/booking/..." />
+
+            <button onClick={handleSaveLc} disabled={lcSaving} style={{
+              padding: '10px 24px', background: '#C9A96E', color: '#142D48', border: 'none',
+              borderRadius: 4, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em',
+              textTransform: 'uppercase', cursor: lcSaving ? 'not-allowed' : 'pointer',
+              marginTop: 16,
+            }}>
+              {lcSaving ? 'Saving...' : lcSaved ? 'Saved ✓' : 'Save'}
             </button>
           </div>
         </>
@@ -875,6 +939,30 @@ export default function SettingsPage() {
             {pipelineMsg && (
               <p style={{ marginTop: 4, fontSize: 13, color: pipelineMsg.startsWith('Error') ? '#f87171' : '#4ade80' }}>
                 {pipelineMsg}
+              </p>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* GHL "AFF Team Member" tag sync */}
+      {card(
+        <>
+          {cardHeader('GHL Team Tag')}
+          <div style={{ padding: '28px' }}>
+            <p style={{ color: '#6B8299', fontSize: 13, lineHeight: 1.7, margin: '0 0 16px' }}>
+              Ensures every active agent&apos;s GHL contact carries the <strong style={{ color: '#9BB0C4' }}>AFF Team Member</strong> tag, so workflows can drop them out of recruiting drips once they&apos;re on the team. Applied automatically at invite and re-synced daily; run it here to backfill now. Safe to run repeatedly &middot; existing tags are kept.
+            </p>
+            <button onClick={handleSyncTeamTags} disabled={teamTagSyncing} style={{
+              padding: '10px 24px', background: '#C9A96E', color: '#142D48', border: 'none',
+              borderRadius: 4, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em',
+              textTransform: 'uppercase', cursor: teamTagSyncing ? 'not-allowed' : 'pointer',
+            }}>
+              {teamTagSyncing ? 'Syncing…' : 'Sync AFF Team tags now'}
+            </button>
+            {teamTagMsg && (
+              <p style={{ marginTop: 12, fontSize: 13, color: teamTagMsg.startsWith('Error') ? '#f87171' : '#4ade80' }}>
+                {teamTagMsg}
               </p>
             )}
           </div>

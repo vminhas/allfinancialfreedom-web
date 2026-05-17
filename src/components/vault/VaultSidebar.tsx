@@ -38,6 +38,7 @@ const NAV_GROUPS: NavGroup[] = [
       // AFF Tracker is also the default landing; promoted to the
       // overview group above. Not duplicated here.
       { href: '/vault/progress', label: 'Progression Matrix', icon: '⊟' },
+      { href: '/vault/onboarding', label: 'Onboarding Watch', icon: '⏱' },
       { href: '/vault/org', label: 'Team Structure', icon: '⊞' },
       { href: '/vault/new-business', label: 'New Business', icon: '◆' },
       { href: '/vault/renewals', label: 'Renewals', icon: '↻' },
@@ -62,6 +63,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/vault/setup', label: 'Resource Center', icon: '⊞' },
       { href: '/vault/checklist-editor', label: 'Checklist Editor', icon: '◇' },
       { href: '/vault/email-templates', label: 'Email Templates', icon: '✉' },
+      { href: '/vault/motivation', label: 'Daily Motivation', icon: '✸' },
       { href: '/vault/audit', label: 'Auth Audit', icon: '⚠' },
       { href: '/vault/guide', label: 'Guide', icon: '?' },
       { href: '/vault/settings', label: 'Settings', icon: '⚙' },

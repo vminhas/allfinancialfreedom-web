@@ -12,19 +12,28 @@ import { MILESTONE_BY_KEY } from '@/lib/milestones'
 // agents looking at peers see the lighter set so we don't accidentally
 // leak revenue numbers down the org chart.
 
+// Label for the agent's current FOCUS PHASE (onboarding / field
+// training / CFT / MD focus / EMD focus / NVP focus). This is NOT
+// the rank title -- rank is now resolved from completed promotion
+// items via @/lib/agent-title and surfaced separately on the card.
 const PHASE_TITLES: Record<number, string> = {
-  1: 'Agent',
-  2: 'Associate',
-  3: 'Senior Associate',
-  4: 'Marketing Director',
-  5: 'Executive Marketing Director',
+  1: 'Onboarding',
+  2: 'Field Training',
+  3: 'CFT',
+  4: 'MD Focus',
+  5: 'EMD Focus',
+  6: 'NVP Focus',
 }
 
 interface CardPayload {
-  // Identity
+  // Identity. firstName/lastName are the legal name on file; the
+  // trading card UI renders preferredName (when set) in place of
+  // firstName so cards match what teammates see on Discord and the
+  // leaderboard.
   agentCode: string
   firstName: string
   lastName: string
+  preferredName: string | null
   state: string | null
   avatarUrl: string | null
   phase: number
@@ -83,6 +92,7 @@ export async function GET(
       agentCode: true,
       firstName: true,
       lastName: true,
+      preferredName: true,
       state: true,
       avatarUrl: true,
       phase: true,
@@ -181,10 +191,11 @@ export async function GET(
     agentCode: profile.agentCode,
     firstName: profile.firstName,
     lastName: profile.lastName,
+    preferredName: profile.preferredName,
     state: profile.state,
     avatarUrl: profile.avatarUrl,
     phase: profile.phase,
-    phaseLabel: PHASE_TITLES[profile.phase - 1] ?? 'Agent',
+    phaseLabel: PHASE_TITLES[profile.phase] ?? 'Onboarding',
     trainerName: profile.cft,
     // Phone + email leak agents' personal contact info, so we only
     // surface them to admin/lc -- peer agents looking at teammates

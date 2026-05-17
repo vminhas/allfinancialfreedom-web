@@ -3,7 +3,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { randomUUID } from 'crypto'
-import { getGhlConfig, sendGhlEmail, ghlPost, ghlPut, OPS_MAILBOX } from '@/lib/ghl'
+import { getGhlConfig, sendGhlEmail, ghlPost, OPS_MAILBOX } from '@/lib/ghl'
+import { ensureTeamTagOnContact } from '@/lib/ghl-team-tag'
 import { buildWelcomeEmailHtml } from '@/lib/welcome-email'
 import { requireRole } from '@/lib/permissions'
 
@@ -72,10 +73,10 @@ export async function POST(req: NextRequest) {
       }
 
       if (ghlContactId) {
-        // Tag the contact as an AFF team member for smart list targeting
-        await ghlPut(`/contacts/${ghlContactId}`, {
-          tags: ['AFF Team Member', 'agent-portal'],
-        }, config).catch(() => {}) // non-blocking — don't fail the invite if tagging fails
+        // Tag as AFF Team Member for smart-list / workflow targeting.
+        // Non-destructive (keeps existing tags) and non-blocking — don't
+        // fail the invite if tagging fails.
+        await ensureTeamTagOnContact(ghlContactId, config).catch(() => {})
 
         const firstName = agentUser.profile?.firstName ?? 'Agent'
         const html = await buildWelcomeEmailHtml({ firstName, inviteUrl })

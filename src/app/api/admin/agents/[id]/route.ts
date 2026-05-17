@@ -115,7 +115,8 @@ export async function PUT(
 
   // Whitelist updatable fields
   const allowed = [
-    'firstName', 'lastName', 'state', 'phone', 'dateOfBirth', 'npn',
+    'firstName', 'lastName', 'preferredName',
+    'state', 'phone', 'dateOfBirth', 'npn',
     'icaDate', 'recruiterId', 'cft', 'eliteCft', 'status', 'phase',
     'phaseStartedAt', 'goal', 'initialPointOfContact', 'examDate',
     'licenseNumber', 'licenseLines', 'dateSubmittedToGfi', 'discordJoinDate',
@@ -123,6 +124,10 @@ export async function PUT(
     'addressLine1', 'addressLine2', 'city', 'zip', 'country', 'avatarUrl',
     'isTest',
     'isLeadership',
+    // One-off red carpet for a distinguished guest (drives the
+    // "Announce VIP Arrival" button + one-time portal welcome).
+    'vipArrival',
+    'vipArrivalTitle',
     // Couples (power-couple pairing) — set from the tracker edit
     // drawer. One-sided uses partnerDisplayName + coupleDisplayName
     // only; two-sided also sets partnerAgentProfileId on both rows.
