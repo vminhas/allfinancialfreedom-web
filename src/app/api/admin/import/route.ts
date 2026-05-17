@@ -5,9 +5,20 @@ import { db } from '@/lib/db'
 import { getGhlConfig, ghlPost } from '@/lib/ghl'
 import { getSetting } from '@/lib/settings'
 
+// Allow the longest window the platform gives us; we still self-limit
+// well under this and hand the rest back to the client to resume.
+export const maxDuration = 300
+
 const BATCH_SIZE = 5
 const BATCH_DELAY_MS = 300
 const DAILY_CAP = 2400
+// Hard wall-clock budget for a single invocation. Far below maxDuration
+// so we always reach the progress-flush + status write before the
+// platform kills us. The client re-POSTs to drain the rest.
+const TIME_BUDGET_MS = 45_000
+// A RUNNING job whose heartbeat is older than this was killed
+// mid-flight (serverless timeout); it's safe to take over and resume.
+const STALE_LOCK_MS = 90_000
 
 function sleep(ms: number) {
   return new Promise(r => setTimeout(r, ms))
@@ -35,8 +46,15 @@ export async function POST(req: NextRequest) {
   const job = await db.importJob.findUnique({ where: { id: jobId } })
   if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 })
 
+  // Only block if another invocation is genuinely in-flight (fresh
+  // heartbeat). A RUNNING job with a stale/absent heartbeat was killed
+  // by a serverless timeout — take it over and resume instead of
+  // wedging it forever behind a 409.
   if (job.status === 'RUNNING') {
-    return NextResponse.json({ error: 'Job already running' }, { status: 409 })
+    const heartbeat = job.startedAt?.getTime() ?? 0
+    if (Date.now() - heartbeat < STALE_LOCK_MS) {
+      return NextResponse.json({ error: 'Job already running' }, { status: 409 })
+    }
   }
 
   if (dryRun) {
@@ -85,15 +103,25 @@ export async function POST(req: NextRequest) {
 
   if (remaining <= 0) {
     await db.importJob.update({ where: { id: jobId }, data: { status: 'PAUSED' } })
-    return NextResponse.json({ ok: true, paused: true, reason: 'Daily limit reached (2,400). Resume tomorrow.' })
+    return NextResponse.json({ ok: true, paused: true, dailyCap: true, hasMore: false, reason: 'Daily limit reached (2,400). Resume tomorrow.' })
   }
 
   const toProcess = pending.slice(0, remaining)
-  await db.importJob.update({ where: { id: jobId }, data: { status: 'RUNNING' } })
+  await db.importJob.update({
+    where: { id: jobId },
+    data: { status: 'RUNNING', startedAt: new Date() },
+  })
 
   let imported = 0
   let skipped = 0
   const errors: string[] = []
+  // Track what's already been written to the job row so each flush
+  // only increments the delta (no double-counting).
+  let flushedImported = 0
+  let flushedSkipped = 0
+  let flushedErrors = 0
+  const deadline = Date.now() + TIME_BUDGET_MS
+  let hitTimeBudget = false
 
   // Process in batches
   for (let i = 0; i < toProcess.length; i += BATCH_SIZE) {
@@ -200,6 +228,29 @@ export async function POST(req: NextRequest) {
       }
     }))
 
+    // Flush progress + refresh the heartbeat after every batch. This is
+    // what makes the progress bar move and, critically, means a
+    // platform kill mid-import never loses what already landed (the
+    // next invocation resumes from the live counters / pending queue).
+    await db.importJob.update({
+      where: { id: jobId },
+      data: {
+        importedCount: { increment: imported - flushedImported },
+        skippedCount: { increment: skipped - flushedSkipped },
+        errorCount: { increment: errors.length - flushedErrors },
+        lastRowIndex: { increment: Math.min(BATCH_SIZE, toProcess.length - i) },
+        startedAt: new Date(),
+      },
+    })
+    flushedImported = imported
+    flushedSkipped = skipped
+    flushedErrors = errors.length
+
+    if (Date.now() > deadline) {
+      hitTimeBudget = true
+      break
+    }
+
     if (i + BATCH_SIZE < toProcess.length) {
       await sleep(BATCH_DELAY_MS)
     }
@@ -217,17 +268,22 @@ export async function POST(req: NextRequest) {
     },
   })
 
+  // We had to truncate this run because the daily cap left less room
+  // than there was pending work — the remainder can't be touched until
+  // the cap resets, even though more is still pending.
+  const dailyCap = pending.length > toProcess.length
+  const done = stillPending === 0
+
   await db.importJob.update({
     where: { id: jobId },
     data: {
-      importedCount: { increment: imported },
-      skippedCount: { increment: skipped },
-      errorCount: { increment: errors.length },
-      // lastRowIndex is now informational only (kept for the dashboard
-      // progress bar). The fixed pending query doesn't use it.
-      lastRowIndex: { increment: toProcess.length },
-      status: stillPending === 0 ? 'COMPLETE' : 'PAUSED',
-      completedAt: stillPending === 0 ? new Date() : null,
+      // Counters were already flushed per batch; only the trailing
+      // delta (if any) remains, so no double-counting.
+      importedCount: { increment: imported - flushedImported },
+      skippedCount: { increment: skipped - flushedSkipped },
+      errorCount: { increment: errors.length - flushedErrors },
+      status: done ? 'COMPLETE' : 'PAUSED',
+      completedAt: done ? new Date() : null,
     },
   })
 
@@ -236,6 +292,12 @@ export async function POST(req: NextRequest) {
     imported,
     skipped,
     errors: errors.slice(0, 10),
-    paused: job.lastRowIndex + toProcess.length < job.totalRows,
+    // More pending work that this invocation can resume right now
+    // (time budget hit). The client loops on this until it clears.
+    hasMore: !done && !dailyCap,
+    // Blocked until the daily cap resets tomorrow.
+    dailyCap: !done && dailyCap,
+    paused: !done,
+    timeBudgetHit: hitTimeBudget,
   })
 }
