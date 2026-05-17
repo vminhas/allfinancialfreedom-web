@@ -1288,13 +1288,47 @@ function AgentDrawer({
   const [avatarUploading, setAvatarUploading] = useState(false)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(agent.avatarUrl)
 
+  const compressImage = (file: File, maxSize = 1024): Promise<File> => {
+    return new Promise((resolve) => {
+      if (file.size <= maxSize * 1024) { resolve(file); return }
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        let { width, height } = img
+        const scale = Math.min(1, Math.sqrt((maxSize * 1024) / file.size))
+        width = Math.round(width * scale)
+        height = Math.round(height * scale)
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')!
+        ctx.drawImage(img, 0, 0, width, height)
+        canvas.toBlob(blob => {
+          resolve(new File([blob!], file.name, { type: 'image/jpeg' }))
+        }, 'image/jpeg', 0.85)
+      }
+      img.src = URL.createObjectURL(file)
+    })
+  }
+
   const uploadAdminAvatar = async (file: File) => {
     setAvatarUploading(true)
-    const fd = new FormData()
-    fd.append('avatar', file)
-    const res = await fetch(`/api/admin/agents/${agent.id}/avatar`, { method: 'POST', body: fd })
-    const d = await res.json() as { ok?: boolean; avatarUrl?: string; error?: string }
-    if (res.ok && d.avatarUrl) setAvatarPreview(d.avatarUrl)
+    try {
+      const compressed = await compressImage(file, 2048)
+      const fd = new FormData()
+      fd.append('avatar', compressed)
+      const res = await fetch(`/api/admin/agents/${agent.id}/avatar`, { method: 'POST', body: fd })
+      if (!res.ok) {
+        const text = await res.text()
+        const errMsg = text.startsWith('{') ? (JSON.parse(text) as { error?: string }).error : `Upload failed (${res.status})`
+        alert(errMsg ?? 'Upload failed. Try a smaller image.')
+        setAvatarUploading(false)
+        return
+      }
+      const d = await res.json() as { ok?: boolean; avatarUrl?: string }
+      if (d.avatarUrl) setAvatarPreview(d.avatarUrl)
+    } catch {
+      alert('Upload failed. Please try again.')
+    }
     setAvatarUploading(false)
   }
 

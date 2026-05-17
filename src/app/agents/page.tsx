@@ -2676,18 +2676,42 @@ function ProfileTab({ data, onSaved, discordParam, discordReason, discordUsernam
   const [avatarUploading, setAvatarUploading] = useState(false)
   const [avatarError, setAvatarError] = useState('')
 
+  const compressImage = (file: File, maxKb = 2048): Promise<File> => {
+    return new Promise((resolve) => {
+      if (file.size <= maxKb * 1024) { resolve(file); return }
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        let { width, height } = img
+        const scale = Math.min(1, Math.sqrt((maxKb * 1024) / file.size))
+        width = Math.round(width * scale); height = Math.round(height * scale)
+        canvas.width = width; canvas.height = height
+        canvas.getContext('2d')!.drawImage(img, 0, 0, width, height)
+        canvas.toBlob(blob => resolve(new File([blob!], file.name, { type: 'image/jpeg' })), 'image/jpeg', 0.85)
+      }
+      img.src = URL.createObjectURL(file)
+    })
+  }
+
   const uploadAvatar = async (file: File) => {
     setAvatarUploading(true)
     setAvatarError('')
-    const fd = new FormData()
-    fd.append('avatar', file)
-    const res = await fetch('/api/agents/avatar', { method: 'POST', body: fd })
-    const d = await res.json() as { ok?: boolean; avatarUrl?: string; error?: string }
-    if (!res.ok) {
-      setAvatarError(d.error ?? 'Upload failed')
-    } else {
-      setAvatarUrl(d.avatarUrl ?? null)
-      onSaved()
+    try {
+      const compressed = await compressImage(file)
+      const fd = new FormData()
+      fd.append('avatar', compressed)
+      const res = await fetch('/api/agents/avatar', { method: 'POST', body: fd })
+      if (!res.ok) {
+        const text = await res.text()
+        const errMsg = text.startsWith('{') ? (JSON.parse(text) as { error?: string }).error : `Upload failed (${res.status}). Try a smaller image.`
+        setAvatarError(errMsg ?? 'Upload failed')
+      } else {
+        const d = await res.json() as { ok?: boolean; avatarUrl?: string }
+        setAvatarUrl(d.avatarUrl ?? null)
+        onSaved()
+      }
+    } catch {
+      setAvatarError('Upload failed. Please try again.')
     }
     setAvatarUploading(false)
   }
