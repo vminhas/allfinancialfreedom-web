@@ -4191,7 +4191,7 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
                           {(view === 'business_partners'
                             ? ['NEW', 'CONTACTED', 'INTRO_SENT', 'BOOKED', 'CONVERTED']
                             : view === 'fta'
-                              ? ['NEW', 'CONTACTED', 'BOOKED', 'CONVERTED']
+                              ? ['NEW', 'CONTACTED']
                               : ['PENDING', 'NEW', 'CONTACTED', 'BOOKED', 'CONVERTED', 'SKIPPED']
                           ).map(s => (
                             <option key={s} value={s} style={{ background: '#0F1E33', color: '#fff' }}>
