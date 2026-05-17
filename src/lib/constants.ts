@@ -11,7 +11,7 @@ export const IMAGES = {
   movement: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=1600&q=90&fm=jpg&fit=crop',
 }
 
-export const GHL_BOOKING_URL = 'https://api.leadconnectorhq.com/widget/booking/ZOedxdwvtOnTS6Sg5n7Z'
+export const GHL_BOOKING_URL = 'https://links.allfinancialfreedom.com/widget/booking/7kEmIuWI4a70Vfo0cDFg'
 export const GHL_FORM_EMBED_SRC = 'https://link.msgsndr.com/js/form_embed.js'
 
 // Only Vick and Melinee on the team page

@@ -100,12 +100,12 @@ export default function Navbar() {
         </ul>
 
         <div className="hidden md:flex items-center gap-3">
-          <Link
-            href="/join"
-            className="text-xs tracking-widest uppercase font-medium transition-colors duration-200"
+          <button
+            onClick={openBooking}
+            className="text-xs tracking-widest uppercase font-medium transition-colors duration-200 bg-transparent border-0 cursor-pointer"
             style={{ color: solid ? '#C9A96E' : 'rgba(201,169,110,0.9)' }}>
             Join the Team
-          </Link>
+          </button>
           <button onClick={openBooking} className="btn-gold" style={{ padding: '0.6rem 1.5rem' }}>
             Schedule a Call
           </button>
@@ -140,7 +140,7 @@ export default function Navbar() {
         background: 'rgba(255,255,255,0.98)',
         backdropFilter: 'blur(16px)',
       }}>
-        {[...navLinks, { href: '/join#apply', label: 'Join the Team' }].map((link) => (
+        {navLinks.map((link) => (
           <Link
             key={link.href}
             href={link.href}
@@ -154,7 +154,8 @@ export default function Navbar() {
             {link.label}
           </Link>
         ))}
-        <div className="p-5">
+        <div className="p-5 flex flex-col gap-3">
+          <button onClick={openBooking} className="text-xs tracking-widest uppercase font-medium bg-transparent border-0 cursor-pointer py-2" style={{ color: '#C9A96E' }}>Join the Team</button>
           <button onClick={openBooking} className="btn-gold w-full text-center">Schedule a Call</button>
         </div>
       </div>

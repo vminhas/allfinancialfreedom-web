@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
       })
 
       // Send confirmation email
-      const bookingUrl = process.env.GHL_BOOKING_URL || 'https://api.leadconnectorhq.com/widget/booking/ZOedxdwvtOnTS6Sg5n7Z'
+      const bookingUrl = process.env.GHL_BOOKING_URL || 'https://links.allfinancialfreedom.com/widget/booking/7kEmIuWI4a70Vfo0cDFg'
 
       const emailHtml = `
         <div style="font-family:'Helvetica Neue',Arial,sans-serif;max-width:620px;margin:0 auto;background:#ffffff;">

@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
       const config = await getGhlConfig()
       const pipelineId = await getSetting('GHL_PIPELINE_ID') || 'mnZ9OIMMkjGo30LAxLDj'
       const discoveryStageId = await getSetting('GHL_STAGE_DISCOVERY_BOOKED') || '289575e7-21d9-4839-8609-54afdf2150d3'
-      const bookingUrl = process.env.GHL_BOOKING_URL || 'https://api.leadconnectorhq.com/widget/booking/ZOedxdwvtOnTS6Sg5n7Z'
+      const bookingUrl = process.env.GHL_BOOKING_URL || 'https://links.allfinancialfreedom.com/widget/booking/7kEmIuWI4a70Vfo0cDFg'
 
       const headers = {
         'Authorization': `Bearer ${config.apiKey}`,
