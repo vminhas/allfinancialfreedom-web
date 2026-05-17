@@ -1541,14 +1541,15 @@ function AgentDashboardInner() {
                         {item.label}
                         {(() => {
                           // For fta_1..fta_10 items, show the linked FTA
-                          // contact name once an appointment has been
-                          // marked completed. Nth completed FTA fills
-                          // the Nth fta_N slot in chronological order.
+                          // contact name from the PhaseItem's direct linkedFta relation.
                           if (!done) return null
-                          const m = item.key.match(/^fta_(\d+)$/)
-                          if (!m) return null
-                          const idx = parseInt(m[1], 10) - 1
-                          const fta = data.completedFtas[idx]
+                          if (!item.key.match(/^fta_(\d+)$/)) return null
+                          const pi = currentPhaseItems.find(p => p.itemKey === item.key)
+                          const linkedFta = (pi as { linkedFta?: { id: string; name: string; businessPartner?: { id: string; name: string } | null } })?.linkedFta
+                          // Fallback to completedFtas array for legacy data without linkedFtaId
+                          const ftaIdx = parseInt(item.key.split('_')[1], 10) - 1
+                          const legacyFta = !linkedFta ? data.completedFtas?.[ftaIdx] : null
+                          const fta = linkedFta ? { id: linkedFta.id, name: linkedFta.name, businessPartner: linkedFta.businessPartner, notes: null as string | null } : legacyFta
                           if (!fta) return null
                           const display = fta.businessPartner?.name ?? fta.name
                           if (!display) return null
@@ -1689,10 +1690,11 @@ function AgentDashboardInner() {
                         (re-open, mark cancelled, etc.) and edit notes
                         without going to the FTA Tracker tab. */}
                     {(() => {
-                      const m = item.key.match(/^fta_(\d+)$/)
-                      if (!m) return null
-                      const idx = parseInt(m[1], 10) - 1
-                      const fta = data.completedFtas[idx]
+                      if (!item.key.match(/^fta_(\d+)$/)) return null
+                      const pi2 = currentPhaseItems.find(p => p.itemKey === item.key)
+                      const lf = (pi2 as { linkedFta?: { id: string; name: string; businessPartner?: { id: string; name: string } | null } })?.linkedFta
+                      const ftaIdx2 = parseInt(item.key.split('_')[1], 10) - 1
+                      const fta = lf ? { id: lf.id, name: lf.name, businessPartner: lf.businessPartner, notes: null as string | null } : data.completedFtas?.[ftaIdx2]
                       if (!fta || ftaEditId !== fta.id) return null
                       const saveFta = async () => {
                         setFtaEditSaving(true)

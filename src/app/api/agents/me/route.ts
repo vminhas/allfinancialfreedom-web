@@ -53,6 +53,9 @@ export async function GET(req: NextRequest) {
                 linkedAgentProfile: {
                   select: { id: true, firstName: true, lastName: true, agentCode: true, status: true, avatarUrl: true },
                 },
+                linkedFta: {
+                  select: { id: true, name: true, businessPartner: { select: { id: true, name: true } } },
+                },
               },
             },
             carrierAppointments: { orderBy: { carrier: 'asc' } },
@@ -248,6 +251,9 @@ function findAgentUser(agentUserId: string) {
             include: {
               linkedAgentProfile: {
                 select: { id: true, firstName: true, lastName: true, agentCode: true, status: true, avatarUrl: true },
+              },
+              linkedFta: {
+                select: { id: true, name: true, businessPartner: { select: { id: true, name: true } } },
               },
             },
           },

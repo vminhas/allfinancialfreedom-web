@@ -126,27 +126,27 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (wasCompleted !== isCompleted) {
     const currentItems = await db.phaseItem.findMany({
       where: { agentProfileId: profileId, phase: 2, itemKey: { in: FTA_PHASE_KEYS as unknown as string[] } },
-      select: { itemKey: true, completed: true },
+      select: { itemKey: true, completed: true, linkedFtaId: true },
     })
     const completedKeys = new Set(currentItems.filter(i => i.completed).map(i => i.itemKey))
 
     if (isCompleted) {
-      // Tick the lowest unchecked slot.
       const next = FTA_PHASE_KEYS.find(k => !completedKeys.has(k))
       if (next) {
         await db.phaseItem.upsert({
           where: { agentProfileId_phase_itemKey: { agentProfileId: profileId, phase: 2, itemKey: next } },
-          update: { completed: true, completedAt: new Date() },
-          create: { agentProfileId: profileId, phase: 2, itemKey: next, completed: true, completedAt: new Date() },
+          update: { completed: true, completedAt: new Date(), linkedFtaId: id },
+          create: { agentProfileId: profileId, phase: 2, itemKey: next, completed: true, completedAt: new Date(), linkedFtaId: id },
         })
       }
     } else {
-      // Untick the highest checked slot so the count tracks the new total.
-      const last = [...FTA_PHASE_KEYS].reverse().find(k => completedKeys.has(k))
-      if (last) {
+      // Find the slot linked to THIS FTA and untick it specifically.
+      const linkedSlot = currentItems.find(i => i.completed && (i as { linkedFtaId?: string }).linkedFtaId === id)
+      const keyToUntick = linkedSlot?.itemKey ?? [...FTA_PHASE_KEYS].reverse().find(k => completedKeys.has(k))
+      if (keyToUntick) {
         await db.phaseItem.update({
-          where: { agentProfileId_phase_itemKey: { agentProfileId: profileId, phase: 2, itemKey: last } },
-          data: { completed: false, completedAt: null },
+          where: { agentProfileId_phase_itemKey: { agentProfileId: profileId, phase: 2, itemKey: keyToUntick } },
+          data: { completed: false, completedAt: null, linkedFtaId: null },
         })
       }
     }

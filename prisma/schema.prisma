@@ -694,10 +694,13 @@ model PhaseItem {
   // the milestone with them.
   linkedAgentProfileId String?
   linkedAgentProfile   AgentProfile? @relation("PhaseItemRecruitLink", fields: [linkedAgentProfileId], references: [id], onDelete: SetNull)
+  linkedFtaId    String?
+  linkedFta      FieldTrainingAppointment? @relation(fields: [linkedFtaId], references: [id], onDelete: SetNull)
   updatedAt      DateTime     @updatedAt
 
   @@unique([agentProfileId, phase, itemKey])
   @@index([linkedAgentProfileId])
+  @@index([linkedFtaId])
   @@map("phase_items")
 }
 
@@ -1524,6 +1527,8 @@ model FieldTrainingAppointment {
   // Stamps for the lifecycle transitions
   completedAt       DateTime?
   cancelledAt       DateTime?
+
+  phaseItems        PhaseItem[]
 
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
