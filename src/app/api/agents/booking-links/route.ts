@@ -4,13 +4,6 @@ import { authOptions } from '@/lib/auth'
 import { getBookingLinks } from '@/lib/booking-links'
 import { db } from '@/lib/db'
 
-// Agents see the curated booking list as read-only.
-//
-// When a link is bound to a real AFF user (personType + personId),
-// resolve the live name + avatar from their record so updating the
-// person's profile elsewhere (e.g. an agent uploads a new headshot)
-// automatically reflects on the Book page. Free-text name/avatarUrl
-// stored on the link itself stays as the fallback.
 export async function GET() {
   const session = await getServerSession(authOptions)
   const role = (session?.user as { role?: string } | undefined)?.role
@@ -30,9 +23,9 @@ export async function GET() {
     adminIds.size
       ? db.adminUser.findMany({
           where: { id: { in: [...adminIds] } },
-          select: { id: true, name: true, avatarUrl: true },
+          select: { id: true, email: true, name: true, avatarUrl: true },
         })
-      : Promise.resolve([] as { id: string; name: string; avatarUrl: string | null }[]),
+      : Promise.resolve([] as { id: string; email: string; name: string; avatarUrl: string | null }[]),
     agentIds.size
       ? db.agentProfile.findMany({
           where: { id: { in: [...agentIds] } },
@@ -41,13 +34,30 @@ export async function GET() {
       : Promise.resolve([] as { id: string; firstName: string; lastName: string; avatarUrl: string | null }[]),
   ])
 
+  // Admins who are also agents (like Melinee) may have an avatar on
+  // their AgentProfile but not on AdminUser. Look up agent avatars by
+  // email as a fallback so photos don't need to be uploaded twice.
+  const adminEmails = admins.filter(a => !a.avatarUrl).map(a => a.email)
+  const agentsByEmail = adminEmails.length > 0
+    ? await db.agentUser.findMany({
+        where: { email: { in: adminEmails, mode: 'insensitive' } },
+        include: { profile: { select: { avatarUrl: true } } },
+      })
+    : []
+  const agentAvatarByEmail = new Map(
+    agentsByEmail.filter(a => a.profile?.avatarUrl).map(a => [a.email.toLowerCase(), a.profile!.avatarUrl!])
+  )
+
   const adminMap = new Map(admins.map(a => [a.id, a]))
   const agentMap = new Map(agents.map(a => [a.id, a]))
 
   const resolved = links.map(l => {
     if (l.personType === 'admin' && l.personId) {
       const a = adminMap.get(l.personId)
-      if (a) return { ...l, name: a.name, avatarUrl: a.avatarUrl ?? l.avatarUrl }
+      if (a) {
+        const avatar = a.avatarUrl ?? agentAvatarByEmail.get(a.email.toLowerCase()) ?? l.avatarUrl
+        return { ...l, name: a.name, avatarUrl: avatar }
+      }
     }
     if (l.personType === 'agent' && l.personId) {
       const a = agentMap.get(l.personId)
