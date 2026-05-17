@@ -25,6 +25,7 @@ model AdminUser {
   isTest          Boolean   @default(false) @map("is_test")
   createdAt       DateTime  @default(now())
   lastLoginAt     DateTime?
+  avatarUrl       String?
   discordUserId   String?
   discordUsername String?
 
