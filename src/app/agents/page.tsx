@@ -3630,11 +3630,10 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
   const inQueue       = partners.filter(p => p.status === 'PENDING')
   const businessLane  = partners.filter(p => p.status !== 'PENDING' && p.status !== 'SKIPPED'
                                              && (p.category === 'business_partner' || p.category === 'recruit'))
-  // BOOKED FTA contacts are excluded here because they get promoted to
-  // a real FieldTrainingAppointment row and live in the FTA tab from
-  // that point on. Avoids "is this person in two places?" confusion.
+  // Show all FTA contacts including BOOKED ones so they don't vanish.
+  // BOOKED contacts display with a badge indicating they have a
+  // scheduled appointment in the FTA Tracker tab.
   const ftaLane       = partners.filter(p => p.status !== 'PENDING' && p.status !== 'SKIPPED'
-                                             && p.status !== 'BOOKED'
                                              && p.category === 'fta_contact')
   const skippedLane   = partners.filter(p => p.status === 'SKIPPED')
   const queueCount = inQueue.length
