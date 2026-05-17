@@ -240,7 +240,8 @@ function AgentDashboardInner() {
   // agent can update notes / change status without leaving the
   // checklist. null = no editor open.
   const [ftaEditId, setFtaEditId] = useState<string | null>(null)
-  const [ftaEditDraft, setFtaEditDraft] = useState<{ status: string; notes: string }>({ status: 'COMPLETED', notes: '' })
+  const [ftaEditDraft, setFtaEditDraft] = useState<{ status: string; notes: string; businessPartnerId: string }>({ status: 'COMPLETED', notes: '', businessPartnerId: '' })
+  const [ftaContacts, setFtaContacts] = useState<{ id: string; name: string }[]>([])
   const [ftaEditSaving, setFtaEditSaving] = useState(false)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [setupResources, setSetupResources] = useState<Record<string, string>>({})
@@ -1560,7 +1561,11 @@ function AgentDashboardInner() {
                                 onClick={e => {
                                   e.stopPropagation()
                                   setFtaEditId(prev => prev === fta.id ? null : fta.id)
-                                  setFtaEditDraft({ status: 'COMPLETED', notes: fta.notes ?? '' })
+                                  setFtaEditDraft({ status: 'COMPLETED', notes: fta.notes ?? '', businessPartnerId: fta.businessPartner?.id ?? '' })
+                                  fetch(`/api/agents/partners?category=fta_contact${previewToken ? `&preview=${previewToken}` : ''}`)
+                                    .then(r => r.ok ? r.json() : { partners: [] })
+                                    .then((d: { partners: { id: string; name: string }[] }) => setFtaContacts(d.partners ?? []))
+                                    .catch(() => {})
                                 }}
                                 title="Reopen this appointment, change its status, or update the notes"
                                 style={{ marginLeft: 6, background: 'transparent', border: '1px solid rgba(155,109,255,0.3)', color: '#9B6DFF', borderRadius: 3, padding: '1px 7px', fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}
@@ -1692,13 +1697,17 @@ function AgentDashboardInner() {
                       const saveFta = async () => {
                         setFtaEditSaving(true)
                         try {
+                          const payload: Record<string, unknown> = {
+                            status: ftaEditDraft.status,
+                            notes: ftaEditDraft.notes.trim() || null,
+                          }
+                          if (ftaEditDraft.businessPartnerId && ftaEditDraft.businessPartnerId !== (fta.businessPartner?.id ?? '')) {
+                            payload.businessPartnerId = ftaEditDraft.businessPartnerId
+                          }
                           const res = await fetch(`/api/agents/fta/${fta.id}`, {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              status: ftaEditDraft.status,
-                              notes: ftaEditDraft.notes.trim() || null,
-                            }),
+                            body: JSON.stringify(payload),
                           })
                           if (res.ok) {
                             setFtaEditId(null)
@@ -1730,6 +1739,19 @@ function AgentDashboardInner() {
                                 <option value="RESCHEDULED">Rescheduled</option>
                                 <option value="CANCELLED">Cancelled</option>
                                 <option value="NO_SHOW">No-show</option>
+                              </select>
+                            </div>
+                            <div style={{ flex: '1 1 180px' }}>
+                              <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#9BB0C4', display: 'block', marginBottom: 3 }}>Contact</label>
+                              <select
+                                value={ftaEditDraft.businessPartnerId}
+                                onChange={e => setFtaEditDraft(d => ({ ...d, businessPartnerId: e.target.value }))}
+                                style={{ width: '100%', boxSizing: 'border-box', background: '#0A1628', border: '1px solid rgba(201,169,110,0.2)', color: '#d1d9e2', borderRadius: 4, padding: '6px 8px', fontSize: 11 }}
+                              >
+                                <option value="">— No contact linked —</option>
+                                {ftaContacts.map(c => (
+                                  <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
                               </select>
                             </div>
                           </div>
