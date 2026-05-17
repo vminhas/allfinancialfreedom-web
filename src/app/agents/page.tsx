@@ -3815,11 +3815,22 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
     const prev = partners
     setPartners(ps => ps.filter(p => !ids.includes(p.id)))
     clearSelection()
-    const res = await fetch(withPreview('/api/agents/partners/bulk'), {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids, action: 'delete' }),
-    })
-    if (!res.ok) setPartners(prev)
+    try {
+      const res = await fetch(withPreview('/api/agents/partners/bulk'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, action: 'delete' }),
+      })
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '')
+        console.error('[bulkDelete] failed:', res.status, errText)
+        alert(`Delete failed (${res.status}). Please try again.`)
+        setPartners(prev)
+      }
+    } catch (err) {
+      console.error('[bulkDelete] network error:', err)
+      alert('Delete failed. Please check your connection.')
+      setPartners(prev)
+    }
   }
 
   const thStyle: React.CSSProperties = { padding: '8px 10px', textAlign: 'left', fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#C9A96E', whiteSpace: 'nowrap' }
