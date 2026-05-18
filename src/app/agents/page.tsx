@@ -3545,7 +3545,14 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
     e.preventDefault()
     setSaving(true)
     try {
-      const payload = { ...form, category: form.category || activeCategory || undefined }
+      // Auto-assign category and status based on which tab the user is on
+      const autoCategory = form.category || activeCategory || (
+        view === 'business_partners' ? 'business_partner'
+        : view === 'fta' ? 'fta_contact'
+        : undefined
+      )
+      const autoStatus = view === 'queue' ? 'PENDING' : 'NEW'
+      const payload = { ...form, category: autoCategory, status: autoStatus }
       if (editingId) {
         const res = await fetch('/api/agents/partners', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editingId, ...payload }) })
         const updated = await res.json() as Partner
