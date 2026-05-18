@@ -5590,6 +5590,7 @@ function TeamMemberNode({ node, depth, isMobile, onOpenCard, previewToken }: { n
   // by the same /api/agents/trainees/[code]/* endpoints, which authorize
   // on either recruiter OR cft-trainer match.
   const [showContacts, setShowContacts] = useState(false)
+  const [showPfr, setShowPfr] = useState(false)
   const [resending, setResending] = useState(false)
   const [resendMsg, setResendMsg] = useState<string | null>(null)
   const color = TEAM_PHASE_COLORS[node.phase] ?? '#C9A96E'
@@ -5744,18 +5745,32 @@ function TeamMemberNode({ node, depth, isMobile, onOpenCard, previewToken }: { n
             endpoint auth allows both recruiter and trainer drill-in,
             so a recruiter can review what their downline is working on. */}
         {node.memberStatus === 'ACTIVE' && node.agentCode && (
-          <button
-            onClick={(e) => { e.stopPropagation(); setShowContacts(s => !s) }}
-            style={{
-              padding: '4px 10px', borderRadius: 4,
-              background: showContacts ? 'rgba(201,169,110,0.18)' : 'transparent',
-              border: '1px solid rgba(201,169,110,0.35)', color: '#C9A96E',
-              fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
-              cursor: 'pointer', flexShrink: 0,
-            }}
-          >
-            {showContacts ? 'Hide' : 'View'} contacts
-          </button>
+          <>
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowContacts(s => !s) }}
+              style={{
+                padding: '4px 10px', borderRadius: 4,
+                background: showContacts ? 'rgba(201,169,110,0.18)' : 'transparent',
+                border: '1px solid rgba(201,169,110,0.35)', color: '#C9A96E',
+                fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                cursor: 'pointer', flexShrink: 0,
+              }}
+            >
+              {showContacts ? 'Hide' : 'View'} contacts
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowPfr(s => !s) }}
+              style={{
+                padding: '4px 10px', borderRadius: 4,
+                background: showPfr ? 'rgba(96,165,250,0.18)' : 'transparent',
+                border: '1px solid rgba(96,165,250,0.35)', color: '#60a5fa',
+                fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                cursor: 'pointer', flexShrink: 0,
+              }}
+            >
+              {showPfr ? 'Hide' : 'View'} PFR
+            </button>
+          </>
         )}
         {node.children.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
@@ -5923,6 +5938,18 @@ function TeamMemberNode({ node, depth, isMobile, onOpenCard, previewToken }: { n
             agentFirstName={node.firstName}
             previewToken={previewToken}
           />
+        </div>
+      )}
+      {showPfr && node.agentCode && (
+        <div style={{
+          marginLeft: isMobile ? depth * 16 + 14 : depth * 32 + 14,
+          marginTop: 6,
+          padding: '12px 14px',
+          background: 'rgba(96,165,250,0.04)',
+          border: '1px solid rgba(96,165,250,0.15)',
+          borderRadius: 6,
+        }}>
+          <PfrReadOnly agentCode={node.agentCode} agentFirstName={node.firstName} previewToken={previewToken} />
         </div>
       )}
     </div>
@@ -6124,6 +6151,119 @@ function Pill({ label, count, accent }: { label: string; count: number; accent: 
     }}>
       <div style={{ fontSize: 13, fontWeight: 700, color: count > 0 ? accent : '#4B5563', lineHeight: 1 }}>{count}</div>
       <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#6B8299' }}>{label}</div>
+    </div>
+  )
+}
+
+function PfrReadOnly({ agentCode, agentFirstName, previewToken }: { agentCode: string; agentFirstName: string; previewToken?: string | null }) {
+  const [pfr, setPfr] = useState<Record<string, unknown> | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const url = `/api/agents/trainees/${agentCode}/pfr${previewToken ? `?preview=${encodeURIComponent(previewToken)}` : ''}`
+    fetch(url)
+      .then(r => { if (!r.ok) throw new Error('Access denied'); return r.json() })
+      .then((d: { pfr: Record<string, unknown> | null }) => setPfr(d.pfr))
+      .catch(() => setError('Could not load PFR'))
+      .finally(() => setLoading(false))
+  }, [agentCode, previewToken])
+
+  if (loading) return <div style={{ fontSize: 11, color: '#6B8299' }}>Loading {agentFirstName}&apos;s PFR...</div>
+  if (error) return <div style={{ fontSize: 11, color: '#f87171' }}>{error}</div>
+  if (!pfr) return <div style={{ fontSize: 11, color: '#4B5563' }}>{agentFirstName} hasn&apos;t started their PFR yet.</div>
+
+  const p = pfr as { monthlyIncome?: number; expenses?: Record<string, number>; assets?: Record<string, number>; debts?: Record<string, number>; buckets?: Record<string, number>; dreamsAndGoals?: { timeFrame: string; dream: string; why: string }[]; retirementAge?: number; spouseRetAge?: number; desiredMonthlyRetirement?: number; monthlySavingsCommitment?: number; whatWouldThisDo?: string; whatIsStopping?: string }
+  const fmt = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 })
+  const expenses = p.expenses ?? {}
+  const assets = p.assets ?? {}
+  const debts = p.debts ?? {}
+  const buckets = p.buckets ?? {}
+  const goals = p.dreamsAndGoals ?? []
+
+  const totalExpenses = Object.values(expenses).reduce((a, b) => a + (b || 0), 0)
+  const totalAssets = Object.values(assets).reduce((a, b) => a + (b || 0), 0)
+  const totalDebts = Object.values(debts).reduce((a, b) => a + (b || 0), 0)
+  const income = p.monthlyIncome ?? 0
+  const netWorth = totalAssets - totalDebts
+  const dimeNeed = totalDebts + (income * 12 * 10) + (debts.mortgage || 0) + (assets.collegeFunds || 0)
+
+  const statStyle: React.CSSProperties = { textAlign: 'center', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 4, border: '1px solid rgba(255,255,255,0.04)' }
+
+  return (
+    <div>
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#60a5fa', marginBottom: 10 }}>
+        {agentFirstName}&apos;s Personal Financial Review
+      </div>
+
+      {/* Summary stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 8, marginBottom: 12 }}>
+        <div style={statStyle}>
+          <div style={{ fontSize: 8, color: '#4B5563', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Income</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#C9A96E' }}>{fmt(income)}</div>
+        </div>
+        <div style={statStyle}>
+          <div style={{ fontSize: 8, color: '#4B5563', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Expenses</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#f87171' }}>{fmt(totalExpenses)}</div>
+        </div>
+        <div style={statStyle}>
+          <div style={{ fontSize: 8, color: '#4B5563', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Net Worth</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: netWorth >= 0 ? '#4ade80' : '#f87171' }}>{fmt(netWorth)}</div>
+        </div>
+        <div style={statStyle}>
+          <div style={{ fontSize: 8, color: '#4B5563', textTransform: 'uppercase', letterSpacing: '0.08em' }}>D.I.M.E.</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#60a5fa' }}>{fmt(dimeNeed)}</div>
+        </div>
+      </div>
+
+      {/* Buckets */}
+      {Object.keys(buckets).length > 0 && (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: '#6B8299', marginBottom: 4 }}>4-Bucket Breakdown</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11 }}>
+            {(['expenses', 'fun', 'emergency', 'retirement'] as const).map((k, i) => {
+              const labels = ['Expenses', 'Fun', 'Emergency', 'Retirement']
+              const colors = ['#4ade80', '#60a5fa', '#f59e0b', '#C9A96E']
+              return buckets[k] ? <span key={k} style={{ color: colors[i] }}>{labels[i]}: {fmt(buckets[k])}</span> : null
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Retirement goals */}
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 11, color: '#9BB0C4', marginBottom: 10 }}>
+        {p.retirementAge ? <span>Retire at: <strong style={{ color: '#fff' }}>{p.retirementAge}</strong></span> : null}
+        {p.desiredMonthlyRetirement ? <span>Monthly goal: <strong style={{ color: '#fff' }}>{fmt(p.desiredMonthlyRetirement)}</strong></span> : null}
+        {p.monthlySavingsCommitment ? <span>Savings: <strong style={{ color: '#fff' }}>{fmt(p.monthlySavingsCommitment)}</strong>/mo</span> : null}
+      </div>
+
+      {/* Summary text fields */}
+      {p.whatWouldThisDo && (
+        <div style={{ marginBottom: 6 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: '#6B8299' }}>What would this do for you?</div>
+          <div style={{ fontSize: 11, color: '#9BB0C4', lineHeight: 1.5 }}>{p.whatWouldThisDo}</div>
+        </div>
+      )}
+      {p.whatIsStopping && (
+        <div style={{ marginBottom: 6 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: '#6B8299' }}>What is stopping you?</div>
+          <div style={{ fontSize: 11, color: '#9BB0C4', lineHeight: 1.5 }}>{p.whatIsStopping}</div>
+        </div>
+      )}
+
+      {/* Dreams & Goals */}
+      {goals.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: '#6B8299', marginBottom: 4 }}>Dreams & Goals</div>
+          {goals.map((g, i) => (
+            <div key={i} style={{ display: 'flex', gap: 8, fontSize: 11, color: '#9BB0C4', marginBottom: 3 }}>
+              {g.timeFrame && <span style={{ color: '#C9A96E', fontWeight: 600, flexShrink: 0 }}>{String(g.timeFrame)}</span>}
+              <span>{String(g.dream)}</span>
+              {g.why && <span style={{ color: '#4B5563' }}>&mdash; {String(g.why)}</span>}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
