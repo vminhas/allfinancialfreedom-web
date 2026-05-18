@@ -149,3 +149,61 @@ export async function authorizeTeamMemberAccess(
 
   return null
 }
+
+// Authorization for the leadership agent-notes feature. Broader than
+// authorizeTeamMemberAccess: a note about an agent can be written/read
+// by ANYONE in that agent's upline (the full recruiter chain, not just
+// the direct recruiter) plus their trainer. The subject agent
+// themselves is never authorized here (notes are hidden from them).
+// Returns the target {id, firstName, lastName} when allowed, else null.
+export async function authorizeUplineNotesAccess(
+  callerProfileId: string,
+  agentCode: string,
+) {
+  const [caller, target] = await Promise.all([
+    db.agentProfile.findUnique({
+      where: { id: callerProfileId },
+      select: { agentCode: true, firstName: true, lastName: true, preferredName: true },
+    }),
+    db.agentProfile.findUnique({
+      where: { agentCode },
+      select: { id: true, agentCode: true, recruiterId: true, cft: true, firstName: true, lastName: true },
+    }),
+  ])
+  if (!caller || !target) return null
+  // The subject can never read/write notes about themselves.
+  if (caller.agentCode.toUpperCase() === target.agentCode.toUpperCase()) return null
+
+  const callerCode = caller.agentCode.toUpperCase()
+
+  // Walk the recruiter chain upward from the target. recruiterId stores
+  // the recruiter's agentCode (per CLAUDE.md). Bounded + cycle-guarded
+  // so a bad recruiterId loop can't spin forever.
+  let cursor = target.recruiterId
+  const seen = new Set<string>()
+  for (let hops = 0; cursor && hops < 50; hops++) {
+    const code = cursor.toUpperCase()
+    if (code === callerCode) return target
+    if (seen.has(code)) break
+    seen.add(code)
+    const up = await db.agentProfile.findUnique({
+      where: { agentCode: cursor },
+      select: { recruiterId: true },
+    })
+    if (!up) break
+    cursor = up.recruiterId
+  }
+
+  // Trainer path: cft normalization match (same logic as the other
+  // team-access helpers, with preferred-name support).
+  const accepted = new Set<string>()
+  const legal = normalizeName(`${caller.firstName} ${caller.lastName}`)
+  if (legal) accepted.add(legal)
+  if (caller.preferredName?.trim()) {
+    const preferred = normalizeName(`${caller.preferredName.trim()} ${caller.lastName}`)
+    if (preferred) accepted.add(preferred)
+  }
+  if (accepted.has(normalizeName(target.cft))) return target
+
+  return null
+}

@@ -38,6 +38,7 @@ model AdminUser {
   callReviews          AdminCallReview[]
   authoredFeedbackNotes AgentFeedbackNote[]
   sentPhaseItemReminders PhaseItemReminder[] @relation("ReminderSender")
+  authoredAgentNotes AgentNote[] @relation("AgentNoteAuthorAdmin")
 
   @@map("admin_users")
 }
@@ -349,6 +350,11 @@ model AgentProfile {
   agentArticles         AgentArticle[]
   contestManualChecks   ContestManualCheck[]
   clientReminderFires   ClientReminderFire[]
+  // Leadership notes written ABOUT this agent (subject) and notes this
+  // agent wrote about people in their downline (author). Kept separate
+  // so the agent never sees the "about me" side.
+  agentNotesAbout       AgentNote[]                @relation("AgentNoteSubject")
+  authoredAgentNotes    AgentNote[]                @relation("AgentNoteAuthorAgent")
 
   @@index([recruiterId])
   @@map("agent_profiles")
@@ -1483,6 +1489,32 @@ model NewBusinessNote {
 
   @@index([submissionId, createdAt])
   @@map("new_business_notes")
+}
+
+// Historical leadership notes kept ABOUT an agent (the subject), the
+// same pattern as NewBusinessNote on a policy. Anyone in the subject's
+// upline (recruiter chain), their trainer, and admins / licensing
+// coordinators can add and read these; the subject agent cannot see
+// them. Each create also posts to the Discord agent-activity feed.
+model AgentNote {
+  id              String         @id @default(cuid())
+  // The agent this note is ABOUT (the subject).
+  agentProfileId  String
+  agentProfile    AgentProfile   @relation("AgentNoteSubject", fields: [agentProfileId], references: [id], onDelete: Cascade)
+
+  body            String
+  authorType      NoteAuthorType
+  // Set when someone in the upline / a trainer wrote it.
+  authorAgentId   String?
+  authorAgent     AgentProfile?  @relation("AgentNoteAuthorAgent", fields: [authorAgentId], references: [id])
+  // Set when an admin / licensing coordinator wrote it.
+  authorAdminId   String?
+  authorAdmin     AdminUser?     @relation("AgentNoteAuthorAdmin", fields: [authorAdminId], references: [id])
+
+  createdAt       DateTime       @default(now())
+
+  @@index([agentProfileId, createdAt])
+  @@map("agent_notes")
 }
 
 model FieldTrainingAppointment {

@@ -49,6 +49,13 @@ interface TeamProgress {
   lastActivityAt: string | null   // ISO of most recent checklist completion
 }
 
+// PFR (Personal Financial Review) completion, surfaced on the team
+// card so the upline can see at a glance who still needs to do it and
+// nudge them. 'not_started' = no PersonalFinancialReview row at all;
+// 'in_progress' = row exists but the agent hasn't filled income yet;
+// 'completed' = row exists with real numbers.
+type PfrStatus = 'not_started' | 'in_progress' | 'completed'
+
 interface TeamNode {
   id: string
   agentUserId: string | null   // null for PENDING; needed for resend-invite
@@ -63,6 +70,8 @@ interface TeamNode {
   avatarUrl: string | null
   memberStatus: MemberStatus
   progress: TeamProgress | null
+  // null for non-ACTIVE members (they haven't logged in to start it).
+  pfrStatus: PfrStatus | null
   // Invite metadata for INVITED rows. Lets the detail panel show "invite
   // sent on X, expires Y" so the upline knows whether to nudge the
   // recruit or just wait for them to activate.
@@ -167,6 +176,18 @@ export async function GET(req: NextRequest) {
     select: { agentProfileId: true, phase: true, itemKey: true, completedAt: true },
   })
 
+  // PFR status per agent. One row per agent (agentProfileId is unique
+  // on PersonalFinancialReview), so a single bulk query keyed into a
+  // map is enough — no row means the agent never opened the tool.
+  const pfrRows = await db.personalFinancialReview.findMany({
+    where: { agentProfileId: { in: allAgents.map(a => a.id) } },
+    select: { agentProfileId: true, monthlyIncome: true },
+  })
+  const pfrByAgent = new Map<string, PfrStatus>()
+  for (const r of pfrRows) {
+    pfrByAgent.set(r.agentProfileId, r.monthlyIncome > 0 ? 'completed' : 'in_progress')
+  }
+
   // agentProfileId → { perPhase counts, completedKeys per phase, lastActivityAt }
   const progressByAgent = new Map<string, {
     perPhase: Map<number, number>
@@ -266,6 +287,9 @@ export async function GET(req: NextRequest) {
       // in to start their checklist, so the numbers would all be zero.
       // Their detail panel shows the invite status instead.
       progress: memberStatus === 'ACTIVE' ? computeProgress(a) : null,
+      pfrStatus: memberStatus === 'ACTIVE'
+        ? (pfrByAgent.get(a.id) ?? 'not_started')
+        : null,
       inviteEmail:    memberStatus === 'INVITED' ? (a.agentUser?.email ?? null) : null,
       inviteSentAt:   memberStatus === 'INVITED' ? (a.agentUser?.createdAt?.toISOString() ?? null) : null,
       inviteExpiresAt: memberStatus === 'INVITED' ? (a.agentUser?.inviteExpires?.toISOString() ?? null) : null,
@@ -301,6 +325,7 @@ export async function GET(req: NextRequest) {
     avatarUrl: null,
     memberStatus: 'PENDING',
     progress: null,
+    pfrStatus: null,
     inviteEmail: null,
     inviteSentAt: r.createdAt.toISOString(),
     inviteExpiresAt: null,

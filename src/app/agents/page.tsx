@@ -5262,6 +5262,7 @@ interface TeamNode {
   avatarUrl: string | null
   memberStatus: MemberStatus
   progress: TeamProgress | null
+  pfrStatus: 'not_started' | 'in_progress' | 'completed' | null
   inviteEmail: string | null
   inviteSentAt: string | null
   inviteExpiresAt: string | null
@@ -5523,6 +5524,10 @@ function TeamMemberNode({ node, depth, isMobile, onOpenCard, previewToken }: { n
   // by the same /api/agents/trainees/[code]/* endpoints, which authorize
   // on either recruiter OR cft-trainer match.
   const [showContacts, setShowContacts] = useState(false)
+  const [showPfr, setShowPfr] = useState(false)
+  const [showNotes, setShowNotes] = useState(false)
+  const [reminding, setReminding] = useState(false)
+  const [remindMsg, setRemindMsg] = useState<string | null>(null)
   const [resending, setResending] = useState(false)
   const [resendMsg, setResendMsg] = useState<string | null>(null)
   const color = TEAM_PHASE_COLORS[node.phase] ?? '#C9A96E'
@@ -5562,6 +5567,26 @@ function TeamMemberNode({ node, depth, isMobile, onOpenCard, previewToken }: { n
       setTimeout(() => setResendMsg(null), 3000)
     } finally {
       setResending(false)
+    }
+  }
+
+  const handleRemindPfr = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!node.agentCode || reminding) return
+    setReminding(true)
+    setRemindMsg(null)
+    try {
+      const url = previewToken
+        ? `/api/agents/trainees/${node.agentCode}/pfr-reminder?preview=${encodeURIComponent(previewToken)}`
+        : `/api/agents/trainees/${node.agentCode}/pfr-reminder`
+      const res = await fetch(url, { method: 'POST' })
+      const d = await res.json().catch(() => ({})) as { ok?: boolean; alreadyDone?: boolean }
+      setRemindMsg(res.ok ? (d.alreadyDone ? 'Already done' : 'Reminder sent ✓') : 'Failed')
+    } catch {
+      setRemindMsg('Failed')
+    } finally {
+      setReminding(false)
+      setTimeout(() => setRemindMsg(null), 3500)
     }
   }
 
@@ -5634,6 +5659,22 @@ function TeamMemberNode({ node, depth, isMobile, onOpenCard, previewToken }: { n
                 )}
               </>
             )}
+            {node.memberStatus === 'ACTIVE' && node.pfrStatus && (() => {
+              const s = {
+                completed:   { bg: 'rgba(74,222,128,0.12)',  border: 'rgba(74,222,128,0.30)',  fg: '#4ADE80', label: 'PFR ✓' },
+                in_progress: { bg: 'rgba(96,165,250,0.12)',  border: 'rgba(96,165,250,0.30)',  fg: '#60A5FA', label: 'PFR · in progress' },
+                not_started: { bg: 'rgba(245,158,11,0.12)',  border: 'rgba(245,158,11,0.35)',  fg: '#F59E0B', label: 'PFR not started' },
+              }[node.pfrStatus]
+              return (
+                <span style={{
+                  fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                  padding: '2px 6px', borderRadius: 3,
+                  background: s.bg, border: `1px solid ${s.border}`, color: s.fg,
+                }}>
+                  {s.label}
+                </span>
+              )
+            })()}
           </div>
         </div>
         {node.memberStatus === 'INVITED' && node.agentUserId && (
@@ -5688,6 +5729,52 @@ function TeamMemberNode({ node, depth, isMobile, onOpenCard, previewToken }: { n
             }}
           >
             {showContacts ? 'Hide' : 'View'} contacts
+          </button>
+        )}
+        {/* PFR. When not started there's deliberately no "View" button
+            (nothing to show) — just the status above + a one-tap Discord
+            reminder. Once started/done, a read-only drill-in. */}
+        {node.memberStatus === 'ACTIVE' && node.agentCode && node.pfrStatus === 'not_started' && (
+          <button
+            onClick={handleRemindPfr}
+            disabled={reminding}
+            style={{
+              padding: '4px 10px', borderRadius: 4,
+              background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.40)',
+              color: '#F59E0B', fontSize: 9, fontWeight: 700,
+              letterSpacing: '0.08em', textTransform: 'uppercase',
+              cursor: reminding ? 'wait' : 'pointer', flexShrink: 0,
+            }}
+          >
+            {reminding ? 'Sending...' : (remindMsg ?? 'Remind: PFR')}
+          </button>
+        )}
+        {node.memberStatus === 'ACTIVE' && node.agentCode && node.pfrStatus && node.pfrStatus !== 'not_started' && (
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowPfr(s => !s) }}
+            style={{
+              padding: '4px 10px', borderRadius: 4,
+              background: showPfr ? 'rgba(52,211,153,0.18)' : 'transparent',
+              border: '1px solid rgba(52,211,153,0.35)', color: '#34D399',
+              fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+              cursor: 'pointer', flexShrink: 0,
+            }}
+          >
+            {showPfr ? 'Hide' : 'View'} PFR
+          </button>
+        )}
+        {node.memberStatus === 'ACTIVE' && node.agentCode && (
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowNotes(s => !s) }}
+            style={{
+              padding: '4px 10px', borderRadius: 4,
+              background: showNotes ? 'rgba(155,109,255,0.18)' : 'transparent',
+              border: '1px solid rgba(155,109,255,0.35)', color: '#9B6DFF',
+              fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+              cursor: 'pointer', flexShrink: 0,
+            }}
+          >
+            {showNotes ? 'Hide' : 'View'} notes
           </button>
         )}
         {node.children.length > 0 && (
@@ -5858,6 +5945,38 @@ function TeamMemberNode({ node, depth, isMobile, onOpenCard, previewToken }: { n
           />
         </div>
       )}
+      {showPfr && node.agentCode && (
+        <div style={{
+          marginLeft: isMobile ? depth * 16 + 14 : depth * 32 + 14,
+          marginTop: 6,
+          padding: '12px 14px',
+          background: 'rgba(52,211,153,0.04)',
+          border: '1px solid rgba(52,211,153,0.15)',
+          borderRadius: 6,
+        }}>
+          <PfrDrilldown
+            agentCode={node.agentCode}
+            agentFirstName={node.firstName}
+            previewToken={previewToken}
+          />
+        </div>
+      )}
+      {showNotes && node.agentCode && (
+        <div style={{
+          marginLeft: isMobile ? depth * 16 + 14 : depth * 32 + 14,
+          marginTop: 6,
+          padding: '12px 14px',
+          background: 'rgba(155,109,255,0.04)',
+          border: '1px solid rgba(155,109,255,0.15)',
+          borderRadius: 6,
+        }}>
+          <AgentNotesPanel
+            agentCode={node.agentCode}
+            agentFirstName={node.firstName}
+            previewToken={previewToken}
+          />
+        </div>
+      )}
     </div>
   )
 }
@@ -5963,6 +6082,241 @@ function ContactsDrilldown({ agentCode, agentFirstName, previewToken }: {
           ? <div style={{ color: '#4B5563', fontSize: 11, padding: 8 }}>No FTAs logged yet.</div>
           : data.ftas.map(f => <FtaRow key={f.id} f={f} />)}
       </DrillSection>
+    </>
+  )
+}
+
+interface DrillPfr {
+  monthlyIncome: number
+  expenses: Record<string, number> | null
+  assets: Record<string, number> | null
+  debts: Record<string, number> | null
+  buckets: Record<string, number> | null
+  retirementAge: number | null
+  spouseRetAge: number | null
+  desiredMonthlyRetirement: number
+  monthlySavingsCommitment: number
+  whatWouldThisDo: string | null
+  whatIsStopping: string | null
+  dreamsAndGoals: unknown
+  notes: string | null
+  updatedAt: string
+}
+
+function money(n: number): string {
+  return '$' + Math.round(n).toLocaleString('en-US')
+}
+
+function sumValues(o: Record<string, number> | null | undefined): number {
+  if (!o || typeof o !== 'object') return 0
+  return Object.values(o).reduce((s, v) => s + (typeof v === 'number' ? v : 0), 0)
+}
+
+// Read-only PFR drill-in for an upline / trainer. Mirrors
+// ContactsDrilldown's fetch + access-error handling.
+function PfrDrilldown({ agentCode, agentFirstName, previewToken }: {
+  agentCode: string; agentFirstName: string; previewToken?: string | null
+}) {
+  const [pfr, setPfr] = useState<DrillPfr | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const withPreview = (url: string) => previewToken
+    ? url + (url.includes('?') ? '&' : '?') + `preview=${encodeURIComponent(previewToken)}`
+    : url
+
+  useEffect(() => {
+    setLoading(true); setError(null)
+    fetch(withPreview(`/api/agents/trainees/${agentCode}/pfr`))
+      .then(async res => {
+        if (!res.ok) { setError("You don't have access to this agent's PFR."); return }
+        const d = await res.json() as { pfr?: DrillPfr | null }
+        setPfr(d.pfr ?? null)
+      })
+      .catch(() => setError('Failed to load PFR.'))
+      .finally(() => setLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentCode, previewToken])
+
+  if (loading) return <div style={{ color: '#6B8299', fontSize: 11, padding: 8 }}>Loading {agentFirstName}&apos;s PFR...</div>
+  if (error) return <div style={{ color: '#f87171', fontSize: 11, padding: 8 }}>{error}</div>
+  if (!pfr) return <div style={{ color: '#4B5563', fontSize: 11, padding: 8 }}>{agentFirstName} hasn&apos;t started their PFR yet.</div>
+
+  const expenses = sumValues(pfr.expenses)
+  const assets = sumValues(pfr.assets)
+  const debts = sumValues(pfr.debts)
+  const goals = Array.isArray(pfr.dreamsAndGoals)
+    ? (pfr.dreamsAndGoals as Array<{ label?: string } | string>)
+    : []
+
+  const stats: Array<{ label: string; value: string }> = [
+    { label: 'Monthly Income', value: money(pfr.monthlyIncome) },
+    { label: 'Monthly Expenses', value: money(expenses) },
+    { label: 'Total Assets', value: money(assets) },
+    { label: 'Total Debts', value: money(debts) },
+    { label: 'Desired Retirement', value: money(pfr.desiredMonthlyRetirement) + '/mo' },
+    { label: 'Saving Now', value: money(pfr.monthlySavingsCommitment) + '/mo' },
+  ]
+
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#34D399' }}>
+          Personal Financial Review
+        </div>
+        <div style={{ fontSize: 10, color: '#6B8299' }}>
+          Updated {new Date(pfr.updatedAt).toLocaleDateString()}
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+        {stats.map(s => (
+          <ProgressStat key={s.label} label={s.label} value={s.value} color="#34D399" />
+        ))}
+      </div>
+      {(pfr.whatWouldThisDo || pfr.whatIsStopping || goals.length > 0 || pfr.notes) && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12, color: '#9BB0C4', lineHeight: 1.5 }}>
+          {goals.length > 0 && (
+            <div>
+              <span style={{ color: '#6B8299', fontWeight: 700, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Dreams &amp; Goals</span>
+              <div style={{ marginTop: 3 }}>
+                {goals.map((g, i) => (
+                  <div key={i}>&middot; {typeof g === 'string' ? g : (g.label ?? '')}</div>
+                ))}
+              </div>
+            </div>
+          )}
+          {pfr.whatWouldThisDo && (
+            <div><span style={{ color: '#6B8299', fontWeight: 700, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase' }}>What would this do for you</span><div style={{ marginTop: 3 }}>{pfr.whatWouldThisDo}</div></div>
+          )}
+          {pfr.whatIsStopping && (
+            <div><span style={{ color: '#6B8299', fontWeight: 700, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase' }}>What is stopping you</span><div style={{ marginTop: 3 }}>{pfr.whatIsStopping}</div></div>
+          )}
+          {pfr.notes && (
+            <div style={{ fontStyle: 'italic', color: '#6B8299' }}>{pfr.notes}</div>
+          )}
+        </div>
+      )}
+      <div style={{ marginTop: 10, fontSize: 10, color: '#4B5563', fontStyle: 'italic' }}>
+        Read-only. Use it to coach {agentFirstName} on next steps.
+      </div>
+    </>
+  )
+}
+
+interface AgentNoteItem {
+  id: string
+  body: string
+  authorType: 'AGENT' | 'ADMIN'
+  author: string
+  createdAt: string
+}
+
+// Historical leadership-notes thread on an agent. Visible to the
+// upline / trainer / admins, never to the agent themselves (the API
+// enforces that). Mirrors the policy NewBusinessNote thread UX.
+function AgentNotesPanel({ agentCode, agentFirstName, previewToken }: {
+  agentCode: string; agentFirstName: string; previewToken?: string | null
+}) {
+  const [notes, setNotes] = useState<AgentNoteItem[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [draft, setDraft] = useState('')
+  const [saving, setSaving] = useState(false)
+  const withPreview = (url: string) => previewToken
+    ? url + (url.includes('?') ? '&' : '?') + `preview=${encodeURIComponent(previewToken)}`
+    : url
+
+  useEffect(() => {
+    setError(null)
+    fetch(withPreview(`/api/agents/trainees/${agentCode}/notes`))
+      .then(async res => {
+        if (!res.ok) { setError("You don't have access to this agent's notes."); return }
+        const d = await res.json() as { notes?: AgentNoteItem[] }
+        setNotes(d.notes ?? [])
+      })
+      .catch(() => setError('Failed to load notes.'))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentCode, previewToken])
+
+  const submit = async () => {
+    const body = draft.trim()
+    if (!body || saving) return
+    setSaving(true)
+    try {
+      const res = await fetch(withPreview(`/api/agents/trainees/${agentCode}/notes`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body }),
+      })
+      if (res.ok) {
+        const d = await res.json() as { note: AgentNoteItem }
+        setNotes(prev => [d.note, ...(prev ?? [])])
+        setDraft('')
+      } else {
+        setError('Could not save the note.')
+      }
+    } catch {
+      setError('Could not save the note.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <>
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#9B6DFF', marginBottom: 4 }}>
+        Notes &amp; History
+      </div>
+      <div style={{ fontSize: 10, color: '#6B8299', marginBottom: 10, lineHeight: 1.5 }}>
+        Shared across {agentFirstName}&apos;s upline, trainer and AFF leadership. {agentFirstName} cannot see these.
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+        <textarea
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          placeholder="Add a note..."
+          rows={2}
+          style={{
+            width: '100%', resize: 'vertical',
+            background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(155,109,255,0.25)',
+            borderRadius: 4, color: '#fff', fontSize: 12, padding: '8px 10px',
+            fontFamily: 'inherit',
+          }}
+        />
+        <button
+          onClick={submit}
+          disabled={saving || !draft.trim()}
+          style={{
+            alignSelf: 'flex-end', padding: '5px 14px', borderRadius: 4,
+            background: draft.trim() ? 'rgba(155,109,255,0.18)' : 'transparent',
+            border: '1px solid rgba(155,109,255,0.40)', color: '#9B6DFF',
+            fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+            cursor: saving || !draft.trim() ? 'default' : 'pointer',
+          }}
+        >
+          {saving ? 'Saving...' : '+ Add note'}
+        </button>
+      </div>
+      {error && <div style={{ color: '#f87171', fontSize: 11, padding: 8 }}>{error}</div>}
+      {notes && notes.length === 0 && !error && (
+        <div style={{ color: '#4B5563', fontSize: 11, padding: 8 }}>No notes yet. Be the first to log one.</div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {(notes ?? []).map(n => (
+          <div key={n.id} style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 4, fontSize: 12, color: '#9BB0C4', lineHeight: 1.5 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginBottom: 3 }}>
+              <span style={{ color: '#fff', fontWeight: 600, fontSize: 11 }}>
+                {n.author}
+                <span style={{ marginLeft: 6, fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#9B6DFF', padding: '1px 5px', background: 'rgba(155,109,255,0.10)', border: '1px solid rgba(155,109,255,0.25)', borderRadius: 3 }}>
+                  {n.authorType === 'ADMIN' ? 'Leadership' : 'Upline'}
+                </span>
+              </span>
+              <span style={{ fontSize: 10, color: '#6B8299', flexShrink: 0 }}>
+                {new Date(n.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+              </span>
+            </div>
+            <div style={{ whiteSpace: 'pre-wrap' }}>{n.body}</div>
+          </div>
+        ))}
+      </div>
     </>
   )
 }
