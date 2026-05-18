@@ -271,7 +271,7 @@ export default function SettingsPage() {
 
   // Licensing Coordinator booking calendar — linked from the agent
   // Phase 1 licensing checklist items and the licensing request modal.
-  const [lcFields, setLcFields] = useState({ LC_CALENDAR_URL: '' })
+  const [lcFields, setLcFields] = useState({ LC_CALENDAR_URL: '', LC_DISCORD_USER_ID: '' })
   const [lcSaving, setLcSaving] = useState(false)
   const [lcSaved, setLcSaved] = useState(false)
 
@@ -683,12 +683,17 @@ export default function SettingsPage() {
           Phase 1 licensing checklist + licensing request modal */}
       {card(
         <>
-          {cardHeader('Licensing Coordinator Calendar')}
+          {cardHeader('Licensing Coordinator')}
           <div style={{ padding: '28px' }}>
             <p style={{ color: '#6B8299', fontSize: 12, margin: '0 0 24px', lineHeight: 1.6 }}>
               The booking link agents use to schedule time with the Licensing Coordinator. It appears on every licensing-related Phase 1 checklist item and in the licensing request modal. Leave blank to use the built-in default.
             </p>
             <Field label="Booking / Calendar URL" name="LC_CALENDAR_URL" value={lcFields.LC_CALENDAR_URL} onChange={(v) => setLcFields(f => ({ ...f, LC_CALENDAR_URL: v }))} placeholder="https://links.allfinancialfreedom.com/widget/booking/..." />
+
+            <p style={{ color: '#6B8299', fontSize: 12, margin: '28px 0 24px', lineHeight: 1.6 }}>
+              The Licensing Coordinator&apos;s Discord user ID. When set, she gets a Discord DM each morning listing any agents whose birthday is that day. Leave blank to turn the birthday DM off. (In Discord: User Settings &middot; Advanced &middot; Developer Mode on, then right-click her name &middot; Copy User ID.)
+            </p>
+            <Field label="Discord User ID" name="LC_DISCORD_USER_ID" value={lcFields.LC_DISCORD_USER_ID} onChange={(v) => setLcFields(f => ({ ...f, LC_DISCORD_USER_ID: v }))} placeholder="e.g. 412938571203847562" />
 
             <button onClick={handleSaveLc} disabled={lcSaving} style={{
               padding: '10px 24px', background: '#C9A96E', color: '#142D48', border: 'none',

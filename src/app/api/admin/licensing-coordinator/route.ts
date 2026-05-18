@@ -11,10 +11,15 @@ import { LC_CALENDAR_URL } from '@/lib/agent-constants'
 // returned in plaintext since it's a public booking URL, not a secret.
 // When unset we fall back to the LC_CALENDAR_URL constant so the field
 // always shows the link that's actually live.
-const KEYS = ['LC_CALENDAR_URL'] as const
+//
+// LC_DISCORD_USER_ID is the LC's raw Discord user (snowflake) ID. When
+// set, the daily birthday cron DMs that user the day's agent birthdays.
+// Empty by default, so the feature stays off until an ID is entered.
+const KEYS = ['LC_CALENDAR_URL', 'LC_DISCORD_USER_ID'] as const
 
 const DEFAULTS: Record<(typeof KEYS)[number], string> = {
   LC_CALENDAR_URL,
+  LC_DISCORD_USER_ID: '',
 }
 
 export async function GET() {

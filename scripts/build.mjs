@@ -70,6 +70,19 @@ if (env === 'production' || !env) {
     'Recovery: marking previously-failed preferred-name migration as rolled-back so migrate deploy can retry it with the corrected table name (agent_profiles not AgentProfile)',
   )
   run('npx', ['prisma', 'migrate', 'deploy'])
+
+  // ONE-TIME cleanup: a previous build seeded a large synthetic demo
+  // dataset onto the test@allfinancialfreedom.com account + a 16-agent
+  // synthetic downline. This reverses it exactly. It is idempotent and
+  // strictly scoped (preserves the base TEST001 account, only removes
+  // rows carrying the seeder's own markers + the synthetic downline),
+  // so it is harmless to run again. Non-fatal so it can never block a
+  // deploy. REMOVE THIS BLOCK once production is confirmed clean.
+  tryRun(
+    'npx',
+    ['tsx', 'scripts/unseed-test-data.ts'],
+    'One-time: purging the previously-seeded synthetic demo data',
+  )
 } else {
   console.log(`\n[build] Skipping prisma migrate deploy on VERCEL_ENV=${env}`)
 }
