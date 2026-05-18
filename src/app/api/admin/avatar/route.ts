@@ -3,20 +3,18 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { put } from '@vercel/blob'
+import { requireRole } from '@/lib/permissions'
 
-export const runtime = 'nodejs'
-export const maxDuration = 30
-
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const denied = requireRole(session, 'admin', 'licensing_coordinator')
+  if (denied) return denied
 
-  const { id } = await params
-  const profile = await db.agentProfile.findUnique({ where: { id }, select: { id: true } })
-  if (!profile) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const email = session!.user!.email
+  if (!email) return NextResponse.json({ error: 'No email in session' }, { status: 401 })
+
+  const admin = await db.adminUser.findUnique({ where: { email } })
+  if (!admin) return NextResponse.json({ error: 'Admin not found' }, { status: 404 })
 
   const formData = await req.formData()
   const file = formData.get('avatar') as File | null
@@ -30,12 +28,10 @@ export async function POST(
   }
 
   const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
-  const blob = await put(`agent-avatars/${id}.${ext}`, file, { access: 'public', allowOverwrite: true })
-  // Deterministic, overwritten-in-place path -> identical URL across
-  // re-uploads -> CDN/browser serve the stale image. Bust per upload.
+  const blob = await put(`admin-avatars/${admin.id}.${ext}`, file, { access: 'public', allowOverwrite: true })
   const avatarUrl = `${blob.url}?v=${Date.now()}`
 
-  await db.agentProfile.update({ where: { id }, data: { avatarUrl } })
+  await db.adminUser.update({ where: { id: admin.id }, data: { avatarUrl } })
 
   return NextResponse.json({ ok: true, avatarUrl })
 }

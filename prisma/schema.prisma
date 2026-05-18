@@ -25,6 +25,7 @@ model AdminUser {
   isTest          Boolean   @default(false) @map("is_test")
   createdAt       DateTime  @default(now())
   lastLoginAt     DateTime?
+  avatarUrl       String?   @map("avatar_url")
   discordUserId   String?
   discordUsername String?
 
@@ -699,10 +700,13 @@ model PhaseItem {
   // the milestone with them.
   linkedAgentProfileId String?
   linkedAgentProfile   AgentProfile? @relation("PhaseItemRecruitLink", fields: [linkedAgentProfileId], references: [id], onDelete: SetNull)
+  linkedFtaId    String?
+  linkedFta      FieldTrainingAppointment? @relation(fields: [linkedFtaId], references: [id], onDelete: SetNull)
   updatedAt      DateTime     @updatedAt
 
   @@unique([agentProfileId, phase, itemKey])
   @@index([linkedAgentProfileId])
+  @@index([linkedFtaId])
   @@map("phase_items")
 }
 
@@ -786,6 +790,8 @@ model BusinessPartner {
   homeowner       Boolean      @default(false)
   category        String?
   notes           String?
+  trainerNotes    String?
+  contactNotes    ContactNote[]
   phaseItemKey    String?
   bookedAppt      Boolean      @default(false)
   // CEO intro email: when the agent has Vick send a "thought you'd be a
@@ -819,6 +825,21 @@ model BusinessPartner {
   @@index([agentProfileId, status])
   @@index([linkedAgentProfileId])
   @@map("business_partners")
+}
+
+model ContactNote {
+  id                String          @id @default(cuid())
+  businessPartnerId String
+  businessPartner   BusinessPartner @relation(fields: [businessPartnerId], references: [id], onDelete: Cascade)
+  authorRole        String
+  authorName        String
+  authorId          String
+  message           String
+  editedAt          DateTime?
+  createdAt         DateTime        @default(now())
+
+  @@index([businessPartnerId, createdAt])
+  @@map("contact_notes")
 }
 
 model SetupResource {
@@ -1555,6 +1576,8 @@ model FieldTrainingAppointment {
   // Stamps for the lifecycle transitions
   completedAt       DateTime?
   cancelledAt       DateTime?
+
+  phaseItems        PhaseItem[]
 
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt

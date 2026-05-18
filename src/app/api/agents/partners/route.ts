@@ -59,6 +59,7 @@ interface PartnerBody {
   firstCallDate?: string
   secondCallDate?: string
   bookedAppt?: boolean
+  status?: string
   notes?: string
   phaseItemKey?: string
 }
@@ -84,6 +85,7 @@ export async function POST(req: NextRequest) {
       occupation: body.occupation,
       characterTraits: body.characterTraits,
       category: body.category,
+      status: body.status ?? 'PENDING',
       appointmentDate: body.appointmentDate ? new Date(body.appointmentDate) : null,
       icaDate: body.icaDate ? new Date(body.icaDate) : null,
       firstCallDate: body.firstCallDate ? new Date(body.firstCallDate) : null,

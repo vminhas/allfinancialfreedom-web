@@ -34,6 +34,7 @@ import { displayFirstName, displayFullName } from '@/lib/display-name'
 import MarkdownDescription from '@/components/MarkdownDescription'
 import ChecklistItemVideo from '@/components/ChecklistItemVideo'
 import AnnouncementBanner from '@/components/AnnouncementBanner'
+import ContactNotesThread from '@/components/ContactNotesThread'
 import { PHASE_COLORS } from '@/lib/phase-colors'
 import { useIsMobile } from '@/lib/useIsMobile'
 
@@ -240,7 +241,8 @@ function AgentDashboardInner() {
   // agent can update notes / change status without leaving the
   // checklist. null = no editor open.
   const [ftaEditId, setFtaEditId] = useState<string | null>(null)
-  const [ftaEditDraft, setFtaEditDraft] = useState<{ status: string; notes: string }>({ status: 'COMPLETED', notes: '' })
+  const [ftaEditDraft, setFtaEditDraft] = useState<{ status: string; notes: string; businessPartnerId: string }>({ status: 'COMPLETED', notes: '', businessPartnerId: '' })
+  const [ftaContacts, setFtaContacts] = useState<{ id: string; name: string }[]>([])
   const [ftaEditSaving, setFtaEditSaving] = useState(false)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [setupResources, setSetupResources] = useState<Record<string, string>>({})
@@ -1540,14 +1542,15 @@ function AgentDashboardInner() {
                         {item.label}
                         {(() => {
                           // For fta_1..fta_10 items, show the linked FTA
-                          // contact name once an appointment has been
-                          // marked completed. Nth completed FTA fills
-                          // the Nth fta_N slot in chronological order.
+                          // contact name from the PhaseItem's direct linkedFta relation.
                           if (!done) return null
-                          const m = item.key.match(/^fta_(\d+)$/)
-                          if (!m) return null
-                          const idx = parseInt(m[1], 10) - 1
-                          const fta = data.completedFtas[idx]
+                          if (!item.key.match(/^fta_(\d+)$/)) return null
+                          const pi = currentPhaseItems.find(p => p.itemKey === item.key)
+                          const linkedFta = (pi as { linkedFta?: { id: string; name: string; businessPartner?: { id: string; name: string } | null } })?.linkedFta
+                          // Fallback to completedFtas array for legacy data without linkedFtaId
+                          const ftaIdx = parseInt(item.key.split('_')[1], 10) - 1
+                          const legacyFta = !linkedFta ? data.completedFtas?.[ftaIdx] : null
+                          const fta = linkedFta ? { id: linkedFta.id, name: linkedFta.name, businessPartner: linkedFta.businessPartner, notes: null as string | null } : legacyFta
                           if (!fta) return null
                           const display = fta.businessPartner?.name ?? fta.name
                           if (!display) return null
@@ -1560,7 +1563,11 @@ function AgentDashboardInner() {
                                 onClick={e => {
                                   e.stopPropagation()
                                   setFtaEditId(prev => prev === fta.id ? null : fta.id)
-                                  setFtaEditDraft({ status: 'COMPLETED', notes: fta.notes ?? '' })
+                                  setFtaEditDraft({ status: 'COMPLETED', notes: fta.notes ?? '', businessPartnerId: fta.businessPartner?.id ?? '' })
+                                  fetch(`/api/agents/partners?category=fta_contact${previewToken ? `&preview=${previewToken}` : ''}`)
+                                    .then(r => r.ok ? r.json() : { partners: [] })
+                                    .then((d: { partners: { id: string; name: string }[] }) => setFtaContacts(d.partners ?? []))
+                                    .catch(() => {})
                                 }}
                                 title="Reopen this appointment, change its status, or update the notes"
                                 style={{ marginLeft: 6, background: 'transparent', border: '1px solid rgba(155,109,255,0.3)', color: '#9B6DFF', borderRadius: 3, padding: '1px 7px', fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}
@@ -1684,21 +1691,26 @@ function AgentDashboardInner() {
                         (re-open, mark cancelled, etc.) and edit notes
                         without going to the FTA Tracker tab. */}
                     {(() => {
-                      const m = item.key.match(/^fta_(\d+)$/)
-                      if (!m) return null
-                      const idx = parseInt(m[1], 10) - 1
-                      const fta = data.completedFtas[idx]
+                      if (!item.key.match(/^fta_(\d+)$/)) return null
+                      const pi2 = currentPhaseItems.find(p => p.itemKey === item.key)
+                      const lf = (pi2 as { linkedFta?: { id: string; name: string; businessPartner?: { id: string; name: string } | null } })?.linkedFta
+                      const ftaIdx2 = parseInt(item.key.split('_')[1], 10) - 1
+                      const fta = lf ? { id: lf.id, name: lf.name, businessPartner: lf.businessPartner, notes: null as string | null } : data.completedFtas?.[ftaIdx2]
                       if (!fta || ftaEditId !== fta.id) return null
                       const saveFta = async () => {
                         setFtaEditSaving(true)
                         try {
+                          const payload: Record<string, unknown> = {
+                            status: ftaEditDraft.status,
+                            notes: ftaEditDraft.notes.trim() || null,
+                          }
+                          if (ftaEditDraft.businessPartnerId && ftaEditDraft.businessPartnerId !== (fta.businessPartner?.id ?? '')) {
+                            payload.businessPartnerId = ftaEditDraft.businessPartnerId
+                          }
                           const res = await fetch(`/api/agents/fta/${fta.id}`, {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              status: ftaEditDraft.status,
-                              notes: ftaEditDraft.notes.trim() || null,
-                            }),
+                            body: JSON.stringify(payload),
                           })
                           if (res.ok) {
                             setFtaEditId(null)
@@ -1730,6 +1742,19 @@ function AgentDashboardInner() {
                                 <option value="RESCHEDULED">Rescheduled</option>
                                 <option value="CANCELLED">Cancelled</option>
                                 <option value="NO_SHOW">No-show</option>
+                              </select>
+                            </div>
+                            <div style={{ flex: '1 1 180px' }}>
+                              <label style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#9BB0C4', display: 'block', marginBottom: 3 }}>Contact</label>
+                              <select
+                                value={ftaEditDraft.businessPartnerId}
+                                onChange={e => setFtaEditDraft(d => ({ ...d, businessPartnerId: e.target.value }))}
+                                style={{ width: '100%', boxSizing: 'border-box', background: '#0A1628', border: '1px solid rgba(201,169,110,0.2)', color: '#d1d9e2', borderRadius: 4, padding: '6px 8px', fontSize: 11 }}
+                              >
+                                <option value="">— No contact linked —</option>
+                                {ftaContacts.map(c => (
+                                  <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
                               </select>
                             </div>
                           </div>
@@ -2676,18 +2701,42 @@ function ProfileTab({ data, onSaved, discordParam, discordReason, discordUsernam
   const [avatarUploading, setAvatarUploading] = useState(false)
   const [avatarError, setAvatarError] = useState('')
 
+  const compressImage = (file: File, maxKb = 2048): Promise<File> => {
+    return new Promise((resolve) => {
+      if (file.size <= maxKb * 1024) { resolve(file); return }
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        let { width, height } = img
+        const scale = Math.min(1, Math.sqrt((maxKb * 1024) / file.size))
+        width = Math.round(width * scale); height = Math.round(height * scale)
+        canvas.width = width; canvas.height = height
+        canvas.getContext('2d')!.drawImage(img, 0, 0, width, height)
+        canvas.toBlob(blob => resolve(new File([blob!], file.name, { type: 'image/jpeg' })), 'image/jpeg', 0.85)
+      }
+      img.src = URL.createObjectURL(file)
+    })
+  }
+
   const uploadAvatar = async (file: File) => {
     setAvatarUploading(true)
     setAvatarError('')
-    const fd = new FormData()
-    fd.append('avatar', file)
-    const res = await fetch('/api/agents/avatar', { method: 'POST', body: fd })
-    const d = await res.json() as { ok?: boolean; avatarUrl?: string; error?: string }
-    if (!res.ok) {
-      setAvatarError(d.error ?? 'Upload failed')
-    } else {
-      setAvatarUrl(d.avatarUrl ?? null)
-      onSaved()
+    try {
+      const compressed = await compressImage(file)
+      const fd = new FormData()
+      fd.append('avatar', compressed)
+      const res = await fetch('/api/agents/avatar', { method: 'POST', body: fd })
+      if (!res.ok) {
+        const text = await res.text()
+        const errMsg = text.startsWith('{') ? (JSON.parse(text) as { error?: string }).error : `Upload failed (${res.status}). Try a smaller image.`
+        setAvatarError(errMsg ?? 'Upload failed')
+      } else {
+        const d = await res.json() as { ok?: boolean; avatarUrl?: string }
+        setAvatarUrl(d.avatarUrl ?? null)
+        onSaved()
+      }
+    } catch {
+      setAvatarError('Upload failed. Please try again.')
     }
     setAvatarUploading(false)
   }
@@ -3496,7 +3545,14 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
     e.preventDefault()
     setSaving(true)
     try {
-      const payload = { ...form, category: form.category || activeCategory || undefined }
+      // Auto-assign category and status based on which tab the user is on
+      const autoCategory = form.category || activeCategory || (
+        view === 'business_partners' ? 'business_partner'
+        : view === 'fta' ? 'fta_contact'
+        : undefined
+      )
+      const autoStatus = view === 'queue' ? 'PENDING' : 'NEW'
+      const payload = { ...form, category: autoCategory, status: autoStatus }
       if (editingId) {
         const res = await fetch('/api/agents/partners', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editingId, ...payload }) })
         const updated = await res.json() as Partner
@@ -3606,11 +3662,10 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
   const inQueue       = partners.filter(p => p.status === 'PENDING')
   const businessLane  = partners.filter(p => p.status !== 'PENDING' && p.status !== 'SKIPPED'
                                              && (p.category === 'business_partner' || p.category === 'recruit'))
-  // BOOKED FTA contacts are excluded here because they get promoted to
-  // a real FieldTrainingAppointment row and live in the FTA tab from
-  // that point on. Avoids "is this person in two places?" confusion.
+  // Show all FTA contacts including BOOKED ones so they don't vanish.
+  // BOOKED contacts display with a badge indicating they have a
+  // scheduled appointment in the FTA Tracker tab.
   const ftaLane       = partners.filter(p => p.status !== 'PENDING' && p.status !== 'SKIPPED'
-                                             && p.status !== 'BOOKED'
                                              && p.category === 'fta_contact')
   const skippedLane   = partners.filter(p => p.status === 'SKIPPED')
   const queueCount = inQueue.length
@@ -3791,11 +3846,22 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
     const prev = partners
     setPartners(ps => ps.filter(p => !ids.includes(p.id)))
     clearSelection()
-    const res = await fetch(withPreview('/api/agents/partners/bulk'), {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids, action: 'delete' }),
-    })
-    if (!res.ok) setPartners(prev)
+    try {
+      const res = await fetch(withPreview('/api/agents/partners/bulk'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, action: 'delete' }),
+      })
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '')
+        console.error('[bulkDelete] failed:', res.status, errText)
+        alert(`Delete failed (${res.status}). Please try again.`)
+        setPartners(prev)
+      }
+    } catch (err) {
+      console.error('[bulkDelete] network error:', err)
+      alert('Delete failed. Please check your connection.')
+      setPartners(prev)
+    }
   }
 
   const thStyle: React.CSSProperties = { padding: '8px 10px', textAlign: 'left', fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#C9A96E', whiteSpace: 'nowrap' }
@@ -4133,7 +4199,13 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
                       <td style={tdStyle}>
                         <select
                           value={p.status}
-                          onChange={e => advanceOne(p.id, e.target.value)}
+                          onChange={e => {
+                            if (e.target.value === 'BOOKED' && p.category === 'fta_contact') {
+                              setScheduleFtaPartner(p); setScheduleFtaDate(''); e.target.value = p.status
+                            } else {
+                              advanceOne(p.id, e.target.value)
+                            }
+                          }}
                           title="Change stage"
                           style={{
                             appearance: 'none',
@@ -4151,7 +4223,7 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
                           {(view === 'business_partners'
                             ? ['NEW', 'CONTACTED', 'INTRO_SENT', 'BOOKED', 'CONVERTED']
                             : view === 'fta'
-                              ? ['NEW', 'CONTACTED', 'BOOKED', 'CONVERTED']
+                              ? ['NEW', 'CONTACTED']
                               : ['PENDING', 'NEW', 'CONTACTED', 'BOOKED', 'CONVERTED', 'SKIPPED']
                           ).map(s => (
                             <option key={s} value={s} style={{ background: '#0F1E33', color: '#fff' }}>
@@ -4188,7 +4260,9 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
                             <button onClick={() => { setIntroModalPartner(p); setIntroNote(''); setIntroError(null) }} disabled={!p.email} title={p.email ? 'Have Vick send a warm intro' : 'Add an email first'} style={{ background: 'rgba(201,169,110,0.12)', border: '1px solid rgba(201,169,110,0.3)', color: p.email ? '#C9A96E' : '#4B5563', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: p.email ? 'pointer' : 'not-allowed', marginRight: 6 }}>CEO INTRO</button>
                           )}
                           {p.status !== 'BOOKED' && p.status !== 'CONVERTED' && (
-                            <button onClick={() => advanceOne(p.id, 'BOOKED')} title="Mark as Booked" style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.35)', color: '#F59E0B', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: 'pointer', marginRight: 6 }}>BOOKED</button>
+                            p.category === 'fta_contact'
+                              ? <button onClick={() => { setScheduleFtaPartner(p); setScheduleFtaDate('') }} title="Schedule an FTA with this contact" style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.35)', color: '#F59E0B', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: 'pointer', marginRight: 6 }}>SCHEDULE FTA</button>
+                              : <button onClick={() => advanceOne(p.id, 'BOOKED')} title="Mark as Booked" style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.35)', color: '#F59E0B', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: 'pointer', marginRight: 6 }}>BOOKED</button>
                           )}
                           {p.status !== 'CONVERTED' && (
                             <button onClick={() => advanceOne(p.id, 'CONVERTED')} title="Mark as Converted (joined / closed)" style={{ background: 'rgba(74,222,128,0.12)', border: '1px solid rgba(74,222,128,0.35)', color: '#4ade80', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: 'pointer', marginRight: 6 }}>CONVERTED</button>
@@ -5950,15 +6024,11 @@ function TeamMemberNode({ node, depth, isMobile, onOpenCard, previewToken }: { n
           marginLeft: isMobile ? depth * 16 + 14 : depth * 32 + 14,
           marginTop: 6,
           padding: '12px 14px',
-          background: 'rgba(52,211,153,0.04)',
-          border: '1px solid rgba(52,211,153,0.15)',
+          background: 'rgba(96,165,250,0.04)',
+          border: '1px solid rgba(96,165,250,0.15)',
           borderRadius: 6,
         }}>
-          <PfrDrilldown
-            agentCode={node.agentCode}
-            agentFirstName={node.firstName}
-            previewToken={previewToken}
-          />
+          <PfrReadOnly agentCode={node.agentCode} agentFirstName={node.firstName} previewToken={previewToken} />
         </div>
       )}
       {showNotes && node.agentCode && (
@@ -6014,11 +6084,21 @@ interface TraineePartner {
   name: string
   email: string | null
   phone: string | null
+  timeZone: string | null
+  age: string | null
+  married: boolean
+  children: boolean
+  homeowner: boolean
+  occupation: string | null
+  characterTraits: string | null
   category: string | null
   status: string | null
+  appointmentDate: string | null
+  firstCallDate: string | null
+  secondCallDate: string | null
+  bookedAppt: boolean
   notes: string | null
-  occupation: string | null
-  age: string | null
+  trainerNotes: string | null
   lastContactAt: string | null
   createdAt: string
 }
@@ -6075,129 +6155,13 @@ function ContactsDrilldown({ agentCode, agentFirstName, previewToken }: {
       <DrillSection title="Business Partners">
         {data.partners.length === 0
           ? <div style={{ color: '#4B5563', fontSize: 11, padding: 8 }}>No business partners on file yet.</div>
-          : data.partners.map(p => <PartnerRow key={p.id} p={p} />)}
+          : data.partners.map(p => <PartnerRow key={p.id} p={p} agentCode={agentCode} previewToken={previewToken} />)}
       </DrillSection>
       <DrillSection title="Field Training Appointments">
         {data.ftas.length === 0
           ? <div style={{ color: '#4B5563', fontSize: 11, padding: 8 }}>No FTAs logged yet.</div>
           : data.ftas.map(f => <FtaRow key={f.id} f={f} />)}
       </DrillSection>
-    </>
-  )
-}
-
-interface DrillPfr {
-  monthlyIncome: number
-  expenses: Record<string, number> | null
-  assets: Record<string, number> | null
-  debts: Record<string, number> | null
-  buckets: Record<string, number> | null
-  retirementAge: number | null
-  spouseRetAge: number | null
-  desiredMonthlyRetirement: number
-  monthlySavingsCommitment: number
-  whatWouldThisDo: string | null
-  whatIsStopping: string | null
-  dreamsAndGoals: unknown
-  notes: string | null
-  updatedAt: string
-}
-
-function money(n: number): string {
-  return '$' + Math.round(n).toLocaleString('en-US')
-}
-
-function sumValues(o: Record<string, number> | null | undefined): number {
-  if (!o || typeof o !== 'object') return 0
-  return Object.values(o).reduce((s, v) => s + (typeof v === 'number' ? v : 0), 0)
-}
-
-// Read-only PFR drill-in for an upline / trainer. Mirrors
-// ContactsDrilldown's fetch + access-error handling.
-function PfrDrilldown({ agentCode, agentFirstName, previewToken }: {
-  agentCode: string; agentFirstName: string; previewToken?: string | null
-}) {
-  const [pfr, setPfr] = useState<DrillPfr | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const withPreview = (url: string) => previewToken
-    ? url + (url.includes('?') ? '&' : '?') + `preview=${encodeURIComponent(previewToken)}`
-    : url
-
-  useEffect(() => {
-    setLoading(true); setError(null)
-    fetch(withPreview(`/api/agents/trainees/${agentCode}/pfr`))
-      .then(async res => {
-        if (!res.ok) { setError("You don't have access to this agent's PFR."); return }
-        const d = await res.json() as { pfr?: DrillPfr | null }
-        setPfr(d.pfr ?? null)
-      })
-      .catch(() => setError('Failed to load PFR.'))
-      .finally(() => setLoading(false))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentCode, previewToken])
-
-  if (loading) return <div style={{ color: '#6B8299', fontSize: 11, padding: 8 }}>Loading {agentFirstName}&apos;s PFR...</div>
-  if (error) return <div style={{ color: '#f87171', fontSize: 11, padding: 8 }}>{error}</div>
-  if (!pfr) return <div style={{ color: '#4B5563', fontSize: 11, padding: 8 }}>{agentFirstName} hasn&apos;t started their PFR yet.</div>
-
-  const expenses = sumValues(pfr.expenses)
-  const assets = sumValues(pfr.assets)
-  const debts = sumValues(pfr.debts)
-  const goals = Array.isArray(pfr.dreamsAndGoals)
-    ? (pfr.dreamsAndGoals as Array<{ label?: string } | string>)
-    : []
-
-  const stats: Array<{ label: string; value: string }> = [
-    { label: 'Monthly Income', value: money(pfr.monthlyIncome) },
-    { label: 'Monthly Expenses', value: money(expenses) },
-    { label: 'Total Assets', value: money(assets) },
-    { label: 'Total Debts', value: money(debts) },
-    { label: 'Desired Retirement', value: money(pfr.desiredMonthlyRetirement) + '/mo' },
-    { label: 'Saving Now', value: money(pfr.monthlySavingsCommitment) + '/mo' },
-  ]
-
-  return (
-    <>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#34D399' }}>
-          Personal Financial Review
-        </div>
-        <div style={{ fontSize: 10, color: '#6B8299' }}>
-          Updated {new Date(pfr.updatedAt).toLocaleDateString()}
-        </div>
-      </div>
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
-        {stats.map(s => (
-          <ProgressStat key={s.label} label={s.label} value={s.value} color="#34D399" />
-        ))}
-      </div>
-      {(pfr.whatWouldThisDo || pfr.whatIsStopping || goals.length > 0 || pfr.notes) && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12, color: '#9BB0C4', lineHeight: 1.5 }}>
-          {goals.length > 0 && (
-            <div>
-              <span style={{ color: '#6B8299', fontWeight: 700, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Dreams &amp; Goals</span>
-              <div style={{ marginTop: 3 }}>
-                {goals.map((g, i) => (
-                  <div key={i}>&middot; {typeof g === 'string' ? g : (g.label ?? '')}</div>
-                ))}
-              </div>
-            </div>
-          )}
-          {pfr.whatWouldThisDo && (
-            <div><span style={{ color: '#6B8299', fontWeight: 700, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase' }}>What would this do for you</span><div style={{ marginTop: 3 }}>{pfr.whatWouldThisDo}</div></div>
-          )}
-          {pfr.whatIsStopping && (
-            <div><span style={{ color: '#6B8299', fontWeight: 700, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase' }}>What is stopping you</span><div style={{ marginTop: 3 }}>{pfr.whatIsStopping}</div></div>
-          )}
-          {pfr.notes && (
-            <div style={{ fontStyle: 'italic', color: '#6B8299' }}>{pfr.notes}</div>
-          )}
-        </div>
-      )}
-      <div style={{ marginTop: 10, fontSize: 10, color: '#4B5563', fontStyle: 'italic' }}>
-        Read-only. Use it to coach {agentFirstName} on next steps.
-      </div>
     </>
   )
 }
@@ -6405,6 +6369,119 @@ function Pill({ label, count, accent }: { label: string; count: number; accent: 
   )
 }
 
+function PfrReadOnly({ agentCode, agentFirstName, previewToken }: { agentCode: string; agentFirstName: string; previewToken?: string | null }) {
+  const [pfr, setPfr] = useState<Record<string, unknown> | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const url = `/api/agents/trainees/${agentCode}/pfr${previewToken ? `?preview=${encodeURIComponent(previewToken)}` : ''}`
+    fetch(url)
+      .then(r => { if (!r.ok) throw new Error('Access denied'); return r.json() })
+      .then((d: { pfr: Record<string, unknown> | null }) => setPfr(d.pfr))
+      .catch(() => setError('Could not load PFR'))
+      .finally(() => setLoading(false))
+  }, [agentCode, previewToken])
+
+  if (loading) return <div style={{ fontSize: 11, color: '#6B8299' }}>Loading {agentFirstName}&apos;s PFR...</div>
+  if (error) return <div style={{ fontSize: 11, color: '#f87171' }}>{error}</div>
+  if (!pfr) return <div style={{ fontSize: 11, color: '#4B5563' }}>{agentFirstName} hasn&apos;t started their PFR yet.</div>
+
+  const p = pfr as { monthlyIncome?: number; expenses?: Record<string, number>; assets?: Record<string, number>; debts?: Record<string, number>; buckets?: Record<string, number>; dreamsAndGoals?: { timeFrame: string; dream: string; why: string }[]; retirementAge?: number; spouseRetAge?: number; desiredMonthlyRetirement?: number; monthlySavingsCommitment?: number; whatWouldThisDo?: string; whatIsStopping?: string }
+  const fmt = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 })
+  const expenses = p.expenses ?? {}
+  const assets = p.assets ?? {}
+  const debts = p.debts ?? {}
+  const buckets = p.buckets ?? {}
+  const goals = p.dreamsAndGoals ?? []
+
+  const totalExpenses = Object.values(expenses).reduce((a, b) => a + (b || 0), 0)
+  const totalAssets = Object.values(assets).reduce((a, b) => a + (b || 0), 0)
+  const totalDebts = Object.values(debts).reduce((a, b) => a + (b || 0), 0)
+  const income = p.monthlyIncome ?? 0
+  const netWorth = totalAssets - totalDebts
+  const dimeNeed = totalDebts + (income * 12 * 10) + (debts.mortgage || 0) + (assets.collegeFunds || 0)
+
+  const statStyle: React.CSSProperties = { textAlign: 'center', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 4, border: '1px solid rgba(255,255,255,0.04)' }
+
+  return (
+    <div>
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#60a5fa', marginBottom: 10 }}>
+        {agentFirstName}&apos;s Personal Financial Review
+      </div>
+
+      {/* Summary stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 8, marginBottom: 12 }}>
+        <div style={statStyle}>
+          <div style={{ fontSize: 8, color: '#4B5563', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Income</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#C9A96E' }}>{fmt(income)}</div>
+        </div>
+        <div style={statStyle}>
+          <div style={{ fontSize: 8, color: '#4B5563', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Expenses</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#f87171' }}>{fmt(totalExpenses)}</div>
+        </div>
+        <div style={statStyle}>
+          <div style={{ fontSize: 8, color: '#4B5563', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Net Worth</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: netWorth >= 0 ? '#4ade80' : '#f87171' }}>{fmt(netWorth)}</div>
+        </div>
+        <div style={statStyle}>
+          <div style={{ fontSize: 8, color: '#4B5563', textTransform: 'uppercase', letterSpacing: '0.08em' }}>D.I.M.E.</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#60a5fa' }}>{fmt(dimeNeed)}</div>
+        </div>
+      </div>
+
+      {/* Buckets */}
+      {Object.keys(buckets).length > 0 && (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: '#6B8299', marginBottom: 4 }}>4-Bucket Breakdown</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11 }}>
+            {(['expenses', 'fun', 'emergency', 'retirement'] as const).map((k, i) => {
+              const labels = ['Expenses', 'Fun', 'Emergency', 'Retirement']
+              const colors = ['#4ade80', '#60a5fa', '#f59e0b', '#C9A96E']
+              return buckets[k] ? <span key={k} style={{ color: colors[i] }}>{labels[i]}: {fmt(buckets[k])}</span> : null
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Retirement goals */}
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 11, color: '#9BB0C4', marginBottom: 10 }}>
+        {p.retirementAge ? <span>Retire at: <strong style={{ color: '#fff' }}>{p.retirementAge}</strong></span> : null}
+        {p.desiredMonthlyRetirement ? <span>Monthly goal: <strong style={{ color: '#fff' }}>{fmt(p.desiredMonthlyRetirement)}</strong></span> : null}
+        {p.monthlySavingsCommitment ? <span>Savings: <strong style={{ color: '#fff' }}>{fmt(p.monthlySavingsCommitment)}</strong>/mo</span> : null}
+      </div>
+
+      {/* Summary text fields */}
+      {p.whatWouldThisDo && (
+        <div style={{ marginBottom: 6 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: '#6B8299' }}>What would this do for you?</div>
+          <div style={{ fontSize: 11, color: '#9BB0C4', lineHeight: 1.5 }}>{p.whatWouldThisDo}</div>
+        </div>
+      )}
+      {p.whatIsStopping && (
+        <div style={{ marginBottom: 6 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: '#6B8299' }}>What is stopping you?</div>
+          <div style={{ fontSize: 11, color: '#9BB0C4', lineHeight: 1.5 }}>{p.whatIsStopping}</div>
+        </div>
+      )}
+
+      {/* Dreams & Goals */}
+      {goals.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: '#6B8299', marginBottom: 4 }}>Dreams & Goals</div>
+          {goals.map((g, i) => (
+            <div key={i} style={{ display: 'flex', gap: 8, fontSize: 11, color: '#9BB0C4', marginBottom: 3 }}>
+              {g.timeFrame && <span style={{ color: '#C9A96E', fontWeight: 600, flexShrink: 0 }}>{String(g.timeFrame)}</span>}
+              <span>{String(g.dream)}</span>
+              {g.why && <span style={{ color: '#4B5563' }}>&mdash; {String(g.why)}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function DrillSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 16 }}>
@@ -6416,22 +6493,101 @@ function DrillSection({ title, children }: { title: string; children: React.Reac
   )
 }
 
-function PartnerRow({ p }: { p: TraineePartner }) {
+function PartnerRow({ p, agentCode, previewToken }: { p: TraineePartner; agentCode: string; previewToken?: string | null }) {
+  const [expanded, setExpanded] = useState(false)
+  const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString() : null
+
+  const badges = [
+    p.married && 'Married',
+    p.children && 'Children',
+    p.homeowner && 'Homeowner',
+    p.bookedAppt && 'Booked',
+  ].filter(Boolean)
+
   return (
-    <div style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 4, fontSize: 12, color: '#9BB0C4', lineHeight: 1.5 }}>
-      <div style={{ color: '#fff', fontWeight: 600 }}>{p.name}</div>
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 2, fontSize: 11 }}>
-        {p.category && <span>{p.category.replace(/_/g, ' ')}</span>}
-        {p.status && <span>&middot; {p.status.toLowerCase()}</span>}
-        {p.occupation && <span>&middot; {p.occupation}</span>}
-        {p.age && <span>&middot; {p.age}</span>}
-      </div>
-      {(p.email || p.phone) && (
-        <div style={{ marginTop: 2, fontSize: 11, color: '#6B8299' }}>
-          {p.email}{p.email && p.phone ? ' · ' : ''}{p.phone}
+    <div style={{
+      background: 'rgba(255,255,255,0.02)', borderRadius: 6, overflow: 'hidden',
+      border: expanded ? '1px solid rgba(201,169,110,0.15)' : '1px solid transparent',
+      transition: 'border-color 0.15s',
+    }}>
+      <button
+        onClick={() => setExpanded(e => !e)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+          padding: '10px 12px', background: 'none', border: 'none',
+          cursor: 'pointer', textAlign: 'left',
+        }}
+      >
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 13, color: '#fff', fontWeight: 600 }}>{p.name}</span>
+            {p.category && (
+              <span style={{ fontSize: 8, fontWeight: 700, color: '#C9A96E', padding: '1px 6px', background: 'rgba(201,169,110,0.08)', borderRadius: 3, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                {p.category.replace(/_/g, ' ')}
+              </span>
+            )}
+            {p.status && (
+              <span style={{ fontSize: 8, fontWeight: 700, color: '#60a5fa', padding: '1px 6px', background: 'rgba(96,165,250,0.08)', borderRadius: 3, textTransform: 'uppercase' }}>
+                {p.status}
+              </span>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 3, fontSize: 11, color: '#6B8299', flexWrap: 'wrap' }}>
+            {p.phone && <span>{p.phone}</span>}
+            {p.email && <span>{p.phone ? '·' : ''} {p.email}</span>}
+            {p.occupation && <span>· {p.occupation}</span>}
+          </div>
+        </div>
+        <span style={{ fontSize: 10, color: '#4B5563', transition: 'transform 0.2s', transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>&#9660;</span>
+      </button>
+
+      {expanded && (
+        <div style={{ padding: '0 12px 12px', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '8px 16px', marginTop: 10, fontSize: 11 }}>
+            {p.timeZone && <Field label="Time Zone" value={p.timeZone} />}
+            {p.age && <Field label="Age" value={p.age} />}
+            {p.occupation && <Field label="Occupation" value={p.occupation} />}
+            {fmtDate(p.appointmentDate) && <Field label="Appt Date" value={fmtDate(p.appointmentDate)!} />}
+            {fmtDate(p.firstCallDate) && <Field label="1st Call" value={fmtDate(p.firstCallDate)!} />}
+            {fmtDate(p.secondCallDate) && <Field label="2nd Call" value={fmtDate(p.secondCallDate)!} />}
+            {fmtDate(p.lastContactAt) && <Field label="Last Contact" value={fmtDate(p.lastContactAt)!} />}
+            {fmtDate(p.createdAt) && <Field label="Added" value={fmtDate(p.createdAt)!} />}
+          </div>
+          {badges.length > 0 && (
+            <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+              {badges.map(b => (
+                <span key={b as string} style={{ fontSize: 9, fontWeight: 600, color: '#4ade80', padding: '1px 8px', background: 'rgba(74,222,128,0.08)', borderRadius: 10 }}>
+                  {b}
+                </span>
+              ))}
+            </div>
+          )}
+          {p.characterTraits && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: '#6B8299', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 2 }}>Character Traits</div>
+              <div style={{ fontSize: 11, color: '#9BB0C4' }}>{p.characterTraits}</div>
+            </div>
+          )}
+          {p.notes && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: '#6B8299', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 2 }}>Agent Notes</div>
+              <div style={{ fontSize: 11, color: '#9BB0C4', fontStyle: 'italic' }}>{p.notes}</div>
+            </div>
+          )}
+
+          {/* Threaded notes — visible to both agent and trainer */}
+          <ContactNotesThread partnerId={p.id} previewToken={previewToken} />
         </div>
       )}
-      {p.notes && <div style={{ marginTop: 4, fontSize: 11, color: '#6B8299', fontStyle: 'italic' }}>{p.notes}</div>}
+    </div>
+  )
+}
+
+function Field({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div style={{ fontSize: 8, fontWeight: 700, color: '#4B5563', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{label}</div>
+      <div style={{ fontSize: 12, color: '#9BB0C4', marginTop: 1 }}>{value}</div>
     </div>
   )
 }

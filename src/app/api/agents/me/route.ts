@@ -53,6 +53,9 @@ export async function GET(req: NextRequest) {
                 linkedAgentProfile: {
                   select: { id: true, firstName: true, lastName: true, agentCode: true, status: true, avatarUrl: true },
                 },
+                linkedFta: {
+                  select: { id: true, name: true, businessPartner: { select: { id: true, name: true } } },
+                },
               },
             },
             carrierAppointments: { orderBy: { carrier: 'asc' } },
@@ -64,7 +67,7 @@ export async function GET(req: NextRequest) {
             // "Field Training 2").
             ftas: {
               where: { status: 'COMPLETED' },
-              orderBy: { completedAt: 'asc' },
+              orderBy: [{ completedAt: 'asc' }, { id: 'asc' }],
               select: {
                 id: true,
                 name: true,
@@ -249,6 +252,9 @@ function findAgentUser(agentUserId: string) {
               linkedAgentProfile: {
                 select: { id: true, firstName: true, lastName: true, agentCode: true, status: true, avatarUrl: true },
               },
+              linkedFta: {
+                select: { id: true, name: true, businessPartner: { select: { id: true, name: true } } },
+              },
             },
           },
           carrierAppointments: { orderBy: { carrier: 'asc' } },
@@ -256,7 +262,7 @@ function findAgentUser(agentUserId: string) {
           _count: { select: { businessPartners: true, callLogs: true } },
           ftas: {
             where: { status: 'COMPLETED' },
-            orderBy: { completedAt: 'asc' },
+            orderBy: [{ completedAt: 'asc' }, { id: 'asc' }],
             select: {
               id: true,
               name: true,
