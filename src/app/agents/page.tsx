@@ -5961,11 +5961,20 @@ interface TraineePartner {
   name: string
   email: string | null
   phone: string | null
+  timeZone: string | null
+  age: string | null
+  married: boolean
+  children: boolean
+  homeowner: boolean
+  occupation: string | null
+  characterTraits: string | null
   category: string | null
   status: string | null
+  appointmentDate: string | null
+  firstCallDate: string | null
+  secondCallDate: string | null
+  bookedAppt: boolean
   notes: string | null
-  occupation: string | null
-  age: string | null
   lastContactAt: string | null
   createdAt: string
 }
@@ -6129,21 +6138,97 @@ function DrillSection({ title, children }: { title: string; children: React.Reac
 }
 
 function PartnerRow({ p }: { p: TraineePartner }) {
+  const [expanded, setExpanded] = useState(false)
+  const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString() : null
+
+  const badges = [
+    p.married && 'Married',
+    p.children && 'Children',
+    p.homeowner && 'Homeowner',
+    p.bookedAppt && 'Booked',
+  ].filter(Boolean)
+
   return (
-    <div style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 4, fontSize: 12, color: '#9BB0C4', lineHeight: 1.5 }}>
-      <div style={{ color: '#fff', fontWeight: 600 }}>{p.name}</div>
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 2, fontSize: 11 }}>
-        {p.category && <span>{p.category.replace(/_/g, ' ')}</span>}
-        {p.status && <span>&middot; {p.status.toLowerCase()}</span>}
-        {p.occupation && <span>&middot; {p.occupation}</span>}
-        {p.age && <span>&middot; {p.age}</span>}
-      </div>
-      {(p.email || p.phone) && (
-        <div style={{ marginTop: 2, fontSize: 11, color: '#6B8299' }}>
-          {p.email}{p.email && p.phone ? ' · ' : ''}{p.phone}
+    <div style={{
+      background: 'rgba(255,255,255,0.02)', borderRadius: 6, overflow: 'hidden',
+      border: expanded ? '1px solid rgba(201,169,110,0.15)' : '1px solid transparent',
+      transition: 'border-color 0.15s',
+    }}>
+      <button
+        onClick={() => setExpanded(e => !e)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+          padding: '10px 12px', background: 'none', border: 'none',
+          cursor: 'pointer', textAlign: 'left',
+        }}
+      >
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 13, color: '#fff', fontWeight: 600 }}>{p.name}</span>
+            {p.category && (
+              <span style={{ fontSize: 8, fontWeight: 700, color: '#C9A96E', padding: '1px 6px', background: 'rgba(201,169,110,0.08)', borderRadius: 3, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                {p.category.replace(/_/g, ' ')}
+              </span>
+            )}
+            {p.status && (
+              <span style={{ fontSize: 8, fontWeight: 700, color: '#60a5fa', padding: '1px 6px', background: 'rgba(96,165,250,0.08)', borderRadius: 3, textTransform: 'uppercase' }}>
+                {p.status}
+              </span>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 3, fontSize: 11, color: '#6B8299', flexWrap: 'wrap' }}>
+            {p.phone && <span>{p.phone}</span>}
+            {p.email && <span>{p.phone ? '·' : ''} {p.email}</span>}
+            {p.occupation && <span>· {p.occupation}</span>}
+          </div>
+        </div>
+        <span style={{ fontSize: 10, color: '#4B5563', transition: 'transform 0.2s', transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>&#9660;</span>
+      </button>
+
+      {expanded && (
+        <div style={{ padding: '0 12px 12px', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '8px 16px', marginTop: 10, fontSize: 11 }}>
+            {p.timeZone && <Field label="Time Zone" value={p.timeZone} />}
+            {p.age && <Field label="Age" value={p.age} />}
+            {p.occupation && <Field label="Occupation" value={p.occupation} />}
+            {fmtDate(p.appointmentDate) && <Field label="Appt Date" value={fmtDate(p.appointmentDate)!} />}
+            {fmtDate(p.firstCallDate) && <Field label="1st Call" value={fmtDate(p.firstCallDate)!} />}
+            {fmtDate(p.secondCallDate) && <Field label="2nd Call" value={fmtDate(p.secondCallDate)!} />}
+            {fmtDate(p.lastContactAt) && <Field label="Last Contact" value={fmtDate(p.lastContactAt)!} />}
+            {fmtDate(p.createdAt) && <Field label="Added" value={fmtDate(p.createdAt)!} />}
+          </div>
+          {badges.length > 0 && (
+            <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+              {badges.map(b => (
+                <span key={b as string} style={{ fontSize: 9, fontWeight: 600, color: '#4ade80', padding: '1px 8px', background: 'rgba(74,222,128,0.08)', borderRadius: 10 }}>
+                  {b}
+                </span>
+              ))}
+            </div>
+          )}
+          {p.characterTraits && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: '#6B8299', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 2 }}>Character Traits</div>
+              <div style={{ fontSize: 11, color: '#9BB0C4' }}>{p.characterTraits}</div>
+            </div>
+          )}
+          {p.notes && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: '#6B8299', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 2 }}>Notes</div>
+              <div style={{ fontSize: 11, color: '#9BB0C4', fontStyle: 'italic' }}>{p.notes}</div>
+            </div>
+          )}
         </div>
       )}
-      {p.notes && <div style={{ marginTop: 4, fontSize: 11, color: '#6B8299', fontStyle: 'italic' }}>{p.notes}</div>}
+    </div>
+  )
+}
+
+function Field({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div style={{ fontSize: 8, fontWeight: 700, color: '#4B5563', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{label}</div>
+      <div style={{ fontSize: 12, color: '#9BB0C4', marginTop: 1 }}>{value}</div>
     </div>
   )
 }
