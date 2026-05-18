@@ -34,6 +34,7 @@ import { displayFirstName, displayFullName } from '@/lib/display-name'
 import MarkdownDescription from '@/components/MarkdownDescription'
 import ChecklistItemVideo from '@/components/ChecklistItemVideo'
 import AnnouncementBanner from '@/components/AnnouncementBanner'
+import ContactNotesThread from '@/components/ContactNotesThread'
 import { PHASE_COLORS } from '@/lib/phase-colors'
 import { useIsMobile } from '@/lib/useIsMobile'
 
@@ -6140,9 +6141,6 @@ function DrillSection({ title, children }: { title: string; children: React.Reac
 
 function PartnerRow({ p, agentCode, previewToken }: { p: TraineePartner; agentCode: string; previewToken?: string | null }) {
   const [expanded, setExpanded] = useState(false)
-  const [trainerNotes, setTrainerNotes] = useState(p.trainerNotes ?? '')
-  const [trainerNotesSaved, setTrainerNotesSaved] = useState(p.trainerNotes ?? '')
-  const [savingNotes, setSavingNotes] = useState(false)
   const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString() : null
 
   const badges = [
@@ -6223,47 +6221,8 @@ function PartnerRow({ p, agentCode, previewToken }: { p: TraineePartner; agentCo
             </div>
           )}
 
-          {/* Trainer notes — editable by trainer/admin */}
-          <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid rgba(201,169,110,0.1)' }}>
-            <div style={{ fontSize: 9, fontWeight: 700, color: '#C9A96E', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>Trainer Notes</div>
-            <textarea
-              value={trainerNotes}
-              onChange={e => setTrainerNotes(e.target.value)}
-              rows={2}
-              placeholder="Add coaching notes about this contact..."
-              style={{
-                width: '100%', boxSizing: 'border-box', padding: '6px 8px',
-                background: '#0A1628', border: '1px solid rgba(201,169,110,0.15)',
-                borderRadius: 4, color: '#d1d9e2', fontSize: 11,
-                fontFamily: 'inherit', resize: 'vertical',
-              }}
-            />
-            {trainerNotes !== trainerNotesSaved && (
-              <button
-                disabled={savingNotes}
-                onClick={async () => {
-                  setSavingNotes(true)
-                  const url = `/api/agents/trainees/${agentCode}/partners/${p.id}${previewToken ? `?preview=${encodeURIComponent(previewToken)}` : ''}`
-                  const res = await fetch(url, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ trainerNotes: trainerNotes.trim() }),
-                  })
-                  if (res.ok) setTrainerNotesSaved(trainerNotes.trim())
-                  setSavingNotes(false)
-                }}
-                style={{
-                  marginTop: 4, padding: '4px 12px', borderRadius: 3,
-                  fontSize: 10, fontWeight: 700,
-                  background: '#C9A96E', border: 'none', color: '#142D48',
-                  cursor: savingNotes ? 'wait' : 'pointer',
-                  opacity: savingNotes ? 0.7 : 1,
-                }}
-              >
-                {savingNotes ? 'Saving...' : 'Save Notes'}
-              </button>
-            )}
-          </div>
+          {/* Threaded notes — visible to both agent and trainer */}
+          <ContactNotesThread partnerId={p.id} previewToken={previewToken} />
         </div>
       )}
     </div>

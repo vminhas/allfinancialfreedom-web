@@ -785,6 +785,7 @@ model BusinessPartner {
   category        String?
   notes           String?
   trainerNotes    String?
+  contactNotes    ContactNote[]
   phaseItemKey    String?
   bookedAppt      Boolean      @default(false)
   // CEO intro email: when the agent has Vick send a "thought you'd be a
@@ -818,6 +819,21 @@ model BusinessPartner {
   @@index([agentProfileId, status])
   @@index([linkedAgentProfileId])
   @@map("business_partners")
+}
+
+model ContactNote {
+  id                String          @id @default(cuid())
+  businessPartnerId String
+  businessPartner   BusinessPartner @relation(fields: [businessPartnerId], references: [id], onDelete: Cascade)
+  authorRole        String
+  authorName        String
+  authorId          String
+  message           String
+  editedAt          DateTime?
+  createdAt         DateTime        @default(now())
+
+  @@index([businessPartnerId, createdAt])
+  @@map("contact_notes")
 }
 
 model SetupResource {
