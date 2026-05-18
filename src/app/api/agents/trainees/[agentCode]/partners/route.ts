@@ -52,6 +52,7 @@ export async function GET(
       secondCallDate: true,
       bookedAppt: true,
       notes: true,
+      trainerNotes: true,
       lastContactAt: true,
       createdAt: true,
     },

@@ -784,6 +784,7 @@ model BusinessPartner {
   homeowner       Boolean      @default(false)
   category        String?
   notes           String?
+  trainerNotes    String?
   phaseItemKey    String?
   bookedAppt      Boolean      @default(false)
   // CEO intro email: when the agent has Vick send a "thought you'd be a

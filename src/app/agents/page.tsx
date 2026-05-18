@@ -5975,6 +5975,7 @@ interface TraineePartner {
   secondCallDate: string | null
   bookedAppt: boolean
   notes: string | null
+  trainerNotes: string | null
   lastContactAt: string | null
   createdAt: string
 }
@@ -6031,7 +6032,7 @@ function ContactsDrilldown({ agentCode, agentFirstName, previewToken }: {
       <DrillSection title="Business Partners">
         {data.partners.length === 0
           ? <div style={{ color: '#4B5563', fontSize: 11, padding: 8 }}>No business partners on file yet.</div>
-          : data.partners.map(p => <PartnerRow key={p.id} p={p} />)}
+          : data.partners.map(p => <PartnerRow key={p.id} p={p} agentCode={agentCode} previewToken={previewToken} />)}
       </DrillSection>
       <DrillSection title="Field Training Appointments">
         {data.ftas.length === 0
@@ -6137,8 +6138,11 @@ function DrillSection({ title, children }: { title: string; children: React.Reac
   )
 }
 
-function PartnerRow({ p }: { p: TraineePartner }) {
+function PartnerRow({ p, agentCode, previewToken }: { p: TraineePartner; agentCode: string; previewToken?: string | null }) {
   const [expanded, setExpanded] = useState(false)
+  const [trainerNotes, setTrainerNotes] = useState(p.trainerNotes ?? '')
+  const [trainerNotesSaved, setTrainerNotesSaved] = useState(p.trainerNotes ?? '')
+  const [savingNotes, setSavingNotes] = useState(false)
   const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString() : null
 
   const badges = [
@@ -6214,10 +6218,52 @@ function PartnerRow({ p }: { p: TraineePartner }) {
           )}
           {p.notes && (
             <div style={{ marginTop: 8 }}>
-              <div style={{ fontSize: 9, fontWeight: 700, color: '#6B8299', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 2 }}>Notes</div>
+              <div style={{ fontSize: 9, fontWeight: 700, color: '#6B8299', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 2 }}>Agent Notes</div>
               <div style={{ fontSize: 11, color: '#9BB0C4', fontStyle: 'italic' }}>{p.notes}</div>
             </div>
           )}
+
+          {/* Trainer notes — editable by trainer/admin */}
+          <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid rgba(201,169,110,0.1)' }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: '#C9A96E', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>Trainer Notes</div>
+            <textarea
+              value={trainerNotes}
+              onChange={e => setTrainerNotes(e.target.value)}
+              rows={2}
+              placeholder="Add coaching notes about this contact..."
+              style={{
+                width: '100%', boxSizing: 'border-box', padding: '6px 8px',
+                background: '#0A1628', border: '1px solid rgba(201,169,110,0.15)',
+                borderRadius: 4, color: '#d1d9e2', fontSize: 11,
+                fontFamily: 'inherit', resize: 'vertical',
+              }}
+            />
+            {trainerNotes !== trainerNotesSaved && (
+              <button
+                disabled={savingNotes}
+                onClick={async () => {
+                  setSavingNotes(true)
+                  const url = `/api/agents/trainees/${agentCode}/partners/${p.id}${previewToken ? `?preview=${encodeURIComponent(previewToken)}` : ''}`
+                  const res = await fetch(url, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ trainerNotes: trainerNotes.trim() }),
+                  })
+                  if (res.ok) setTrainerNotesSaved(trainerNotes.trim())
+                  setSavingNotes(false)
+                }}
+                style={{
+                  marginTop: 4, padding: '4px 12px', borderRadius: 3,
+                  fontSize: 10, fontWeight: 700,
+                  background: '#C9A96E', border: 'none', color: '#142D48',
+                  cursor: savingNotes ? 'wait' : 'pointer',
+                  opacity: savingNotes ? 0.7 : 1,
+                }}
+              >
+                {savingNotes ? 'Saving...' : 'Save Notes'}
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
