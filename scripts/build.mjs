@@ -70,8 +70,20 @@ if (env === 'production' || !env) {
     'Recovery: marking previously-failed preferred-name migration as rolled-back so migrate deploy can retry it with the corrected table name (agent_profiles not AgentProfile)',
   )
   run('npx', ['prisma', 'migrate', 'deploy'])
+
+  // Refresh the scoped demo dataset (the test@allfinancialfreedom.com
+  // account + its isTest synthetic downline). The script is idempotent
+  // and additive-only — it never mutates real agents or global config —
+  // so it is safe to re-run on every production deploy. Runs only here
+  // (DB reachable + just migrated). Non-fatal: a seeding hiccup must
+  // never block a deploy, so we log and continue.
+  tryRun(
+    'npx',
+    ['tsx', 'scripts/seed-test-data.ts'],
+    'Refreshing scoped demo data (test account + isTest downline)',
+  )
 } else {
-  console.log(`\n[build] Skipping prisma migrate deploy on VERCEL_ENV=${env}`)
+  console.log(`\n[build] Skipping prisma migrate deploy + demo seed on VERCEL_ENV=${env}`)
 }
 
 run('npx', ['next', 'build'])

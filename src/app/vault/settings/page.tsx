@@ -1213,7 +1213,7 @@ export default function SettingsPage() {
               </div>
             ) : (
               <a
-                href="/api/admin/discord-connect"
+                href="/api/vault/discord-connect"
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 10,
                   padding: '10px 22px',
