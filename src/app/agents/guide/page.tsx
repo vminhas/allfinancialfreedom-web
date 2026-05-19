@@ -26,7 +26,7 @@ export default function AgentGuidePage() {
 
         <GuideSection title="Getting Started" icon={Sparkles} defaultOpen>
           <GuideStep number={1} title="Accept Your Invite">
-            You received an email with a link to set up your portal. Click the link and create your password. The link expires in 72 hours. If it expired, ask your trainer or coordinator to resend it.
+            You received an invite link to set up your portal, by email or text message. Click the link and create your password. The link expires in 72 hours. If it expired, ask your trainer or coordinator to resend it (they can send it by email or text).
           </GuideStep>
 
           <GuideStep number={2} title="Connect Discord">
@@ -41,10 +41,10 @@ export default function AgentGuidePage() {
         </GuideSection>
 
         <GuideSection title="System Checklist: Your Roadmap" icon={CheckCircle}>
-          <p style={{ marginBottom: 12 }}>The checklist is your home base. It shows everything you need to complete in your current phase and tracks your progress across all 5 phases.</p>
+          <p style={{ marginBottom: 12 }}>The checklist is your home base. It shows everything you need to complete in your current phase and tracks your progress across all 6 phases.</p>
 
           <GuideStep number={1} title="Understanding Phases">
-            <strong style={{ color: '#ffffff' }}>Phase 1</strong> (Getting Started): Onboarding, licensing, and training prep. <strong style={{ color: '#ffffff' }}>Phase 2</strong> (Field Training): 10 FTAs, first clients, first $1,000. <strong style={{ color: '#ffffff' }}>Phase 3</strong> (Becoming a CFT): Sign-offs, independent skills, product mastery. <strong style={{ color: '#ffffff' }}>Phase 4</strong> (MD Focus): 45K points, team of 5. <strong style={{ color: '#ffffff' }}>Phase 5</strong> (EMD Focus): 150K points, 20 licensed agents.
+            <strong style={{ color: '#ffffff' }}>Phase 1</strong> (Get Started): Licensing, Discord, onboarding, your first PFR, marketing plan, and scripts. <strong style={{ color: '#ffffff' }}>Phase 2</strong> (Field Training): Your first 3 business partners, 10 live FTAs with your CFT, your first 3 clients and first $1,000, then your Senior Associate promotion and Net License. <strong style={{ color: '#ffffff' }}>Phase 3</strong> (Becoming a CFT): Independent skills, product mastery, and sign-offs from your trainer, coordinator, and EMD. <strong style={{ color: '#ffffff' }}>Phase 4</strong> (Marketing Director): Production goals and a team of 5 profitable net licensed agents. <strong style={{ color: '#ffffff' }}>Phase 5</strong> (Executive Marketing Director): Leadership production and growing your organization to 20 active licensed agents. <strong style={{ color: '#ffffff' }}>Phase 6</strong> (National Vice President): Earn your NVP promotion.
           </GuideStep>
 
           <GuideStep number={2} title="Groups & Collapsing">
@@ -116,11 +116,27 @@ export default function AgentGuidePage() {
           </GuideStep>
 
           <GuideStep number={2} title="Contacts & Prospects">
-            This is your personal CRM. Log everyone you meet: business partners, life market prospects (age 28-50), rollover market prospects (age 50+), and recruits. Filter by category using the tabs above the table.
+            This is your personal CRM. Log everyone you meet: business partners, life market prospects (age 28-50), rollover market prospects (age 50+), and recruits. Filter by category using the tabs above the table. You can move a contact between the Business Partner and FTA lanes anytime if you reclassify them.
           </GuideStep>
 
           <GuideStep number={3} title="Full Contact Details">
             Each contact stores: name, email, phone, time zone, age, married/children/homeowner status, occupation, character traits, appointment date, 1st and 2nd call dates, booked status, and notes. Click Edit to update any contact.
+          </GuideStep>
+        </GuideSection>
+
+        <GuideSection title="My Team (Leaders)" icon={Users}>
+          <p style={{ marginBottom: 12 }}>If you have a downline, the My Team tab is your leadership view. It only shows agents you recruited (directly and below).</p>
+
+          <GuideStep number={1} title="Your Downline at a Glance">
+            See each team member&apos;s phase, progress, contacts, and Personal Financial Review status. Drill into a member to review where they are and what is holding them up.
+          </GuideStep>
+
+          <GuideStep number={2} title="Nudge & Coach">
+            Send a one-tap reminder to a member who has not started their PFR. Keep private leadership notes on each agent so your coaching stays consistent.
+          </GuideStep>
+
+          <GuideStep number={3} title="Resend a Recruit&apos;s Invite">
+            If someone you recruited has not activated their portal yet, you can resend their invite from here so they do not get stuck waiting.
           </GuideStep>
         </GuideSection>
 

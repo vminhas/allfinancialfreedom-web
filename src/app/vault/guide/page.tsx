@@ -28,7 +28,7 @@ export default function VaultGuidePage() {
         </GuideSection>
 
         <GuideSection title="AFF Tracker" icon={Target}>
-          <p style={{ marginBottom: 12 }}>The AFF Tracker is your primary tool for managing agents through the 5-phase progression system.</p>
+          <p style={{ marginBottom: 12 }}>The AFF Tracker is your primary tool for managing agents through the 6-phase progression system (Phase 1 Get Started through Phase 6 National Vice President).</p>
 
           <GuideStep number={1} title="Agent Table">
             Filter agents by phase, status (Active/Inactive), or trainer. Each row shows the agent&apos;s phase progress, carrier appointments, and last login. Click any row to open the agent drawer.
@@ -56,8 +56,16 @@ export default function VaultGuidePage() {
             When an agent requests help with a licensing item, it appears here. Assign requests to a coordinator, update status to In Progress, and mark Resolved with a note when done. The agent sees the status update in their portal.
           </GuideStep>
 
-          <GuideStep number={2} title="Referrals Tab">
-            When an agent refers someone to join AFF, the referral appears here as Pending. Review the referral details, optionally assign a trainer, then Approve or Reject. Approving creates the new agent account, sends a portal invite email with Discord link, and links them to the referring agent.
+          <GuideStep number={2} title="Satisfy a Request">
+            Open a request and use the &quot;Satisfy this request&quot; box. The dropdown lists every outstanding phase item for that agent and defaults to the item the request is linked to. Pick the right one and click <strong style={{ color: '#ffffff' }}>Complete &amp; resolve</strong>: it marks that item complete for the agent, auto-resolves the ticket, and fires the same Discord celebration (and title change, for promotions) as ticking the box in the Tracker. This is the fastest way to clear promotion and licensing requests without leaving the inbox.
+          </GuideStep>
+
+          <GuideStep number={3} title="Agents Tab">
+            A licensing overview of all agents and where each one stands. Use it to spot who is stuck and to send or resend a portal invite (by email or text).
+          </GuideStep>
+
+          <GuideStep number={4} title="Referrals Tab">
+            When an agent refers someone to join AFF, the referral appears here as Pending. Review the referral details, optionally assign a trainer, then Approve or Reject. Approving creates the new agent account, sends a portal invite (email with Discord link), and links them to the referring agent.
           </GuideStep>
 
           <GuideTip>Respond to licensing requests within 24 hours. Agents see &quot;Pending&quot; or &quot;In Progress&quot; in their coordinator panel, so timely updates build trust.</GuideTip>
@@ -107,7 +115,7 @@ export default function VaultGuidePage() {
           </GuideStep>
 
           <GuideStep number={2} title="Sending Invites">
-            After creating an agent, send them an invite from the agent drawer. The invite email contains a portal setup link (expires in 72 hours) and is sent via GHL.
+            After creating an agent, invite them from the agent drawer. <strong style={{ color: '#ffffff' }}>Send Portal Invite</strong> emails the setup link; <strong style={{ color: '#ffffff' }}>Text Invite Link</strong> sends the same link by SMS (the agent must have a phone on their profile). Both go through GHL and the link expires in 72 hours. Resending generates a fresh link and invalidates earlier ones, so send the latest link and have them use that one.
           </GuideStep>
 
           <GuideStep number={3} title="Carrier Appointments">
@@ -125,11 +133,29 @@ export default function VaultGuidePage() {
           </GuideStep>
         </GuideSection>
 
+        <GuideSection title="Daily Motivation" icon={Calendar}>
+          <p style={{ marginBottom: 12 }}>A short motivational line posts to the team Discord channel on weekday mornings. Manage it from System &rarr; Daily Motivation.</p>
+
+          <GuideStep number={1} title="The Library">
+            Every line lives in one reviewable file in the codebase (src/data/motivation-library.json) with its voice, optional &quot;in the spirit of&quot; credit, and active flag. That file is the single source of truth. Review and edit lines there.
+          </GuideStep>
+
+          <GuideStep number={2} title="Editing on the Page">
+            You can also add, edit, toggle, and delete lines directly on the Daily Motivation page, filter by voice, set the channel, pause posting, and use &quot;Send today&apos;s line now&quot; to post immediately.
+          </GuideStep>
+
+          <GuideStep number={3} title="Reload from Library File">
+            After the JSON file has been reviewed and deployed, click <strong style={{ color: '#ffffff' }}>Reload from library file</strong> to replace the entire live library with that file. This overwrites any lines added or edited only on the page, so the file is authoritative. It double-confirms first.
+          </GuideStep>
+
+          <GuideTip>The picker is deterministic by date, so the same day always shows the same line and a retry never double-posts. Keep the file free of em-dashes; it gets posted to Discord.</GuideTip>
+        </GuideSection>
+
         <GuideSection title="Other Tools" icon={BarChart3}>
-          <p><strong style={{ color: '#ffffff' }}>Pipeline</strong> — Visual funnel of outreach prospects by stage.</p>
-          <p><strong style={{ color: '#ffffff' }}>Sequences</strong> — Email drip campaigns for outreach.</p>
-          <p><strong style={{ color: '#ffffff' }}>Contacts</strong> — CRM contact database for outreach prospects.</p>
-          <p><strong style={{ color: '#ffffff' }}>Birthdays</strong> — Upcoming agent birthdays with celebration tracking.</p>
+          <p><strong style={{ color: '#ffffff' }}>Pipeline</strong>: visual funnel of outreach prospects by stage.</p>
+          <p><strong style={{ color: '#ffffff' }}>Sequences</strong>: email drip campaigns for outreach.</p>
+          <p><strong style={{ color: '#ffffff' }}>Contacts</strong>: CRM contact database for outreach prospects.</p>
+          <p><strong style={{ color: '#ffffff' }}>Birthdays</strong>: upcoming agent birthdays with celebration tracking.</p>
         </GuideSection>
       </div>
     </div>
