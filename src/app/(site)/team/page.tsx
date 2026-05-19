@@ -147,7 +147,13 @@ export default function Team() {
             4 cols each, bottom row spans 3 cols each. Mobile falls back
             to a simple 2-col grid where every card spans 6. */}
         <div className="grid grid-cols-2 sm:grid-cols-12 gap-6 max-w-5xl mx-auto">
-          {ASSOCIATES.map((assoc, idx) => {
+          {/* Associates with a "Book a Call" link float to the top row;
+              everyone without one sorts below. Stable partition (not
+              Array.sort) so order within each group is preserved. */}
+          {[
+            ...ASSOCIATES.filter(a => a.calendly),
+            ...ASSOCIATES.filter(a => !a.calendly),
+          ].map((assoc, idx) => {
             const span = idx < 3 ? 'sm:col-span-4' : 'sm:col-span-3'
             return (
             <div key={assoc.name} className={`card-premium text-center group overflow-hidden ${span}`}>
