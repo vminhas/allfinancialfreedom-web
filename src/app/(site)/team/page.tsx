@@ -97,7 +97,7 @@ export default function Team() {
         <div className="max-w-3xl mx-auto">
           {DIRECTORS.map(member => (
             <div key={member.name} className="flex gap-8 items-start group">
-              <div className="relative overflow-hidden shrink-0" style={{ width: 140, height: 170, borderRadius: 4 }}>
+              <div className="relative overflow-hidden shrink-0" style={{ width: 240, height: 300, borderRadius: 4 }}>
                 <Image
                   src={member.image}
                   alt={member.name}
