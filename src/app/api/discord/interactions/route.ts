@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import {
   verifyDiscordSignature,
   InteractionType,
@@ -33,10 +33,16 @@ interface DiscordInteraction {
   data?: {
     custom_id?: string
     component_type?: number
+    // Slash-command interactions carry the command name here.
+    name?: string
     // Modal submission payloads carry the user's text input here.
     components?: { components: { custom_id: string; value: string }[] }[]
   }
-  member?: { user?: { id: string; username: string; global_name?: string | null } }
+  member?: {
+    user?: { id: string; username: string; global_name?: string | null }
+    // Role IDs the invoking member has, used to gate admin commands.
+    roles?: string[]
+  }
   user?: { id: string; username: string; global_name?: string | null }
   message?: { embeds?: Record<string, unknown>[]; id?: string }
 }
@@ -113,6 +119,14 @@ export async function POST(req: NextRequest) {
       const [, agentProfileId] = customId.split(':')
       const query = interaction.data?.components?.[0]?.components?.[0]?.value ?? ''
       return handleSearchSubmit(interaction, agentProfileId, query)
+    }
+  }
+
+  // Slash commands. Discord delivers these here (HTTP) because an
+  // Interactions Endpoint URL is configured, not to the gateway bot.
+  if (interaction.type === InteractionType.APPLICATION_COMMAND) {
+    if (interaction.data?.name === 'tevah-sync') {
+      return handleTevahSyncCommand(interaction)
     }
   }
 
@@ -294,10 +308,71 @@ async function handlePromoApprove(interaction: DiscordInteraction, requestId: st
   })
 }
 
-// Suppress unused-import lint — editOriginalInteractionResponse is exported
-// from the lib for future flows that need to follow up after a deferred
-// response. This route uses synchronous UPDATE_MESSAGE so we don't call it.
-void editOriginalInteractionResponse
+// Admin role that may run /tevah-sync. Mirrors discord-bot/config.js
+// ROLES.ADMIN; overridable via env without a redeploy.
+const DISCORD_ADMIN_ROLE_ID =
+  process.env.DISCORD_ADMIN_ROLE_ID ?? '1295044213389393958'
+
+// /tevah-sync — run the full Tevah sync on demand. The sync takes far
+// longer than Discord's 3s reply window, so we ack with a deferred
+// (ephemeral) response immediately and finish the work in `after()`,
+// then PATCH the original response with the summary. The cron route we
+// call also posts its own detailed embed to the admin channel.
+function handleTevahSyncCommand(interaction: DiscordInteraction) {
+  const isAdmin =
+    Array.isArray(interaction.member?.roles) &&
+    interaction.member!.roles!.includes(DISCORD_ADMIN_ROLE_ID)
+  if (!isAdmin) {
+    return NextResponse.json({
+      type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+      data: {
+        content: 'You need the Admin role to run a Tevah sync.',
+        flags: MessageFlags.EPHEMERAL,
+      },
+    })
+  }
+
+  const appId = interaction.application_id
+  const token = interaction.token
+
+  after(async () => {
+    let summary: string
+    try {
+      const baseUrl = process.env.NEXTAUTH_URL ?? 'https://allfinancialfreedom.com'
+      const res = await fetch(`${baseUrl}/api/cron/tevah-sync`, {
+        method: 'POST',
+        headers: { 'x-cron-secret': process.env.CRON_SECRET ?? '' },
+      })
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean
+        error?: string
+        agents?: { error?: string; created?: number; updated?: number; invited?: number }
+        submissions?: { error?: string; created?: number; updated?: number; announced?: number }
+      }
+      if (!res.ok || !data.ok) {
+        summary = `Tevah sync failed${data.error ? `: ${data.error}` : ` (HTTP ${res.status})`}.`
+      } else {
+        const a = data.agents ?? {}
+        const s = data.submissions ?? {}
+        const agentLine = a.error
+          ? `Agents: failed (${a.error})`
+          : `Agents: ${a.created ?? 0} new, ${a.updated ?? 0} updated${a.invited ? `, ${a.invited} invited` : ''}`
+        const subLine = s.error
+          ? `Submissions: failed (${s.error})`
+          : `Submissions: ${s.created ?? 0} new, ${s.updated ?? 0} updated, ${s.announced ?? 0} announced`
+        summary = `Tevah sync complete.\n${agentLine}\n${subLine}`
+      }
+    } catch (err) {
+      summary = `Tevah sync error: ${err instanceof Error ? err.message : 'unknown'}`
+    }
+    await editOriginalInteractionResponse(appId, token, { content: summary }).catch(() => {})
+  })
+
+  return NextResponse.json({
+    type: InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
+    data: { flags: MessageFlags.EPHEMERAL },
+  })
+}
 
 // First click on "Kick from Discord" doesn't kick — it swaps the
 // embed for a confirm prompt so we don't act on accidental clicks.
