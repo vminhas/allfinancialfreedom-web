@@ -133,10 +133,10 @@ export async function postDailyMotivation(
 
   await sendChannelMessage(channelId, {
     embeds: [{
-      title: '☀️  Good morning, team',
+      title: "☀️  Good morning. Let's go.",
       description: renderMotivationBody(line),
       color: SUNRISE,
-      footer: { text: 'Now go make it a good one.' },
+      footer: { text: 'No excuses. Go make it happen.' },
     }],
     // Explicitly no pings. This is a daily nudge, not an announcement.
     allowedMentions: { parse: [] },
