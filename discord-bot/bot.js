@@ -2,8 +2,10 @@ const {
   Client, GatewayIntentBits, EmbedBuilder, Events,
   ActionRowBuilder, ButtonBuilder, ButtonStyle,
   ModalBuilder, TextInputBuilder, TextInputStyle,
+  REST, Routes,
 } = require('discord.js');
 const { GUILD_ID, CHANNELS, ROLES, COLORS, EDITORS } = require('./config');
+const { commands } = require('./commands');
 const { maybeReactToMessage } = require('./reactions');
 const { postLeaderboard, handleLeaderboardButton } = require('./leaderboard');
 
@@ -656,8 +658,26 @@ client.on(Events.MessageCreate, async (message) => {
 });
 
 // ─── Ready ───────────────────────────────────────────────────────────────────
-client.once(Events.ClientReady, (c) => {
+client.once(Events.ClientReady, async (c) => {
   console.log(`✅ AFF Concierge online as ${c.user.tag}`);
+
+  // Auto-register slash commands on every startup so a Railway
+  // redeploy is all that's needed to pick up new/changed commands.
+  // Guild-scoped, so updates appear instantly. Non-fatal: a
+  // registration failure logs but never stops the bot.
+  try {
+    const appId = c.application?.id || process.env.DISCORD_CLIENT_ID;
+    if (!appId) throw new Error('No application id (set DISCORD_CLIENT_ID)');
+    const rest = new REST().setToken(process.env.DISCORD_BOT_TOKEN);
+    await rest.put(
+      Routes.applicationGuildCommands(appId, GUILD_ID),
+      { body: commands },
+    );
+    console.log(`✅ Registered ${commands.length} slash commands (guild ${GUILD_ID}).`);
+  } catch (err) {
+    console.error('⚠️  Slash command registration failed:', err?.message || err);
+  }
+
   startLeaderboardSchedule(c);
 });
 
