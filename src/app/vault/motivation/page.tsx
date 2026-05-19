@@ -156,6 +156,24 @@ export default function MotivationPage() {
     note('ok', 'Posted to the channel.')
   }
 
+  const syncFromFile = async () => {
+    if (!confirm(
+      'Replace the ENTIRE live library with the reviewed file (src/data/motivation-library.json) from the latest deploy?\n\n' +
+      'This overwrites every line here, including any added or edited in this editor. Use it only after the file has been reviewed and deployed.',
+    )) return
+    setBusy(true)
+    const res = await fetch('/api/admin/motivation/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ confirm: true }),
+    })
+    setBusy(false)
+    if (!res.ok) { note('err', (await res.json().catch(() => ({})))?.error || 'Sync failed.'); return }
+    const d = await res.json().catch(() => ({})) as { count?: number }
+    note('ok', `Library replaced from file (${d.count ?? 0} lines).`)
+    load()
+  }
+
   const activeCount = quotes.filter(q => q.active).length
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase()
@@ -215,9 +233,14 @@ export default function MotivationPage() {
               <div style={{ fontSize: 11, color: '#6B8299' }}>Weekdays at 8am ET, no pings.</div>
             </div>
           </div>
-          <button onClick={sendNow} disabled={busy} style={{ ...goldBtn, opacity: busy ? 0.7 : 1, cursor: busy ? 'wait' : 'pointer' }}>
-            {busy ? 'Sending...' : 'Send today\'s line now'}
-          </button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button onClick={sendNow} disabled={busy} style={{ ...goldBtn, opacity: busy ? 0.7 : 1, cursor: busy ? 'wait' : 'pointer' }}>
+              {busy ? 'Working...' : 'Send today\'s line now'}
+            </button>
+            <button onClick={syncFromFile} disabled={busy} style={{ ...ghostBtn, opacity: busy ? 0.7 : 1, cursor: busy ? 'wait' : 'pointer' }}>
+              Reload from library file
+            </button>
+          </div>
         </div>
 
         <div style={{ height: 1, background: 'rgba(201,169,110,0.1)', margin: '16px 0' }} />

@@ -31,9 +31,10 @@ const DEFAULT_CHANNEL = '1295044213590982724'
 // timestamp. Inspiring, not ceremonial.
 const SUNRISE = 0xff8c42
 
-// Insert the static seed exactly once. After this the vault editor is the
-// source of truth; we never re-sync from the file so CEO edits are not
-// clobbered on deploy. Idempotent: a non-empty table is left untouched.
+// Insert the static seed exactly once. Idempotent: a non-empty table is
+// left untouched, so deploys never clobber edits. To deliberately push
+// an edited src/data/motivation-library.json into an already-seeded prod
+// DB, use syncMotivationFromFile (admin "Reload from library file").
 export async function ensureMotivationSeeded(): Promise<void> {
   const count = await db.motivationQuote.count()
   if (count > 0) return
@@ -42,10 +43,32 @@ export async function ensureMotivationSeeded(): Promise<void> {
       text: q.text,
       voice: q.voice,
       attribution: q.attribution,
-      active: true,
+      active: q.active,
       sortKey: i,
     })),
   })
+}
+
+// Replace the entire live library with the reviewable JSON file. This
+// is the explicit, admin-triggered way to apply edits to an already
+// seeded prod DB. DESTRUCTIVE: any lines added or edited only in the
+// vault (not in the file) are overwritten, by design. The file is the
+// single source of truth for this workflow. Done in one transaction so
+// a failure never leaves the table empty.
+export async function syncMotivationFromFile(): Promise<{ count: number }> {
+  await db.$transaction([
+    db.motivationQuote.deleteMany({}),
+    db.motivationQuote.createMany({
+      data: MOTIVATION_SEED.map((q, i) => ({
+        text: q.text,
+        voice: q.voice,
+        attribution: q.attribution,
+        active: q.active,
+        sortKey: i,
+      })),
+    }),
+  ])
+  return { count: MOTIVATION_SEED.length }
 }
 
 // Active lines in the stable order the deterministic picker walks. Order
