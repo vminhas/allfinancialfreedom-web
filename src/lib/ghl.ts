@@ -88,3 +88,20 @@ export async function sendGhlEmail(params: {
     text: params.html,
   }, config)
 }
+
+// Send an SMS to a GHL contact. GHL sends from the location's
+// configured phone number to the contact's primary phone, so the
+// contact must have a phone on file. Same conversations endpoint as
+// email, just type: 'SMS'.
+export async function sendGhlSms(params: {
+  contactId: string
+  message: string
+  config?: GhlConfig
+}) {
+  const config = params.config ?? await getGhlConfig()
+  return ghlPost('/conversations/messages', {
+    type: 'SMS',
+    contactId: params.contactId,
+    message: params.message,
+  }, config)
+}

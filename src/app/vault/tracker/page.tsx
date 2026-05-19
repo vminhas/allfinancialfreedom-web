@@ -372,6 +372,9 @@ export default function TrackerPage() {
     fetchStats()
   }
 
+  const agentUserIdOf = (a: typeof selectedAgent) =>
+    a?.agentUser ? (a as unknown as { agentUserId?: string }).agentUserId ?? '' : ''
+
   const sendInvite = async () => {
     if (!selectedAgent) return
     setInviteLoading(true)
@@ -379,10 +382,24 @@ export default function TrackerPage() {
     const res = await fetch('/api/admin/agents/invite', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agentUserId: selectedAgent.agentUser ? (selectedAgent as unknown as { agentUserId?: string }).agentUserId : '' }),
+      body: JSON.stringify({ agentUserId: agentUserIdOf(selectedAgent) }),
     })
-    const data = await res.json() as { ok?: boolean; error?: string }
-    setInviteMsg(data.ok ? 'Invite sent!' : (data.error ?? 'Failed'))
+    const data = await res.json() as { emailSent?: boolean; emailError?: string; error?: string }
+    setInviteMsg(data.emailSent ? 'Invite sent!' : (data.emailError ?? data.error ?? 'Failed'))
+    setInviteLoading(false)
+  }
+
+  const sendInviteSms = async () => {
+    if (!selectedAgent) return
+    setInviteLoading(true)
+    setInviteMsg('')
+    const res = await fetch('/api/admin/agents/invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agentUserId: agentUserIdOf(selectedAgent), channel: 'sms' }),
+    })
+    const data = await res.json() as { smsSent?: boolean; smsError?: string; error?: string }
+    setInviteMsg(data.smsSent ? 'Text sent!' : (data.smsError ?? data.error ?? 'Failed'))
     setInviteLoading(false)
   }
 
@@ -1108,6 +1125,7 @@ export default function TrackerPage() {
                 onAdvancePhase={advancePhase}
                 onUpdateCarrier={updateCarrier}
                 onSendInvite={sendInvite}
+                onTextInvite={sendInviteSms}
                 onToggleStatus={toggleStatus}
                 onDelete={deleteAgent}
                 deleteConfirm={deleteConfirm}
@@ -1172,6 +1190,7 @@ function AgentDrawer({
   onAdvancePhase,
   onUpdateCarrier,
   onSendInvite,
+  onTextInvite,
   onToggleStatus,
   onDelete,
   deleteConfirm,
@@ -1188,6 +1207,7 @@ function AgentDrawer({
   onAdvancePhase: () => void
   onUpdateCarrier: (carrier: string, status: string, producerNumber: string) => void
   onSendInvite: () => void
+  onTextInvite: () => void
   onToggleStatus: () => void
   onDelete: () => void
   deleteConfirm: boolean
@@ -1564,8 +1584,8 @@ function AgentDrawer({
         <VipArrivalButton agentId={agent.id} vipArrival={agent.vipArrival ?? false} />
       </div>
 
-      {/* Invite */}
-      <div style={{ marginBottom: 20, display: 'flex', gap: 10, alignItems: 'center' }}>
+      {/* Invite — email or SMS text (same 72h link, sent via GHL) */}
+      <div style={{ marginBottom: 20, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <button
           onClick={onSendInvite}
           disabled={inviteLoading}
@@ -1580,8 +1600,22 @@ function AgentDrawer({
         >
           {inviteLoading ? 'Sending...' : 'Send Portal Invite'}
         </button>
+        <button
+          onClick={onTextInvite}
+          disabled={inviteLoading}
+          style={{
+            background: 'transparent',
+            border: '1px solid rgba(201,169,110,0.2)',
+            color: '#C9A96E', borderRadius: 4,
+            padding: '7px 14px', fontSize: 11, fontWeight: 700,
+            cursor: inviteLoading ? 'not-allowed' : 'pointer',
+            letterSpacing: '0.08em', textTransform: 'uppercase',
+          }}
+        >
+          {inviteLoading ? 'Sending...' : 'Text Invite Link'}
+        </button>
         {inviteMsg && (
-          <span style={{ fontSize: 12, color: inviteMsg === 'Invite sent!' ? '#4ade80' : '#f87171' }}>
+          <span style={{ fontSize: 12, color: (inviteMsg === 'Invite sent!' || inviteMsg === 'Text sent!') ? '#4ade80' : '#f87171' }}>
             {inviteMsg}
           </span>
         )}
