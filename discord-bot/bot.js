@@ -446,6 +446,45 @@ client.on(Events.InteractionCreate, async (interaction) => {
     await interaction.reply({ content: `✅ Assigned Phase ${phaseNumber} to ${target}.`, ephemeral: true });
     // The GuildMemberUpdate event will fire and send the DM automatically
   }
+
+  // /tevah-sync — admin only. Runs the same full Tevah sync as the
+  // hourly cron (agents + submissions, then points/recruits in the
+  // background). The web route posts its own detailed summary embed to
+  // the admin channel; this reply is just a quick confirmation.
+  if (interaction.commandName === 'tevah-sync') {
+    const adminRole = interaction.member.roles.cache.get(ROLES.ADMIN);
+    if (!adminRole) {
+      return interaction.reply({ content: 'You need the Admin role to use this command.', ephemeral: true });
+    }
+
+    // The sync can take well over Discord's 3s window, so defer first.
+    await interaction.deferReply({ ephemeral: true });
+
+    const baseUrl = process.env.NEXTAUTH_URL || 'https://allfinancialfreedom.com';
+    try {
+      const res = await fetch(`${baseUrl}/api/cron/tevah-sync`, {
+        method: 'POST',
+        headers: { 'x-cron-secret': process.env.CRON_SECRET || '' },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        return interaction.editReply(
+          `Tevah sync failed${data.error ? `: ${data.error}` : ` (HTTP ${res.status})`}.`
+        );
+      }
+      const a = data.agents || {};
+      const s = data.submissions || {};
+      const agentLine = a.error
+        ? `Agents: failed (${a.error})`
+        : `Agents: ${a.created ?? 0} new, ${a.updated ?? 0} updated${a.invited ? `, ${a.invited} invited` : ''}`;
+      const subLine = s.error
+        ? `Submissions: failed (${s.error})`
+        : `Submissions: ${s.created ?? 0} new, ${s.updated ?? 0} updated, ${s.announced ?? 0} announced`;
+      await interaction.editReply(`✅ Tevah sync complete.\n${agentLine}\n${subLine}`);
+    } catch (err) {
+      await interaction.editReply(`Tevah sync error: ${err.message || err}`);
+    }
+  }
 });
 
 // ─── Auto-react to celebration-worthy messages ──────────────────────────────

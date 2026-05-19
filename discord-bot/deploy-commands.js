@@ -48,6 +48,10 @@ const commands = [
           { name: 'Phase 4', value: '4' },
         )
     ),
+
+  new SlashCommandBuilder()
+    .setName('tevah-sync')
+    .setDescription('Sync agents and submissions from Tevah right now (admin only)'),
 ].map(cmd => cmd.toJSON());
 
 const rest = new REST().setToken(process.env.DISCORD_BOT_TOKEN);
