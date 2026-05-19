@@ -1264,6 +1264,9 @@ export default function SettingsPage() {
             <div style={{ borderTop: '1px solid rgba(201,169,110,0.08)', paddingTop: 20 }}>
               <MassPortalInviteRow />
             </div>
+            <div style={{ borderTop: '1px solid rgba(201,169,110,0.08)', paddingTop: 20 }}>
+              <PortalAnnouncementRow />
+            </div>
           </div>
         </>
       )}
@@ -1885,6 +1888,79 @@ function MassPortalInviteRow() {
           : count === 0
             ? 'None pending'
             : `Send ${count ?? ''} invite${count === 1 ? '' : 's'}`}
+      </button>
+    </div>
+  )
+}
+
+// Posts the branded "new portal is live" feature announcement to the
+// Discord announcements channel as the concierge bot. One press =
+// one public post, so it confirms first.
+function PortalAnnouncementRow() {
+  const [state, setState] = useState<'idle' | 'posting' | 'done' | 'error'>('idle')
+  const [error, setError] = useState<string | null>(null)
+
+  const run = async () => {
+    if (!confirm(
+      'Post the new-portal feature announcement to the Discord #announcements channel now?\n\nThis posts publicly to everyone in that channel, from the AFF Concierge.',
+    )) return
+    setState('posting')
+    setError(null)
+    try {
+      const res = await fetch('/api/admin/announce-portal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: true }),
+      })
+      const d = await res.json() as { ok?: boolean; error?: string }
+      if (!res.ok || !d.ok) {
+        setError(d.error ?? 'Post failed')
+        setState('error')
+        return
+      }
+      setState('done')
+    } catch {
+      setError('Network error')
+      setState('error')
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
+      <div style={{ flex: 1, minWidth: 240 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#fff', marginBottom: 4 }}>
+          Post portal announcement
+        </div>
+        <div style={{ fontSize: 11, color: '#6B8299', lineHeight: 1.5 }}>
+          Posts the branded new-features announcement to the Discord <strong style={{ color: '#9BB0C4' }}>#announcements</strong> channel as the AFF Concierge, including a note for anyone who hasn&apos;t received a portal invite.
+        </div>
+        {state === 'done' && (
+          <div style={{
+            marginTop: 8, fontSize: 11, color: '#4ADE80',
+            background: 'rgba(74,222,128,0.08)',
+            border: '1px solid rgba(74,222,128,0.25)',
+            padding: '6px 10px', borderRadius: 4, display: 'inline-block',
+          }}>
+            Posted to #announcements
+          </div>
+        )}
+        {state === 'error' && error && (
+          <div style={{ marginTop: 8, fontSize: 11, color: '#f87171' }}>{error}</div>
+        )}
+      </div>
+      <button
+        onClick={run}
+        disabled={state === 'posting'}
+        style={{
+          padding: '8px 16px', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+          background: state === 'done' ? 'rgba(74,222,128,0.10)' : 'rgba(201,169,110,0.10)',
+          border: `1px solid ${state === 'done' ? 'rgba(74,222,128,0.4)' : 'rgba(201,169,110,0.35)'}`,
+          color: state === 'done' ? '#4ADE80' : '#C9A96E',
+          borderRadius: 4, cursor: state === 'posting' ? 'wait' : 'pointer',
+          flexShrink: 0,
+        }}
+      >
+        {state === 'posting' ? 'Posting...' : state === 'done' ? 'Post again' : 'Post announcement'}
       </button>
     </div>
   )

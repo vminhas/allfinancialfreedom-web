@@ -8,18 +8,6 @@ import { CARRIERS } from '@/lib/agent-constants'
 import DatePicker from '@/components/DatePicker'
 import AgentTypeahead from '@/components/AgentTypeahead'
 
-// Promotion requests are CoordinatorRequests whose phaseItemKey is an
-// admin-gated promotion item. Kept inline (not imported from
-// lib/promotion-approve) because that module pulls in Prisma and this
-// is a client component. Must stay in sync with GATED_LABEL there.
-const GATED_PROMOTION_LABEL: Record<string, string> = {
-  associate_promotion: 'Senior Associate Promotion',
-  emd_signoff: 'EMD Sign-Off',
-  md_promotion: 'Marketing Director Promotion',
-  emd_promotion: 'EMD Promotion',
-  nvp_promotion: 'NVP Promotion',
-}
-
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Status = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED'
@@ -333,23 +321,12 @@ function InboxTab({ viewerId, isLC }: { viewerId: string | null; isLC: boolean }
   const markInProgress = () => patch({ status: 'IN_PROGRESS' })
   const reopen = () => patch({ status: 'OPEN' })
 
-  // Promotion requests: one click completes the gated phase item (which
-  // flips the agent's title immediately + fires the usual Discord
-  // celebration) and resolves the ticket. The request leaves the open
-  // list, so just reload and clear the selection.
-  const approvePromotion = async () => {
-    if (!selected) return
-    setSaving(true)
-    const res = await fetch('/api/vault/promotion-requests', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requestId: selected.id, action: 'approve' }),
-    })
-    setSaving(false)
-    if (res.ok) {
-      setSelected(null)
-      await load()
-    }
+  // After the LC fulfills a request (completes a phase item + the
+  // server auto-resolves it), the row leaves the open list, so just
+  // clear the selection and reload.
+  const onFulfilled = async () => {
+    setSelected(null)
+    await load()
   }
 
   const filterChips: [typeof filter, string, number | null][] = [
@@ -430,7 +407,7 @@ function InboxTab({ viewerId, isLC }: { viewerId: string | null; isLC: boolean }
               onSendReply={sendReply}
               onMarkResolved={markResolved}
               onReopen={reopen}
-              onApprovePromotion={approvePromotion}
+              onFulfilled={onFulfilled}
             />
           )}
         </div>
@@ -482,7 +459,7 @@ function RequestRow({ request, selected, onClick }: { request: Request; selected
 function RequestDetail({
   request, isLC, replyBody, setReplyBody, saving, viewerId,
   onClose, onAssignToMe, onMarkInProgress, onSendReply, onMarkResolved, onReopen,
-  onApprovePromotion,
+  onFulfilled,
 }: {
   request: Request
   isLC: boolean
@@ -496,16 +473,63 @@ function RequestDetail({
   onSendReply: () => void
   onMarkResolved: () => void
   onReopen: () => void
-  onApprovePromotion: () => void
+  onFulfilled: () => void
 }) {
   const assignedToMe = request.assignedTo?.id === viewerId
   const canAssign = request.status === 'OPEN' || !request.assignedTo
   const canResolve = request.status === 'IN_PROGRESS' || request.status === 'OPEN'
   const canReopen = request.status === 'RESOLVED' || request.status === 'CLOSED'
-  const promotionLabel = request.phaseItemKey
-    ? GATED_PROMOTION_LABEL[request.phaseItemKey]
-    : undefined
-  const canApprovePromotion = !!promotionLabel && canResolve
+
+  // Outstanding phase items for this request's agent. Loaded lazily
+  // when the request is still actionable so the LC can complete the
+  // exact item the agent is asking about (defaults to the request's
+  // linked item) and resolve the ticket in one go.
+  const [fulfillItems, setFulfillItems] = useState<{ phase: number; itemKey: string; label: string }[]>([])
+  const [fulfillSel, setFulfillSel] = useState('')
+  const [fulfilling, setFulfilling] = useState(false)
+  const [fulfillErr, setFulfillErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!canResolve) { setFulfillItems([]); setFulfillSel(''); return }
+    let cancelled = false
+    fetch(`/api/vault/coordinator-requests/${request.id}/fulfill`)
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then((d: { items?: { phase: number; itemKey: string; label: string }[]; defaultKey?: string | null }) => {
+        if (cancelled) return
+        const items = d.items ?? []
+        setFulfillItems(items)
+        const def = d.defaultKey ? items.find(i => i.itemKey === d.defaultKey) : undefined
+        setFulfillSel(def ? `${def.phase}:${def.itemKey}` : (items[0] ? `${items[0].phase}:${items[0].itemKey}` : ''))
+      })
+      .catch(() => { if (!cancelled) { setFulfillItems([]); setFulfillSel('') } })
+    return () => { cancelled = true }
+  }, [request.id, canResolve])
+
+  const doFulfill = async () => {
+    if (!fulfillSel || fulfilling) return
+    const [phaseStr, ...keyParts] = fulfillSel.split(':')
+    const phase = Number(phaseStr)
+    const itemKey = keyParts.join(':')
+    setFulfilling(true)
+    setFulfillErr(null)
+    try {
+      const res = await fetch(`/api/vault/coordinator-requests/${request.id}/fulfill`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phase, itemKey }),
+      })
+      if (res.ok) {
+        onFulfilled()
+      } else {
+        const d = await res.json().catch(() => ({})) as { error?: string }
+        setFulfillErr(d.error ?? 'Could not complete that item.')
+      }
+    } catch {
+      setFulfillErr('Network error.')
+    } finally {
+      setFulfilling(false)
+    }
+  }
 
   return (
     <div style={{
@@ -657,27 +681,57 @@ function RequestDetail({
         </div>
       )}
 
-      {/* Promotion requests get a one-click approve that completes the
-          gated phase item + resolves the ticket in one go. */}
-      {canApprovePromotion && (
-        <div style={{ marginBottom: 14 }}>
+      {/* Satisfy the request right here: complete any outstanding phase
+          item for the agent (defaults to the item the request is linked
+          to) and auto-resolve the ticket. Title/announcement update
+          immediately, same as an admin ticking the box. */}
+      {canResolve && fulfillItems.length > 0 && (
+        <div style={{
+          marginBottom: 14, padding: '12px 14px',
+          background: 'rgba(74,222,128,0.05)',
+          border: '1px solid rgba(74,222,128,0.18)',
+          borderRadius: 6,
+        }}>
+          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#4ade80', marginBottom: 8 }}>
+            Satisfy this request
+          </div>
+          <select
+            value={fulfillSel}
+            onChange={e => setFulfillSel(e.target.value)}
+            style={{
+              width: '100%', marginBottom: 8,
+              background: '#0A1628', color: '#fff',
+              border: '1px solid rgba(74,222,128,0.3)', borderRadius: 4,
+              padding: '8px 10px', fontSize: 12,
+            }}
+          >
+            {fulfillItems.map(i => (
+              <option key={`${i.phase}:${i.itemKey}`} value={`${i.phase}:${i.itemKey}`}>
+                P{i.phase}: {i.label}
+              </option>
+            ))}
+          </select>
           <button
-            onClick={onApprovePromotion}
-            disabled={saving}
+            onClick={doFulfill}
+            disabled={fulfilling || !fulfillSel}
             style={{
               width: '100%',
               background: '#4ade80', color: '#0A1628',
               border: 'none', borderRadius: 4,
-              padding: '12px 16px', fontSize: 11, fontWeight: 700,
+              padding: '11px 16px', fontSize: 11, fontWeight: 700,
               letterSpacing: '0.1em', textTransform: 'uppercase',
-              cursor: saving ? 'wait' : 'pointer', minHeight: 44,
+              cursor: fulfilling || !fulfillSel ? 'not-allowed' : 'pointer',
+              opacity: fulfilling || !fulfillSel ? 0.6 : 1, minHeight: 42,
             }}
           >
-            {saving ? 'Approving...' : `Approve ${promotionLabel}`}
+            {fulfilling ? 'Completing...' : 'Complete & resolve'}
           </button>
           <div style={{ fontSize: 10, color: '#6B8299', marginTop: 6, lineHeight: 1.5 }}>
-            Completes {request.agentProfile.firstName}&apos;s {promotionLabel} and resolves this request. Their title and the team announcement update right away.
+            Marks the selected item complete for {request.agentProfile.firstName} and resolves this request. Title and the team announcement update right away.
           </div>
+          {fulfillErr && (
+            <div style={{ fontSize: 11, color: '#f87171', marginTop: 6 }}>{fulfillErr}</div>
+          )}
         </div>
       )}
 
