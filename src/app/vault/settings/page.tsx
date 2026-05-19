@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 
 // Lightweight helpers used by the Booking Links card. Inline so we
 // don't have to thread a separate component file.
@@ -1261,6 +1261,9 @@ export default function SettingsPage() {
             <div style={{ borderTop: '1px solid rgba(201,169,110,0.08)', paddingTop: 20 }}>
               <BackfillDiscordConnectRow />
             </div>
+            <div style={{ borderTop: '1px solid rgba(201,169,110,0.08)', paddingTop: 20 }}>
+              <MassPortalInviteRow />
+            </div>
           </div>
         </>
       )}
@@ -1778,6 +1781,110 @@ function BackfillDiscordConnectRow() {
         }}
       >
         {state === 'running' ? 'Running...' : state === 'done' ? 'Run again' : 'Run backfill'}
+      </button>
+    </div>
+  )
+}
+
+// Mass (re)send of the portal invite email to every ACTIVE agent who
+// was invited but never activated (no password set = never logged in /
+// never accepted). Each send mints a fresh 72h invite link. Shows the
+// eligible count up front and confirms before blasting.
+function MassPortalInviteRow() {
+  const [count, setCount] = useState<number | null>(null)
+  const [state, setState] = useState<'idle' | 'sending' | 'done' | 'error'>('idle')
+  const [result, setResult] = useState<{ sent: number; failed: number; errors: string[] } | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const loadCount = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/maintenance/mass-portal-invite')
+      const d = await res.json() as { eligible?: number }
+      setCount(d.eligible ?? 0)
+    } catch {
+      setCount(null)
+    }
+  }, [])
+
+  useEffect(() => { loadCount() }, [loadCount])
+
+  const run = async () => {
+    if (count === 0) return
+    if (!confirm(
+      `Send the portal invite email to ${count ?? 'all eligible'} active agent(s) who have never logged in or accepted their invite?\n\nEach gets a fresh 72-hour invite link. This emails real people.`,
+    )) return
+    setState('sending')
+    setError(null)
+    try {
+      const res = await fetch('/api/admin/maintenance/mass-portal-invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: true }),
+      })
+      const d = await res.json() as { ok?: boolean; error?: string; sent?: number; failed?: number; errors?: string[] }
+      if (!res.ok || !d.ok) {
+        setError(d.error ?? 'Send failed')
+        setState('error')
+        return
+      }
+      setResult({ sent: d.sent ?? 0, failed: d.failed ?? 0, errors: d.errors ?? [] })
+      setState('done')
+      loadCount()
+    } catch {
+      setError('Network error')
+      setState('error')
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
+      <div style={{ flex: 1, minWidth: 240 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#fff', marginBottom: 4 }}>
+          Mass portal invite
+        </div>
+        <div style={{ fontSize: 11, color: '#6B8299', lineHeight: 1.5 }}>
+          (Re)sends the welcome / portal-setup email to every <strong style={{ color: '#9BB0C4' }}>active</strong> agent who was invited but never logged in or accepted.
+          {count !== null && (
+            <> Currently <strong style={{ color: '#C9A96E' }}>{count}</strong> eligible.</>
+          )}
+        </div>
+        {state === 'done' && result && (
+          <div style={{
+            marginTop: 8, fontSize: 11, color: '#4ADE80',
+            background: 'rgba(74,222,128,0.08)',
+            border: '1px solid rgba(74,222,128,0.25)',
+            padding: '6px 10px', borderRadius: 4,
+          }}>
+            Sent {result.sent}{result.failed > 0 ? ` · failed ${result.failed}` : ''}
+            {result.errors.length > 0 && (
+              <div style={{ marginTop: 4, color: '#f59e0b', fontSize: 10, lineHeight: 1.5 }}>
+                {result.errors.slice(0, 5).map((e, i) => <div key={i}>{e}</div>)}
+                {result.errors.length > 5 && <div>and {result.errors.length - 5} more</div>}
+              </div>
+            )}
+          </div>
+        )}
+        {state === 'error' && error && (
+          <div style={{ marginTop: 8, fontSize: 11, color: '#f87171' }}>{error}</div>
+        )}
+      </div>
+      <button
+        onClick={run}
+        disabled={state === 'sending' || count === 0}
+        style={{
+          padding: '8px 16px', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+          background: state === 'done' ? 'rgba(74,222,128,0.10)' : 'rgba(201,169,110,0.10)',
+          border: `1px solid ${state === 'done' ? 'rgba(74,222,128,0.4)' : 'rgba(201,169,110,0.35)'}`,
+          color: count === 0 ? '#6B8299' : state === 'done' ? '#4ADE80' : '#C9A96E',
+          borderRadius: 4, cursor: state === 'sending' ? 'wait' : count === 0 ? 'not-allowed' : 'pointer',
+          flexShrink: 0,
+        }}
+      >
+        {state === 'sending'
+          ? 'Sending...'
+          : count === 0
+            ? 'None pending'
+            : `Send ${count ?? ''} invite${count === 1 ? '' : 's'}`}
       </button>
     </div>
   )

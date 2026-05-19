@@ -76,6 +76,10 @@ export async function POST(req: NextRequest) {
       const referralId = customId.slice('referral-reject:'.length)
       return handleReferralReject(interaction, referralId)
     }
+    if (customId.startsWith('promo-approve:')) {
+      const requestId = customId.slice('promo-approve:'.length)
+      return handlePromoApprove(interaction, requestId)
+    }
     if (customId.startsWith('agent-kick:')) {
       // First click: ask for confirmation instead of kicking immediately.
       // Format: agent-kick:<discordUserId>:<agentProfileId>
@@ -241,6 +245,48 @@ async function handleReferralReject(interaction: DiscordInteraction, referralId:
         description: `**${referral.firstName} ${referral.lastName}**'s referral was rejected.`,
         color: 0x6B7280,
         footer: { text: `Rejected by ${clicker}` },
+        timestamp: new Date().toISOString(),
+      }],
+      components: [],
+    },
+  })
+}
+
+// Promotion request "Approve" button. Same path as the LC inbox
+// button: completes the gated phase item, resolves the ticket, and
+// fires the usual Discord celebration. Idempotent on the helper side,
+// so a double-click (or inbox + Discord) is a safe no-op. Admin channel
+// ACL is the auth boundary, matching referral-approve.
+async function handlePromoApprove(interaction: DiscordInteraction, requestId: string) {
+  const clicker = clickerLabel(interaction)
+  const { approvePromotionRequest } = await import('@/lib/promotion-approve')
+  const result = await approvePromotionRequest(requestId)
+  const baseEmbed = interaction.message?.embeds?.[0] ?? {}
+
+  if (!result.ok) {
+    return NextResponse.json({
+      type: InteractionResponseType.UPDATE_MESSAGE,
+      data: {
+        embeds: [{
+          ...baseEmbed,
+          title: '⚠️ Promotion approval failed',
+          color: 0xEF4444,
+          footer: { text: `Tried by ${clicker} · ${result.error ?? 'unknown error'}` },
+        }],
+        components: [],
+      },
+    })
+  }
+
+  return NextResponse.json({
+    type: InteractionResponseType.UPDATE_MESSAGE,
+    data: {
+      embeds: [{
+        ...baseEmbed,
+        title: '✅ Promotion approved',
+        description: `**${result.agentName ?? 'The agent'}** is now promoted (${result.label ?? 'promotion'}). Their title and the team announcement update right away.`,
+        color: 0x4ADE80,
+        footer: { text: `Approved by ${clicker}` },
         timestamp: new Date().toISOString(),
       }],
       components: [],

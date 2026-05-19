@@ -8,6 +8,18 @@ import { CARRIERS } from '@/lib/agent-constants'
 import DatePicker from '@/components/DatePicker'
 import AgentTypeahead from '@/components/AgentTypeahead'
 
+// Promotion requests are CoordinatorRequests whose phaseItemKey is an
+// admin-gated promotion item. Kept inline (not imported from
+// lib/promotion-approve) because that module pulls in Prisma and this
+// is a client component. Must stay in sync with GATED_LABEL there.
+const GATED_PROMOTION_LABEL: Record<string, string> = {
+  associate_promotion: 'Senior Associate Promotion',
+  emd_signoff: 'EMD Sign-Off',
+  md_promotion: 'Marketing Director Promotion',
+  emd_promotion: 'EMD Promotion',
+  nvp_promotion: 'NVP Promotion',
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Status = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED'
@@ -321,6 +333,25 @@ function InboxTab({ viewerId, isLC }: { viewerId: string | null; isLC: boolean }
   const markInProgress = () => patch({ status: 'IN_PROGRESS' })
   const reopen = () => patch({ status: 'OPEN' })
 
+  // Promotion requests: one click completes the gated phase item (which
+  // flips the agent's title immediately + fires the usual Discord
+  // celebration) and resolves the ticket. The request leaves the open
+  // list, so just reload and clear the selection.
+  const approvePromotion = async () => {
+    if (!selected) return
+    setSaving(true)
+    const res = await fetch('/api/vault/promotion-requests', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestId: selected.id, action: 'approve' }),
+    })
+    setSaving(false)
+    if (res.ok) {
+      setSelected(null)
+      await load()
+    }
+  }
+
   const filterChips: [typeof filter, string, number | null][] = [
     ['all', 'All', null],
     ['open', 'Open', requests.filter(r => r.status === 'OPEN').length],
@@ -399,6 +430,7 @@ function InboxTab({ viewerId, isLC }: { viewerId: string | null; isLC: boolean }
               onSendReply={sendReply}
               onMarkResolved={markResolved}
               onReopen={reopen}
+              onApprovePromotion={approvePromotion}
             />
           )}
         </div>
@@ -450,6 +482,7 @@ function RequestRow({ request, selected, onClick }: { request: Request; selected
 function RequestDetail({
   request, isLC, replyBody, setReplyBody, saving, viewerId,
   onClose, onAssignToMe, onMarkInProgress, onSendReply, onMarkResolved, onReopen,
+  onApprovePromotion,
 }: {
   request: Request
   isLC: boolean
@@ -463,11 +496,16 @@ function RequestDetail({
   onSendReply: () => void
   onMarkResolved: () => void
   onReopen: () => void
+  onApprovePromotion: () => void
 }) {
   const assignedToMe = request.assignedTo?.id === viewerId
   const canAssign = request.status === 'OPEN' || !request.assignedTo
   const canResolve = request.status === 'IN_PROGRESS' || request.status === 'OPEN'
   const canReopen = request.status === 'RESOLVED' || request.status === 'CLOSED'
+  const promotionLabel = request.phaseItemKey
+    ? GATED_PROMOTION_LABEL[request.phaseItemKey]
+    : undefined
+  const canApprovePromotion = !!promotionLabel && canResolve
 
   return (
     <div style={{
@@ -616,6 +654,30 @@ function RequestDetail({
             Resolution
           </div>
           <div style={{ fontSize: 12, color: '#d1d9e2', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{request.resolutionNote}</div>
+        </div>
+      )}
+
+      {/* Promotion requests get a one-click approve that completes the
+          gated phase item + resolves the ticket in one go. */}
+      {canApprovePromotion && (
+        <div style={{ marginBottom: 14 }}>
+          <button
+            onClick={onApprovePromotion}
+            disabled={saving}
+            style={{
+              width: '100%',
+              background: '#4ade80', color: '#0A1628',
+              border: 'none', borderRadius: 4,
+              padding: '12px 16px', fontSize: 11, fontWeight: 700,
+              letterSpacing: '0.1em', textTransform: 'uppercase',
+              cursor: saving ? 'wait' : 'pointer', minHeight: 44,
+            }}
+          >
+            {saving ? 'Approving...' : `Approve ${promotionLabel}`}
+          </button>
+          <div style={{ fontSize: 10, color: '#6B8299', marginTop: 6, lineHeight: 1.5 }}>
+            Completes {request.agentProfile.firstName}&apos;s {promotionLabel} and resolves this request. Their title and the team announcement update right away.
+          </div>
         </div>
       )}
 

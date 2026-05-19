@@ -34,11 +34,17 @@ function previewClip(value: string, max = 300): string {
   return value.slice(0, max) + '...'
 }
 
-async function sendAdmin(embed: Record<string, unknown>): Promise<void> {
+async function sendAdmin(
+  embed: Record<string, unknown>,
+  components?: unknown[],
+): Promise<void> {
   if (!process.env.DISCORD_BOT_TOKEN || !process.env.DISCORD_ADMIN_CHANNEL_ID) return
   try {
     const { sendChannelMessage } = await import('./discord')
-    await sendChannelMessage(process.env.DISCORD_ADMIN_CHANNEL_ID, { embeds: [embed as never] })
+    await sendChannelMessage(process.env.DISCORD_ADMIN_CHANNEL_ID, {
+      embeds: [embed as never],
+      ...(components && components.length ? { components: components as never } : {}),
+    })
   } catch (err) {
     console.warn('[coordinator-discord] send failed:', err)
   }
@@ -55,20 +61,42 @@ export async function pingTicketCreated(args: {
   agent: AgentMeta
   topic: string
   message: string
+  phaseItemKey?: string | null
 }): Promise<void> {
+  const { isGatedPromotionKey, GATED_LABEL } = await import('./promotion-approve')
+  const isPromotion = isGatedPromotionKey(args.phaseItemKey)
+  const promoLabel = isPromotion ? GATED_LABEL[args.phaseItemKey as string] : null
+
   const embed = {
-    title: '🆕 New licensing ticket',
+    title: isPromotion ? `🎖️ Promotion request: ${promoLabel}` : '🆕 New licensing ticket',
     description: previewClip(args.message),
-    color: 0xF59E0B,
+    color: isPromotion ? 0x9B6DFF : 0xF59E0B,
     fields: [
       { name: 'From',  value: `${args.agent.firstName} ${args.agent.lastName} (${args.agent.agentCode})`, inline: true },
-      { name: 'Topic', value: TOPIC_LABEL[args.topic] ?? args.topic, inline: true },
+      { name: 'Topic', value: isPromotion ? (promoLabel as string) : (TOPIC_LABEL[args.topic] ?? args.topic), inline: true },
     ],
     footer: { text: 'AFF Concierge · /vault/licensing' },
     url: `${baseUrl()}/vault/licensing`,
     timestamp: new Date().toISOString(),
   }
-  await sendAdmin(embed)
+
+  // Promotion tickets get a one-click Approve button right in the admin
+  // channel. Clicking it completes the gated phase item + resolves the
+  // ticket (same path as the LC inbox button). The admin channel is
+  // staff-only, which is the auth boundary (matches referral-approve).
+  const components = isPromotion
+    ? [{
+        type: 1,
+        components: [{
+          type: 2,
+          style: 3, // success / green
+          label: `Approve ${promoLabel}`,
+          custom_id: `promo-approve:${args.requestId}`,
+        }],
+      }]
+    : undefined
+
+  await sendAdmin(embed, components)
   const { dmLicensingCoordinators } = await import('./staff-discord')
   dmLicensingCoordinators(embed).catch(() => {})
 }

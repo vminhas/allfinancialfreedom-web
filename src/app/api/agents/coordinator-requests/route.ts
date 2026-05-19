@@ -95,6 +95,7 @@ export async function POST(req: NextRequest) {
       agent: profile,
       topic: request.topic,
       message: request.message,
+      phaseItemKey: request.phaseItemKey,
     })
   })().catch(err => console.warn('[coordinator-requests POST] admin ping failed:', err))
 
