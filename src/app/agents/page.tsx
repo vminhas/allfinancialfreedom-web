@@ -4306,7 +4306,7 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
                       {view === 'skipped' && (
                         <button onClick={() => advanceOne(p.id, p.category ? 'NEW' : 'PENDING')} title="Move back to active" style={{ background: 'rgba(96,165,250,0.15)', border: '1px solid rgba(96,165,250,0.4)', color: '#60A5FA', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: 'pointer', marginRight: 6 }}>UNSKIP</button>
                       )}
-                      <button onClick={() => deleteOne(p.id)} title="Delete permanently" style={{ background: 'none', border: 'none', color: '#f87171', fontSize: 12, cursor: 'pointer', padding: '0 4px' }}>&times;</button>
+                      <button onClick={() => deleteOne(p.id)} title="Delete this contact permanently" style={{ background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.35)', color: '#f87171', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 3, cursor: 'pointer' }}>DELETE</button>
                     </td>
                   </tr>
                   {expandedCardId === p.id && (
