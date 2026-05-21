@@ -27,11 +27,34 @@ export async function GET(req: NextRequest) {
   const skip  = (page - 1) * limit
 
   const search = searchParams.get('search')
+  const recruiter = searchParams.get('recruiter')
+
+  // Special mode: return the list of unique recruiters for the filter dropdown
+  if (searchParams.get('recruiters') === '1') {
+    const rows = await db.agentProfile.findMany({
+      where: { recruiterId: { not: null }, isTest: false },
+      select: { recruiterId: true },
+      distinct: ['recruiterId'],
+    })
+    const codes = rows.map(r => r.recruiterId).filter(Boolean) as string[]
+    const rProfiles = codes.length > 0
+      ? await db.agentProfile.findMany({
+          where: { agentCode: { in: codes } },
+          select: { agentCode: true, firstName: true, lastName: true },
+        })
+      : []
+    return NextResponse.json({
+      recruiters: rProfiles
+        .map(p => ({ agentCode: p.agentCode, name: `${p.firstName} ${p.lastName}` }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    })
+  }
 
   const where: Record<string, unknown> = {}
-  if (phase)  where.phase  = parseInt(phase)
-  if (status) where.status = status.toUpperCase()
-  if (cft)    where.cft    = cft
+  if (phase)     where.phase     = parseInt(phase)
+  if (status)    where.status    = status.toUpperCase()
+  if (cft)       where.cft       = cft
+  if (recruiter) where.recruiterId = recruiter
   if (search) {
     where.OR = [
       { firstName: { contains: search, mode: 'insensitive' } },
@@ -63,6 +86,16 @@ export async function GET(req: NextRequest) {
     }),
     db.agentProfile.count({ where }),
   ])
+
+  // Fetch recruiter display names for the profiles in this page
+  const recruiterCodes = [...new Set(profiles.map(p => p.recruiterId).filter(Boolean))] as string[]
+  const recruiterProfiles = recruiterCodes.length > 0
+    ? await db.agentProfile.findMany({
+        where: { agentCode: { in: recruiterCodes } },
+        select: { agentCode: true, firstName: true, lastName: true },
+      })
+    : []
+  const recruiterNameMap = new Map(recruiterProfiles.map(r => [r.agentCode, `${r.firstName} ${r.lastName}`]))
 
   // Pull 30-day call review aggregates for all profiles in one query
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
@@ -117,6 +150,8 @@ export async function GET(req: NextRequest) {
       callScore30d: agg && agg.count > 0 ? Math.round(agg.sum / agg.count) : null,
       callReviewCount30d: agg?.count ?? 0,
       openCoachingFlags: agg?.flagged ?? 0,
+      recruiterCode: p.recruiterId ?? null,
+      recruiterName: p.recruiterId ? (recruiterNameMap.get(p.recruiterId) ?? null) : null,
     }
   })
 

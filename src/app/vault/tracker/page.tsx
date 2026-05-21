@@ -41,6 +41,8 @@ interface Agent {
   callScore30d: number | null
   callReviewCount30d: number
   openCoachingFlags: number
+  recruiterCode: string | null
+  recruiterName: string | null
 }
 
 interface CarrierAppointment {
@@ -149,6 +151,14 @@ export default function TrackerPage() {
   const [flaggedCoachingOnly, setFlaggedCoachingOnly] = useState(false)
   const [readyToPromoteOnly, setReadyToPromoteOnly] = useState(false)
 
+  // Sorting
+  const [sortCol, setSortCol] = useState<string>('')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+
+  // Recruiter filter
+  const [recruiterFilter, setRecruiterFilter] = useState('')
+  const [recruiterOptions, setRecruiterOptions] = useState<{ agentCode: string; name: string }[]>([])
+
   // Trainer list for dropdowns
   const [trainers, setTrainers] = useState<string[]>([])
   const [promotionRequests, setPromotionRequests] = useState<{ id: string; agentName: string; agentId: string; createdAt: string; status: string; phaseItemKey: string | null }[]>([])
@@ -225,12 +235,13 @@ export default function TrackerPage() {
     }
     if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim())
     if (readyToPromoteOnly) params.set('readyToPromote', '1')
+    if (recruiterFilter) params.set('recruiter', recruiterFilter)
     const res = await fetch(`/api/admin/agents?${params}`)
     const data = await res.json() as { agents: Agent[]; total: number }
     setAgents(data.agents ?? [])
     setTotal(data.total ?? 0)
     setLoading(false)
-  }, [page, phaseFilter, statusFilter, debouncedSearch, newThisMonthOnly, readyToPromoteOnly])
+  }, [page, phaseFilter, statusFilter, debouncedSearch, newThisMonthOnly, readyToPromoteOnly, recruiterFilter])
 
   const fetchStats = useCallback(async () => {
     const res = await fetch('/api/admin/stats')
@@ -242,6 +253,14 @@ export default function TrackerPage() {
     if (res.ok) {
       const data = await res.json() as { trainers: string[] }
       setTrainers(data.trainers)
+    }
+  }, [])
+
+  const fetchRecruiters = useCallback(async () => {
+    const res = await fetch('/api/admin/agents?recruiters=1')
+    if (res.ok) {
+      const data = await res.json() as { recruiters: { agentCode: string; name: string }[] }
+      setRecruiterOptions(data.recruiters ?? [])
     }
   }, [])
 
@@ -257,6 +276,7 @@ export default function TrackerPage() {
   useEffect(() => { fetchStats() }, [fetchStats])
   useEffect(() => { fetchTrends() }, [fetchTrends])
   useEffect(() => { fetchTrainers() }, [fetchTrainers])
+  useEffect(() => { fetchRecruiters() }, [fetchRecruiters])
   useEffect(() => { fetchReviewStats() }, [fetchReviewStats])
   useEffect(() => {
     fetch('/api/vault/promotion-requests')
@@ -409,22 +429,60 @@ export default function TrackerPage() {
     return () => clearTimeout(t)
   }, [searchQuery])
 
+  function handleSort(col: string) {
+    if (sortCol === col) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortCol(col)
+      setSortDir('asc')
+    }
+    setPage(1)
+  }
+
   const displayedAgents = (() => {
     let list = agents
-    if (readyToPromoteOnly) {
-      list = list.filter(a => a.readyForPromotion)
-    }
+    if (readyToPromoteOnly) list = list.filter(a => a.readyForPromotion)
     if (atRiskOnly) {
       list = list.filter(a => {
         const s = getAtRiskStatus(a.phase, a.phaseStartedAt ? new Date(a.phaseStartedAt) : null, a.phaseCompleted, a.phaseTotal)
         return s !== 'on-track'
       })
     }
-    if (flaggedCoachingOnly) {
-      list = list.filter(a => a.openCoachingFlags > 0)
+    if (flaggedCoachingOnly) list = list.filter(a => a.openCoachingFlags > 0)
+
+    if (sortCol) {
+      list = [...list].sort((a, b) => {
+        const dir = sortDir === 'asc' ? 1 : -1
+        let va: number | string = 0
+        let vb: number | string = 0
+        switch (sortCol) {
+          case 'name':      va = `${a.lastName} ${a.firstName}`; vb = `${b.lastName} ${b.firstName}`; break
+          case 'state':     va = a.state ?? ''; vb = b.state ?? ''; break
+          case 'phase':     va = a.phase; vb = b.phase; break
+          case 'progress':  va = a.phaseTotal > 0 ? a.phaseCompleted / a.phaseTotal : 0; vb = b.phaseTotal > 0 ? b.phaseCompleted / b.phaseTotal : 0; break
+          case 'days':      va = a.phaseStartedAt ? Date.now() - new Date(a.phaseStartedAt).getTime() : -1; vb = b.phaseStartedAt ? Date.now() - new Date(b.phaseStartedAt).getTime() : -1; break
+          case 'carriers':  va = a.carriersAppointed; vb = b.carriersAppointed; break
+          case 'callScore': va = a.callScore30d ?? -1; vb = b.callScore30d ?? -1; break
+          case 'trainer':   va = a.cft ?? ''; vb = b.cft ?? ''; break
+          case 'recruiter': va = a.recruiterName ?? ''; vb = b.recruiterName ?? ''; break
+          case 'onboarded': va = a.icaDate ?? a.createdAt; vb = b.icaDate ?? b.createdAt; break
+          case 'status': {
+            const order = { 'on-track': 0, 'behind': 1, 'at-risk': 2 }
+            const sa = getAtRiskStatus(a.phase, a.phaseStartedAt ? new Date(a.phaseStartedAt) : null, a.phaseCompleted, a.phaseTotal)
+            const sb = getAtRiskStatus(b.phase, b.phaseStartedAt ? new Date(b.phaseStartedAt) : null, b.phaseCompleted, b.phaseTotal)
+            va = order[sa]; vb = order[sb]; break
+          }
+        }
+        if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir
+        if (!va && vb) return 1
+        if (va && !vb) return -1
+        return String(va).localeCompare(String(vb)) * dir
+      })
+    } else {
+      // Default: promotion-ready first, then by most recently created
+      list = [...list].sort((a, b) => (b.readyForPromotion ? 1 : 0) - (a.readyForPromotion ? 1 : 0))
     }
-    // Sort promotion-ready to the top
-    list = [...list].sort((a, b) => (b.readyForPromotion ? 1 : 0) - (a.readyForPromotion ? 1 : 0))
+
     return list
   })()
 
@@ -783,6 +841,18 @@ export default function TrackerPage() {
           <input type="checkbox" checked={atRiskOnly} onChange={e => setAtRiskOnly(e.target.checked)} style={{ accentColor: '#f87171' }} />
           At-Risk Only
         </label>
+        {recruiterOptions.length > 0 && (
+          <select
+            style={selectStyle}
+            value={recruiterFilter}
+            onChange={e => { setRecruiterFilter(e.target.value); setPage(1) }}
+          >
+            <option value="">All Recruiters</option>
+            {recruiterOptions.map(r => (
+              <option key={r.agentCode} value={r.agentCode}>{r.name}</option>
+            ))}
+          </select>
+        )}
         {/* Active date range indicator */}
         {preset !== 'all' && (
           <div style={{ fontSize: 11, color: '#C9A96E', padding: '7px 12px', background: 'rgba(201,169,110,0.06)', border: '1px solid rgba(201,169,110,0.2)', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -899,16 +969,44 @@ export default function TrackerPage() {
           <span style={{ fontSize: 10, color: '#4B5563', flexShrink: 0 }}>{displayedAgents.length} agent{displayedAgents.length !== 1 ? 's' : ''}</span>
         </div>
         <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-        <table style={{ width: '100%', minWidth: 1000, borderCollapse: 'collapse' }}>
+        <table style={{ width: '100%', minWidth: 1240, borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: 'rgba(12,30,48,0.8)' }}>
-              {['Agent', 'State', 'Phase', 'Progress', 'Days', 'Carriers', 'Call Score', 'Trainer', 'Status', ''].map(h => (
-                <th key={h} style={{
-                  padding: '11px 16px', textAlign: 'left',
-                  fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase',
-                  color: '#C9A96E', borderBottom: '1px solid rgba(201,169,110,0.1)',
-                }}>
-                  {h}
+              {([
+                { label: 'Agent', col: 'name' },
+                { label: 'State', col: 'state' },
+                { label: 'Phase', col: 'phase' },
+                { label: 'Progress', col: 'progress' },
+                { label: 'Days', col: 'days' },
+                { label: 'Carriers', col: 'carriers' },
+                { label: 'Call Score', col: 'callScore' },
+                { label: 'Trainer', col: 'trainer' },
+                { label: 'Recruiter', col: 'recruiter' },
+                { label: 'Onboarded', col: 'onboarded' },
+                { label: 'Status', col: 'status' },
+                { label: '', col: '' },
+              ] as { label: string; col: string }[]).map(({ label, col }) => (
+                <th
+                  key={label || '__arrow'}
+                  onClick={col ? () => handleSort(col) : undefined}
+                  style={{
+                    padding: '11px 16px', textAlign: 'left',
+                    fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase',
+                    color: sortCol === col && col ? '#ffffff' : '#C9A96E',
+                    borderBottom: '1px solid rgba(201,169,110,0.1)',
+                    cursor: col ? 'pointer' : 'default',
+                    userSelect: 'none',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    {label}
+                    {col && label && (
+                      <span style={{ fontSize: 7, opacity: sortCol === col ? 1 : 0.3 }}>
+                        {sortCol === col ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}
+                      </span>
+                    )}
+                  </span>
                 </th>
               ))}
             </tr>
@@ -917,7 +1015,7 @@ export default function TrackerPage() {
             {loading ? (
               [...Array(8)].map((_, i) => (
                 <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                  {[...Array(10)].map((_, j) => (
+                  {[...Array(12)].map((_, j) => (
                     <td key={j} style={{ padding: '14px 16px' }}>
                       <div style={{ height: 11, background: 'rgba(255,255,255,0.04)', borderRadius: 4, width: `${40 + Math.random() * 40}%`, animation: 'pulse 1.5s ease-in-out infinite' }} />
                     </td>
@@ -926,7 +1024,7 @@ export default function TrackerPage() {
               ))
             ) : displayedAgents.length === 0 ? (
               <tr>
-                <td colSpan={9} style={{ padding: '60px 16px', textAlign: 'center', color: '#6B8299', fontSize: 13 }}>
+                <td colSpan={12} style={{ padding: '60px 16px', textAlign: 'center', color: '#6B8299', fontSize: 13 }}>
                   No agents found
                 </td>
               </tr>
@@ -1037,6 +1135,14 @@ export default function TrackerPage() {
                       )}
                     </td>
                     <td style={{ padding: '13px 16px', fontSize: 12, color: '#9BB0C4' }}>{agent.cft ?? '—'}</td>
+                    <td style={{ padding: '13px 16px', fontSize: 12, color: '#9BB0C4', whiteSpace: 'nowrap' }}>
+                      {agent.recruiterName ?? (agent.recruiterCode ? agent.recruiterCode : '—')}
+                    </td>
+                    <td style={{ padding: '13px 16px', fontSize: 12, color: '#9BB0C4', whiteSpace: 'nowrap' }}>
+                      {agent.icaDate
+                        ? new Date(agent.icaDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                        : '—'}
+                    </td>
                     <td style={{ padding: '13px 16px' }}>
                       <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
                         <span style={{
