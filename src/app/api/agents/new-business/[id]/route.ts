@@ -22,6 +22,7 @@ const EDITABLE_FIELDS = [
   'policyNumber',
   'clientFirstName', 'clientLastName', 'clientPhone', 'clientEmail', 'clientBirthday',
   'clientAddressLine1', 'clientAddressLine2', 'clientCity', 'clientState', 'clientZip',
+  'ownerFirstName', 'ownerLastName',
 ] as const
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
