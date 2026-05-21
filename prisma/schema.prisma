@@ -1875,3 +1875,40 @@ model MotivationQuote {
   @@index([active, sortKey, createdAt])
   @@map("motivation_quotes")
 }
+
+// ─────────────────────────────────────────────────────────────────
+// Public team page (/team) members. One table covers all three
+// sections so the admin can manage everything from one editor; the
+// `section` enum tells the public page which layout to render in.
+//   - LEADERSHIP: Vick / Melinee (large cards w/ bio + credentials)
+//   - DIRECTOR:   Jeremy etc. (side-by-side photo + bio + calendly)
+//   - ASSOCIATE:  the Senior Associates grid (specialty + location)
+// Fields that don't apply to a section stay null. sortOrder is a
+// per-section integer the admin reorders via drag.
+// ─────────────────────────────────────────────────────────────────
+enum TeamSection {
+  LEADERSHIP
+  DIRECTOR
+  ASSOCIATE
+}
+
+model TeamMember {
+  id          String      @id @default(cuid())
+  section     TeamSection
+  sortOrder   Int         @default(0) @map("sort_order")
+  name        String
+  title       String?
+  credentials String?
+  specialty   String?
+  location    String?
+  initials    String?
+  imageUrl    String?     @map("image_url")
+  bio         String?
+  calendly    String?
+  isActive    Boolean     @default(true) @map("is_active")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt      @map("updated_at")
+
+  @@index([section, sortOrder])
+  @@map("team_members")
+}
