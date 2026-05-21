@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { sendChannelMessage } from '@/lib/discord'
 
 // GET /api/cron/training-reminders
-// Runs every 5 minutes. Finds events starting in ~10–15 minutes that haven't
+// Runs every 5 minutes. Finds events starting in ~25–30 minutes that haven't
 // been reminded yet, posts to the AFF training-and-events channel via the
 // AFF Concierge bot, and marks reminderSentAt.
 //
@@ -25,11 +25,11 @@ export async function GET(req: NextRequest) {
   const channelId = process.env.DISCORD_TRAINING_CHANNEL_ID ?? DEFAULT_CHANNEL_ID
 
   const now = Date.now()
-  // Window: starts in 8 to 15 minutes from now. The 8-minute lower bound
-  // gives us 7 minutes of overlap so a missed cron tick (Vercel skipped one)
-  // doesn't drop the reminder. The reminderSentAt check prevents duplicates.
-  const windowStart = new Date(now + 8 * 60_000)
-  const windowEnd = new Date(now + 16 * 60_000)
+  // Window: starts in 23 to 31 minutes from now. The 8-minute window gives
+  // overlap so a missed cron tick (Vercel skipped one) doesn't drop the
+  // reminder. The reminderSentAt check prevents duplicates.
+  const windowStart = new Date(now + 23 * 60_000)
+  const windowEnd = new Date(now + 31 * 60_000)
 
   const events = await db.trainingEvent.findMany({
     where: {
@@ -109,7 +109,7 @@ export async function GET(req: NextRequest) {
         ? `https://zoom.us/j/${ev.streamId.replace(/[\s-]/g, '')}${ev.passcode ? `?pwd=${encodeURIComponent(ev.passcode)}` : ''}`
         : null
 
-      // Make passcode prominent — it's the thing people need most urgently at T-15
+      // Make passcode prominent — it's the thing people need most urgently at T-30
       if (ev.streamRoomName || ev.streamId) {
         const streamParts: string[] = []
         if (ev.streamRoomName) streamParts.push(`**${ev.streamRoomName}**`)
