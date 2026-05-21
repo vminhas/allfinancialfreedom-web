@@ -1,10 +1,16 @@
 import type { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
-import { TEAM, DIRECTORS, ASSOCIATES } from '@/lib/constants'
+import { db } from '@/lib/db'
 import CTABanner from '@/components/CTABanner'
 import OpenJoinButton from '@/components/OpenJoinButton'
 import Footer from '@/components/Footer'
+
+// Re-rendered on every request so admin edits in /vault/team-page show
+// up immediately. The page is light (one DB query, no client JS) so
+// the cost is negligible. We still re-validate explicitly from the
+// admin endpoints as a belt-and-suspenders.
+export const revalidate = 0
 
 export const metadata: Metadata = {
   title: 'Our Team | All Financial Freedom',
@@ -19,7 +25,30 @@ export const metadata: Metadata = {
   },
 }
 
-export default function Team() {
+export default async function Team() {
+  const members = await db.teamMember.findMany({
+    where: { isActive: true },
+    orderBy: [{ section: 'asc' }, { sortOrder: 'asc' }],
+  })
+  // Public page shape: it uses `image` (not `imageUrl`) and tolerates
+  // missing `calendly` / `bio` / `credentials`. The DB row maps 1:1
+  // except for the column rename, so we re-shape inline rather than
+  // touch every JSX access.
+  const adapt = (m: typeof members[number]) => ({
+    name: m.name,
+    title: m.title ?? '',
+    credentials: m.credentials ?? '',
+    specialty: m.specialty ?? '',
+    location: m.location ?? '',
+    initials: m.initials ?? '',
+    image: m.imageUrl ?? '',
+    bio: m.bio ?? '',
+    calendly: m.calendly ?? '',
+  })
+  const TEAM       = members.filter(m => m.section === 'LEADERSHIP').map(adapt)
+  const DIRECTORS  = members.filter(m => m.section === 'DIRECTOR').map(adapt)
+  const ASSOCIATES = members.filter(m => m.section === 'ASSOCIATE').map(adapt)
+
   return (
     <main className="pt-20">
 
@@ -59,12 +88,18 @@ export default function Team() {
             <div key={member.name} className="group">
               {/* Photo */}
               <div className="relative overflow-hidden mb-6" style={{ aspectRatio: '3/4', borderRadius: 4 }}>
-                <Image
-                  src={member.image}
-                  alt={member.name}
-                  fill
-                  className="object-cover object-top transition-transform duration-700 group-hover:scale-105"
-                />
+                {member.image ? (
+                  <Image
+                    src={member.image}
+                    alt={member.name}
+                    fill
+                    className="object-cover object-top transition-transform duration-700 group-hover:scale-105"
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #142D48, #2A5280)', color: '#C9A96E', fontFamily: 'var(--font-serif)', fontSize: '2.5rem', fontWeight: 300 }}>
+                    {member.name.split(' ').map(p => p[0]).slice(0, 2).join('')}
+                  </div>
+                )}
                 {/* Subtle gold corner accent */}
                 <div style={{
                   position: 'absolute', bottom: 0, left: 0, right: 0,
@@ -98,12 +133,18 @@ export default function Team() {
           {DIRECTORS.map(member => (
             <div key={member.name} className="flex gap-8 items-start group">
               <div className="relative overflow-hidden shrink-0" style={{ width: 240, height: 300, borderRadius: 4 }}>
-                <Image
-                  src={member.image}
-                  alt={member.name}
-                  fill
-                  className="object-cover object-top transition-transform duration-700 group-hover:scale-105"
-                />
+                {member.image ? (
+                  <Image
+                    src={member.image}
+                    alt={member.name}
+                    fill
+                    className="object-cover object-top transition-transform duration-700 group-hover:scale-105"
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #142D48, #2A5280)', color: '#C9A96E', fontFamily: 'var(--font-serif)', fontSize: '2.5rem', fontWeight: 300 }}>
+                    {member.name.split(' ').map(p => p[0]).slice(0, 2).join('')}
+                  </div>
+                )}
                 <div style={{
                   position: 'absolute', bottom: 0, left: 0, right: 0,
                   height: '30%',
