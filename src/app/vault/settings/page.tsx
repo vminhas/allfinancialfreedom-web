@@ -1264,6 +1264,9 @@ export default function SettingsPage() {
             <div style={{ borderTop: '1px solid rgba(201,169,110,0.08)', paddingTop: 20 }}>
               <MassPortalInviteRow />
             </div>
+            <div style={{ borderTop: '1px solid rgba(201,169,110,0.08)', paddingTop: 20 }}>
+              <ProspectingToggleRow />
+            </div>
           </div>
         </>
       )}
@@ -1885,6 +1888,102 @@ function MassPortalInviteRow() {
           : count === 0
             ? 'None pending'
             : `Send ${count ?? ''} invite${count === 1 ? '' : 's'}`}
+      </button>
+    </div>
+  )
+}
+
+// Pause / resume the daily prospecting (cold-outreach) cron. Flips the
+// shared AUTO_SEND_ENABLED setting that /api/cron/daily-outreach reads
+// every morning. Useful when the sending IP is getting throttled (e.g.
+// Yahoo TSS04 deferrals) and we need to let reputation recover without
+// touching code.
+function ProspectingToggleRow() {
+  const [state, setState] = useState<'loading' | 'idle' | 'saving' | 'error'>('loading')
+  const [enabled, setEnabled] = useState(false)
+  const [sentToday, setSentToday] = useState(0)
+  const [dailyLimit, setDailyLimit] = useState(0)
+  const [queueDepth, setQueueDepth] = useState(0)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = async () => {
+    try {
+      const res = await fetch('/api/admin/auto-send')
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const d = await res.json() as {
+        enabled?: boolean; sentToday?: number; dailyLimit?: number; queueDepth?: number
+      }
+      setEnabled(!!d.enabled)
+      setSentToday(d.sentToday ?? 0)
+      setDailyLimit(d.dailyLimit ?? 0)
+      setQueueDepth(d.queueDepth ?? 0)
+      setState('idle')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Load failed')
+      setState('error')
+    }
+  }
+
+  useEffect(() => { load() }, [])
+
+  const toggle = async () => {
+    const next = !enabled
+    if (next && !confirm('Resume daily prospecting sends?')) return
+    if (!next && !confirm('Pause daily prospecting sends?\n\nThe cron will skip every morning until you resume it. Already-queued contacts stay queued.')) return
+    setState('saving')
+    setError(null)
+    try {
+      const res = await fetch('/api/admin/auto-send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: next }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({})) as { error?: string }
+        throw new Error(d.error ?? `HTTP ${res.status}`)
+      }
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Save failed')
+      setState('error')
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
+      <div style={{ flex: 1, minWidth: 240 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#fff', marginBottom: 4 }}>
+          Prospecting outreach (daily cron)
+        </div>
+        <div style={{ fontSize: 11, color: '#6B8299', lineHeight: 1.5 }}>
+          The cold-outreach drip that sends pending contacts each morning. Pause it if the sending IP is getting throttled or you need to protect deliverability for transactional mail.
+        </div>
+        {state !== 'loading' && state !== 'error' && (
+          <div style={{ marginTop: 8, fontSize: 11, color: '#9BB0C4' }}>
+            Status:{' '}
+            <strong style={{ color: enabled ? '#4ADE80' : '#F87171' }}>
+              {enabled ? 'Sending' : 'Paused'}
+            </strong>
+            {' '}&middot; Sent today: {sentToday} / {dailyLimit} &middot; Queue: {queueDepth}
+          </div>
+        )}
+        {state === 'error' && error && (
+          <div style={{ marginTop: 8, fontSize: 11, color: '#f87171' }}>{error}</div>
+        )}
+      </div>
+      <button
+        onClick={toggle}
+        disabled={state === 'loading' || state === 'saving'}
+        style={{
+          padding: '8px 16px', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+          background: enabled ? 'rgba(248,113,113,0.10)' : 'rgba(74,222,128,0.10)',
+          border: `1px solid ${enabled ? 'rgba(248,113,113,0.4)' : 'rgba(74,222,128,0.4)'}`,
+          color: enabled ? '#F87171' : '#4ADE80',
+          borderRadius: 4, cursor: (state === 'loading' || state === 'saving') ? 'wait' : 'pointer',
+          flexShrink: 0,
+        }}
+      >
+        {state === 'loading' ? 'Loading...' : state === 'saving' ? 'Saving...' : enabled ? 'Pause prospecting' : 'Resume prospecting'}
       </button>
     </div>
   )
