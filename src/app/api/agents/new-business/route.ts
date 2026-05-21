@@ -172,6 +172,10 @@ export async function POST(req: NextRequest) {
       clientCity: (fields.clientCity as string) || null,
       clientState: (fields.clientState as string) || null,
       clientZip: (fields.clientZip as string) || null,
+      // Owner: null/blank means same as insured. The agent flips a
+      // "Owner same as insured" checkbox in the New Business form.
+      ownerFirstName: ((fields.ownerFirstName as string) || '').trim() || null,
+      ownerLastName: ((fields.ownerLastName as string) || '').trim() || null,
     },
   })
 

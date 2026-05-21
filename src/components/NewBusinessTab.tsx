@@ -61,6 +61,10 @@ interface Submission {
   clientPhone: string | null
   clientEmail: string | null
   clientBirthday: string | null
+  // Policy owner, when different from the insured (kid policies etc.).
+  // Null means owner == insured.
+  ownerFirstName: string | null
+  ownerLastName: string | null
   status: 'PENDING' | 'ISSUED' | 'DECLINED' | 'LAPSED' | 'NOT_TAKEN'
   issuedDate: string | null
   policyNumber: string | null
@@ -268,7 +272,14 @@ export default function NewBusinessTab({ isMobile, phase, initialSubmissionId, p
           <tbody>
             {sorted.map(s => (
               <tr key={s.id} onClick={() => setOpenId(s.id)} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', cursor: 'pointer' }}>
-                <td style={{ padding: '10px 12px', fontSize: 12, color: '#ffffff' }}>{s.clientFirstName} {s.clientLastName}</td>
+                <td style={{ padding: '10px 12px', fontSize: 12, color: '#ffffff' }}>
+                  {s.clientFirstName} {s.clientLastName}
+                  {s.ownerLastName && (
+                    <div style={{ fontSize: 10, color: '#9BB0C4', marginTop: 2, fontWeight: 400 }}>
+                      Owner: {s.ownerFirstName} {s.ownerLastName}
+                    </div>
+                  )}
+                </td>
                 <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{s.carrier}</td>
                 <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{POLICY_TYPES.find(p => p.value === s.policyType)?.label ?? s.policyType}</td>
                 <td style={{ padding: '10px 12px', fontSize: 12, color: '#C9A96E' }}>
@@ -324,7 +335,14 @@ export default function NewBusinessTab({ isMobile, phase, initialSubmissionId, p
                 const writer = (s as Submission & { agentProfile?: { firstName: string; lastName: string; agentCode: string } | null }).agentProfile
                 return (
                   <tr key={s.id} onClick={() => setOpenId(s.id)} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', cursor: 'pointer' }}>
-                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#ffffff' }}>{s.clientFirstName} {s.clientLastName}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#ffffff' }}>
+                  {s.clientFirstName} {s.clientLastName}
+                  {s.ownerLastName && (
+                    <div style={{ fontSize: 10, color: '#9BB0C4', marginTop: 2, fontWeight: 400 }}>
+                      Owner: {s.ownerFirstName} {s.ownerLastName}
+                    </div>
+                  )}
+                </td>
                     <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{s.carrier}</td>
                     <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{POLICY_TYPES.find(p => p.value === s.policyType)?.label ?? s.policyType}</td>
                     <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>
@@ -370,7 +388,13 @@ function NewBusinessForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: ()
     splitWithAgentId: '',
     clientFirstName: '', clientLastName: '', clientPhone: '', clientEmail: '', clientBirthday: '',
     clientAddressLine1: '', clientAddressLine2: '', clientCity: '', clientState: '', clientZip: '',
+    // Owner: blank when same as insured (e.g. adult-on-self policies);
+    // filled in for kid policies and other split-ownership cases.
+    ownerFirstName: '', ownerLastName: '',
   })
+  // UI-only toggle. Defaults to "same as insured" so existing agents see
+  // no change; flipping it off reveals the owner-name inputs.
+  const [ownerDiffers, setOwnerDiffers] = useState(false)
   const [splitQuery, setSplitQuery] = useState('')
   const [splitResults, setSplitResults] = useState<SplitAgentCandidate[]>([])
   const [splitSelected, setSplitSelected] = useState<SplitAgentCandidate | null>(null)
@@ -606,7 +630,7 @@ function NewBusinessForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: ()
         </div>
       </div>
 
-      <div style={{ ...sectionLabel, fontSize: 9, margin: '14px 0 8px' }}>Client</div>
+      <div style={{ ...sectionLabel, fontSize: 9, margin: '14px 0 8px' }}>Insured</div>
       <div style={grid}>
         <div><label style={fieldLabel}>First Name *</label><input required style={inputStyle} value={form.clientFirstName} onChange={e => setForm(f => ({ ...f, clientFirstName: e.target.value }))} /></div>
         <div><label style={fieldLabel}>Last Name *</label><input required style={inputStyle} value={form.clientLastName} onChange={e => setForm(f => ({ ...f, clientLastName: e.target.value }))} /></div>
@@ -644,6 +668,28 @@ function NewBusinessForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: ()
           <div><label style={fieldLabel}>Zip</label><input style={inputStyle} value={form.clientZip} onChange={e => setForm(f => ({ ...f, clientZip: e.target.value }))} /></div>
         </div>
       </div>
+
+      <div style={{ ...sectionLabel, fontSize: 9, margin: '14px 0 8px', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span>Owner</span>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 500, color: '#9BB0C4', textTransform: 'none', letterSpacing: 0, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={!ownerDiffers}
+            onChange={e => {
+              const same = e.target.checked
+              setOwnerDiffers(!same)
+              if (same) setForm(f => ({ ...f, ownerFirstName: '', ownerLastName: '' }))
+            }}
+          />
+          Owner same as insured
+        </label>
+      </div>
+      {ownerDiffers && (
+        <div style={grid}>
+          <div><label style={fieldLabel}>Owner First Name *</label><input required style={inputStyle} value={form.ownerFirstName} onChange={e => setForm(f => ({ ...f, ownerFirstName: e.target.value }))} /></div>
+          <div><label style={fieldLabel}>Owner Last Name *</label><input required style={inputStyle} value={form.ownerLastName} onChange={e => setForm(f => ({ ...f, ownerLastName: e.target.value }))} /></div>
+        </div>
+      )}
 
       <div style={{ ...sectionLabel, fontSize: 9, margin: '14px 0 8px' }}>Illustrations</div>
       <input type="file" multiple accept="image/png,image/jpeg,image/webp,application/pdf" onChange={e => setFiles(Array.from(e.target.files ?? []))} style={{ color: '#9BB0C4', fontSize: 12 }} />
@@ -718,6 +764,8 @@ function SubmissionDrawer({ submission, onClose, onChanged }: { submission: Subm
     clientLastName: submission.clientLastName,
     clientPhone: submission.clientPhone ?? '',
     clientEmail: submission.clientEmail ?? '',
+    ownerFirstName: submission.ownerFirstName ?? '',
+    ownerLastName: submission.ownerLastName ?? '',
   })
   // DECLINED is terminal so the agent can't edit; everything else is fair
   // game so they can fix typos even after the policy was issued. Server
@@ -752,6 +800,8 @@ function SubmissionDrawer({ submission, onClose, onChanged }: { submission: Subm
         clientLastName: edit.clientLastName.trim(),
         clientPhone: edit.clientPhone.trim(),
         clientEmail: edit.clientEmail.trim(),
+        ownerFirstName: edit.ownerFirstName.trim() || null,
+        ownerLastName: edit.ownerLastName.trim() || null,
       }
       const res = await fetch(`/api/agents/new-business/${submission.id}`, {
         method: 'PATCH',
@@ -824,12 +874,20 @@ function SubmissionDrawer({ submission, onClose, onChanged }: { submission: Subm
                 <DatePicker value={edit.applicationDate} onChange={v => setEdit(p => ({ ...p, applicationDate: v }))} />
               </div>
               <div>
-                <label style={fieldLabel}>Client First Name</label>
+                <label style={fieldLabel}>Insured First Name</label>
                 <input style={inputStyle} value={edit.clientFirstName} onChange={e => setEdit(p => ({ ...p, clientFirstName: e.target.value }))} />
               </div>
               <div>
-                <label style={fieldLabel}>Client Last Name</label>
+                <label style={fieldLabel}>Insured Last Name</label>
                 <input style={inputStyle} value={edit.clientLastName} onChange={e => setEdit(p => ({ ...p, clientLastName: e.target.value }))} />
+              </div>
+              <div>
+                <label style={fieldLabel}>Owner First Name <span style={{ color: '#6B8299', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(blank = same as insured)</span></label>
+                <input style={inputStyle} value={edit.ownerFirstName} onChange={e => setEdit(p => ({ ...p, ownerFirstName: e.target.value }))} placeholder="e.g. parent's name for a kid policy" />
+              </div>
+              <div>
+                <label style={fieldLabel}>Owner Last Name</label>
+                <input style={inputStyle} value={edit.ownerLastName} onChange={e => setEdit(p => ({ ...p, ownerLastName: e.target.value }))} />
               </div>
               <div>
                 <label style={fieldLabel}>Client Phone</label>

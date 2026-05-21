@@ -1410,6 +1410,14 @@ model NewBusinessSubmission {
   clientState         String?
   clientZip           String?
 
+  // Policy owner, when different from the insured (e.g. a parent
+  // owning a policy on their minor child). Null/blank means owner
+  // and insured are the same person. The agent flips a "Owner same
+  // as insured" toggle in the New Business form; only first + last
+  // name are captured today.
+  ownerFirstName      String?
+  ownerLastName       String?
+
   status              NewBusinessStatus @default(PENDING)
   issuedDate          DateTime?
   policyNumber        String?
