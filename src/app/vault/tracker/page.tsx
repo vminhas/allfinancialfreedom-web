@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -842,16 +842,11 @@ export default function TrackerPage() {
           At-Risk Only
         </label>
         {recruiterOptions.length > 0 && (
-          <select
-            style={selectStyle}
+          <RecruiterTypeahead
+            options={recruiterOptions}
             value={recruiterFilter}
-            onChange={e => { setRecruiterFilter(e.target.value); setPage(1) }}
-          >
-            <option value="">All Recruiters</option>
-            {recruiterOptions.map(r => (
-              <option key={r.agentCode} value={r.agentCode}>{r.name}</option>
-            ))}
-          </select>
+            onChange={v => { setRecruiterFilter(v); setPage(1) }}
+          />
         )}
         {/* Active date range indicator */}
         {preset !== 'all' && (
@@ -3285,5 +3280,105 @@ function VipArrivalButton({ agentId, vipArrival }: { agentId: string; vipArrival
     >
       {label}
     </button>
+  )
+}
+
+function RecruiterTypeahead({ options, value, onChange }: {
+  options: { agentCode: string; name: string }[]
+  value: string
+  onChange: (v: string) => void
+}) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  const selected = options.find(o => o.agentCode === value)
+  const filtered = query.trim()
+    ? options.filter(o => o.name.toLowerCase().includes(query.toLowerCase()) || o.agentCode.toLowerCase().includes(query.toLowerCase()))
+    : options
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  return (
+    <div ref={ref} style={{ position: 'relative', minWidth: 180 }}>
+      {value && selected ? (
+        <div
+          onClick={() => { setOpen(true); setQuery('') }}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '7px 10px', borderRadius: 4, cursor: 'pointer',
+            background: 'rgba(201,169,110,0.08)',
+            border: '1px solid rgba(201,169,110,0.25)',
+            fontSize: 12, color: '#C9A96E',
+          }}
+        >
+          <span style={{ fontWeight: 600 }}>{selected.name}</span>
+          <button
+            onClick={e => { e.stopPropagation(); onChange(''); setQuery('') }}
+            style={{ background: 'none', border: 'none', color: '#6B8299', fontSize: 13, cursor: 'pointer', padding: '0 0 0 8px', lineHeight: 1 }}
+          >
+            &times;
+          </button>
+        </div>
+      ) : (
+        <input
+          value={query}
+          onChange={e => { setQuery(e.target.value); setOpen(true) }}
+          onFocus={() => setOpen(true)}
+          placeholder="Filter by recruiter..."
+          style={{
+            width: '100%', padding: '7px 10px', borderRadius: 4,
+            background: '#142D48', border: '1px solid rgba(201,169,110,0.15)',
+            color: '#d1d9e2', fontSize: 12, outline: 'none',
+            boxSizing: 'border-box',
+          }}
+        />
+      )}
+      {open && filtered.length > 0 && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0,
+          marginTop: 4, zIndex: 50,
+          background: '#142D48', border: '1px solid rgba(201,169,110,0.2)',
+          borderRadius: 6, boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+          maxHeight: 220, overflowY: 'auto',
+        }}>
+          {value && (
+            <button
+              onClick={() => { onChange(''); setQuery(''); setOpen(false) }}
+              style={{
+                width: '100%', padding: '8px 12px', textAlign: 'left',
+                background: 'none', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.04)',
+                color: '#6B8299', fontSize: 11, cursor: 'pointer',
+              }}
+            >
+              Show all recruiters
+            </button>
+          )}
+          {filtered.map(o => (
+            <button
+              key={o.agentCode}
+              onClick={() => { onChange(o.agentCode); setQuery(''); setOpen(false) }}
+              style={{
+                width: '100%', padding: '8px 12px', textAlign: 'left',
+                background: o.agentCode === value ? 'rgba(201,169,110,0.1)' : 'transparent',
+                border: 'none', borderBottom: '1px solid rgba(255,255,255,0.03)',
+                color: o.agentCode === value ? '#C9A96E' : '#d1d9e2',
+                fontSize: 12, cursor: 'pointer',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              }}
+            >
+              <span>{o.name}</span>
+              <span style={{ fontSize: 9, color: '#4B5563' }}>{o.agentCode}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
