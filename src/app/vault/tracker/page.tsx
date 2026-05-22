@@ -1548,6 +1548,13 @@ function AgentDrawer({
                   <CopyButton value={agent.email ?? agent.agentUser?.email ?? ''} size={12} />
                 </>
               )}
+              {agent.phone && (
+                <>
+                  {' · '}
+                  <span>{agent.phone}</span>
+                  <CopyButton value={agent.phone} size={12} />
+                </>
+              )}
             </div>
             {/* Recruiter + join date row. Both are editable in the
                 Edit tab; surfacing them in the header gives admins
