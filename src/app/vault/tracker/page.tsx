@@ -1084,14 +1084,12 @@ export default function TrackerPage() {
                               </a>
                             )}
                           </div>
-                          <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2, letterSpacing: '0.05em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {agent.agentCode}
-                            {agent.email && (
-                              <>
-                                {' · '}
-                                <span>{agent.email}</span>
-                              </>
-                            )}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                            <div style={{ fontSize: 10, color: '#6B8299', letterSpacing: '0.05em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                              {agent.agentCode}
+                              {agent.email && <>{' · '}<span>{agent.email}</span></>}
+                            </div>
+                            {agent.email && <CopyButton value={agent.email} size={12} />}
                           </div>
                         </div>
                       </div>
