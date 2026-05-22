@@ -1541,19 +1541,21 @@ function AgentDrawer({
             </div>
             <div style={{ fontSize: 11, color: '#6B8299', marginTop: 4 }}>
               {agent.agentCode} &middot; {agent.state ?? 'No state'}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 6 }}>
               {(agent.email ?? agent.agentUser?.email) && (
-                <>
-                  {' · '}
-                  <span>{agent.email ?? agent.agentUser?.email}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+                  <span style={{ color: '#4B5563', width: 12, textAlign: 'center' }}>&#9993;</span>
+                  <span style={{ color: '#9BB0C4' }}>{agent.email ?? agent.agentUser?.email}</span>
                   <CopyButton value={agent.email ?? agent.agentUser?.email ?? ''} size={12} />
-                </>
+                </div>
               )}
               {agent.phone && (
-                <>
-                  {' · '}
-                  <span>{agent.phone}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+                  <span style={{ color: '#4B5563', width: 12, textAlign: 'center' }}>&#9742;</span>
+                  <span style={{ color: '#9BB0C4' }}>{agent.phone}</span>
                   <CopyButton value={agent.phone} size={12} />
-                </>
+                </div>
               )}
             </div>
             {/* Recruiter + join date row. Both are editable in the
