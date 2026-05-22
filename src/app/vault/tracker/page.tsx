@@ -41,6 +41,7 @@ interface Agent {
   callScore30d: number | null
   callReviewCount30d: number
   openCoachingFlags: number
+  phone: string | null
   recruiterCode: string | null
   recruiterName: string | null
 }
@@ -1057,9 +1058,31 @@ export default function TrackerPage() {
                           firstName={agent.firstName}
                           lastName={agent.lastName}
                         />
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: 13, color: '#ffffff', fontWeight: 500 }}>
-                            {agent.firstName} {agent.lastName}
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 13, color: '#ffffff', fontWeight: 500 }}>
+                              {agent.firstName} {agent.lastName}
+                            </span>
+                            {agent.phone && (
+                              <a
+                                href={`sms:${agent.phone.replace(/\D/g, '')}`}
+                                onClick={e => e.stopPropagation()}
+                                title={`Text ${agent.firstName}: ${agent.phone}`}
+                                style={{
+                                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                  width: 20, height: 20, borderRadius: 4,
+                                  background: 'rgba(74,222,128,0.08)',
+                                  border: '1px solid rgba(74,222,128,0.2)',
+                                  color: '#4ade80', fontSize: 10,
+                                  textDecoration: 'none', flexShrink: 0,
+                                  transition: 'background 0.15s',
+                                }}
+                                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(74,222,128,0.2)')}
+                                onMouseLeave={e => (e.currentTarget.style.background = 'rgba(74,222,128,0.08)')}
+                              >
+                                &#9993;
+                              </a>
+                            )}
                           </div>
                           <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2, letterSpacing: '0.05em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {agent.agentCode}
@@ -1067,7 +1090,6 @@ export default function TrackerPage() {
                               <>
                                 {' · '}
                                 <span>{agent.email}</span>
-                                <CopyButton value={agent.email} size={12} />
                               </>
                             )}
                           </div>

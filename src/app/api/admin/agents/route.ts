@@ -150,6 +150,7 @@ export async function GET(req: NextRequest) {
       callScore30d: agg && agg.count > 0 ? Math.round(agg.sum / agg.count) : null,
       callReviewCount30d: agg?.count ?? 0,
       openCoachingFlags: agg?.flagged ?? 0,
+      phone: p.phone,
       recruiterCode: p.recruiterId ?? null,
       recruiterName: p.recruiterId ? (recruiterNameMap.get(p.recruiterId) ?? null) : null,
     }
