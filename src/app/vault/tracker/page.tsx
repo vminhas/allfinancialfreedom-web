@@ -1542,21 +1542,36 @@ function AgentDrawer({
             <div style={{ fontSize: 11, color: '#6B8299', marginTop: 4 }}>
               {agent.agentCode} &middot; {agent.state ?? 'No state'}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 6 }}>
-              {(agent.email ?? agent.agentUser?.email) && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
-                  <span style={{ color: '#4B5563', width: 12, textAlign: 'center' }}>&#9993;</span>
-                  <span style={{ color: '#9BB0C4' }}>{agent.email ?? agent.agentUser?.email}</span>
-                  <CopyButton value={agent.email ?? agent.agentUser?.email ?? ''} size={12} />
-                </div>
-              )}
-              {agent.phone && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
-                  <span style={{ color: '#4B5563', width: 12, textAlign: 'center' }}>&#9742;</span>
-                  <span style={{ color: '#9BB0C4' }}>{agent.phone}</span>
-                  <CopyButton value={agent.phone} size={12} />
-                </div>
-              )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }}>
+              {(agent.email ?? agent.agentUser?.email) && (() => {
+                const email = agent.email ?? agent.agentUser?.email ?? ''
+                return (
+                  <a
+                    href={`mailto:${email}`}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#9BB0C4', textDecoration: 'none' }}
+                  >
+                    <span style={{ color: '#60a5fa' }}>{email}</span>
+                    <CopyButton value={email} size={11} />
+                  </a>
+                )
+              })()}
+              {agent.phone && (() => {
+                const raw = agent.phone.replace(/\D/g, '')
+                const display = raw.length === 10
+                  ? `(${raw.slice(0, 3)}) ${raw.slice(3, 6)}-${raw.slice(6)}`
+                  : raw.length === 11
+                    ? `+${raw[0]} (${raw.slice(1, 4)}) ${raw.slice(4, 7)}-${raw.slice(7)}`
+                    : agent.phone
+                return (
+                  <a
+                    href={`tel:${raw}`}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#9BB0C4', textDecoration: 'none' }}
+                  >
+                    <span style={{ color: '#4ade80' }}>{display}</span>
+                    <CopyButton value={agent.phone} size={11} />
+                  </a>
+                )
+              })()}
             </div>
             {/* Recruiter + join date row. Both are editable in the
                 Edit tab; surfacing them in the header gives admins
