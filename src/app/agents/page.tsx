@@ -6430,6 +6430,67 @@ function PfrReadOnly({ agentCode, agentFirstName, previewToken }: { agentCode: s
         </div>
       </div>
 
+      {/* Asset / Liability breakdown: skipped when both sides are empty
+          so the read-only viewer stays compact for half-finished PFRs.
+          Field labels mirror the editable PFR page (ASSET_LABELS /
+          DEBT_LABELS in /agents/pfr/page.tsx). */}
+      {(totalAssets > 0 || totalDebts > 0) && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, marginBottom: 12 }}>
+          <div style={{ padding: '8px 10px', background: 'rgba(74,222,128,0.04)', borderRadius: 4, border: '1px solid rgba(74,222,128,0.12)' }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: '#4ade80', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>Assets</div>
+            {([
+              ['retirement', 'Retirement'],
+              ['checkingSavings', 'Checking / Savings'],
+              ['collegeFunds', 'College Funds'],
+              ['lifeInsurance', 'Life Insurance'],
+              ['livingTrust', 'Living Trust & Will'],
+            ] as const).map(([k, label]) => {
+              const v = assets[k] || 0
+              if (!v) return null
+              return (
+                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#9BB0C4', marginBottom: 2 }}>
+                  <span>{label}</span>
+                  <span style={{ color: '#fff' }}>{fmt(v)}</span>
+                </div>
+              )
+            })}
+            {totalAssets === 0 && (
+              <div style={{ fontSize: 11, color: '#4B5563', fontStyle: 'italic' }}>None entered</div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.06)', fontSize: 11, fontWeight: 700 }}>
+              <span style={{ color: '#6B8299' }}>Total</span>
+              <span style={{ color: '#4ade80' }}>{fmt(totalAssets)}</span>
+            </div>
+          </div>
+
+          <div style={{ padding: '8px 10px', background: 'rgba(248,113,113,0.04)', borderRadius: 4, border: '1px solid rgba(248,113,113,0.12)' }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>Liabilities</div>
+            {([
+              ['mortgage', 'Mortgage'],
+              ['autoLoans', 'Auto Loans'],
+              ['studentLoans', 'Student Loans'],
+              ['creditCards', 'Credit Cards / Personal'],
+            ] as const).map(([k, label]) => {
+              const v = debts[k] || 0
+              if (!v) return null
+              return (
+                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#9BB0C4', marginBottom: 2 }}>
+                  <span>{label}</span>
+                  <span style={{ color: '#fff' }}>{fmt(v)}</span>
+                </div>
+              )
+            })}
+            {totalDebts === 0 && (
+              <div style={{ fontSize: 11, color: '#4B5563', fontStyle: 'italic' }}>None entered</div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.06)', fontSize: 11, fontWeight: 700 }}>
+              <span style={{ color: '#6B8299' }}>Total</span>
+              <span style={{ color: '#f87171' }}>{fmt(totalDebts)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Buckets */}
       {Object.keys(buckets).length > 0 && (
         <div style={{ marginBottom: 10 }}>
