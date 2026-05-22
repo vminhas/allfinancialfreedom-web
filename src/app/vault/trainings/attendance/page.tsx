@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { AgentTradingCardModal } from '@/components/AgentTradingCard'
+import AgentTypeahead from '@/components/AgentTypeahead'
 
 // Replicates Vick's "Tracking Team Empower" spreadsheet:
 //   rows = agents sorted by Day in Company
@@ -1415,18 +1416,14 @@ function OrphanQueue({ orphans, agents, onResolved }: {
                 {o.zoomEmail ?? 'no email'} · {o.eventTitle} · {fmtDate(o.eventStartsAt)} · {fmtDuration(o.durationSeconds)}
               </div>
             </div>
-            <select
+            <AgentTypeahead
               value={picks[o.id] ?? ''}
-              onChange={e => setPicks(p => ({ ...p, [o.id]: e.target.value }))}
-              style={{ ...inputStyle, appearance: 'auto', minWidth: 200 }}
-            >
-              <option value="">Pick agent...</option>
-              {agents.map(a => (
-                <option key={a.id} value={a.id}>
-                  {a.firstName} {a.lastName} ({a.agentCode})
-                </option>
-              ))}
-            </select>
+              onChange={(v) => setPicks(p => ({ ...p, [o.id]: v }))}
+              valueField="id"
+              placeholder="Search agent..."
+              includeFormer
+              style={{ minWidth: 200 }}
+            />
             <button
               disabled={busy === o.id || !picks[o.id]}
               onClick={() => resolve(o.id)}
