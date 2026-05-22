@@ -403,6 +403,23 @@ export default function AttendancePage() {
         }),
       })
       if (res.ok) {
+        // Auto-manage exclusion list: NOT_TRACKING adds to permanent
+        // exclusion so all future events are red. Clearing or setting
+        // any other status removes them from the exclusion list.
+        if (override === 'NOT_TRACKING') {
+          await fetch('/api/admin/attendance/exclusions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ agentProfileId: popover.agentProfileId, reason: popoverNote || 'Not tracking' }),
+          }).catch(() => {})
+        } else if (override !== 'CLEAR') {
+          // If they were excluded and admin is now marking them as
+          // something else, remove the exclusion
+          const row = data?.rows.find((r: AttendanceRow) => r.agentProfileId === popover.agentProfileId)
+          if (row?.excluded) {
+            await fetch(`/api/admin/attendance/exclusions?agentProfileId=${encodeURIComponent(popover.agentProfileId)}`, { method: 'DELETE' }).catch(() => {})
+          }
+        }
         await load()
         setPopover(null)
         setPopoverNote('')
