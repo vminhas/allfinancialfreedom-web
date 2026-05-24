@@ -12,11 +12,13 @@ export async function GET(req: NextRequest) {
   const stage = req.nextUrl.searchParams.get('stage')
   if (!stage) return NextResponse.json({ error: 'stage required' }, { status: 400 })
 
-  // Map stage name to query conditions
+  // Map stage name to query conditions (including old GHL names for backward compat)
   const stageToFilter: Record<string, object> = {
     'New Lead': { OR: [{ ghlPipelineStage: 'New Lead' }, { ghlPipelineStage: null, outreachStatus: { in: [null, 'pending'] } }] },
     'Contacted': { OR: [{ ghlPipelineStage: 'Contacted' }, { ghlPipelineStage: null, outreachStatus: 'sent' }] },
-    'Responded': { OR: [{ ghlPipelineStage: 'Responded' }, { ghlPipelineStage: null, outreachStatus: 'responded' }] },
+    'Engaged': { OR: [{ ghlPipelineStage: { in: ['Engaged', 'Responded'] } }, { ghlPipelineStage: null, outreachStatus: 'responded' }] },
+    'Onboarding': { ghlPipelineStage: { in: ['Onboarding', 'Ready to Onboard'] } },
+    'Active Agent': { ghlPipelineStage: { in: ['Active Agent', 'Onboarded'] } },
     'Not Interested': { OR: [{ ghlPipelineStage: 'Not Interested' }, { ghlPipelineStage: null, outreachStatus: 'opted-out' }] },
   }
 

@@ -90,7 +90,7 @@ export async function advanceContactStage(contactId: string, stageName: string):
   }
 
   // Update local DB
-  const isConversion = stageName === 'Ready to Onboard' && !contact.convertedAt
+  const isConversion = (stageName === 'Active Agent' || stageName === 'Ready to Onboard') && !contact.convertedAt
   await db.contact.update({
     where: { id: contactId },
     data: {
@@ -102,4 +102,59 @@ export async function advanceContactStage(contactId: string, stageName: string):
   })
 
   return { ok: true }
+}
+
+/**
+ * When a new agent is created (via Tevah sync or ICA approval), find
+ * any matching Contact in the recruiting pipeline and auto-advance
+ * them to "Active Agent." This closes the loop: lead becomes agent.
+ *
+ * Matching: email (primary), then phone, then first+last name.
+ * Best-effort: failures are logged but never block agent creation.
+ */
+export async function autoAdvanceContactOnAgentCreation(opts: {
+  email?: string | null
+  phone?: string | null
+  firstName?: string
+  lastName?: string
+}): Promise<void> {
+  try {
+    // Try matching by email first (most reliable)
+    let contact = opts.email
+      ? await db.contact.findFirst({
+          where: { email: opts.email.toLowerCase() },
+          select: { id: true, ghlPipelineStage: true },
+        })
+      : null
+
+    // Fallback: phone
+    if (!contact && opts.phone) {
+      const digits = opts.phone.replace(/\D/g, '')
+      if (digits.length >= 10) {
+        contact = await db.contact.findFirst({
+          where: { phone: { contains: digits.slice(-10) } },
+          select: { id: true, ghlPipelineStage: true },
+        })
+      }
+    }
+
+    // Fallback: name match (less reliable, only if both names provided)
+    if (!contact && opts.firstName && opts.lastName) {
+      contact = await db.contact.findFirst({
+        where: {
+          firstName: { equals: opts.firstName, mode: 'insensitive' },
+          lastName: { equals: opts.lastName, mode: 'insensitive' },
+        },
+        select: { id: true, ghlPipelineStage: true },
+      })
+    }
+
+    if (!contact) return // No matching contact in pipeline
+    if (contact.ghlPipelineStage === 'Active Agent') return // Already there
+
+    await advanceContactStage(contact.id, 'Active Agent')
+    console.log(`[auto-advance] Contact ${contact.id} → Active Agent (agent created)`)
+  } catch (err) {
+    console.error('[auto-advance] failed:', err)
+  }
 }

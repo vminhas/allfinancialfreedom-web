@@ -21,17 +21,21 @@ interface FunnelData {
 const STAGE_COLORS: Record<string, string> = {
   'New Lead': '#6B8299',
   'Contacted': '#60a5fa',
-  'Responded': '#a78bfa',
+  'Engaged': '#a78bfa',
   'Discovery Booked': '#f59e0b',
   'Discovery Completed': '#4ade80',
+  'Qualified': '#22d3ee',
+  'Interview Booked': '#38bdf8',
+  'Interview Completed': '#818cf8',
+  'Onboarding': '#C9A96E',
+  'Active Agent': '#22c55e',
   'No-Show': '#f87171',
-  'Qualified': '#C9A96E',
-  'Ready to Onboard': '#4ade80',
-  'Onboarded': '#22c55e',
-  'Not Interested': '#4B5563',
+  'Rescheduled': '#fbbf24',
+  'Not Qualified': '#fb923c',
+  'Not Interested': '#6b7280',
 }
 
-const FUNNEL_STAGES = ['New Lead', 'Contacted', 'Responded', 'Discovery Booked', 'Discovery Completed', 'Qualified', 'Ready to Onboard', 'Onboarded']
+const FUNNEL_STAGES = ['New Lead', 'Contacted', 'Engaged', 'Discovery Booked', 'Discovery Completed', 'Qualified', 'Interview Booked', 'Interview Completed', 'Onboarding', 'Active Agent']
 
 interface StageContact {
   id: string; firstName: string; lastName: string; email: string
@@ -42,12 +46,14 @@ interface StageContact {
 
 const NEXT_STAGE: Record<string, string> = {
   'New Lead': 'Contacted',
-  'Contacted': 'Responded',
-  'Responded': 'Discovery Booked',
+  'Contacted': 'Engaged',
+  'Engaged': 'Discovery Booked',
   'Discovery Booked': 'Discovery Completed',
   'Discovery Completed': 'Qualified',
-  'Qualified': 'Ready to Onboard',
-  'Ready to Onboard': 'Onboarded',
+  'Qualified': 'Interview Booked',
+  'Interview Booked': 'Interview Completed',
+  'Interview Completed': 'Onboarding',
+  'Onboarding': 'Active Agent',
 }
 
 export default function FunnelPage() {

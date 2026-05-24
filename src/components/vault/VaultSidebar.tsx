@@ -19,6 +19,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/vault/tracker', label: 'AFF Tracker', icon: '◑' },
       { href: '/vault/funnel', label: 'Recruiting Funnel', icon: '▼' },
+      { href: '/vault/lead-flow', label: 'Lead Flow', icon: '◇' },
       { href: '/vault/dashboard', label: 'Outreach Dashboard', icon: '◈' },
     ],
   },

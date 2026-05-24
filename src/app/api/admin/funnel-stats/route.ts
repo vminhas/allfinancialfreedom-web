@@ -5,10 +5,18 @@ import { db } from '@/lib/db'
 import { requireRole } from '@/lib/permissions'
 
 const STAGE_ORDER = [
-  'New Lead', 'Contacted', 'Responded', 'Discovery Booked',
-  'Discovery Completed', 'No-Show', 'Qualified', 'Ready to Onboard',
-  'Onboarded', 'Not Interested',
+  'New Lead', 'Contacted', 'Engaged', 'Discovery Booked',
+  'Discovery Completed', 'Qualified', 'Interview Booked',
+  'Interview Completed', 'Onboarding', 'Active Agent',
+  'No-Show', 'Rescheduled', 'Not Qualified', 'Not Interested',
 ]
+
+// Map old GHL stage names to new display names
+const STAGE_REMAP: Record<string, string> = {
+  'Responded': 'Engaged',
+  'Ready to Onboard': 'Onboarding',
+  'Onboarded': 'Active Agent',
+}
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -33,10 +41,12 @@ export async function GET() {
     if (!stage) {
       if (!c.outreachStatus || c.outreachStatus === 'pending') stage = 'New Lead'
       else if (c.outreachStatus === 'sent' || c.outreachStatus === 'drafted') stage = 'Contacted'
-      else if (c.outreachStatus === 'responded') stage = 'Responded'
+      else if (c.outreachStatus === 'responded') stage = 'Engaged'
       else if (c.outreachStatus === 'opted-out') stage = 'Not Interested'
       else stage = 'New Lead'
     }
+    // Remap old GHL stage names to new
+    stage = STAGE_REMAP[stage] ?? stage
 
     stageCounts[stage] = (stageCounts[stage] ?? 0) + 1
     sourceCounts[c.source] = (sourceCounts[c.source] ?? 0) + 1

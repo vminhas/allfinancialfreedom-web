@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/permissions'
 import { PHASE_ITEMS, CARRIERS } from '@/lib/agent-constants'
+import { autoAdvanceContactOnAgentCreation } from '@/lib/ghl-pipeline'
 
 // POST /api/vault/recruits/[id]/approve
 //
@@ -229,6 +230,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       console.error('[recruits/approve] announcement post failed:', err)
     }
   }
+
+  // Auto-advance any matching Contact in the recruiting pipeline
+  // to "Active Agent" — this person just ICA'd so they're fully converted.
+  autoAdvanceContactOnAgentCreation({
+    email,
+    phone: body.phone ?? undefined,
+    firstName: body.firstName.trim(),
+    lastName: body.lastName.trim(),
+  }).catch(() => {})
 
   return NextResponse.json({
     ok: true,

@@ -22,6 +22,7 @@ import { getAutoAssignee } from '@/lib/auto-assign'
 import { sendChannelMessage } from '@/lib/discord'
 import { sendAgentInviteEmail } from '@/lib/send-agent-invite'
 import { celebrateNewBusinessPartner } from '@/lib/celebrate-new-business-partner'
+import { autoAdvanceContactOnAgentCreation } from '@/lib/ghl-pipeline'
 import type { PolicyType, NewBusinessStatus } from '@/generated/prisma/client'
 
 // GET /api/cron/tevah-sync (Vercel cron, runs hourly)
@@ -363,6 +364,15 @@ export async function syncAgents() {
           })
           if (announce?.ok) results.announced++
         }
+
+        // Auto-advance any matching Contact in the recruiting pipeline
+        // to "Active Agent" — this closes the loop from lead to agent.
+        autoAdvanceContactOnAgentCreation({
+          email: email ?? undefined,
+          phone: agent.phone ?? undefined,
+          firstName: agent.firstName,
+          lastName: agent.lastName,
+        }).catch(() => {})
 
         results.created++
         results.created_codes.push(code)
