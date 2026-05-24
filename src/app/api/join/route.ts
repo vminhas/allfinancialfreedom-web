@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getGhlConfig } from '@/lib/ghl'
 import { getSetting } from '@/lib/settings'
+import { db } from '@/lib/db'
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
@@ -60,6 +61,34 @@ export async function POST(req: NextRequest) {
     if (!contactRes.ok) {
       console.error('GHL contact error:', contact)
       return NextResponse.json({ ok: true, ghl: false })
+    }
+
+    // Also create a local Contact so the lead shows up in the
+    // recruiting funnel immediately. Upsert by email to avoid
+    // duplicates if they submitted before (e.g. via PropHog import).
+    try {
+      await db.contact.upsert({
+        where: { email: email.toLowerCase() },
+        create: {
+          firstName,
+          lastName,
+          email: email.toLowerCase(),
+          ghlContactId: contact?.contact?.id ?? null,
+          source: 'join-form',
+          outreachStatus: 'responded',
+          ghlPipelineStage: 'Engaged',
+          ghlStageUpdatedAt: new Date(),
+        },
+        update: {
+          ghlContactId: contact?.contact?.id ?? undefined,
+          // Only upgrade stage if they were earlier in the funnel
+          ghlPipelineStage: 'Engaged',
+          ghlStageUpdatedAt: new Date(),
+          // Don't overwrite source if they were already tracked (e.g. prophog contact who then submits)
+        },
+      })
+    } catch (err) {
+      console.error('[join] local Contact upsert failed:', err)
     }
 
     if (contact?.contact?.id) {

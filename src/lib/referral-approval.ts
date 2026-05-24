@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto'
 import { PHASE_ITEMS, CARRIERS } from './agent-constants'
 import { getGhlConfig, sendGhlEmail, ghlPost, OPS_MAILBOX } from './ghl'
 import { buildWelcomeEmailHtml } from './welcome-email'
+import { autoAdvanceContactOnAgentCreation } from './ghl-pipeline'
 
 // Shared approval flow used by both the vault PATCH endpoint and the Discord
 // approve-button interaction. Creates the AgentUser + AgentProfile, marks the
@@ -323,6 +324,15 @@ export async function approveReferral(input: ApprovalInput): Promise<ApprovalRes
       }).catch(() => {})
     } catch { /* non-fatal */ }
   }
+
+  // Auto-advance the matching Contact to "Active Agent" — this person
+  // was a referral lead who just got approved as an agent.
+  autoAdvanceContactOnAgentCreation({
+    email: referral.email,
+    phone: referral.phone ?? undefined,
+    firstName: referral.firstName,
+    lastName: referral.lastName,
+  }).catch(() => {})
 
   return { ok: true, status: 'APPROVED', agentCode, profileId, emailSent }
 }

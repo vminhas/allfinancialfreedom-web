@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { resolveAgentIdentity } from '@/lib/agent-identity'
+import { autoAdvanceContactOnAgentCreation } from '@/lib/ghl-pipeline'
 
 export async function GET(req: NextRequest) {
   const id = await resolveAgentIdentity(req)
@@ -67,6 +68,32 @@ export async function POST(req: NextRequest) {
       notes: body.notes,
     },
   })
+
+  // Create a Contact in the recruiting pipeline so referrals show up
+  // in the funnel. They start at "Engaged" since the agent vouched for them.
+  try {
+    await db.contact.upsert({
+      where: { email: body.email.toLowerCase() },
+      create: {
+        firstName: body.firstName,
+        lastName: body.lastName,
+        email: body.email.toLowerCase(),
+        phone: body.phone ?? null,
+        state: body.state ?? null,
+        source: 'referral',
+        outreachStatus: 'responded',
+        ghlPipelineStage: 'Engaged',
+        ghlStageUpdatedAt: new Date(),
+      },
+      update: {
+        // Don't overwrite if they already exist, just ensure they're in pipeline
+        ghlPipelineStage: 'Engaged',
+        ghlStageUpdatedAt: new Date(),
+      },
+    })
+  } catch {
+    // Non-fatal — referral creation already succeeded
+  }
 
   // Fire-and-forget Discord ping so admins/LC see new pending approvals
   // without having to refresh the inbox. Includes Approve / Reject buttons

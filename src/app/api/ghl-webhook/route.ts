@@ -23,6 +23,48 @@ import type { RenderContext } from '@/lib/email-template'
 // stage on AppointmentCreate) stay inline here rather than running
 // as a template — they're event handling, not messaging.
 
+// ── Calendar classification ──────────────────────────────────────
+// Maps calendar names to pipeline actions so recruiting calendars
+// advance leads while internal calendars (coaching, FTA, etc.) don't.
+interface CalendarClassification {
+  pipelineStage: string | null  // null = don't advance recruiting pipeline
+  assignedTo: string | null
+  isRecruiting: boolean
+}
+
+function classifyCalendar(name: string): CalendarClassification {
+  const lower = name.toLowerCase()
+
+  // Interview calendars → Interview Booked
+  if (lower.includes('hiring interview') || lower.includes('interview with')) {
+    return { pipelineStage: 'Interview Booked', assignedTo: extractAssignee(name), isRecruiting: true }
+  }
+
+  // Recruiting/discovery calendars → Discovery Booked
+  if (lower.includes('discovery') || lower.includes('opportunity meeting') ||
+      lower.includes('intro meeting') || lower.includes('info session') ||
+      lower.includes('meet & greet') || lower.includes('meet and greet') ||
+      lower.includes('follow-up') || lower.includes('follow up')) {
+    return { pipelineStage: 'Discovery Booked', assignedTo: extractAssignee(name), isRecruiting: true }
+  }
+
+  // Internal calendars — coaching, FTA, licensing, PFR, personal
+  if (lower.includes('coaching') || lower.includes('field training') ||
+      lower.includes('licensing') || lower.includes('onboarding') ||
+      lower.includes('pfr') || lower.includes('financial review') ||
+      lower.includes('personal calendar')) {
+    return { pipelineStage: null, assignedTo: extractAssignee(name), isRecruiting: false }
+  }
+
+  // Unknown calendar — default to recruiting (Discovery Booked)
+  return { pipelineStage: 'Discovery Booked', assignedTo: extractAssignee(name), isRecruiting: true }
+}
+
+function extractAssignee(calendarName: string): string | null {
+  const match = calendarName.match(/with\s+(.+)/i)
+  return match ? match[1].trim() : null
+}
+
 function formatDateTime(iso: string) {
   try {
     return new Date(iso).toLocaleString('en-US', {
@@ -129,40 +171,83 @@ async function handleAppointmentCreate(payload: {
 
   const calendarName = (payload as Record<string, unknown>).calendarName as string ?? (payload as Record<string, unknown>).calendar_name as string ?? 'Unknown Calendar'
   const calendarId = (payload as Record<string, unknown>).calendarId as string ?? null
+  const classification = classifyCalendar(calendarName)
 
   // Build the render context with display-formatted values. Anything
   // a template might {{interpolate}} gets a key here.
   const tags: string[] = Array.isArray(contact?.tags) ? contact.tags : []
-  const localContact = contact?.email
+  let localContact = contact?.email
     ? await db.contact.findFirst({
         where: { email: contact.email.toLowerCase() },
         include: { importJob: { select: { contextPrompt: true, fileName: true } } },
       })
     : null
 
+  // Create a local Contact if this is a NEW person booking a recruiting
+  // calendar (e.g. someone from the website or Instagram who isn't in
+  // our local DB yet). This ensures every recruiting lead gets tracked
+  // in the pipeline from the moment they book.
+  let localContactId = localContact?.id ?? null
+  if (!localContactId && contact?.email && classification.isRecruiting) {
+    try {
+      // Detect source from GHL tags
+      let source = 'website'
+      if (tags.some(t => t.toLowerCase().includes('breezy'))) source = 'breezy'
+      else if (tags.some(t => t.toLowerCase().includes('instagram'))) source = 'instagram'
+      else if (tags.some(t => t.toLowerCase() === 'join-applicant')) source = 'join-form'
+      else if (tags.some(t => t.toLowerCase().includes('prophog'))) source = 'prophog'
+
+      const created = await db.contact.create({
+        data: {
+          firstName: contact.firstName ?? 'Unknown',
+          lastName: contact.lastName ?? '',
+          email: contact.email.toLowerCase(),
+          phone: contact.phone ?? null,
+          ghlContactId: contactId,
+          source,
+          outreachStatus: 'responded',
+        },
+      })
+      localContactId = created.id
+    } catch {
+      // Unique constraint on email — contact might exist under a slightly
+      // different casing or was created between the findFirst and create.
+    }
+  }
+
   // Store appointment locally for tracking show/no-show
   try {
     const eventId = (payload as Record<string, unknown>).id as string ?? (payload as Record<string, unknown>).appointmentId as string ?? null
+    const assignee = classification.assignedTo ?? calendarName
     await db.ghlAppointment.upsert({
       where: { ghlEventId: eventId ?? `manual-${contactId}-${startTime}` },
       create: {
         ghlCalendarId: calendarId,
         ghlEventId: eventId,
         calendarName,
-        contactId: localContact?.id ?? undefined,
+        contactId: localContactId ?? undefined,
         contactName: `${contact?.firstName ?? ''} ${contact?.lastName ?? ''}`.trim() || 'Unknown',
         contactEmail: contact?.email ?? null,
         contactPhone: contact?.phone ?? null,
         appointmentDate: startTime ? new Date(startTime) : new Date(),
-        assignedTo: calendarName,
+        assignedTo: assignee,
         source: calendarName,
+        pipelineAction: classification.pipelineStage,
       },
-      update: { appointmentDate: startTime ? new Date(startTime) : undefined, calendarName },
+      update: { appointmentDate: startTime ? new Date(startTime) : undefined, calendarName, assignedTo: assignee },
     })
-    if (localContact) {
+
+    // Advance pipeline based on calendar classification
+    if (localContactId && classification.pipelineStage) {
       await db.contact.update({
-        where: { id: localContact.id },
-        data: { ghlPipelineStage: 'Discovery Booked', ghlStageUpdatedAt: new Date(), ghlAppointmentDate: startTime ? new Date(startTime) : null },
+        where: { id: localContactId },
+        data: {
+          ghlPipelineStage: classification.pipelineStage,
+          ghlStageUpdatedAt: new Date(),
+          ghlAppointmentDate: startTime ? new Date(startTime) : null,
+          assignedTo: assignee,
+          ...(localContact?.ghlContactId ? {} : { ghlContactId: contactId }),
+        },
       }).catch(() => {})
     }
   } catch (err) {

@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
       const contact = await db.contact.findUnique({ where: { ghlContactId: contactGhlId } })
       if (!contact) continue
 
-      const isConversion = stageName === 'Ready to Onboard' && !contact.convertedAt
+      const isConversion = (stageName === 'Ready to Onboard' || stageName === 'Active Agent') && !contact.convertedAt
       const stageChanged = contact.ghlPipelineStage !== stageName
 
       if (stageChanged || !contact.ghlOpportunityId) {
@@ -108,7 +108,7 @@ export async function GET(req: NextRequest) {
       await sendChannelMessage(process.env.DISCORD_ADMIN_CHANNEL_ID, {
         embeds: [{
           title: `${converted} New Conversion${converted > 1 ? 's' : ''}!`,
-          description: `${converted} lead${converted > 1 ? 's' : ''} just reached "Ready to Onboard" in the pipeline.`,
+          description: `${converted} lead${converted > 1 ? 's' : ''} just converted to Active Agent in the pipeline.`,
           color: 0x4ade80,
           footer: { text: 'AFF Pipeline Sync' },
           timestamp: new Date().toISOString(),
