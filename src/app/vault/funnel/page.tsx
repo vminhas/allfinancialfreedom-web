@@ -33,10 +33,31 @@ const STAGE_COLORS: Record<string, string> = {
 
 const FUNNEL_STAGES = ['New Lead', 'Contacted', 'Responded', 'Discovery Booked', 'Discovery Completed', 'Qualified', 'Ready to Onboard', 'Onboarded']
 
+interface StageContact {
+  id: string; firstName: string; lastName: string; email: string
+  phone: string | null; source: string; ghlPipelineStage: string | null
+  outreachStatus: string | null; ghlAppointmentDate: string | null
+  assignedTo: string | null; createdAt: string
+}
+
+const NEXT_STAGE: Record<string, string> = {
+  'New Lead': 'Contacted',
+  'Contacted': 'Responded',
+  'Responded': 'Discovery Booked',
+  'Discovery Booked': 'Discovery Completed',
+  'Discovery Completed': 'Qualified',
+  'Qualified': 'Ready to Onboard',
+  'Ready to Onboard': 'Onboarded',
+}
+
 export default function FunnelPage() {
   const isMobile = useIsMobile()
   const [data, setData] = useState<FunnelData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [selectedStage, setSelectedStage] = useState<string | null>(null)
+  const [stageContacts, setStageContacts] = useState<StageContact[]>([])
+  const [contactsLoading, setContactsLoading] = useState(false)
+  const [advancing, setAdvancing] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/admin/funnel-stats')
@@ -80,24 +101,45 @@ export default function FunnelPage() {
 
       {/* Funnel Visualization */}
       <div style={{ background: '#132238', border: '1px solid rgba(201,169,110,0.1)', borderRadius: 8, padding: isMobile ? 16 : 24, marginBottom: 24 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 16 }}>
-          Pipeline Funnel
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#C9A96E' }}>
+            Pipeline Funnel
+          </div>
+          <div style={{ fontSize: 9, color: '#4B5563' }}>Click any stage to see contacts</div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {FUNNEL_STAGES.map((stage, i) => {
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {FUNNEL_STAGES.map((stage) => {
             const count = data.stages.find(s => s.name === stage)?.count ?? 0
-            const prevCount = i > 0 ? (data.stages.find(s => s.name === FUNNEL_STAGES[i - 1])?.count ?? 0) : 0
-            const convRate = i > 0 && prevCount > 0 ? Math.round((count / prevCount) * 100) : null
             const barWidth = maxCount > 0 ? Math.max(3, (count / maxCount) * 100) : 3
             const color = STAGE_COLORS[stage] ?? '#6B8299'
+            const isSelected = selectedStage === stage
 
             return (
-              <div key={stage} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: isMobile ? 90 : 140, flexShrink: 0, fontSize: 11, color: '#9BB0C4', textAlign: 'right' }}>
+              <button
+                key={stage}
+                onClick={async () => {
+                  if (selectedStage === stage) { setSelectedStage(null); return }
+                  setSelectedStage(stage)
+                  setContactsLoading(true)
+                  const res = await fetch(`/api/admin/funnel-contacts?stage=${encodeURIComponent(stage)}`)
+                  if (res.ok) {
+                    const d = await res.json() as { contacts: StageContact[] }
+                    setStageContacts(d.contacts ?? [])
+                  }
+                  setContactsLoading(false)
+                }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
+                  background: isSelected ? 'rgba(201,169,110,0.06)' : 'transparent',
+                  border: isSelected ? '1px solid rgba(201,169,110,0.2)' : '1px solid transparent',
+                  borderRadius: 6, padding: '4px 8px 4px 0', textAlign: 'left',
+                }}
+              >
+                <div style={{ width: isMobile ? 90 : 140, flexShrink: 0, fontSize: 11, color: isSelected ? '#C9A96E' : '#9BB0C4', textAlign: 'right', fontWeight: isSelected ? 600 : 400 }}>
                   {stage}
                 </div>
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ flex: 1, height: 28, background: 'rgba(255,255,255,0.04)', borderRadius: 4, overflow: 'hidden', position: 'relative' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ height: 28, background: 'rgba(255,255,255,0.04)', borderRadius: 4, overflow: 'hidden' }}>
                     <div style={{
                       height: '100%', width: `${barWidth}%`,
                       background: `linear-gradient(90deg, ${color}, ${color}80)`,
@@ -109,16 +151,113 @@ export default function FunnelPage() {
                       </span>
                     </div>
                   </div>
-                  {convRate !== null && (
-                    <span style={{ fontSize: 9, color: convRate > 50 ? '#4ade80' : convRate > 20 ? '#f59e0b' : '#f87171', fontWeight: 700, flexShrink: 0, width: 35 }}>
-                      {convRate}%
-                    </span>
-                  )}
                 </div>
-              </div>
+              </button>
             )
           })}
         </div>
+
+        {/* Contact drawer for selected stage */}
+        {selectedStage && (
+          <div style={{ marginTop: 16, borderTop: '1px solid rgba(201,169,110,0.1)', paddingTop: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#ffffff' }}>
+                {selectedStage} <span style={{ color: '#6B8299', fontWeight: 400 }}>({stageContacts.length} shown)</span>
+              </div>
+              <button onClick={() => setSelectedStage(null)} style={{ background: 'none', border: 'none', color: '#6B8299', fontSize: 11, cursor: 'pointer' }}>Close</button>
+            </div>
+
+            {contactsLoading ? (
+              <div style={{ color: '#6B8299', fontSize: 11 }}>Loading...</div>
+            ) : stageContacts.length === 0 ? (
+              <div style={{ color: '#4B5563', fontSize: 11 }}>No contacts at this stage.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 400, overflowY: 'auto' }}>
+                {stageContacts.map(c => {
+                  const nextStage = NEXT_STAGE[selectedStage]
+                  const isAdvancing = advancing === c.id
+                  return (
+                    <div key={c.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
+                      background: 'rgba(255,255,255,0.02)', borderRadius: 4,
+                      border: '1px solid rgba(255,255,255,0.04)',
+                    }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 500, color: '#ffffff' }}>
+                          {c.firstName} {c.lastName}
+                        </div>
+                        <div style={{ fontSize: 10, color: '#6B8299', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {c.email}
+                          {c.phone && ` · ${c.phone}`}
+                          {c.source && c.source !== 'unknown' && ` · ${c.source}`}
+                        </div>
+                      </div>
+                      {c.phone && (
+                        <a href={`sms:${c.phone.replace(/\D/g, '')}`} title="Text" style={{
+                          width: 24, height: 24, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)',
+                          color: '#4ade80', fontSize: 10, textDecoration: 'none', flexShrink: 0,
+                        }}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                        </a>
+                      )}
+                      {nextStage && (
+                        <button
+                          disabled={isAdvancing}
+                          onClick={async () => {
+                            setAdvancing(c.id)
+                            const res = await fetch(`/api/admin/contacts/${c.id}/advance`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ stage: nextStage }),
+                            })
+                            if (res.ok) {
+                              setStageContacts(prev => prev.filter(p => p.id !== c.id))
+                              // Refresh funnel data
+                              fetch('/api/admin/funnel-stats').then(r => r.json()).then(setData).catch(() => {})
+                            }
+                            setAdvancing(null)
+                          }}
+                          style={{
+                            padding: '4px 10px', borderRadius: 4, fontSize: 9, fontWeight: 700,
+                            background: 'rgba(201,169,110,0.1)', border: '1px solid rgba(201,169,110,0.25)',
+                            color: '#C9A96E', cursor: isAdvancing ? 'wait' : 'pointer',
+                            flexShrink: 0, whiteSpace: 'nowrap',
+                            opacity: isAdvancing ? 0.6 : 1,
+                          }}
+                        >
+                          {isAdvancing ? '...' : `→ ${nextStage}`}
+                        </button>
+                      )}
+                      {selectedStage !== 'Not Interested' && (
+                        <button
+                          onClick={async () => {
+                            setAdvancing(c.id)
+                            await fetch(`/api/admin/contacts/${c.id}/advance`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ stage: 'Not Interested' }),
+                            })
+                            setStageContacts(prev => prev.filter(p => p.id !== c.id))
+                            fetch('/api/admin/funnel-stats').then(r => r.json()).then(setData).catch(() => {})
+                            setAdvancing(null)
+                          }}
+                          style={{
+                            padding: '4px 6px', borderRadius: 4, fontSize: 9,
+                            background: 'transparent', border: '1px solid rgba(248,113,113,0.2)',
+                            color: '#f87171', cursor: 'pointer', flexShrink: 0,
+                          }}
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Side-by-side: Other stages + Sources */}
