@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSetting } from '@/lib/settings'
-import { getGhlConfig, sendGhlEmail } from '@/lib/ghl'
+import { getGhlConfig, sendGhlEmail, ghlPost } from '@/lib/ghl'
 
 const RAMP = [50, 150, 300, 500]
 
@@ -125,9 +125,37 @@ export async function GET(req: NextRequest) {
         },
       })
 
+      // Create GHL opportunity if contact doesn't have one yet,
+      // so they show up in the GHL pipeline dashboard
+      let oppId = contact.ghlOpportunityId ?? null
+      if (!oppId && contact.ghlContactId) {
+        try {
+          const { getSetting } = await import('@/lib/settings')
+          const pipelineId = await getSetting('GHL_PIPELINE_ID') || 'j8RckwejQ1VaoH7bQbAf'
+          const contactedStageId = await getSetting('GHL_STAGE_CONTACTED') || '5606ed2b-afd6-4313-8d2d-ac8bb2e3847f'
+          const oppRes = await ghlPost('/opportunities/', {
+            pipelineId,
+            pipelineStageId: contactedStageId,
+            locationId: config.locationId,
+            contactId: contact.ghlContactId,
+            name: `${contact.firstName} ${contact.lastName}`,
+            status: 'open',
+          }, config)
+          if (oppRes.ok) {
+            const oppData = await oppRes.json() as { opportunity?: { id: string } }
+            oppId = oppData.opportunity?.id ?? null
+          }
+        } catch {}
+      }
+
       await db.contact.update({
         where: { id: contact.id },
-        data: { outreachStatus: 'sent', ghlPipelineStage: contact.ghlPipelineStage ?? 'Contacted', ghlStageUpdatedAt: new Date() },
+        data: {
+          outreachStatus: 'sent',
+          ghlPipelineStage: contact.ghlPipelineStage ?? 'Contacted',
+          ghlStageUpdatedAt: new Date(),
+          ...(oppId ? { ghlOpportunityId: oppId } : {}),
+        },
       })
 
       sent++
