@@ -13,8 +13,7 @@ interface FlowConfig { sources: FlowSource[]; stages: FlowStage[]; exits: FlowEx
 const DEFAULT_CONFIG: FlowConfig = {
   sources: [
     { id: 'prophog', label: 'PropHog', color: '#60a5fa', dbValues: ['prophog'] },
-    { id: 'join-form', label: 'Join Form', color: '#a78bfa', dbValues: ['join-form', 'form_registration', 'funnel_welcome', 'funnel_opportunity'] },
-    { id: 'instagram', label: 'Instagram', color: '#f472b6', dbValues: ['instagram'] },
+    { id: 'instagram', label: 'Instagram', color: '#f472b6', dbValues: ['instagram', 'join-form', 'form_registration', 'funnel_welcome', 'funnel_opportunity'] },
     { id: 'website', label: 'Website', color: '#4ade80', dbValues: ['website', 'calendar_direct'] },
     { id: 'referral', label: 'Agent Referrals', color: '#C9A96E', dbValues: ['referral'] },
     { id: 'breezy', label: 'Breezy', color: '#38bdf8', dbValues: ['breezy*'] },

@@ -38,12 +38,10 @@ export async function POST(req: NextRequest) {
         firstName,
         lastName,
         email,
-        source: 'Join Form',
-        // Tag using the new 4-state license values from the form. Old
-        // 'yes' tag (legacy) is preserved as a fallback so any
-        // automations matching on it keep firing for active licensees.
+        source: 'Instagram',
         tags: [
           'join-applicant',
+          'instagram',
           `license:${licensed || 'unspecified'}`,
           licensed === 'active' ? 'licensed' : 'unlicensed',
         ],
@@ -66,6 +64,8 @@ export async function POST(req: NextRequest) {
     // Also create a local Contact so the lead shows up in the
     // recruiting funnel immediately. Upsert by email to avoid
     // duplicates if they submitted before (e.g. via PropHog import).
+    // The join form at /join is exclusively shared on Instagram by Vick.
+    // Everyone who submits this form came from Instagram.
     try {
       await db.contact.upsert({
         where: { email: email.toLowerCase() },
@@ -74,17 +74,15 @@ export async function POST(req: NextRequest) {
           lastName,
           email: email.toLowerCase(),
           ghlContactId: contact?.contact?.id ?? null,
-          source: 'join-form',
+          source: 'instagram',
           outreachStatus: 'responded',
           ghlPipelineStage: 'Engaged',
           ghlStageUpdatedAt: new Date(),
         },
         update: {
           ghlContactId: contact?.contact?.id ?? undefined,
-          // Only upgrade stage if they were earlier in the funnel
           ghlPipelineStage: 'Engaged',
           ghlStageUpdatedAt: new Date(),
-          // Don't overwrite source if they were already tracked (e.g. prophog contact who then submits)
         },
       })
     } catch (err) {
