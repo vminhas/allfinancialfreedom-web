@@ -141,5 +141,94 @@ export async function POST(req: NextRequest) {
     errors.push(`pipeline: ${err instanceof Error ? err.message : String(err)}`)
   }
 
-  return NextResponse.json({ ok: true, created, updated, skipped, errors: errors.slice(0, 10) })
+  // ── Backfill historical appointments from GHL calendars ──
+  let appointmentsCreated = 0
+  try {
+    // Get all calendars
+    const calRes = await ghlGet(`/calendars/?locationId=${config.locationId}`, config)
+    if (calRes.ok) {
+      const calData = await calRes.json() as { calendars?: Array<{ id: string; name: string }> }
+      const calendars = calData.calendars ?? []
+
+      // Pull events from the last 90 days for each calendar
+      const now = new Date()
+      const startTime = new Date(now.getTime() - 90 * 86400000).toISOString()
+      const endTime = now.toISOString()
+
+      for (const cal of calendars) {
+        try {
+          const evtRes = await ghlGet(
+            `/calendars/events?locationId=${config.locationId}&calendarId=${cal.id}&startTime=${startTime}&endTime=${endTime}`,
+            config,
+          )
+          if (!evtRes.ok) continue
+
+          const evtData = await evtRes.json() as { events?: Array<{
+            id: string; calendarId: string; title?: string
+            contactId?: string; startTime?: string; endTime?: string
+            status?: string; assignedUserId?: string
+            appoinmentStatus?: string
+          }> }
+
+          for (const evt of evtData.events ?? []) {
+            if (!evt.id) continue
+            const eventId = evt.id
+            const existing = await db.ghlAppointment.findUnique({ where: { ghlEventId: eventId } })
+            if (existing) continue
+
+            // Look up the contact for name/email
+            let contactName = evt.title ?? 'Unknown'
+            let contactEmail: string | null = null
+            let contactPhone: string | null = null
+            let localContactId: string | null = null
+
+            if (evt.contactId) {
+              const cRes = await ghlGet(`/contacts/${evt.contactId}`, config)
+              if (cRes.ok) {
+                const cData = await cRes.json() as { contact?: { firstName?: string; lastName?: string; email?: string; phone?: string } }
+                const gc = cData.contact
+                if (gc) {
+                  contactName = `${gc.firstName ?? ''} ${gc.lastName ?? ''}`.trim() || contactName
+                  contactEmail = gc.email ?? null
+                  contactPhone = gc.phone ?? null
+                }
+              }
+
+              // Find local contact
+              if (contactEmail) {
+                const local = await db.contact.findUnique({ where: { email: contactEmail.toLowerCase() } })
+                localContactId = local?.id ?? null
+              }
+            }
+
+            await db.ghlAppointment.create({
+              data: {
+                ghlCalendarId: cal.id,
+                ghlEventId: eventId,
+                calendarName: cal.name,
+                contactId: localContactId ?? undefined,
+                contactName,
+                contactEmail,
+                contactPhone,
+                appointmentDate: evt.startTime ? new Date(evt.startTime) : new Date(),
+                assignedTo: cal.name,
+                source: cal.name,
+                status: evt.appoinmentStatus === 'noshow' ? 'NO_SHOW'
+                  : evt.appoinmentStatus === 'cancelled' ? 'CANCELLED'
+                  : evt.status === 'confirmed' ? 'BOOKED'
+                  : 'BOOKED',
+              },
+            })
+            appointmentsCreated++
+          }
+        } catch (err) {
+          errors.push(`calendar ${cal.name}: ${err instanceof Error ? err.message : String(err)}`)
+        }
+      }
+    }
+  } catch (err) {
+    errors.push(`calendars: ${err instanceof Error ? err.message : String(err)}`)
+  }
+
+  return NextResponse.json({ ok: true, created, updated, skipped, appointmentsCreated, errors: errors.slice(0, 10) })
 }

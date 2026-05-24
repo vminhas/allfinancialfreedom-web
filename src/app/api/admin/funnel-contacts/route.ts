@@ -13,6 +13,8 @@ export async function GET(req: NextRequest) {
   if (!stage) return NextResponse.json({ error: 'stage required' }, { status: 400 })
 
   const sourceFilter = req.nextUrl.searchParams.get('source') // optional: "prophog", "breezy", "instagram", etc.
+  const dateFrom = req.nextUrl.searchParams.get('from') // optional: ISO date string
+  const dateTo = req.nextUrl.searchParams.get('to') // optional: ISO date string
 
   // Map stage name to query conditions (including old GHL names for backward compat)
   const stageToFilter: Record<string, object> = {
@@ -41,7 +43,19 @@ export async function GET(req: NextRequest) {
     sourceWhere = SOURCE_DB_MAP[sourceFilter] ?? { source: sourceFilter }
   }
 
-  const where = sourceWhere ? { AND: [stageWhere, sourceWhere] } : stageWhere
+  // Date range filter
+  let dateWhere: object | undefined
+  if (dateFrom || dateTo) {
+    dateWhere = {
+      createdAt: {
+        ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+        ...(dateTo ? { lte: new Date(new Date(dateTo).getTime() + 86400000) } : {}), // end of day
+      },
+    }
+  }
+
+  const conditions = [stageWhere, sourceWhere, dateWhere].filter(Boolean)
+  const where = conditions.length > 1 ? { AND: conditions } : conditions[0] ?? stageWhere
 
   const contacts = await db.contact.findMany({
     where,

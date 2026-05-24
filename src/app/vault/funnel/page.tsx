@@ -94,6 +94,9 @@ export default function FunnelPage() {
   const [advancing, setAdvancing] = useState<string | null>(null)
   const [sourceFilter, setSourceFilter] = useState<string | null>(null)
   const [sourceTotals, setSourceTotals] = useState<Record<string, number>>({})
+  const [dateRange, setDateRange] = useState<string>('all') // 'all' | '7' | '30' | 'custom'
+  const [customFrom, setCustomFrom] = useState('')
+  const [customTo, setCustomTo] = useState('')
   const [editing, setEditing] = useState(false)
   const [editConfig, setEditConfig] = useState<FlowConfig | null>(null)
   const [saving, setSaving] = useState(false)
@@ -137,6 +140,33 @@ export default function FunnelPage() {
   }
 
   const cancelEdit = () => { setEditing(false); setEditConfig(JSON.parse(JSON.stringify(flow.config))) }
+
+  // Build the contacts fetch URL with all active filters
+  const buildContactsUrl = (stage: string, src?: string | null, range?: string, from?: string, to?: string) => {
+    const params = new URLSearchParams({ stage })
+    if (src) params.set('source', src)
+    const r = range ?? dateRange
+    if (r === '7') {
+      params.set('from', new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0])
+    } else if (r === '30') {
+      params.set('from', new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0])
+    } else if (r === 'custom') {
+      if (from || customFrom) params.set('from', from || customFrom)
+      if (to || customTo) params.set('to', to || customTo)
+    }
+    return `/api/admin/funnel-contacts?${params.toString()}`
+  }
+
+  const reloadContacts = async (stage: string, src?: string | null, range?: string, from?: string, to?: string) => {
+    setContactsLoading(true)
+    const res = await fetch(buildContactsUrl(stage, src, range, from, to))
+    if (res.ok) {
+      const d = await res.json() as { contacts: StageContact[]; sourceTotals: Record<string, number> }
+      setStageContacts(d.contacts ?? [])
+      setSourceTotals(d.sourceTotals ?? {})
+    }
+    setContactsLoading(false)
+  }
 
   // Edit helpers
   const updateSource = (id: string, field: string, value: string | string[]) => {
@@ -185,7 +215,9 @@ export default function FunnelPage() {
                 try {
                   const res = await fetch('/api/admin/sync-sources', { method: 'POST' })
                   const d = await res.json()
-                  setSyncResult(`Synced: ${d.created ?? 0} new, ${d.updated ?? 0} updated`)
+                  const parts = [`${d.created ?? 0} new`, `${d.updated ?? 0} updated`]
+                  if (d.appointmentsCreated) parts.push(`${d.appointmentsCreated} appointments`)
+                  setSyncResult(`Synced: ${parts.join(', ')}`)
                   loadData()
                 } catch { setSyncResult('Sync failed') }
                 setSyncing(false)
@@ -338,14 +370,8 @@ export default function FunnelPage() {
                       if (selectedStage === stage) { setSelectedStage(null); return }
                       setSelectedStage(stage)
                       setSourceFilter(null)
-                      setContactsLoading(true)
-                      const res = await fetch(`/api/admin/funnel-contacts?stage=${encodeURIComponent(stage)}`)
-                      if (res.ok) {
-                        const d = await res.json() as { contacts: StageContact[]; sourceTotals: Record<string, number> }
-                        setStageContacts(d.contacts ?? [])
-                        setSourceTotals(d.sourceTotals ?? {})
-                      }
-                      setContactsLoading(false)
+                      setDateRange('all')
+                      await reloadContacts(stage)
                     }}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', flex: 1, minWidth: 0, width: '100%',
@@ -436,10 +462,7 @@ export default function FunnelPage() {
                 <button
                   onClick={async () => {
                     setSourceFilter(null)
-                    setContactsLoading(true)
-                    const res = await fetch(`/api/admin/funnel-contacts?stage=${encodeURIComponent(selectedStage!)}`)
-                    if (res.ok) { const d = await res.json(); setStageContacts(d.contacts ?? []) }
-                    setContactsLoading(false)
+                    await reloadContacts(selectedStage!)
                   }}
                   style={{
                     padding: '3px 10px', borderRadius: 12, fontSize: 10, fontWeight: 600, cursor: 'pointer',
@@ -457,11 +480,7 @@ export default function FunnelPage() {
                     <button key={src} onClick={async () => {
                       const newFilter = isActive ? null : src
                       setSourceFilter(newFilter)
-                      setContactsLoading(true)
-                      const url = `/api/admin/funnel-contacts?stage=${encodeURIComponent(selectedStage!)}${newFilter ? `&source=${encodeURIComponent(newFilter)}` : ''}`
-                      const res = await fetch(url)
-                      if (res.ok) { const d = await res.json(); setStageContacts(d.contacts ?? []) }
-                      setContactsLoading(false)
+                      await reloadContacts(selectedStage!, newFilter)
                     }} style={{
                       padding: '3px 10px', borderRadius: 12, fontSize: 10, fontWeight: 600, cursor: 'pointer',
                       background: isActive ? `${color}20` : 'rgba(255,255,255,0.04)',
@@ -474,6 +493,37 @@ export default function FunnelPage() {
                 })}
               </div>
             )}
+
+            {/* Date range filter */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10, alignItems: 'center' }}>
+              {[
+                { key: 'all', label: 'All Time' },
+                { key: '7', label: 'Last 7 Days' },
+                { key: '30', label: 'Last 30 Days' },
+                { key: 'custom', label: 'Custom' },
+              ].map(opt => (
+                <button key={opt.key} onClick={async () => {
+                  setDateRange(opt.key)
+                  if (opt.key !== 'custom') await reloadContacts(selectedStage!, sourceFilter, opt.key)
+                }} style={{
+                  padding: '3px 10px', borderRadius: 12, fontSize: 10, fontWeight: 600, cursor: 'pointer',
+                  background: dateRange === opt.key ? 'rgba(96,165,250,0.15)' : 'rgba(255,255,255,0.04)',
+                  border: dateRange === opt.key ? '1px solid rgba(96,165,250,0.3)' : '1px solid rgba(255,255,255,0.08)',
+                  color: dateRange === opt.key ? '#60a5fa' : '#6B8299',
+                }}>{opt.label}</button>
+              ))}
+              {dateRange === 'custom' && (
+                <>
+                  <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
+                    style={{ padding: '2px 6px', borderRadius: 4, fontSize: 10, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#9BB0C4', outline: 'none' }} />
+                  <span style={{ color: '#4B5563', fontSize: 10 }}>to</span>
+                  <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}
+                    style={{ padding: '2px 6px', borderRadius: 4, fontSize: 10, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#9BB0C4', outline: 'none' }} />
+                  <button onClick={() => reloadContacts(selectedStage!, sourceFilter, 'custom', customFrom, customTo)}
+                    style={{ padding: '3px 10px', borderRadius: 12, fontSize: 10, fontWeight: 600, background: 'rgba(96,165,250,0.15)', border: '1px solid rgba(96,165,250,0.3)', color: '#60a5fa', cursor: 'pointer' }}>Apply</button>
+                </>
+              )}
+            </div>
 
             {contactsLoading ? (
               <div style={{ color: '#6B8299', fontSize: 11 }}>Loading...</div>
