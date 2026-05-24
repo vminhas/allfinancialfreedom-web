@@ -125,36 +125,13 @@ export async function GET(req: NextRequest) {
         },
       })
 
-      // Create GHL opportunity if contact doesn't have one yet,
-      // so they show up in the GHL pipeline dashboard
-      let oppId = contact.ghlOpportunityId ?? null
-      if (!oppId && contact.ghlContactId) {
-        try {
-          const { getSetting } = await import('@/lib/settings')
-          const pipelineId = await getSetting('GHL_PIPELINE_ID') || 'j8RckwejQ1VaoH7bQbAf'
-          const contactedStageId = await getSetting('GHL_STAGE_CONTACTED') || '5606ed2b-afd6-4313-8d2d-ac8bb2e3847f'
-          const oppRes = await ghlPost('/opportunities/', {
-            pipelineId,
-            pipelineStageId: contactedStageId,
-            locationId: config.locationId,
-            contactId: contact.ghlContactId,
-            name: `${contact.firstName} ${contact.lastName}`,
-            status: 'open',
-          }, config)
-          if (oppRes.ok) {
-            const oppData = await oppRes.json() as { opportunity?: { id: string } }
-            oppId = oppData.opportunity?.id ?? null
-          }
-        } catch {}
-      }
-
+      // Only track locally — do NOT create GHL opportunities for cold
+      // outreach. Opportunities are created when someone actually engages
+      // (responds, books a call, etc.) to keep the GHL pipeline clean.
       await db.contact.update({
         where: { id: contact.id },
         data: {
           outreachStatus: 'sent',
-          ghlPipelineStage: contact.ghlPipelineStage ?? 'Contacted',
-          ghlStageUpdatedAt: new Date(),
-          ...(oppId ? { ghlOpportunityId: oppId } : {}),
         },
       })
 
