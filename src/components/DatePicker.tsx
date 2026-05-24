@@ -20,6 +20,7 @@ interface DatePickerProps {
   min?: string                   // yyyy-mm-dd
   max?: string                   // yyyy-mm-dd
   style?: React.CSSProperties
+  initialView?: View             // start in years view for birthdays
 }
 
 const inputBase: React.CSSProperties = {
@@ -68,7 +69,7 @@ function isSameDay(a: Date, b: Date): boolean {
 
 type View = 'days' | 'months' | 'years'
 
-export default function DatePicker({ value, onChange, required, placeholder, min, max, style }: DatePickerProps) {
+export default function DatePicker({ value, onChange, required, placeholder, min, max, style, initialView }: DatePickerProps) {
   const [open, setOpen] = useState(false)
   const [view, setView] = useState<View>('days')
   const [cursor, setCursor] = useState<Date>(() => parseISO(value) ?? new Date())
@@ -136,7 +137,7 @@ export default function DatePicker({ value, onChange, required, placeholder, min
   // Reset to days view each time the picker reopens, so a stray open
   // in years view doesn't surprise the next user.
   useEffect(() => {
-    if (open) setView('days')
+    if (open) setView(initialView ?? 'days')
   }, [open])
 
   const minDate = parseISO(min ?? '')

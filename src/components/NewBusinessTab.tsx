@@ -658,7 +658,7 @@ function NewBusinessForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: ()
           />
         </div>
         <div><label style={fieldLabel}>Birthday</label>
-          <DatePicker value={form.clientBirthday} onChange={v => setForm(f => ({ ...f, clientBirthday: v }))} max={new Date().toISOString().slice(0, 10)} />
+          <DatePicker value={form.clientBirthday} onChange={v => setForm(f => ({ ...f, clientBirthday: v }))} max={new Date().toISOString().slice(0, 10)} initialView="years" />
         </div>
         <div><label style={fieldLabel}>Address</label><input style={inputStyle} value={form.clientAddressLine1} onChange={e => setForm(f => ({ ...f, clientAddressLine1: e.target.value }))} /></div>
         <div><label style={fieldLabel}>Address Line 2</label><input style={inputStyle} value={form.clientAddressLine2} onChange={e => setForm(f => ({ ...f, clientAddressLine2: e.target.value }))} /></div>

@@ -2421,7 +2421,7 @@ function AgentDrawer({
               </div>
               <div>
                 <label style={lStyle}>Date of Birth</label>
-                <DatePicker value={editForm.dateOfBirth} onChange={v => setEditForm(f => ({ ...f, dateOfBirth: v }))} max={new Date().toISOString().slice(0, 10)} />
+                <DatePicker value={editForm.dateOfBirth} onChange={v => setEditForm(f => ({ ...f, dateOfBirth: v }))} max={new Date().toISOString().slice(0, 10)} initialView="years" />
               </div>
             </div>
 

@@ -2937,6 +2937,7 @@ function ProfileTab({ data, onSaved, discordParam, discordReason, discordUsernam
               value={form.dateOfBirth}
               onChange={v => setForm(f => ({ ...f, dateOfBirth: v }))}
               max={new Date().toISOString().slice(0, 10)}
+              initialView="years"
             />
           </div>
           <div>
