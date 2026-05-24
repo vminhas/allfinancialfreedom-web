@@ -92,6 +92,8 @@ export default function FunnelPage() {
   const [stageContacts, setStageContacts] = useState<StageContact[]>([])
   const [contactsLoading, setContactsLoading] = useState(false)
   const [advancing, setAdvancing] = useState<string | null>(null)
+  const [sourceFilter, setSourceFilter] = useState<string | null>(null)
+  const [sourceTotals, setSourceTotals] = useState<Record<string, number>>({})
   const [editing, setEditing] = useState(false)
   const [editConfig, setEditConfig] = useState<FlowConfig | null>(null)
   const [saving, setSaving] = useState(false)
@@ -335,11 +337,13 @@ export default function FunnelPage() {
                     onClick={async () => {
                       if (selectedStage === stage) { setSelectedStage(null); return }
                       setSelectedStage(stage)
+                      setSourceFilter(null)
                       setContactsLoading(true)
                       const res = await fetch(`/api/admin/funnel-contacts?stage=${encodeURIComponent(stage)}`)
                       if (res.ok) {
-                        const d = await res.json() as { contacts: StageContact[] }
+                        const d = await res.json() as { contacts: StageContact[]; sourceTotals: Record<string, number> }
                         setStageContacts(d.contacts ?? [])
+                        setSourceTotals(d.sourceTotals ?? {})
                       }
                       setContactsLoading(false)
                     }}
@@ -425,6 +429,51 @@ export default function FunnelPage() {
               </div>
               <button onClick={() => setSelectedStage(null)} style={{ background: 'none', border: 'none', color: '#6B8299', fontSize: 11, cursor: 'pointer' }}>Close</button>
             </div>
+
+            {/* Source filter pills */}
+            {Object.keys(sourceTotals).length > 1 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
+                <button
+                  onClick={async () => {
+                    setSourceFilter(null)
+                    setContactsLoading(true)
+                    const res = await fetch(`/api/admin/funnel-contacts?stage=${encodeURIComponent(selectedStage!)}`)
+                    if (res.ok) { const d = await res.json(); setStageContacts(d.contacts ?? []) }
+                    setContactsLoading(false)
+                  }}
+                  style={{
+                    padding: '3px 10px', borderRadius: 12, fontSize: 10, fontWeight: 600, cursor: 'pointer',
+                    background: !sourceFilter ? 'rgba(201,169,110,0.15)' : 'rgba(255,255,255,0.04)',
+                    border: !sourceFilter ? '1px solid rgba(201,169,110,0.3)' : '1px solid rgba(255,255,255,0.08)',
+                    color: !sourceFilter ? '#C9A96E' : '#6B8299',
+                  }}
+                >All ({Object.values(sourceTotals).reduce((a, b) => a + b, 0)})</button>
+                {Object.entries(sourceTotals).sort(([, a], [, b]) => b - a).map(([src, count]) => {
+                  const isActive = sourceFilter === src
+                  const srcConfig = config?.sources.find(s => s.id === src || s.dbValues.some(v => v === src || (v.endsWith('*') && src.startsWith(v.slice(0, -1)))))
+                  const color = srcConfig?.color ?? '#6B8299'
+                  const label = srcConfig?.label ?? src
+                  return (
+                    <button key={src} onClick={async () => {
+                      const newFilter = isActive ? null : src
+                      setSourceFilter(newFilter)
+                      setContactsLoading(true)
+                      const url = `/api/admin/funnel-contacts?stage=${encodeURIComponent(selectedStage!)}${newFilter ? `&source=${encodeURIComponent(newFilter)}` : ''}`
+                      const res = await fetch(url)
+                      if (res.ok) { const d = await res.json(); setStageContacts(d.contacts ?? []) }
+                      setContactsLoading(false)
+                    }} style={{
+                      padding: '3px 10px', borderRadius: 12, fontSize: 10, fontWeight: 600, cursor: 'pointer',
+                      background: isActive ? `${color}20` : 'rgba(255,255,255,0.04)',
+                      border: isActive ? `1px solid ${color}50` : '1px solid rgba(255,255,255,0.08)',
+                      color: isActive ? color : '#6B8299',
+                    }}>
+                      {label} ({count})
+                    </button>
+                  )
+                })}
+              </div>
+            )}
 
             {contactsLoading ? (
               <div style={{ color: '#6B8299', fontSize: 11 }}>Loading...</div>
