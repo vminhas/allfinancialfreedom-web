@@ -117,20 +117,39 @@ export async function getBreezyCandidates(
 }
 
 /**
- * Pull all candidates across all positions.
+ * Pull all candidates across ALL positions using the global candidates
+ * endpoint (POST with filter body). This is how the Breezy web app
+ * loads its candidate list. Returns all candidates regardless of which
+ * position they applied to.
  */
 export async function getAllBreezyCandidates(session: BreezySession): Promise<BreezyCandidate[]> {
-  const positions = await getBreezyPositions(session)
-  const withCandidates = positions.filter(p => (p.candidate_count ?? 0) > 0)
-
-  const all: BreezyCandidate[] = []
-  for (const pos of withCandidates) {
-    const candidates = await getBreezyCandidates(session, pos._id)
-    for (const c of candidates) {
-      // Attach position info for context
-      c.position = { _id: pos._id, name: pos.name }
-      all.push(c)
-    }
+  // The web app uses POST /api/company/{id}/candidates with a filter body.
+  // No date range = all candidates. get_totals gives us pipeline counts.
+  // Only pull candidates in the "Applied" pipeline stage.
+  // Other stages (feedback, interviewing, etc.) are noise for the
+  // recruiting funnel. Applied = they took action and are ready for
+  // a 15-min discovery call.
+  const res = await fetch(
+    `${BREEZY_APP}/api/company/${session.companyId}/candidates`,
+    {
+      method: 'POST',
+      headers: { ...headers(session), 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pipeline: { is: ['applied'] },
+        stage_pipelines: ['default'],
+        get_totals: true,
+        sort: { column: 'updated_date', sort: 'DESC' },
+      }),
+    },
+  )
+  if (!res.ok) {
+    console.error('[breezy] candidates POST failed:', res.status)
+    return []
   }
-  return all
+  const data = await res.json()
+  // Response is { total: number, data: BreezyCandidate[] } when get_totals is set,
+  // or a plain array without it.
+  if (data && Array.isArray(data.data)) return data.data
+  if (Array.isArray(data)) return data
+  return []
 }

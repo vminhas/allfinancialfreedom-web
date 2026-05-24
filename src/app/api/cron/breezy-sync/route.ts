@@ -9,29 +9,10 @@ import { getBreezySession, getAllBreezyCandidates, type BreezyCandidate } from '
 // pipeline stages to AFF funnel stages so candidates show up in
 // the recruiting funnel automatically.
 
-const BREEZY_STAGE_MAP: Record<string, string> = {
-  'new':             'New Lead',
-  'lead':            'New Lead',
-  'applied':         'Engaged',
-  'phone screen':    'Discovery Booked',
-  'interview':       'Interview Booked',
-  'offer':           'Onboarding',
-  'hired':           'Active Agent',
-  'rejected':        'Not Interested',
-  'disqualified':    'Not Qualified',
-  'withdrawn':       'Not Interested',
-}
-
-function mapBreezyStage(breezyStageName?: string): string {
-  if (!breezyStageName) return 'New Lead'
-  const lower = breezyStageName.toLowerCase()
-  // Check exact matches first, then partial
-  if (BREEZY_STAGE_MAP[lower]) return BREEZY_STAGE_MAP[lower]
-  for (const [key, val] of Object.entries(BREEZY_STAGE_MAP)) {
-    if (lower.includes(key)) return val
-  }
-  return 'Engaged' // default: they applied, so they're engaged
-}
+// We only sync candidates with "Applied" status from Breezy.
+// They enter the AFF funnel at "Engaged" (they took action by applying).
+// From there, the normal flow takes over: book a 15-min discovery call,
+// qualify, interview, onboard.
 
 function parseName(name: string): { firstName: string; lastName: string } {
   const parts = name.trim().split(/\s+/)
@@ -72,7 +53,7 @@ export async function GET(req: NextRequest) {
 
       const email = c.email_address.toLowerCase().trim()
       const { firstName, lastName } = parseName(c.name || '')
-      const affStage = mapBreezyStage(c.stage?.name)
+      const affStage = 'Engaged' // Applied in Breezy = Engaged in AFF funnel
 
       const existing = await db.contact.findUnique({ where: { email } })
 
