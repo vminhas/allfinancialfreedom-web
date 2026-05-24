@@ -117,6 +117,7 @@ export async function POST(req: NextRequest) {
       id: { in: body.agentProfileIds },
       status: 'ACTIVE',
       isTest: false,
+      isReferralPartner: false,
     },
     select: {
       id: true, firstName: true, lastName: true, agentCode: true, phase: true,

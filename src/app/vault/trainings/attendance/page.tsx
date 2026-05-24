@@ -33,6 +33,7 @@ interface AttendanceRow {
   phase: number
   avatarUrl: string | null
   status: 'ACTIVE' | 'INACTIVE'
+  isReferralPartner?: boolean
   icaDate: string | null
   daysInCompany: number | null
   attendancePct: number | null

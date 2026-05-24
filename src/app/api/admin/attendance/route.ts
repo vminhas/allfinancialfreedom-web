@@ -199,6 +199,7 @@ export async function GET(req: NextRequest) {
       phase: a.phase,
       avatarUrl: a.avatarUrl,
       status: a.status,
+      isReferralPartner: a.isReferralPartner,
       icaDate: a.icaDate?.toISOString() ?? null,
       daysInCompany: a.daysInCompany,
       attendancePct: counted > 0 ? Math.round((present / counted) * 100) : null,

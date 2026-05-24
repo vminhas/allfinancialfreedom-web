@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
     where: {
       status: 'ISSUED',
       issuedDate: { not: null },
-      agentProfile: { status: 'ACTIVE', isTest: false },
+      agentProfile: { status: 'ACTIVE', isTest: false, isReferralPartner: false },
     },
     select: {
       id: true,

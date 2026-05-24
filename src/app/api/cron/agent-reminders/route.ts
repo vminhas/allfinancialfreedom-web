@@ -95,6 +95,7 @@ export async function GET(req: NextRequest) {
   const agents = await db.agentProfile.findMany({
     where: {
       status: 'ACTIVE',
+      isReferralPartner: false,
       phaseStartedAt: { not: null },
       agentUser: { passwordHash: { not: null } },
       OR: [
