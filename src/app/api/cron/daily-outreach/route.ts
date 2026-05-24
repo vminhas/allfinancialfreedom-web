@@ -127,7 +127,7 @@ export async function GET(req: NextRequest) {
 
       await db.contact.update({
         where: { id: contact.id },
-        data: { outreachStatus: 'sent' },
+        data: { outreachStatus: 'sent', ghlPipelineStage: contact.ghlPipelineStage ?? 'Contacted', ghlStageUpdatedAt: new Date() },
       })
 
       sent++
