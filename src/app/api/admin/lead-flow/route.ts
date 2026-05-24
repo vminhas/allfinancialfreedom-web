@@ -52,14 +52,21 @@ export async function GET(req: NextRequest) {
     config = DEFAULT_CONFIG
   }
 
-  // Live counts from contacts
+  // Live counts from contacts — include assignedTo for calendar detail
+  // and importJobId for PropHog file breakdown
   const contacts = await db.contact.findMany({
-    select: { ghlPipelineStage: true, outreachStatus: true, source: true },
+    select: {
+      ghlPipelineStage: true, outreachStatus: true, source: true,
+      assignedTo: true, importJobId: true,
+    },
   })
 
   const stageCounts: Record<string, number> = {}
   const sourceCounts: Record<string, number> = {}
-  const sourceDetail: Record<string, number> = {} // e.g. "breezy:ziprecruiter" → 22
+  // Sub-source breakdown shown on hover: "breezy:ziprecruiter" → 22
+  const sourceDetail: Record<string, number> = {}
+  // Collect importJobIds for PropHog file name lookup
+  const importJobIds = new Set<string>()
 
   for (const c of contacts) {
     // Effective stage from ghlPipelineStage or outreachStatus fallback
@@ -86,11 +93,54 @@ export async function GET(req: NextRequest) {
     const srcKey = matchedSrc?.id ?? 'other'
     sourceCounts[srcKey] = (sourceCounts[srcKey] ?? 0) + 1
 
-    // Track sub-source detail for hover breakdown (e.g. breezy-ziprecruiter → ziprecruiter)
-    if (src.includes('-')) {
-      const detail = src.replace(/^[^-]+-/, '') // strip prefix
-      const detailKey = `${srcKey}:${detail}`
-      sourceDetail[detailKey] = (sourceDetail[detailKey] ?? 0) + 1
+    // Sub-source detail from compound source (breezy-ziprecruiter → ziprecruiter)
+    if (src.includes('-') && src !== 'walk-in' && src !== 'join-form' && src !== 'calendar_direct') {
+      const detail = src.replace(/^[^-]+-/, '')
+      sourceDetail[`${srcKey}:${detail}`] = (sourceDetail[`${srcKey}:${detail}`] ?? 0) + 1
+    }
+
+    // Website: breakdown by calendar assignee (who they booked with)
+    if (srcKey === 'website' && c.assignedTo) {
+      sourceDetail[`website:${c.assignedTo}`] = (sourceDetail[`website:${c.assignedTo}`] ?? 0) + 1
+    }
+
+    // Instagram: show "Join Form" as the channel
+    if (srcKey === 'instagram') {
+      sourceDetail['instagram:Join Form'] = (sourceDetail['instagram:Join Form'] ?? 0) + 1
+    }
+
+    // Referral: just count (individual referrer breakdown is in the referral table)
+    if (srcKey === 'referral') {
+      sourceDetail['referral:Agent Portal'] = (sourceDetail['referral:Agent Portal'] ?? 0) + 1
+    }
+
+    // PropHog: collect importJobIds for file name lookup
+    if (srcKey === 'prophog' && c.importJobId) {
+      importJobIds.add(c.importJobId)
+    }
+  }
+
+  // PropHog: breakdown by import file name
+  if (importJobIds.size > 0) {
+    const importJobs = await db.importJob.findMany({
+      where: { id: { in: [...importJobIds] } },
+      select: { id: true, fileName: true },
+    })
+    const jobNameMap = new Map(importJobs.map(j => [j.id, j.fileName ?? 'Unknown file']))
+    // Count contacts per import file
+    const fileCounts: Record<string, number> = {}
+    for (const c of contacts) {
+      if (c.source === 'prophog' && c.importJobId) {
+        const name = jobNameMap.get(c.importJobId) ?? 'Unknown file'
+        // Shorten long filenames for display
+        const short = name.length > 30 ? name.substring(0, 27) + '...' : name
+        fileCounts[short] = (fileCounts[short] ?? 0) + 1
+      }
+    }
+    // Only show top 5 import files to keep hover clean
+    const topFiles = Object.entries(fileCounts).sort(([, a], [, b]) => b - a).slice(0, 5)
+    for (const [name, count] of topFiles) {
+      sourceDetail[`prophog:${name}`] = count
     }
   }
 
