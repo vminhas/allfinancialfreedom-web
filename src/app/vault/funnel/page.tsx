@@ -95,6 +95,8 @@ export default function FunnelPage() {
   const [editing, setEditing] = useState(false)
   const [editConfig, setEditConfig] = useState<FlowConfig | null>(null)
   const [saving, setSaving] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [syncResult, setSyncResult] = useState<string | null>(null)
 
   const loadData = useCallback(() => {
     setLoading(true)
@@ -176,11 +178,33 @@ export default function FunnelPage() {
           ) : (
             <>
               <button onClick={() => setEditing(true)} style={{ ...btnStyle, color: '#6B8299' }}>Edit Sources</button>
+              <button disabled={syncing} onClick={async () => {
+                setSyncing(true); setSyncResult(null)
+                try {
+                  const res = await fetch('/api/admin/sync-sources', { method: 'POST' })
+                  const d = await res.json()
+                  setSyncResult(`Synced: ${d.created ?? 0} new, ${d.updated ?? 0} updated`)
+                  loadData()
+                } catch { setSyncResult('Sync failed') }
+                setSyncing(false)
+                setTimeout(() => setSyncResult(null), 5000)
+              }} style={{ ...btnStyle, color: syncing ? '#4B5563' : '#C9A96E', border: '1px solid rgba(201,169,110,0.2)' }}>
+                {syncing ? 'Syncing...' : 'Sync GHL'}
+              </button>
               <button onClick={loadData} style={{ ...btnStyle, color: '#6B8299' }}>Refresh</button>
             </>
           )}
         </div>
       </div>
+
+      {/* Sync result toast */}
+      {syncResult && (
+        <div style={{
+          padding: '8px 16px', marginBottom: 12, borderRadius: 6,
+          background: 'rgba(201,169,110,0.1)', border: '1px solid rgba(201,169,110,0.2)',
+          fontSize: 12, color: '#C9A96E',
+        }}>{syncResult}</div>
+      )}
 
       {/* ── KPI Cards ── */}
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(5, 1fr)', gap: 12, marginBottom: 20 }}>
