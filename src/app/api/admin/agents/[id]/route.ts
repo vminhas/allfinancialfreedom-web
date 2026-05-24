@@ -124,6 +124,7 @@ export async function PUT(
     'addressLine1', 'addressLine2', 'city', 'zip', 'country', 'avatarUrl',
     'isTest',
     'isLeadership',
+    'isReferralPartner',
     // One-off red carpet for a distinguished guest (drives the
     // "Announce VIP Arrival" button + one-time portal welcome).
     'vipArrival',

@@ -68,6 +68,7 @@ export async function GET(req: NextRequest) {
       cft: true,
       phase: true,
       avatarUrl: true,
+      isReferralPartner: true,
       // recruiterId stores the recruiter's agentCode (per CLAUDE.md),
       // resolved to a display name below for the hover card.
       recruiterId: true,

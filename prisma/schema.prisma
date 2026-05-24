@@ -158,15 +158,50 @@ model Contact {
   licenseType    String?   // "life" | "health" | "p&c" | "variable" | "multiple"
   currentAgency  String?
   state          String?
-  source         String    @default("prophog")
-  wornOut        Boolean   @default(false)
-  outreachStatus String?   // "pending" | "drafted" | "sent" | "responded" | "opted-out"
-  importJobId    String?
-  importJob      ImportJob? @relation(fields: [importJobId], references: [id])
-  messages       OutreachMessage[]
-  createdAt      DateTime  @default(now())
+  source              String    @default("prophog")
+  wornOut             Boolean   @default(false)
+  outreachStatus      String?
+  ghlOpportunityId    String?
+  ghlPipelineStage    String?
+  ghlStageUpdatedAt   DateTime?
+  ghlAppointmentDate  DateTime?
+  assignedTo          String?
+  convertedAt         DateTime?
+  importJobId         String?
+  importJob           ImportJob? @relation(fields: [importJobId], references: [id])
+  messages            OutreachMessage[]
+  appointments        GhlAppointment[]
+  createdAt           DateTime  @default(now())
 
   @@map("contacts")
+}
+
+model GhlAppointment {
+  id              String    @id @default(cuid())
+  ghlCalendarId   String?
+  ghlEventId      String?   @unique
+  calendarName    String
+  contactId       String?
+  contact         Contact?  @relation(fields: [contactId], references: [id])
+  contactName     String
+  contactEmail    String?
+  contactPhone    String?
+  appointmentDate DateTime
+  duration        Int?
+  assignedTo      String?
+  status          String    @default("BOOKED")
+  outcome         String?
+  notes           String?
+  zoomVerified    Boolean   @default(false)
+  source          String?
+  pipelineAction  String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([contactId])
+  @@index([appointmentDate])
+  @@index([status])
+  @@map("ghl_appointments")
 }
 
 model SuppressionEntry {
@@ -258,6 +293,7 @@ model AgentProfile {
   // login + flow capabilities so we can exercise the agent UX as them.
   isTest                Boolean     @default(false) @map("is_test")
   isLeadership          Boolean     @default(false) @map("is_leadership")
+  isReferralPartner     Boolean     @default(false) @map("is_referral_partner")
   // One-off "red carpet" for a single distinguished guest. When true,
   // the tracker shows an "Announce VIP Arrival" button on this profile
   // and a one-time gold welcome modal pops the first time they sign in.

@@ -52,7 +52,16 @@ export async function GET(req: NextRequest) {
 
   const where: Record<string, unknown> = {}
   if (phase)     where.phase     = parseInt(phase)
-  if (status)    where.status    = status.toUpperCase()
+  if (status) {
+    const upper = status.toUpperCase()
+    if (upper === 'REFERRAL_PARTNER') {
+      where.isReferralPartner = true
+      where.status = 'ACTIVE'
+    } else {
+      where.status = upper
+      if (upper === 'ACTIVE') where.isReferralPartner = false
+    }
+  }
   if (cft)       where.cft       = cft
   if (recruiter) where.recruiterId = recruiter
   if (search) {

@@ -146,7 +146,7 @@ export default function AttendancePage() {
   const [from, setFrom] = useState(todayMinusDays(30))
   const [to, setTo] = useState(todayStr())
   const [cftFilter, setCftFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'ACTIVE' | 'ALL'>('ACTIVE')
+  const [statusFilter, setStatusFilter] = useState<'ACTIVE' | 'INACTIVE' | 'ALL' | 'REFERRAL_PARTNER'>('ACTIVE')
   // Bulk-sync progress: { done, total, current } while running, null otherwise.
   const [bulkSync, setBulkSync] = useState<{ done: number; total: number; current: string; failures: number } | null>(null)
   // Per-event failures from the last bulk run, sticky after the run
@@ -331,7 +331,9 @@ export default function AttendancePage() {
     if (!data) return []
     const q = nameFilter.trim().toLowerCase()
     let rows = data.rows.filter(r => {
-      if (statusFilter === 'ACTIVE' && r.status !== 'ACTIVE') return false
+      if (statusFilter === 'ACTIVE' && (r.status !== 'ACTIVE' || r.isReferralPartner)) return false
+      if (statusFilter === 'INACTIVE' && r.status !== 'INACTIVE') return false
+      if (statusFilter === 'REFERRAL_PARTNER' && !r.isReferralPartner) return false
       if (cftFilter && (r.cft ?? '') !== cftFilter) return false
       if (q) {
         const haystack = `${r.firstName} ${r.lastName} ${r.agentCode}`.toLowerCase()
@@ -537,9 +539,11 @@ export default function AttendancePage() {
         </div>
         <div>
           <label style={lblStyle}>Status</label>
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as 'ACTIVE' | 'ALL')} style={{ ...inputStyle, appearance: 'auto' }}>
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as 'ACTIVE' | 'INACTIVE' | 'ALL' | 'REFERRAL_PARTNER')} style={{ ...inputStyle, appearance: 'auto' }}>
             <option value="ACTIVE">Active only</option>
-            <option value="ALL">All (incl. inactive)</option>
+            <option value="INACTIVE">Inactive</option>
+            <option value="REFERRAL_PARTNER">Referral Partner</option>
+            <option value="ALL">All</option>
           </select>
         </div>
         <div>

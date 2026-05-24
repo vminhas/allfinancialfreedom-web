@@ -82,6 +82,7 @@ interface DetailedAgent extends Agent {
   notes: string | null
   isTest: boolean
   isLeadership?: boolean
+  isReferralPartner?: boolean
   vipArrival?: boolean
   vipArrivalTitle?: string | null
   partnerAgentProfileId?: string | null
@@ -837,6 +838,7 @@ export default function TrackerPage() {
           <option value="">All Statuses</option>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
+          <option value="referral_partner">Referral Partner</option>
         </select>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: atRiskOnly ? '#f87171' : '#9BB0C4', cursor: 'pointer', padding: '7px 12px', background: atRiskOnly ? 'rgba(248,113,113,0.08)' : 'transparent', border: `1px solid ${atRiskOnly ? 'rgba(248,113,113,0.3)' : 'rgba(201,169,110,0.15)'}`, borderRadius: 4 }}>
           <input type="checkbox" checked={atRiskOnly} onChange={e => setAtRiskOnly(e.target.checked)} style={{ accentColor: '#f87171' }} />
@@ -1416,6 +1418,7 @@ function AgentDrawer({
     notes: agent.notes ?? '',
     isTest: agent.isTest ?? false,
     isLeadership: agent.isLeadership ?? false,
+    isReferralPartner: agent.isReferralPartner ?? false,
     vipArrival: agent.vipArrival ?? false,
     vipArrivalTitle: agent.vipArrivalTitle ?? '',
     partnerAgentProfileId: agent.partnerAgentProfileId ?? '',
@@ -2205,6 +2208,29 @@ function AgentDrawer({
                 </div>
                 <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2 }}>
                   Marks this profile as a leadership user (Vick, Melinee, founders). Hides from production leaderboard. Recruits roll up to the &lsquo;Vick &amp; Melinee&rsquo; bundle on the recruits leaderboard.
+                </div>
+              </div>
+            </label>
+
+            <label style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '10px 12px', borderRadius: 4,
+              background: editForm.isReferralPartner ? 'rgba(100,149,237,0.08)' : 'rgba(255,255,255,0.02)',
+              border: editForm.isReferralPartner ? '1px solid rgba(100,149,237,0.3)' : '1px solid rgba(255,255,255,0.05)',
+              cursor: 'pointer',
+            }}>
+              <input
+                type="checkbox"
+                checked={editForm.isReferralPartner}
+                onChange={e => setEditForm(f => ({ ...f, isReferralPartner: e.target.checked }))}
+                style={{ flexShrink: 0 }}
+              />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: editForm.isReferralPartner ? '#6495ED' : '#9BB0C4', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                  Referral Partner
+                </div>
+                <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2 }}>
+                  Referral-only partner. Still receives welcome email and can be split on new business, but won&apos;t receive task reminders.
                 </div>
               </div>
             </label>

@@ -127,6 +127,9 @@ async function handleAppointmentCreate(payload: {
     advanced = true
   }
 
+  const calendarName = (payload as Record<string, unknown>).calendarName as string ?? (payload as Record<string, unknown>).calendar_name as string ?? 'Unknown Calendar'
+  const calendarId = (payload as Record<string, unknown>).calendarId as string ?? null
+
   // Build the render context with display-formatted values. Anything
   // a template might {{interpolate}} gets a key here.
   const tags: string[] = Array.isArray(contact?.tags) ? contact.tags : []
@@ -136,6 +139,35 @@ async function handleAppointmentCreate(payload: {
         include: { importJob: { select: { contextPrompt: true, fileName: true } } },
       })
     : null
+
+  // Store appointment locally for tracking show/no-show
+  try {
+    const eventId = (payload as Record<string, unknown>).id as string ?? (payload as Record<string, unknown>).appointmentId as string ?? null
+    await db.ghlAppointment.upsert({
+      where: { ghlEventId: eventId ?? `manual-${contactId}-${startTime}` },
+      create: {
+        ghlCalendarId: calendarId,
+        ghlEventId: eventId,
+        calendarName,
+        contactId: localContact?.id ?? undefined,
+        contactName: `${contact?.firstName ?? ''} ${contact?.lastName ?? ''}`.trim() || 'Unknown',
+        contactEmail: contact?.email ?? null,
+        contactPhone: contact?.phone ?? null,
+        appointmentDate: startTime ? new Date(startTime) : new Date(),
+        assignedTo: calendarName,
+        source: calendarName,
+      },
+      update: { appointmentDate: startTime ? new Date(startTime) : undefined, calendarName },
+    })
+    if (localContact) {
+      await db.contact.update({
+        where: { id: localContact.id },
+        data: { ghlPipelineStage: 'Discovery Booked', ghlStageUpdatedAt: new Date(), ghlAppointmentDate: startTime ? new Date(startTime) : null },
+      }).catch(() => {})
+    }
+  } catch (err) {
+    console.error('[ghl-webhook] failed to store appointment:', err)
+  }
 
   const customField = (key: string): string | null => {
     const fields = contact?.customFields as { key: string; fieldValue?: string }[] | undefined
