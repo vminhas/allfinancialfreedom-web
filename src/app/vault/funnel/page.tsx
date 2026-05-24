@@ -26,6 +26,7 @@ interface FlowData {
   config: FlowConfig
   stageCounts: Record<string, number>
   sourceCounts: Record<string, number>
+  sourceDetail: Record<string, number>  // e.g. "breezy:ziprecruiter" → 22
   calendars: { name: string; count: number }[]
   assignments: { name: string; count: number }[]
 }
@@ -230,6 +231,24 @@ export default function FunnelPage() {
                   )}
                 </div>
                 <div style={{ fontSize: 18, fontWeight: 700, color: src.color, lineHeight: 1 }}>{count.toLocaleString()}</div>
+                {/* Sub-source breakdown (e.g. Breezy → ZipRecruiter: 22, Career Portal: 1) */}
+                {(() => {
+                  const details = Object.entries(flow.sourceDetail)
+                    .filter(([k]) => k.startsWith(src.id + ':'))
+                    .map(([k, v]) => ({ name: k.split(':')[1], count: v }))
+                    .sort((a, b) => b.count - a.count)
+                  if (details.length === 0) return null
+                  return (
+                    <div style={{ marginTop: 6, borderTop: `1px solid ${src.color}20`, paddingTop: 4 }}>
+                      {details.map(d => (
+                        <div key={d.name} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: '#6B8299' }}>
+                          <span>{d.name}</span>
+                          <span style={{ fontWeight: 600, color: src.color }}>{d.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
                 {editing && (
                   <div style={{ marginTop: 6 }}>
                     <input value={src.dbValues.join(', ')} onChange={e => updateSource(src.id, 'dbValues', e.target.value.split(',').map(v => v.trim()).filter(Boolean))}

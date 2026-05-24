@@ -17,7 +17,7 @@ const DEFAULT_CONFIG: FlowConfig = {
     { id: 'instagram', label: 'Instagram', color: '#f472b6', dbValues: ['instagram'] },
     { id: 'website', label: 'Website', color: '#4ade80', dbValues: ['website', 'calendar_direct'] },
     { id: 'referral', label: 'Agent Referrals', color: '#C9A96E', dbValues: ['referral'] },
-    { id: 'breezy', label: 'Breezy', color: '#38bdf8', dbValues: ['breezy'] },
+    { id: 'breezy', label: 'Breezy', color: '#38bdf8', dbValues: ['breezy*'] },
     { id: 'manual', label: 'Walk-in / Manual', color: '#94a3b8', dbValues: ['manual', 'walk-in', 'unknown', ''] },
   ],
   stages: [
@@ -60,6 +60,7 @@ export async function GET(req: NextRequest) {
 
   const stageCounts: Record<string, number> = {}
   const sourceCounts: Record<string, number> = {}
+  const sourceDetail: Record<string, number> = {} // e.g. "breezy:ziprecruiter" → 22
 
   for (const c of contacts) {
     // Effective stage from ghlPipelineStage or outreachStatus fallback
@@ -78,11 +79,20 @@ export async function GET(req: NextRequest) {
     const key = matched?.id ?? 'unknown'
     stageCounts[key] = (stageCounts[key] ?? 0) + 1
 
-    // Source
+    // Source — supports wildcard prefix matching (e.g. 'breezy*' matches 'breezy-ziprecruiter')
     const src = c.source || ''
-    const matchedSrc = config.sources.find(s => s.dbValues.includes(src))
+    const matchedSrc = config.sources.find(s =>
+      s.dbValues.some(v => v.endsWith('*') ? src.startsWith(v.slice(0, -1)) : v === src),
+    )
     const srcKey = matchedSrc?.id ?? 'other'
     sourceCounts[srcKey] = (sourceCounts[srcKey] ?? 0) + 1
+
+    // Track sub-source detail for hover breakdown (e.g. breezy-ziprecruiter → ziprecruiter)
+    if (src.includes('-')) {
+      const detail = src.replace(/^[^-]+-/, '') // strip prefix
+      const detailKey = `${srcKey}:${detail}`
+      sourceDetail[detailKey] = (sourceDetail[detailKey] ?? 0) + 1
+    }
   }
 
   // Calendar breakdown from appointments
@@ -102,6 +112,7 @@ export async function GET(req: NextRequest) {
     config,
     stageCounts,
     sourceCounts,
+    sourceDetail,
     calendars: Object.entries(calendarCounts)
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count),

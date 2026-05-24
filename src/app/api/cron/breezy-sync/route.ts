@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getBreezySession, getAllBreezyCandidates, type BreezyCandidate } from '@/lib/breezy'
+import { getGhlConfig, ghlPost } from '@/lib/ghl'
+import { getSetting } from '@/lib/settings'
+import { getBreezySession, getAllBreezyCandidates } from '@/lib/breezy'
 
 // GET /api/cron/breezy-sync (Vercel cron, runs hourly)
 //
-// Signs into Breezy HR, pulls all candidates across all positions,
-// and upserts them as Contacts with source='breezy'. Maps Breezy
-// pipeline stages to AFF funnel stages so candidates show up in
-// the recruiting funnel automatically.
-
-// We only sync candidates with "Applied" status from Breezy.
-// They enter the AFF funnel at "Engaged" (they took action by applying).
-// From there, the normal flow takes over: book a 15-min discovery call,
-// qualify, interview, onboard.
+// Signs into Breezy HR, pulls all "Applied" candidates, and for each:
+//   1. Creates/updates a local Contact (source='breezy', stage='Engaged')
+//   2. Creates a GHL contact if one doesn't exist (tagged 'breezy')
+//   3. Creates a GHL opportunity in the recruiting pipeline
+//
+// This ensures Breezy candidates appear in both the vault funnel AND
+// the GHL dashboard automatically.
 
 function parseName(name: string): { firstName: string; lastName: string } {
   const parts = name.trim().split(/\s+/)
@@ -39,12 +39,20 @@ export async function GET(req: NextRequest) {
 
   const candidates = await getAllBreezyCandidates(session)
   if (candidates.length === 0) {
-    return NextResponse.json({ ok: true, synced: 0, reason: 'No candidates found in Breezy' })
+    return NextResponse.json({ ok: true, synced: 0, reason: 'No applied candidates in Breezy' })
   }
+
+  // GHL config for pushing contacts
+  const config = await getGhlConfig()
+  const hasGhl = !!(config.apiKey && config.locationId)
+  const pipelineId = hasGhl ? (await getSetting('GHL_PIPELINE_ID') || 'j8RckwejQ1VaoH7bQbAf') : null
+  // "Engaged" stage ID in GHL — the Responded stage maps to Engaged
+  const engagedStageId = hasGhl ? (await getSetting('GHL_STAGE_ENGAGED') || null) : null
 
   let created = 0
   let updated = 0
   let skipped = 0
+  let ghlCreated = 0
   const errors: string[] = []
 
   for (const c of candidates) {
@@ -53,38 +61,85 @@ export async function GET(req: NextRequest) {
 
       const email = c.email_address.toLowerCase().trim()
       const { firstName, lastName } = parseName(c.name || '')
-      const affStage = 'Engaged' // Applied in Breezy = Engaged in AFF funnel
+      const phone = c.phone_number ?? null
+      // Store granular source: breezy-ziprecruiter, breezy-career-portal, etc.
+      const subSource = c.source?.name?.toLowerCase().replace(/\s+/g, '-') ?? 'unknown'
+      const source = `breezy-${subSource}`
 
       const existing = await db.contact.findUnique({ where: { email } })
 
       if (existing) {
-        // Only update stage if Breezy is further along than current
-        // Don't overwrite source if they came from somewhere else first
         const shouldUpdateStage = !existing.ghlPipelineStage || existing.ghlPipelineStage === 'New Lead'
         await db.contact.update({
           where: { email },
           data: {
-            ...(shouldUpdateStage ? { ghlPipelineStage: affStage, ghlStageUpdatedAt: new Date() } : {}),
-            // Preserve original source if set to something meaningful
-            ...(existing.source === 'prophog' || !existing.source ? { source: 'breezy' } : {}),
+            ...(shouldUpdateStage ? { ghlPipelineStage: 'Engaged', ghlStageUpdatedAt: new Date() } : {}),
+            ...(existing.source === 'prophog' || !existing.source ? { source } : {}),
           },
         })
         updated++
-      } else {
-        await db.contact.create({
-          data: {
+        continue // Already in system, don't re-create in GHL
+      }
+
+      // Create local Contact
+      let ghlContactId: string | null = null
+      let ghlOpportunityId: string | null = null
+
+      // Push to GHL if configured
+      if (hasGhl) {
+        try {
+          // Create or find GHL contact
+          const contactRes = await ghlPost('/contacts/', {
+            locationId: config.locationId,
             firstName: firstName || 'Unknown',
             lastName,
             email,
-            phone: c.phone_number ?? null,
-            source: 'breezy',
-            outreachStatus: 'responded',
-            ghlPipelineStage: affStage,
-            ghlStageUpdatedAt: new Date(),
-          },
-        })
-        created++
+            phone: phone ?? undefined,
+            source: 'Breezy',
+            tags: ['breezy', 'breezy-applied', `breezy-${subSource}`],
+          }, config)
+
+          if (contactRes.ok) {
+            const contactData = await contactRes.json() as { contact?: { id: string } }
+            ghlContactId = contactData.contact?.id ?? null
+          }
+
+          // Create opportunity in pipeline
+          if (ghlContactId && pipelineId) {
+            const oppRes = await ghlPost('/opportunities/', {
+              pipelineId,
+              pipelineStageId: engagedStageId ?? undefined,
+              locationId: config.locationId,
+              contactId: ghlContactId,
+              name: `${firstName} ${lastName} - Breezy`.trim(),
+              status: 'open',
+            }, config)
+            if (oppRes.ok) {
+              const oppData = await oppRes.json() as { opportunity?: { id: string } }
+              ghlOpportunityId = oppData.opportunity?.id ?? null
+              ghlCreated++
+            }
+          }
+        } catch (err) {
+          console.error(`[breezy-sync] GHL push failed for ${email}:`, err)
+        }
       }
+
+      await db.contact.create({
+        data: {
+          firstName: firstName || 'Unknown',
+          lastName,
+          email,
+          phone,
+          source,
+          outreachStatus: 'responded',
+          ghlPipelineStage: 'Engaged',
+          ghlStageUpdatedAt: new Date(),
+          ghlContactId,
+          ghlOpportunityId,
+        },
+      })
+      created++
     } catch (err) {
       errors.push(`${c.email_address ?? c.name}: ${err instanceof Error ? err.message : String(err)}`)
     }
@@ -97,7 +152,10 @@ export async function GET(req: NextRequest) {
       await sendChannelMessage(process.env.DISCORD_ADMIN_CHANNEL_ID, {
         embeds: [{
           title: 'Breezy Sync Complete',
-          description: `Created: ${created} · Updated: ${updated} · Skipped: ${skipped}`,
+          description: [
+            `New: ${created} · Updated: ${updated} · Skipped: ${skipped}`,
+            ghlCreated > 0 ? `GHL contacts created: ${ghlCreated}` : '',
+          ].filter(Boolean).join('\n'),
           color: 0x38bdf8,
           footer: { text: 'AFF Breezy Sync' },
           timestamp: new Date().toISOString(),
@@ -112,6 +170,7 @@ export async function GET(req: NextRequest) {
     created,
     updated,
     skipped,
+    ghlCreated,
     errors: errors.slice(0, 10),
   })
 }
