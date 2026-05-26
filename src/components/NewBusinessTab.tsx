@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import DatePicker from './DatePicker'
-import { CARRIERS } from '@/lib/agent-constants'
+import CarrierPicker from './CarrierPicker'
 import { formatPhoneAsTyped } from '@/lib/contact-validation'
 
 const card = { background: '#132238', border: '1px solid rgba(201,169,110,0.1)', borderRadius: 6 }
@@ -462,10 +462,7 @@ function NewBusinessForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: ()
           <DatePicker value={form.applicationDate} onChange={v => setForm(f => ({ ...f, applicationDate: v }))} required />
         </div>
         <div><label style={fieldLabel}>Carrier *</label>
-          <select required style={inputStyle} value={form.carrier} onChange={e => setForm(f => ({ ...f, carrier: e.target.value }))}>
-            <option value="">Select carrier...</option>
-            {CARRIERS.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
+          <CarrierPicker required value={form.carrier} onChange={v => setForm(f => ({ ...f, carrier: v }))} />
         </div>
         <div><label style={fieldLabel}>Policy Type *</label>
           <select style={inputStyle} value={form.policyType} onChange={e => setForm(f => ({ ...f, policyType: e.target.value }))}>
@@ -851,9 +848,7 @@ function SubmissionDrawer({ submission, onClose, onChanged }: { submission: Subm
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <div>
                 <label style={fieldLabel}>Carrier</label>
-                <select style={inputStyle} value={edit.carrier} onChange={e => setEdit(p => ({ ...p, carrier: e.target.value }))}>
-                  {CARRIERS.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <CarrierPicker value={edit.carrier} onChange={v => setEdit(p => ({ ...p, carrier: v }))} />
               </div>
               <div>
                 <label style={fieldLabel}>Policy Type</label>
