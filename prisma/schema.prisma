@@ -889,6 +889,12 @@ model SetupResource {
   rawScriptContent    String?   @db.Text
   aiScriptOutline     String?   @db.Text
   outlineGeneratedAt  DateTime?
+  // Phase-gated unlock. Agents on AgentProfile.phase >= unlocksAtPhase
+  // see the resource as unlocked (full color, clickable). Below that
+  // they see it visible but locked (greyscale, padlock, phase-color
+  // border, "Unlocks at Phase X" label). Default 1 keeps every
+  // existing resource visible to everyone.
+  unlocksAtPhase      Int       @default(1)  @map("unlocks_at_phase")
   updatedAt           DateTime  @updatedAt
   createdAt           DateTime  @default(now())
 

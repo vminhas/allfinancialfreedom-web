@@ -4,6 +4,15 @@ import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/permissions'
 
+// Phase ranks are 1-6 (Onboarding through NVP). Anything outside that
+// range falls back to 1 so a typo can't permanently lock a resource.
+function clampPhase(n: unknown): number {
+  const v = typeof n === 'number' ? Math.floor(n) : Number(n)
+  if (!Number.isFinite(v) || v < 1) return 1
+  if (v > 6) return 6
+  return v
+}
+
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
   const denied = requireRole(session, 'admin', 'licensing_coordinator')
@@ -27,6 +36,7 @@ export async function POST(req: NextRequest) {
     category?: string
     description?: string
     callType?: string | null
+    unlocksAtPhase?: number
   }
 
   if (!body.key || !body.label || !body.url) {
@@ -37,6 +47,8 @@ export async function POST(req: NextRequest) {
   const callType = body.callType && VALID_CALL_TYPES.has(body.callType)
     ? (body.callType as 'RECRUIT' | 'FOLLOW_UP' | 'CLIENT_APPOINTMENT' | 'OTHER')
     : null
+
+  const unlocksAtPhase = clampPhase(body.unlocksAtPhase)
 
   try {
     const resource = await db.$transaction(async tx => {
@@ -56,6 +68,7 @@ export async function POST(req: NextRequest) {
           category: body.category ?? 'general',
           description: body.description,
           callType,
+          unlocksAtPhase,
         },
       })
     })
@@ -83,6 +96,7 @@ export async function PUT(req: NextRequest) {
     callType?: string | null
     rawScriptContent?: string | null
     aiScriptOutline?: string | null
+    unlocksAtPhase?: number
   }
 
   if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 })
@@ -96,6 +110,7 @@ export async function PUT(req: NextRequest) {
   if (body.description !== undefined) data.description = body.description
   if (body.rawScriptContent !== undefined) data.rawScriptContent = body.rawScriptContent || null
   if (body.aiScriptOutline !== undefined) data.aiScriptOutline = body.aiScriptOutline || null
+  if (body.unlocksAtPhase !== undefined) data.unlocksAtPhase = clampPhase(body.unlocksAtPhase)
 
   const wantsCallType = body.callType !== undefined
   const callType = wantsCallType
