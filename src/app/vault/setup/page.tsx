@@ -13,10 +13,26 @@ interface SetupResource {
   rawScriptContent: string | null
   aiScriptOutline: string | null
   outlineGeneratedAt: string | null
+  unlocksAtPhase: number
   updatedAt: string
 }
 
 const CATEGORIES = ['scripts', 'training', 'tools', 'forms', 'general'] as const
+
+// Phase ranks 1-6 + their canonical name. Drives the "Unlocks at"
+// dropdown on each resource. Order matters: the dropdown lists them
+// in this order. Phase 1 means "available to everyone."
+const PHASE_OPTIONS: Array<{ value: number; label: string; short: string }> = [
+  { value: 1, label: 'Phase 1 · Onboarding (everyone)', short: 'Onboarding' },
+  { value: 2, label: 'Phase 2 · Field Training',         short: 'Field Training' },
+  { value: 3, label: 'Phase 3 · CFT',                    short: 'CFT' },
+  { value: 4, label: 'Phase 4 · MD',                     short: 'MD' },
+  { value: 5, label: 'Phase 5 · EMD',                    short: 'EMD' },
+  { value: 6, label: 'Phase 6 · NVP',                    short: 'NVP' },
+]
+const PHASE_COLOR: Record<number, string> = {
+  1: '#60a5fa', 2: '#4ade80', 3: '#C9A96E', 4: '#818cf8', 5: '#e879f9', 6: '#fbbf24',
+}
 
 const CALL_TYPE_OPTIONS: Array<{ value: string; label: string }> = [
   { value: '',                   label: '— Not a call script' },
@@ -50,6 +66,7 @@ export default function SetupDashboard() {
   const [formCategory, setFormCategory] = useState('general')
   const [formDesc, setFormDesc] = useState('')
   const [formCallType, setFormCallType] = useState('')
+  const [formUnlocksAtPhase, setFormUnlocksAtPhase] = useState(1)
   const [saving, setSaving] = useState(false)
 
   // AI outline configurator. Opens when admin clicks "AI coaching"
@@ -159,6 +176,7 @@ export default function SetupDashboard() {
     setFormCategory('general')
     setFormDesc('')
     setFormCallType('')
+    setFormUnlocksAtPhase(1)
     setEditingId(null)
     setShowAdd(false)
   }
@@ -170,6 +188,7 @@ export default function SetupDashboard() {
     setFormCategory(r.category)
     setFormDesc(r.description ?? '')
     setFormCallType(r.callType ?? '')
+    setFormUnlocksAtPhase(r.unlocksAtPhase ?? 1)
     setEditingId(r.id)
     setShowAdd(true)
   }
@@ -181,6 +200,7 @@ export default function SetupDashboard() {
     setFormCategory(s.category)
     setFormDesc('')
     setFormCallType('')
+    setFormUnlocksAtPhase(1)
     setEditingId(null)
     setShowAdd(true)
   }
@@ -193,14 +213,14 @@ export default function SetupDashboard() {
         await fetch('/api/admin/setup-resources', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: editingId, label: formLabel, url: formUrl, category: formCategory, description: formDesc || undefined, callType: formCallType || null }),
+          body: JSON.stringify({ id: editingId, label: formLabel, url: formUrl, category: formCategory, description: formDesc || undefined, callType: formCallType || null, unlocksAtPhase: formUnlocksAtPhase }),
         })
       } else {
         if (!formKey) return
         await fetch('/api/admin/setup-resources', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key: formKey, label: formLabel, url: formUrl, category: formCategory, description: formDesc || undefined, callType: formCallType || null }),
+          body: JSON.stringify({ key: formKey, label: formLabel, url: formUrl, category: formCategory, description: formDesc || undefined, callType: formCallType || null, unlocksAtPhase: formUnlocksAtPhase }),
         })
       }
       resetForm()
@@ -298,6 +318,25 @@ export default function SetupDashboard() {
               <input value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder="Brief note" style={inputStyle} />
             </div>
             <div style={{ gridColumn: '1 / -1' }}>
+              <div style={labelStyle}>Unlocks at phase</div>
+              <select
+                value={formUnlocksAtPhase}
+                onChange={e => setFormUnlocksAtPhase(Number(e.target.value))}
+                style={{
+                  ...inputStyle,
+                  cursor: 'pointer',
+                  borderColor: formUnlocksAtPhase > 1 ? PHASE_COLOR[formUnlocksAtPhase] : 'rgba(201,169,110,0.2)',
+                }}
+              >
+                {PHASE_OPTIONS.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+              <div style={{ fontSize: 11, color: '#6B8299', marginTop: 6, lineHeight: 1.5 }}>
+                Agents below this phase see the resource as locked (greyscale + padlock) on /agents/resources. Default Phase 1 means everyone gets access. Use higher phases to reward progression.
+              </div>
+            </div>
+            <div style={{ gridColumn: '1 / -1' }}>
               <div style={labelStyle}>Use as script for</div>
               <select
                 value={formCallType}
@@ -367,7 +406,7 @@ export default function SetupDashboard() {
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 920 }}>
           <thead>
             <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
-              {['Label', 'Key', 'Category', 'Script for', 'URL', ''].map(h => (
+              {['Label', 'Key', 'Category', 'Unlocks At', 'Script for', 'URL', ''].map(h => (
                 <th key={h} style={{
                   padding: '10px 14px', fontSize: 9, fontWeight: 700,
                   textTransform: 'uppercase', letterSpacing: '0.12em',
@@ -380,7 +419,7 @@ export default function SetupDashboard() {
           <tbody>
             {resources.length === 0 ? (
               <tr>
-                <td colSpan={6} style={{ padding: '24px 14px', fontSize: 12, color: '#4B5563', textAlign: 'center' }}>
+                <td colSpan={7} style={{ padding: '24px 14px', fontSize: 12, color: '#4B5563', textAlign: 'center' }}>
                   No resources configured yet. Add one above or click a suggestion.
                 </td>
               </tr>
@@ -395,6 +434,21 @@ export default function SetupDashboard() {
                     background: 'rgba(201,169,110,0.08)', color: '#C9A96E',
                     textTransform: 'uppercase', letterSpacing: '0.08em',
                   }}>{r.category}</span>
+                </td>
+                <td style={{ padding: '10px 14px' }}>
+                  {r.unlocksAtPhase > 1 ? (
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 10,
+                      background: `${PHASE_COLOR[r.unlocksAtPhase]}1f`,
+                      color: PHASE_COLOR[r.unlocksAtPhase],
+                      border: `1px solid ${PHASE_COLOR[r.unlocksAtPhase]}66`,
+                      textTransform: 'uppercase', letterSpacing: '0.08em',
+                    }}>
+                      🔒 P{r.unlocksAtPhase} · {PHASE_OPTIONS[r.unlocksAtPhase - 1].short}
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: 10, color: '#4B5563' }}>Everyone</span>
+                  )}
                 </td>
                 <td style={{ padding: '10px 14px', fontSize: 11, color: '#9BB0C4' }}>
                   {r.callType ? (
@@ -468,6 +522,25 @@ export default function SetupDashboard() {
                           <div>
                             <div style={labelStyle}>Description (optional)</div>
                             <input value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder="Brief note" style={inputStyle} />
+                          </div>
+                          <div style={{ gridColumn: '1 / -1' }}>
+                            <div style={labelStyle}>Unlocks at phase</div>
+                            <select
+                              value={formUnlocksAtPhase}
+                              onChange={e => setFormUnlocksAtPhase(Number(e.target.value))}
+                              style={{
+                                ...inputStyle,
+                                cursor: 'pointer',
+                                borderColor: formUnlocksAtPhase > 1 ? PHASE_COLOR[formUnlocksAtPhase] : 'rgba(201,169,110,0.2)',
+                              }}
+                            >
+                              {PHASE_OPTIONS.map(o => (
+                                <option key={o.value} value={o.value}>{o.label}</option>
+                              ))}
+                            </select>
+                            <div style={{ fontSize: 11, color: '#6B8299', marginTop: 6, lineHeight: 1.5 }}>
+                              Agents below this phase see the resource as locked (greyscale + padlock). Default Phase 1 means everyone gets access.
+                            </div>
                           </div>
                           <div style={{ gridColumn: '1 / -1' }}>
                             <div style={labelStyle}>Use as script for</div>
