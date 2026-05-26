@@ -395,6 +395,8 @@ export const DISCORD_BOT_TOKEN_KEY = 'DISCORD_BOT_TOKEN'
 export const LC_CALENDAR_URL = 'https://links.allfinancialfreedom.com/widget/booking/qT7hrY6pkxTGKmhPvsDe'
 
 export const CARRIERS = [
+  'Allianz Life',
+  'Allianz Annuity',
   'ANICO Life',
   'ANICO Annuity',
   'Augustar',
