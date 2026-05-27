@@ -535,6 +535,33 @@ function SubmissionDrawer({ id, onClose, onChanged }: { id: string; onClose: () 
   const [saveError, setSaveError] = useState<string | null>(null)
   const [noteText, setNoteText] = useState('')
   const [posting, setPosting] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  // Hard-delete the submission. Used for accidental duplicate
+  // submissions (an agent clicks Submit twice and a dup row lands in
+  // the queue). Double-confirms because all attached notes,
+  // illustrations, and renewal reminders cascade away with it.
+  const handleDelete = async () => {
+    if (!detail) return
+    const name = `${detail.clientFirstName} ${detail.clientLastName}`.trim() || 'this submission'
+    const ok = window.confirm(
+      `Delete ${name}'s ${detail.carrier} ${detail.policyType} submission?\n\nThis removes all notes, illustrations, and renewal reminders attached to it. Cannot be undone.`,
+    )
+    if (!ok) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/vault/new-business/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string }
+        alert(`Delete failed: ${data.error ?? `HTTP ${res.status}`}`)
+        return
+      }
+      onChanged()
+      onClose()
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   const load = useCallback(() => {
     fetch(`/api/vault/new-business/${id}`)
@@ -616,7 +643,28 @@ function SubmissionDrawer({ id, onClose, onChanged }: { id: string; onClose: () 
             <h2 style={{ color: '#fff', fontSize: 16, fontWeight: 600, margin: 0 }}>{detail.clientFirstName} {detail.clientLastName}</h2>
             <StatusPill status={detail.status} />
           </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#9BB0C4', fontSize: 18, cursor: 'pointer' }}>✕</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              title="Delete this submission (cascades to notes, illustrations, reminders)"
+              style={{
+                background: 'transparent',
+                border: '1px solid rgba(239,68,68,0.35)',
+                color: deleting ? '#6B8299' : '#f87171',
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                padding: '5px 10px',
+                borderRadius: 4,
+                cursor: deleting ? 'wait' : 'pointer',
+              }}
+            >
+              {deleting ? 'Deleting…' : 'Delete'}
+            </button>
+            <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#9BB0C4', fontSize: 18, cursor: 'pointer' }}>✕</button>
+          </div>
         </div>
 
         <div style={{ marginBottom: 16, fontSize: 12, color: '#9BB0C4' }}>

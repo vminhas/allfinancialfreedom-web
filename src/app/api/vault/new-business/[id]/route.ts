@@ -165,3 +165,41 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
   return NextResponse.json({ submission: updated })
 }
+
+// Hard-delete a submission. Admin + LC only. Cascades to notes,
+// illustrations, renewal reminders, and split-agent rows via the FK
+// onDelete: Cascade declared in schema.prisma, so there are no
+// orphan rows after the call. Used when an agent accidentally
+// double-submits a policy and the LC needs to clean it up.
+export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const session = await getServerSession(authOptions)
+  const denied = requireRole(session, 'admin', 'licensing_coordinator')
+  if (denied) return denied
+
+  const { id } = await ctx.params
+  const existing = await db.newBusinessSubmission.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      clientFirstName: true,
+      clientLastName: true,
+      carrier: true,
+      policyType: true,
+      agentProfile: { select: { agentCode: true } },
+    },
+  })
+  if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  await db.newBusinessSubmission.delete({ where: { id } })
+
+  return NextResponse.json({
+    ok: true,
+    deleted: {
+      id: existing.id,
+      client: `${existing.clientFirstName} ${existing.clientLastName}`.trim(),
+      carrier: existing.carrier,
+      policyType: existing.policyType,
+      agentCode: existing.agentProfile.agentCode,
+    },
+  })
+}
