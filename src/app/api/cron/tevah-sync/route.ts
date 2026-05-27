@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
   const clientResults = await syncClients()
   syncTevahPoints().catch(() => {})
   syncTevahRecruits().catch(() => {})
-  postSyncSummary(agentResults, clientResults).catch(() => {})
+  postSyncSummary().catch(err => console.warn('[tevah-sync] digest post failed:', err))
   return NextResponse.json({ ok: true, agents: agentResults, submissions: clientResults })
 }
 
@@ -74,63 +74,70 @@ export async function POST(req: NextRequest) {
   const clientResults = await syncClients()
   syncTevahPoints().catch(() => {})
   syncTevahRecruits().catch(() => {})
-  postSyncSummary(agentResults, clientResults).catch(() => {})
+  postSyncSummary().catch(err => console.warn('[tevah-sync] digest post failed:', err))
   return NextResponse.json({ ok: true, agents: agentResults, submissions: clientResults })
 }
 
-async function postSyncSummary(
-  agents: Awaited<ReturnType<typeof syncAgents>>,
-  clients: Awaited<ReturnType<typeof syncClients>>,
-) {
+// Daily digest hour in UTC. Matches the other "daily" crons in
+// vercel.json (daily-outreach, agent-reminders, birthday-greetings,
+// renewal-digest, client-reminders all fire at 13:00 UTC = 9am ET).
+// Picking the same hour means all admin-facing summaries land in one
+// batch so Vick reads one Discord burst per morning instead of a
+// drumbeat throughout the day.
+const TEVAH_DIGEST_HOUR_UTC = 13
+
+async function postSyncSummary() {
+  // The sync itself still runs hourly (it's the data pipeline that
+  // keeps the leaderboard fresh and feeds per-event Discord
+  // celebrations elsewhere). The summary embed only fires once per
+  // day so admins get a real digest instead of 24 micro-updates.
+  if (new Date().getUTCHours() !== TEVAH_DIGEST_HOUR_UTC) return
+
   const token = process.env.DISCORD_BOT_TOKEN
   const channelId = process.env.DISCORD_ADMIN_CHANNEL_ID
   if (!token || !channelId) return
 
-  if ('error' in agents && 'error' in clients) return
+  // Past 24 hours of Tevah-sourced activity, queried from the DB so
+  // the digest reflects everything that landed today (not just the
+  // current cron run's deltas).
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
 
-  // Only post to Discord when something actually changed — no noise for quiet syncs.
-  const agentActivity = !('error' in agents) && ((agents.created ?? 0) > 0 || (agents.invited ?? 0) > 0)
-  const clientActivity = !('error' in clients) && ((clients.created ?? 0) > 0 || (clients.announced ?? 0) > 0)
-  if (!agentActivity && !clientActivity) return
+  const [newAgents, newSubsCount] = await Promise.all([
+    db.agentProfile.findMany({
+      where: { createdAt: { gte: since }, tevahAgentId: { not: null } },
+      select: { agentCode: true, firstName: true, lastName: true },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    }),
+    db.newBusinessSubmission.count({
+      where: { createdAt: { gte: since }, tevahClientId: { not: null } },
+    }),
+  ])
 
-  const agentLines = 'error' in agents
-    ? [`Agents: sync failed (${agents.error})`]
-    : (() => {
-        const MAX_NAMES = 20
-        const names = agents.created_codes?.map((c, i) => `${agents.created_names?.[i] ?? ''} (${c})`) ?? []
-        const nameList = names.length > MAX_NAMES
-          ? names.slice(0, MAX_NAMES).join(', ') + ` + ${names.length - MAX_NAMES} more`
-          : names.join(', ')
-        return [
-          agents.created ? `Agents: ${agents.created} new, ${agents.updated ?? 0} updated` : '',
-          agents.invited ? `Invite emails sent: ${agents.invited}` : '',
-          // Recruiterless new agents (no Tevah `reference` field, or
-          // a reference that didn't resolve) are skipped silently for
-          // the public card. The gap between `created` and `announced`
-          // tells ops how many of those there were.
-          typeof agents.announced === 'number' && agents.created
-            ? `Announced in #announcements: ${agents.announced} of ${agents.created}`
-            : '',
-          names.length ? `New: ${nameList}` : '',
-        ].filter(Boolean)
-      })()
+  if (newAgents.length === 0 && newSubsCount === 0) return
 
-  const clientLines = 'error' in clients
-    ? [`Submissions: sync failed (${clients.error})`]
-    : clients.created || clients.announced
-      ? [`Submissions: ${clients.created ?? 0} new, ${clients.updated ?? 0} updated, ${clients.announced ?? 0} announced`]
-      : []
+  const MAX_NAMES = 20
+  const names = newAgents.map(a => `${a.firstName ?? ''} ${a.lastName ?? ''} (${a.agentCode})`.trim())
+  const nameList = names.length > MAX_NAMES
+    ? names.slice(0, MAX_NAMES).join(', ') + ` + ${names.length - MAX_NAMES} more`
+    : names.join(', ')
 
-  const lines = [...agentLines, ...clientLines].filter(Boolean)
-  if (lines.length === 0) return
+  const lines: string[] = []
+  if (newAgents.length > 0) {
+    lines.push(`Agents: ${newAgents.length} new in the last 24 hours`)
+    if (nameList) lines.push(`New: ${nameList}`)
+  }
+  if (newSubsCount > 0) {
+    lines.push(`Submissions: ${newSubsCount} new in the last 24 hours`)
+  }
 
   await sendChannelMessage(channelId, {
     embeds: [{
-      title: 'Tevah Sync',
+      title: 'Tevah Daily Digest',
       description: lines.join('\n'),
       color: 0x1a2744,
       timestamp: new Date().toISOString(),
-      footer: { text: 'All Financial Freedom · Tevah Sync' },
+      footer: { text: 'All Financial Freedom · Tevah Daily Digest' },
     }],
   })
 }
