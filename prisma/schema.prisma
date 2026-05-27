@@ -392,6 +392,7 @@ model AgentProfile {
   // so the agent never sees the "about me" side.
   agentNotesAbout       AgentNote[]                @relation("AgentNoteSubject")
   authoredAgentNotes    AgentNote[]                @relation("AgentNoteAuthorAgent")
+  whyStatements         WhyStatement[]
 
   @@index([recruiterId])
   @@map("agent_profiles")
@@ -495,6 +496,17 @@ model PersonalFinancialReview {
   createdAt       DateTime     @default(now())
 
   @@map("personal_financial_reviews")
+}
+
+model WhyStatement {
+  id              String       @id @default(cuid())
+  agentProfileId  String
+  agentProfile    AgentProfile @relation(fields: [agentProfileId], references: [id])
+  content         String
+  createdAt       DateTime     @default(now())
+
+  @@index([agentProfileId, createdAt])
+  @@map("why_statements")
 }
 
 model PhaseItemDefinition {

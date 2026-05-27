@@ -52,7 +52,6 @@ interface PFRData {
   desiredMonthlyRetirement: number
   monthlySavingsCommitment: number
   dreamsAndGoals: { timeFrame: string; dream: string; why: string }[]
-  whyStatement: string
   whatWouldThisDo: string
   whatIsStopping: string
   notes: string
@@ -63,7 +62,7 @@ const defaultPFR: PFRData = {
   buckets: { expenses: 0, fun: 0, emergency: 0, retirement: 0 },
   retirementAge: null, spouseRetAge: null,
   desiredMonthlyRetirement: 0, monthlySavingsCommitment: 0,
-  dreamsAndGoals: [], whyStatement: '', whatWouldThisDo: '', whatIsStopping: '', notes: '',
+  dreamsAndGoals: [], whatWouldThisDo: '', whatIsStopping: '', notes: '',
 }
 
 export default function PFRPage() {
@@ -77,8 +76,17 @@ export default function PFRPage() {
   const [uploadingVision, setUploadingVision] = useState(false)
   const [visionLightbox, setVisionLightbox] = useState(false)
   const visionInputRef = useRef<HTMLInputElement>(null)
+  const [whyStatements, setWhyStatements] = useState<{ id: string; content: string; createdAt: string }[]>([])
+  const [whyDraft, setWhyDraft] = useState('')
+  const [whyEditing, setWhyEditing] = useState(false)
+  const [whySaving, setWhySaving] = useState(false)
+  const [whyShowHistory, setWhyShowHistory] = useState(false)
 
   useEffect(() => {
+    fetch('/api/agents/why-statements').then(r => r.ok ? r.json() : null)
+      .then((d: { statements?: { id: string; content: string; createdAt: string }[] } | null) => {
+        if (d?.statements) setWhyStatements(d.statements)
+      })
     fetch('/api/agents/pfr').then(r => {
       if (r.status === 401) { router.push('/agents/login'); return null }
       return r.json()
@@ -146,6 +154,26 @@ export default function PFRPage() {
       setVisionBoardUrl(null)
     } finally {
       setUploadingVision(false)
+    }
+  }
+
+  const handleWhySave = async () => {
+    if (!whyDraft.trim()) return
+    setWhySaving(true)
+    try {
+      const res = await fetch('/api/agents/why-statements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: whyDraft.trim() }),
+      })
+      const d = await res.json() as { statement?: { id: string; content: string; createdAt: string } }
+      if (d.statement) {
+        setWhyStatements(prev => [d.statement!, ...prev])
+        setWhyDraft('')
+        setWhyEditing(false)
+      }
+    } finally {
+      setWhySaving(false)
     }
   }
 
@@ -570,12 +598,97 @@ export default function PFRPage() {
             <div style={{ fontSize: 11, color: '#6B8299', lineHeight: 1.6, marginBottom: 10 }}>
               Understanding your &ldquo;why&rdquo; in business is important because it keeps you focused and motivated during challenges and difficult times. A strong purpose helps you make smarter long-term decisions, build loyal client relationships, and stay committed enough to continue growing instead of giving up when problems arise.
             </div>
-            <textarea
-              value={data.whyStatement}
-              onChange={e => updateField('whyStatement', e.target.value)}
-              placeholder="What drives you? Why did you choose this path?"
-              style={{ ...inp, textAlign: 'left', minHeight: 80, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6 }}
-            />
+
+            {whyStatements.length > 0 && !whyEditing && (
+              <div style={{
+                background: 'rgba(201,169,110,0.06)', border: '1px solid rgba(201,169,110,0.15)',
+                borderRadius: 6, padding: '14px 16px', marginBottom: 10,
+              }}>
+                <div style={{ fontSize: 13, color: '#ffffff', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+                  {whyStatements[0].content}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
+                  <div style={{ fontSize: 10, color: '#4B5563' }}>
+                    {new Date(whyStatements[0].createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </div>
+                  <button
+                    onClick={() => { setWhyDraft(whyStatements[0].content); setWhyEditing(true) }}
+                    style={{
+                      background: 'none', border: '1px solid rgba(201,169,110,0.3)',
+                      borderRadius: 4, padding: '3px 10px', fontSize: 10, color: '#C9A96E',
+                      cursor: 'pointer',
+                    }}
+                  >Edit</button>
+                </div>
+              </div>
+            )}
+
+            {(whyEditing || whyStatements.length === 0) && (
+              <div>
+                <textarea
+                  value={whyDraft}
+                  onChange={e => setWhyDraft(e.target.value)}
+                  placeholder="What drives you? Why did you choose this path?"
+                  style={{ ...inp, textAlign: 'left', minHeight: 80, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6 }}
+                />
+                <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'flex-end' }}>
+                  {whyStatements.length > 0 && (
+                    <button
+                      onClick={() => { setWhyEditing(false); setWhyDraft('') }}
+                      style={{
+                        background: 'none', border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: 4, padding: '5px 14px', fontSize: 11, color: '#6B8299',
+                        cursor: 'pointer',
+                      }}
+                    >Cancel</button>
+                  )}
+                  <button
+                    onClick={handleWhySave}
+                    disabled={whySaving || !whyDraft.trim()}
+                    style={{
+                      background: whyDraft.trim() ? '#C9A96E' : '#4B5563',
+                      color: '#142D48', border: 'none', borderRadius: 4,
+                      padding: '5px 14px', fontSize: 11, fontWeight: 700,
+                      cursor: whyDraft.trim() ? 'pointer' : 'default',
+                      opacity: whySaving ? 0.6 : 1,
+                    }}
+                  >{whySaving ? 'Saving...' : 'Save'}</button>
+                </div>
+              </div>
+            )}
+
+            {whyStatements.length > 1 && (
+              <div style={{ marginTop: 8 }}>
+                <button
+                  onClick={() => setWhyShowHistory(!whyShowHistory)}
+                  style={{
+                    background: 'none', border: 'none', padding: 0,
+                    fontSize: 10, color: '#6B8299', cursor: 'pointer',
+                    textDecoration: 'underline', textUnderlineOffset: 2,
+                  }}
+                >{whyShowHistory ? 'Hide History' : `View History (${whyStatements.length - 1} previous)`}</button>
+
+                {whyShowHistory && (
+                  <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {whyStatements.slice(1).map(s => (
+                      <div key={s.id} style={{
+                        padding: '10px 14px', borderRadius: 4,
+                        background: 'rgba(255,255,255,0.02)',
+                        border: '1px solid rgba(255,255,255,0.04)',
+                        borderLeft: '3px solid rgba(201,169,110,0.2)',
+                      }}>
+                        <div style={{ fontSize: 12, color: '#9BB0C4', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                          {s.content}
+                        </div>
+                        <div style={{ fontSize: 10, color: '#4B5563', marginTop: 6 }}>
+                          {new Date(s.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {data.dreamsAndGoals.length === 0 ? (
