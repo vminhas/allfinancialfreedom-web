@@ -145,23 +145,43 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Summary to admin Discord
-  if ((created > 0 || updated > 0) && process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_ADMIN_CHANNEL_ID) {
+  // Summary to admin Discord. The sync itself runs hourly so candidates
+  // land in Contacts + GHL in real time, but the admin-channel embed
+  // only posts during one UTC hour per day (13:00 UTC = 9am ET, matches
+  // the other daily crons in vercel.json: daily-outreach,
+  // agent-reminders, birthday-greetings, renewal-digest,
+  // client-reminders, tevah-sync digest). One morning notification
+  // batch instead of an hourly drumbeat.
+  const BREEZY_DIGEST_HOUR_UTC = 13
+  if (
+    new Date().getUTCHours() === BREEZY_DIGEST_HOUR_UTC
+    && process.env.DISCORD_BOT_TOKEN
+    && process.env.DISCORD_ADMIN_CHANNEL_ID
+  ) {
     try {
-      const { sendChannelMessage } = await import('@/lib/discord')
-      await sendChannelMessage(process.env.DISCORD_ADMIN_CHANNEL_ID, {
-        embeds: [{
-          title: 'Breezy Sync Complete',
-          description: [
-            `New: ${created} · Updated: ${updated} · Skipped: ${skipped}`,
-            ghlCreated > 0 ? `GHL contacts created: ${ghlCreated}` : '',
-          ].filter(Boolean).join('\n'),
-          color: 0x38bdf8,
-          footer: { text: 'AFF Breezy Sync' },
-          timestamp: new Date().toISOString(),
-        }],
-      }).catch(() => {})
-    } catch {}
+      // Past-24-hour rollup from the DB. Per-run counts are useless for
+      // a daily digest (most hours land 0 new candidates because the
+      // previous hour already ate them), so the embed pulls the real
+      // daily total from Contact rows.
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
+      const dailyCreated = await db.contact.count({
+        where: { createdAt: { gte: since }, source: { startsWith: 'breezy' } },
+      })
+      if (dailyCreated > 0) {
+        const { sendChannelMessage } = await import('@/lib/discord')
+        await sendChannelMessage(process.env.DISCORD_ADMIN_CHANNEL_ID, {
+          embeds: [{
+            title: 'Breezy Daily Digest',
+            description: `${dailyCreated} new applicant${dailyCreated === 1 ? '' : 's'} from Breezy in the last 24 hours.`,
+            color: 0x38bdf8,
+            footer: { text: 'AFF Breezy Daily Digest' },
+            timestamp: new Date().toISOString(),
+          }],
+        })
+      }
+    } catch (err) {
+      console.warn('[breezy-sync] digest post failed:', err)
+    }
   }
 
   return NextResponse.json({
