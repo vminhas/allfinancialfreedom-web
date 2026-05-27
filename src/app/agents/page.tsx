@@ -6389,7 +6389,7 @@ function PfrReadOnly({ agentCode, agentFirstName, previewToken }: { agentCode: s
   if (error) return <div style={{ fontSize: 11, color: '#f87171' }}>{error}</div>
   if (!pfr) return <div style={{ fontSize: 11, color: '#4B5563' }}>{agentFirstName} hasn&apos;t started their PFR yet.</div>
 
-  const p = pfr as { monthlyIncome?: number; expenses?: Record<string, number>; assets?: Record<string, number>; debts?: Record<string, number>; buckets?: Record<string, number>; dreamsAndGoals?: { timeFrame: string; dream: string; why: string }[]; retirementAge?: number; spouseRetAge?: number; desiredMonthlyRetirement?: number; monthlySavingsCommitment?: number; whatWouldThisDo?: string; whatIsStopping?: string; visionBoardUrl?: string | null }
+  const p = pfr as { monthlyIncome?: number; expenses?: Record<string, number>; assets?: Record<string, number>; debts?: Record<string, number>; buckets?: Record<string, number>; dreamsAndGoals?: { timeFrame: string; dream: string; why: string }[]; retirementAge?: number; spouseRetAge?: number; desiredMonthlyRetirement?: number; monthlySavingsCommitment?: number; whatWouldThisDo?: string; whatIsStopping?: string; visionBoardUrl?: string | null; whyStatement?: string }
   const fmt = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 })
   const expenses = p.expenses ?? {}
   const assets = p.assets ?? {}
@@ -6539,6 +6539,14 @@ function PfrReadOnly({ agentCode, agentFirstName, previewToken }: { agentCode: s
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={p.visionBoardUrl} alt="Vision Board" style={{ width: '100%', maxHeight: 120, objectFit: 'cover', display: 'block' }} />
           </div>
+        </div>
+      )}
+
+      {/* Your Why */}
+      {p.whyStatement && (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: '#6B8299', marginBottom: 4 }}>Your &ldquo;Why&rdquo;</div>
+          <div style={{ fontSize: 11, color: '#9BB0C4', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{p.whyStatement}</div>
         </div>
       )}
 

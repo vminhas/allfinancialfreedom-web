@@ -52,6 +52,7 @@ interface PFRData {
   desiredMonthlyRetirement: number
   monthlySavingsCommitment: number
   dreamsAndGoals: { timeFrame: string; dream: string; why: string }[]
+  whyStatement: string
   whatWouldThisDo: string
   whatIsStopping: string
   notes: string
@@ -62,7 +63,7 @@ const defaultPFR: PFRData = {
   buckets: { expenses: 0, fun: 0, emergency: 0, retirement: 0 },
   retirementAge: null, spouseRetAge: null,
   desiredMonthlyRetirement: 0, monthlySavingsCommitment: 0,
-  dreamsAndGoals: [], whatWouldThisDo: '', whatIsStopping: '', notes: '',
+  dreamsAndGoals: [], whyStatement: '', whatWouldThisDo: '', whatIsStopping: '', notes: '',
 }
 
 export default function PFRPage() {
@@ -560,6 +561,22 @@ export default function PFRPage() {
               />
             </div>
           )}
+
+          {/* Your Why */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 6 }}>
+              Your &ldquo;Why&rdquo;
+            </div>
+            <div style={{ fontSize: 11, color: '#6B8299', lineHeight: 1.6, marginBottom: 10 }}>
+              Understanding your &ldquo;why&rdquo; in business is important because it keeps you focused and motivated during challenges and difficult times. A strong purpose helps you make smarter long-term decisions, build loyal client relationships, and stay committed enough to continue growing instead of giving up when problems arise.
+            </div>
+            <textarea
+              value={data.whyStatement}
+              onChange={e => updateField('whyStatement', e.target.value)}
+              placeholder="What drives you? Why did you choose this path?"
+              style={{ ...inp, textAlign: 'left', minHeight: 80, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6 }}
+            />
+          </div>
 
           {data.dreamsAndGoals.length === 0 ? (
             <div style={{ color: '#4B5563', fontSize: 12, padding: '16px 0', textAlign: 'center' }}>

@@ -44,6 +44,7 @@ export async function PUT(req: NextRequest) {
     whatIsStopping?: string
     dreamsAndGoals?: { timeFrame: string; dream: string; why: string }[]
     visionBoardUrl?: string | null
+    whyStatement?: string
     notes?: string
   }
 
@@ -61,6 +62,7 @@ export async function PUT(req: NextRequest) {
   if (body.whatIsStopping !== undefined) data.whatIsStopping = body.whatIsStopping
   if (body.dreamsAndGoals !== undefined) data.dreamsAndGoals = body.dreamsAndGoals
   if (body.visionBoardUrl !== undefined) data.visionBoardUrl = body.visionBoardUrl
+  if (body.whyStatement !== undefined) data.whyStatement = body.whyStatement
   if (body.notes !== undefined) data.notes = body.notes
 
   const pfr = await db.personalFinancialReview.upsert({
