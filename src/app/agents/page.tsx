@@ -6374,6 +6374,7 @@ function PfrReadOnly({ agentCode, agentFirstName, previewToken }: { agentCode: s
   const [pfr, setPfr] = useState<Record<string, unknown> | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [visionLightbox, setVisionLightbox] = useState(false)
 
   useEffect(() => {
     const url = `/api/agents/trainees/${agentCode}/pfr${previewToken ? `?preview=${encodeURIComponent(previewToken)}` : ''}`
@@ -6388,7 +6389,7 @@ function PfrReadOnly({ agentCode, agentFirstName, previewToken }: { agentCode: s
   if (error) return <div style={{ fontSize: 11, color: '#f87171' }}>{error}</div>
   if (!pfr) return <div style={{ fontSize: 11, color: '#4B5563' }}>{agentFirstName} hasn&apos;t started their PFR yet.</div>
 
-  const p = pfr as { monthlyIncome?: number; expenses?: Record<string, number>; assets?: Record<string, number>; debts?: Record<string, number>; buckets?: Record<string, number>; dreamsAndGoals?: { timeFrame: string; dream: string; why: string }[]; retirementAge?: number; spouseRetAge?: number; desiredMonthlyRetirement?: number; monthlySavingsCommitment?: number; whatWouldThisDo?: string; whatIsStopping?: string }
+  const p = pfr as { monthlyIncome?: number; expenses?: Record<string, number>; assets?: Record<string, number>; debts?: Record<string, number>; buckets?: Record<string, number>; dreamsAndGoals?: { timeFrame: string; dream: string; why: string }[]; retirementAge?: number; spouseRetAge?: number; desiredMonthlyRetirement?: number; monthlySavingsCommitment?: number; whatWouldThisDo?: string; whatIsStopping?: string; visionBoardUrl?: string | null }
   const fmt = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 })
   const expenses = p.expenses ?? {}
   const assets = p.assets ?? {}
@@ -6527,6 +6528,20 @@ function PfrReadOnly({ agentCode, agentFirstName, previewToken }: { agentCode: s
         </div>
       )}
 
+      {/* Vision Board */}
+      {p.visionBoardUrl && (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: '#6B8299', marginBottom: 4 }}>My Vision Board</div>
+          <div
+            onClick={() => setVisionLightbox(true)}
+            style={{ cursor: 'pointer', borderRadius: 4, overflow: 'hidden', border: '1px solid rgba(201,169,110,0.12)' }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={p.visionBoardUrl} alt="Vision Board" style={{ width: '100%', maxHeight: 120, objectFit: 'cover', display: 'block' }} />
+          </div>
+        </div>
+      )}
+
       {/* Dreams & Goals */}
       {goals.length > 0 && (
         <div style={{ marginTop: 8 }}>
@@ -6538,6 +6553,27 @@ function PfrReadOnly({ agentCode, agentFirstName, previewToken }: { agentCode: s
               {g.why && <span style={{ color: '#4B5563' }}>&mdash; {String(g.why)}</span>}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Vision Board Lightbox */}
+      {visionLightbox && p.visionBoardUrl && (
+        <div
+          onClick={() => setVisionLightbox(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', padding: 24,
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={p.visionBoardUrl}
+            alt="Vision Board"
+            style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 8 }}
+            onClick={e => e.stopPropagation()}
+          />
         </div>
       )}
     </div>

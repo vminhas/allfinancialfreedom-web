@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
   Tooltip, RadialBarChart, RadialBar, Legend,
 } from 'recharts'
+import { ImagePlus, X, RefreshCw } from 'lucide-react'
 import { useIsMobile } from '@/lib/useIsMobile'
 
 const EXPENSE_KEYS = [
@@ -71,12 +72,16 @@ export default function PFRPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const [visionBoardUrl, setVisionBoardUrl] = useState<string | null>(null)
+  const [uploadingVision, setUploadingVision] = useState(false)
+  const [visionLightbox, setVisionLightbox] = useState(false)
+  const visionInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetch('/api/agents/pfr').then(r => {
       if (r.status === 401) { router.push('/agents/login'); return null }
       return r.json()
-    }).then((d: { pfr?: PFRData } | null) => {
+    }).then((d: { pfr?: PFRData & { visionBoardUrl?: string | null } } | null) => {
       if (d?.pfr) {
         setData({
           ...defaultPFR, ...d.pfr,
@@ -86,6 +91,7 @@ export default function PFRPage() {
           buckets: (d.pfr.buckets && typeof d.pfr.buckets === 'object') ? d.pfr.buckets as Record<string, number> : defaultPFR.buckets,
           dreamsAndGoals: Array.isArray(d.pfr.dreamsAndGoals) ? d.pfr.dreamsAndGoals as PFRData['dreamsAndGoals'] : [],
         })
+        if (d.pfr.visionBoardUrl) setVisionBoardUrl(d.pfr.visionBoardUrl)
       }
       setLoading(false)
     })
@@ -115,6 +121,31 @@ export default function PFRPage() {
   }
   const updateBucket = (key: string, value: number) => {
     const updated = { ...data, buckets: { ...data.buckets, [key]: value } }; setData(updated); save(updated)
+  }
+
+  const handleVisionUpload = async (file: File) => {
+    setUploadingVision(true)
+    const fd = new FormData()
+    fd.append('file', file)
+    try {
+      const res = await fetch('/api/agents/vision-board', { method: 'POST', body: fd })
+      const json = await res.json() as { ok?: boolean; visionBoardUrl?: string; error?: string }
+      if (json.ok && json.visionBoardUrl) setVisionBoardUrl(json.visionBoardUrl)
+    } finally {
+      setUploadingVision(false)
+      if (visionInputRef.current) visionInputRef.current.value = ''
+    }
+  }
+
+  const handleVisionRemove = async () => {
+    if (!confirm('Remove your vision board?')) return
+    setUploadingVision(true)
+    try {
+      await fetch('/api/agents/vision-board', { method: 'DELETE' })
+      setVisionBoardUrl(null)
+    } finally {
+      setUploadingVision(false)
+    }
   }
 
   const totalExpenses = useMemo(() => Object.values(data.expenses).reduce((a, b) => a + (b || 0), 0), [data.expenses])
@@ -416,6 +447,119 @@ export default function PFRPage() {
               style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}
             >+ Add Goal</button>
           </div>
+
+          {/* Vision Board */}
+          <div style={{ marginBottom: 16 }}>
+            <input
+              ref={visionInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              style={{ display: 'none' }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleVisionUpload(f) }}
+            />
+            {visionBoardUrl ? (
+              <div style={{ position: 'relative' }}>
+                <div
+                  onClick={() => setVisionLightbox(true)}
+                  style={{
+                    cursor: 'pointer', borderRadius: 6, overflow: 'hidden',
+                    border: '1px solid rgba(201,169,110,0.15)',
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={visionBoardUrl}
+                    alt="My Vision Board"
+                    style={{ width: '100%', maxHeight: 300, objectFit: 'cover', display: 'block' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'flex-end' }}>
+                  <button
+                    onClick={() => visionInputRef.current?.click()}
+                    disabled={uploadingVision}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 4,
+                      background: 'none', border: '1px solid rgba(201,169,110,0.3)',
+                      borderRadius: 4, padding: '4px 10px', fontSize: 10, color: '#9BB0C4',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <RefreshCw size={11} /> Replace
+                  </button>
+                  <button
+                    onClick={handleVisionRemove}
+                    disabled={uploadingVision}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 4,
+                      background: 'none', border: '1px solid rgba(255,100,100,0.3)',
+                      borderRadius: 4, padding: '4px 10px', fontSize: 10, color: '#f87171',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <X size={11} /> Remove
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div
+                onClick={() => !uploadingVision && visionInputRef.current?.click()}
+                style={{
+                  border: '2px dashed rgba(201,169,110,0.3)', borderRadius: 8,
+                  padding: isMobile ? '24px 16px' : '32px 24px',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+                  cursor: uploadingVision ? 'wait' : 'pointer',
+                  transition: 'border-color 0.15s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(201,169,110,0.6)')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(201,169,110,0.3)')}
+              >
+                {uploadingVision ? (
+                  <div style={{ fontSize: 12, color: '#C9A96E' }}>Uploading...</div>
+                ) : (
+                  <>
+                    <ImagePlus size={28} color="#C9A96E" strokeWidth={1.5} />
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#C9A96E' }}>Upload Your Vision Board</div>
+                    <div style={{ fontSize: 11, color: '#6B8299', textAlign: 'center' }}>
+                      Add an image of your vision board to keep your goals front and center
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Lightbox */}
+          {visionLightbox && visionBoardUrl && (
+            <div
+              onClick={() => setVisionLightbox(false)}
+              style={{
+                position: 'fixed', inset: 0, zIndex: 9999,
+                background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', padding: 24,
+              }}
+            >
+              <button
+                onClick={() => setVisionLightbox(false)}
+                style={{
+                  position: 'absolute', top: 16, right: 16,
+                  background: 'rgba(255,255,255,0.1)', border: 'none',
+                  borderRadius: '50%', width: 36, height: 36,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                <X size={18} color="#ffffff" />
+              </button>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={visionBoardUrl}
+                alt="Vision Board"
+                style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 8 }}
+                onClick={e => e.stopPropagation()}
+              />
+            </div>
+          )}
 
           {data.dreamsAndGoals.length === 0 ? (
             <div style={{ color: '#4B5563', fontSize: 12, padding: '16px 0', textAlign: 'center' }}>

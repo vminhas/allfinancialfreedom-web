@@ -488,6 +488,7 @@ model PersonalFinancialReview {
   whatWouldThisDo String?
   whatIsStopping  String?
   dreamsAndGoals  Json         @default("[]")
+  visionBoardUrl  String?
   notes           String?
   updatedAt       DateTime     @updatedAt
   createdAt       DateTime     @default(now())
