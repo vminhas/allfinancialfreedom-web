@@ -71,6 +71,8 @@ export async function POST(req: NextRequest) {
     discordEvent: 'created' | 'skipped (past date)' | 'duplicate' | false
     discordError?: string
     duplicateOfId?: string
+    duplicateReason?: string
+    duplicateTitle?: string
   }> = []
   let duplicates = 0
 
@@ -104,37 +106,79 @@ export async function POST(req: NextRequest) {
           lte: new Date(startsAt.getTime() + DEDUPE_WINDOW_MS),
         },
       },
-      select: { id: true, title: true, streamId: true, startsAt: true },
+      select: { id: true, title: true, streamId: true, startsAt: true, discordEventId: true, flyerImageUrl: true, durationMinutes: true, presenters: true, streamType: true, streamRoomName: true, passcode: true },
     })
     const titleN = norm(ev.title)
     const streamIdN = norm(ev.streamId)
+    let dupReason = ''
     const dup = candidates.find(c => {
       const ct = norm(c.title)
       const cs = norm(c.streamId)
-      // Zoom meeting ID is the strongest signal — same ID in the window = same event
-      if (streamIdN && cs && streamIdN === cs) return true
-      // Exact title match
-      if (ct === titleN) return true
-      // Fuzzy title: one is a substring of the other AND the shorter is at
-      // least 75% the length of the longer. This catches "GFI Systems Training"
-      // vs "Systems Training" but rejects false positives like "Mindset Mondays"
-      // matching "Systems & Mindset Mondays".
+      if (streamIdN && cs && streamIdN === cs) { dupReason = `streamId match (${streamIdN})`; return true }
+      if (ct === titleN) { dupReason = 'exact title match'; return true }
       if (titleN.length >= 8 && ct.length >= 8) {
         const shorter = Math.min(titleN.length, ct.length)
         const longer = Math.max(titleN.length, ct.length)
-        if (shorter / longer >= 0.75 && (titleN.includes(ct) || ct.includes(titleN))) return true
+        if (shorter / longer >= 0.75 && (titleN.includes(ct) || ct.includes(titleN))) {
+          dupReason = `fuzzy title ("${ct}" ~ "${titleN}")`; return true
+        }
       }
       return false
     })
     if (dup) {
-      duplicates++
+      // If the DB record exists but has no Discord event (e.g. created by
+      // Drive sync with a failed Discord call), create the Discord event
+      // now so re-posting a flyer actually fixes the gap.
+      let discordStatus: 'duplicate' | 'created' = 'duplicate'
+      if (!dup.discordEventId && dup.startsAt > new Date() && process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_GUILD_ID) {
+        try {
+          const dupPresenters = Array.isArray(dup.presenters) ? (dup.presenters as { name: string; role: string }[]) : []
+          const presenterLine = dupPresenters.map(p => `${p.name} (${p.role})`).join(' · ')
+          const dupJoinUrl = buildJoinUrl(dup.streamId, dup.passcode)
+          const durationMins = dup.durationMinutes ?? 60
+          const endsAtDup = new Date(dup.startsAt.getTime() + durationMins * 60_000)
+          const description = [
+            presenterLine && `**Presenters:** ${presenterLine}`,
+            dup.streamRoomName && `**Stream:** ${dup.streamRoomName}`,
+            dup.streamId && `**ID:** \`${dup.streamId}\``,
+            dup.passcode && `**Passcode:** \`${dup.passcode}\``,
+            dupJoinUrl && `**Join:** ${dupJoinUrl}`,
+          ].filter(Boolean).join('\n')
+          const passcodeStr = dup.passcode ? ` · pw ${dup.passcode}` : ''
+          const location = dupJoinUrl
+            ? `${dupJoinUrl}${passcodeStr}`.slice(0, 100)
+            : `${dup.streamRoomName ?? 'Stream'} · ID ${dup.streamId ?? '—'}${passcodeStr}`.slice(0, 100)
+
+          const discordEvent = await createGuildScheduledEvent({
+            name: dup.title,
+            description,
+            scheduledStartTime: dup.startsAt.toISOString(),
+            scheduledEndTime: endsAtDup.toISOString(),
+            location,
+          })
+          await db.trainingEvent.update({
+            where: { id: dup.id },
+            data: { discordEventId: discordEvent.id, discordEventCreatedAt: new Date() },
+          })
+          discordStatus = 'created'
+        } catch { /* best effort */ }
+      }
+
+      // Also backfill the flyer image if the DB record is missing one
+      if (!dup.flyerImageUrl && flyerImageUrl) {
+        await db.trainingEvent.update({ where: { id: dup.id }, data: { flyerImageUrl } }).catch(() => {})
+      }
+
+      if (discordStatus !== 'created') duplicates++
       created.push({
         id: dup.id,
         title: ev.title,
         startsAt: dup.startsAt.toISOString(),
         presenters: (ev.presenters ?? []).map(p => p.name),
-        discordEvent: 'duplicate',
+        discordEvent: discordStatus === 'created' ? 'created' : 'duplicate',
         duplicateOfId: dup.id,
+        duplicateReason: dupReason,
+        duplicateTitle: dup.title,
       })
       continue
     }

@@ -561,7 +561,11 @@ client.on(Events.MessageCreate, async (message) => {
         if (e.discordEvent === 'created') status = ' ✅ Discord event created';
         else if (e.discordEvent === false) status = ` ⚠️ Discord failed: ${e.discordError || 'unknown'}`;
         else if (e.discordEvent === 'skipped (past date)') status = ' ⏭️ Past date, no Discord event';
-        else if (e.discordEvent === 'duplicate') status = ' ♻️ Already exists, skipped';
+        else if (e.discordEvent === 'duplicate') {
+          const reason = e.duplicateReason ? ` (${e.duplicateReason})` : '';
+          const matchedTitle = e.duplicateTitle && e.duplicateTitle !== e.title ? ` [matched: "${e.duplicateTitle}"]` : '';
+          status = ` ♻️ Already exists, skipped${reason}${matchedTitle}`;
+        }
         return `• **${e.title}** — ${date}${status}`;
       });
       // Distinguish "all duplicate" / "some duplicate" / "all new" so Vick
