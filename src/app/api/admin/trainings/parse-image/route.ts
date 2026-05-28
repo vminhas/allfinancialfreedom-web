@@ -97,8 +97,18 @@ export async function POST(req: NextRequest) {
     // side) and fall back to streamId match for robustness when Claude
     // re-cases or re-spaces the title between two reads of the same
     // flyer.
+    //
+    // Unpublished events do NOT count as conflicts. If an admin
+    // unpublishes an old training and uploads a new flyer that takes
+    // the same time slot (e.g., the speaker changed and we kept the
+    // old row for history), the new event needs to land cleanly
+    // without a misleading "duplicate" report. The training-reminders
+    // cron already ignores unpublished events, so suppressing them
+    // here too keeps the whole pipeline consistent on the rule
+    // "unpublished = not on the schedule."
     const candidates = await db.trainingEvent.findMany({
       where: {
+        published: true,
         startsAt: {
           gte: new Date(startsAt.getTime() - DEDUPE_WINDOW_MS),
           lte: new Date(startsAt.getTime() + DEDUPE_WINDOW_MS),
