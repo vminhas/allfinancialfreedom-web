@@ -276,8 +276,12 @@ export async function syncTrainingsFromDrive(opts: SyncOptions = {}): Promise<Sy
         },
       })
 
-      // Drop sessions that have already ended so the card never lists stale rows.
+      // Keep all of today's sessions in the roundup even if some already ended,
+      // so the full day is always visible. Only drop sessions from past days.
+      const todayStart = new Date(roundupNow.toLocaleString('en-US', { timeZone: 'America/New_York' }))
+      todayStart.setHours(0, 0, 0, 0)
       const rows = weekRows.filter(r => {
+        if (r.startsAt >= todayStart) return true
         const ends = r.startsAt.getTime() + (r.durationMinutes ?? 60) * 60_000
         return ends > roundupNow.getTime()
       })
@@ -327,7 +331,16 @@ export async function postWeeklyRoundupForRows(
     const liveEvents = await listGuildScheduledEvents()
     validDiscordIds = new Set(liveEvents.map(e => e.id))
 
-    const staleRows = rows.filter(r => r.discordEventId && !validDiscordIds.has(r.discordEventId))
+    // Only clear Discord IDs for events that are genuinely stale (cancelled
+    // or deleted in Discord), not events that naturally completed today.
+    // Discord's API only returns SCHEDULED/ACTIVE events, so completed
+    // ones would appear stale. Preserve today's IDs so they stay in the roundup.
+    const reconcileNow = new Date()
+    const todayStartET = new Date(reconcileNow.toLocaleString('en-US', { timeZone: 'America/New_York' }))
+    todayStartET.setHours(0, 0, 0, 0)
+    const staleRows = rows.filter(r =>
+      r.discordEventId && !validDiscordIds.has(r.discordEventId) && r.startsAt < todayStartET,
+    )
     if (staleRows.length > 0) {
       await db.trainingEvent.updateMany({
         where: { id: { in: staleRows.map(r => r.id) } },
