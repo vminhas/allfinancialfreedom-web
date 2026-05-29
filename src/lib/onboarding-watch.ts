@@ -55,7 +55,9 @@ function startDateOf(p: { icaDate: Date | null; createdAt: Date }): Date {
  */
 export async function getOnboardingLaggards(now = new Date()): Promise<OnboardingLaggard[]> {
   const agents = await db.agentProfile.findMany({
-    where: { status: 'ACTIVE' },
+    // Referral partners are ACTIVE profiles but not recruited agents who
+    // go through onboarding, so they should never trigger the watch.
+    where: { status: 'ACTIVE', isReferralPartner: false },
     select: {
       id: true,
       firstName: true,
