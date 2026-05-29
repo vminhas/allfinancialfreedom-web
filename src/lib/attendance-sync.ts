@@ -291,10 +291,28 @@ export async function syncTrainingAttendance(
   // 6. Replace the orphan list for this event. Re-syncs are idempotent:
   //    any orphan the admin already resolved keeps resolvedAt set, so
   //    we only delete unresolved ones before writing the fresh batch.
+  //
+  //    Permanently-dismissed guests (AttendanceDismissal) are filtered
+  //    out so a confirmed non-agent does not reappear in the orphan
+  //    queue every sync. Match on normalized display name OR email.
+  const dismissals = await db.attendanceDismissal.findMany({
+    select: { nameKey: true, email: true },
+  })
+  const dismissedNames = new Set(dismissals.map(d => d.nameKey))
+  const dismissedEmails = new Set(
+    dismissals.map(d => normEmail(d.email)).filter(e => e.length > 0),
+  )
+  const liveOrphans = orphans.filter(o => {
+    if (dismissedNames.has(normName(o.displayName))) return false
+    const e = normEmail(o.email)
+    if (e && dismissedEmails.has(e)) return false
+    return true
+  })
+
   await db.trainingAttendanceOrphan.deleteMany({
     where: { trainingEventId: trainingEvent.id, resolvedAt: null },
   })
-  for (const o of orphans) {
+  for (const o of liveOrphans) {
     await db.trainingAttendanceOrphan.create({
       data: {
         trainingEventId: trainingEvent.id,
@@ -321,7 +339,7 @@ export async function syncTrainingAttendance(
     excused,
     notTracking,
     notJoinedYet,
-    orphans: orphans.length,
+    orphans: liveOrphans.length,
     participantsFetched: agg.length,
   }
 }

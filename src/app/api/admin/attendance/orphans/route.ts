@@ -183,10 +183,58 @@ export async function DELETE(req: NextRequest) {
   const orphan = await db.trainingAttendanceOrphan.findUnique({ where: { id: orphanId } })
   if (!orphan) return NextResponse.json({ error: 'Orphan not found' }, { status: 404 })
 
+  // Stamp this orphan resolved so it leaves the queue now.
   await db.trainingAttendanceOrphan.update({
     where: { id: orphanId },
     data: { resolvedAt: new Date(), resolvedAgentId: null },
   })
 
+  // Persist a permanent dismissal so the sync never recreates this
+  // guest as an orphan again (across all trainings). Keyed by the
+  // normalized display name, with email stored as an extra match
+  // signal. Idempotent: re-dismissing the same name updates the row.
+  const nameKey = normName(orphan.zoomDisplayName)
+  const emailKey = orphan.zoomEmail?.toLowerCase().trim() || null
+  if (nameKey) {
+    await db.attendanceDismissal.upsert({
+      where: { nameKey },
+      create: { nameKey, email: emailKey, displayName: orphan.zoomDisplayName },
+      update: { email: emailKey, displayName: orphan.zoomDisplayName },
+    })
+  }
+
+  // Also clear any other still-open orphans for the same guest across
+  // events so dismissing once empties the whole queue of that person.
+  if (nameKey) {
+    const sameGuest = await db.trainingAttendanceOrphan.findMany({
+      where: { resolvedAt: null },
+      select: { id: true, zoomDisplayName: true, zoomEmail: true },
+    })
+    const ids = sameGuest
+      .filter(o =>
+        normName(o.zoomDisplayName) === nameKey ||
+        (emailKey && o.zoomEmail?.toLowerCase().trim() === emailKey),
+      )
+      .map(o => o.id)
+    if (ids.length > 0) {
+      await db.trainingAttendanceOrphan.updateMany({
+        where: { id: { in: ids } },
+        data: { resolvedAt: new Date(), resolvedAgentId: null },
+      })
+    }
+  }
+
   return NextResponse.json({ ok: true })
+}
+
+// Normalize a display name the same way attendance-sync does so the
+// dismissal key matches what the sync compares against.
+function normName(s: string | null | undefined): string {
+  return (s ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^\w\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }

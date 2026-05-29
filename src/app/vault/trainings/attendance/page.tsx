@@ -184,6 +184,7 @@ export default function AttendancePage() {
   const [orphans, setOrphans] = useState<OrphanRow[]>([])
   const [orphanAgents, setOrphanAgents] = useState<AgentPicker[]>([])
   const [showOrphans, setShowOrphans] = useState(false)
+  const [showDismissed, setShowDismissed] = useState(false)
 
   interface UntrackedEvent {
     id: string
@@ -430,6 +431,33 @@ export default function AttendancePage() {
     } finally { setSavingCell(false) }
   }
 
+  // Save just the note without changing the cell's status. Preserves
+  // the current manual override (if any); otherwise leaves the status
+  // auto-computed and only attaches the note. This is what the popover's
+  // "Save note" button calls, since picking a status button was the
+  // only way to persist a note before.
+  const saveNote = async () => {
+    if (!popover) return
+    setSavingCell(true)
+    try {
+      const res = await fetch('/api/admin/attendance/cell', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          trainingEventId: popover.eventId,
+          agentProfileId: popover.agentProfileId,
+          manualStatus: popover.cell.manual ? popover.cell.status : null,
+          note: popoverNote || null,
+        }),
+      })
+      if (res.ok) {
+        await load()
+        setPopover(null)
+        setPopoverNote('')
+      }
+    } finally { setSavingCell(false) }
+  }
+
   const publishToDiscord = async (eventId: string) => {
     setPublishing(true)
     setPublishMsg(null)
@@ -646,7 +674,20 @@ export default function AttendancePage() {
             {showOrphans ? 'Hide' : 'Resolve'} {orphans.length} unmatched
           </button>
         )}
+        <button
+          onClick={() => setShowDismissed(true)}
+          style={{
+            padding: '8px 14px', background: 'transparent',
+            color: '#9BB0C4', border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 4, fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
+            textTransform: 'uppercase', cursor: 'pointer',
+          }}
+          title="View and undo dismissed guests"
+        >
+          Manage dismissed
+        </button>
       </div>
+      {showDismissed && <DismissedManager onClose={() => setShowDismissed(false)} onChanged={loadOrphans} />}
 
       {bulkSync && (
         <div style={{
@@ -789,7 +830,7 @@ export default function AttendancePage() {
                   <td style={{ ...tdStyle, position: 'sticky', left: 0, zIndex: 2, background: '#0C1E30', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: '#6B8299' }}>
                     {row.daysInCompany ?? '—'}
                   </td>
-                  <td style={{ ...tdStyle, position: 'sticky', left: 78, zIndex: 2, background: '#0C1E30' }}>
+                  <td style={{ ...tdStyle, position: 'sticky', left: 78, zIndex: hoverAgentId === row.agentProfileId ? 40 : 2, background: '#0C1E30' }}>
                     <div
                       style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}
                       onMouseEnter={() => setHoverAgentId(row.agentProfileId)}
@@ -1339,12 +1380,19 @@ export default function AttendancePage() {
               style={{ ...inputStyle, fontFamily: 'inherit', minHeight: 48 }}
             />
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
               <button
                 onClick={() => setPopover(null)}
                 style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', color: '#9BB0C4', borderRadius: 4, padding: '7px 14px', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}
               >
                 Close
+              </button>
+              <button
+                onClick={saveNote}
+                disabled={savingCell}
+                style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '7px 16px', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: savingCell ? 'wait' : 'pointer', opacity: savingCell ? 0.7 : 1 }}
+              >
+                {savingCell ? 'Saving...' : 'Save note'}
               </button>
             </div>
           </div>
@@ -1384,6 +1432,71 @@ function Stat({ color, label, value }: { color: string; label: string; value: nu
       </div>
       <div style={{ fontSize: 18, fontWeight: 700, color: '#fff', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1 }}>
         {value}
+      </div>
+    </div>
+  )
+}
+
+interface DismissalRow { id: string; displayName: string; email: string | null; createdAt: string }
+
+// Modal listing permanently-dismissed Zoom guests with an un-dismiss
+// action. Un-dismissing removes the suppression so the guest can
+// surface as an orphan again on the next sync (then be matched).
+function DismissedManager({ onClose, onChanged }: { onClose: () => void; onChanged: () => void | Promise<void> }) {
+  const [rows, setRows] = useState<DismissalRow[] | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+
+  const load = async () => {
+    const res = await fetch('/api/admin/attendance/dismissals')
+    if (res.ok) setRows((await res.json() as { dismissals: DismissalRow[] }).dismissals)
+    else setRows([])
+  }
+  useEffect(() => { load() }, [])
+
+  const undismiss = async (id: string) => {
+    setBusy(id)
+    try {
+      const res = await fetch(`/api/admin/attendance/dismissals?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+      if (res.ok) {
+        setRows(prev => prev?.filter(r => r.id !== id) ?? null)
+        await onChanged()
+      }
+    } finally { setBusy(null) }
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, maxHeight: '80vh', overflowY: 'auto', background: '#0F1E33', border: '1px solid rgba(201,169,110,0.2)', borderRadius: 8, padding: 22 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+          <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#fff' }}>Dismissed guests</h2>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#9BB0C4', fontSize: 18, cursor: 'pointer' }}>×</button>
+        </div>
+        <p style={{ margin: '0 0 14px', fontSize: 12, color: '#6B8299', lineHeight: 1.5 }}>
+          These Zoom guests are hidden from the unmatched queue on every sync. Un-dismiss anyone you want to match to an agent later; they will resurface on the next attendance sync.
+        </p>
+        {rows === null ? (
+          <div style={{ fontSize: 12, color: '#6B8299' }}>Loading…</div>
+        ) : rows.length === 0 ? (
+          <div style={{ fontSize: 12, color: '#4B5563' }}>No dismissed guests. Dismissing an unmatched attendee adds them here.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {rows.map(r => (
+              <div key={r.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 4 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.displayName}</div>
+                  {r.email && <div style={{ fontSize: 10, color: '#6B8299', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.email}</div>}
+                </div>
+                <button
+                  onClick={() => undismiss(r.id)}
+                  disabled={busy === r.id}
+                  style={{ flexShrink: 0, background: 'rgba(96,165,250,0.12)', color: '#60A5FA', border: '1px solid rgba(96,165,250,0.3)', borderRadius: 4, padding: '5px 10px', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: busy === r.id ? 'wait' : 'pointer' }}
+                >
+                  {busy === r.id ? '...' : 'Un-dismiss'}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

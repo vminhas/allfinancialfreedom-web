@@ -1988,6 +1988,25 @@ model TeamMember {
   @@map("team_members")
 }
 
+// Permanent "don't surface this Zoom guest again" list for attendance
+// matching. Without this, dismissing an unmatched attendee only hid it
+// until the next sync recreated the orphan row. The attendance sync
+// checks this table and skips any participant whose normalized display
+// name (or email) is dismissed, so a confirmed non-agent guest stays
+// gone across all trainings. Un-dismissing deletes the row, letting
+// them surface again. nameKey is the normalized display name; email is
+// an additional match signal.
+model AttendanceDismissal {
+  id          String   @id @default(cuid())
+  nameKey     String   @unique
+  email       String?
+  displayName String
+  createdAt   DateTime @default(now())
+
+  @@index([email])
+  @@map("attendance_dismissals")
+}
+
 // Licensing Coordinator task list. Two kinds:
 //   * recurring = true:  daily SOP steps. They show every day and are
 //     considered "done today" only when completedOn == today (ET), so
