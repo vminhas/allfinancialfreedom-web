@@ -57,6 +57,45 @@ export async function ghlPut(path: string, body: unknown, config?: GhlConfig) {
 export const CEO_MAILBOX = { email: 'vick@allfinancialfreedom.com', name: 'Vick Minhas' }
 export const OPS_MAILBOX = { email: 'operations@allfinancialfreedom.com', name: 'All Financial Freedom' }
 
+// Find a GHL contact by email, creating one if it doesn't exist, and
+// return its id. GHL email sends require a contactId, so any flow that
+// emails an address we don't already manage (staff digests, reminders,
+// invites) goes through here first.
+//
+// `tags` defaults to none. Agent-facing flows pass ['agent-portal'];
+// internal/staff sends (e.g. the LC daily digest to leadership) should
+// pass a neutral tag like ['staff'] or nothing, so the recipient is not
+// dropped into the agent recruiting funnel.
+export async function getOrCreateGhlContactId(opts: {
+  email: string
+  firstName?: string
+  lastName?: string
+  tags?: string[]
+  config?: GhlConfig
+}): Promise<string | null> {
+  const config = opts.config ?? await getGhlConfig()
+  try {
+    const searchRes = await ghlGet(
+      `/contacts/?locationId=${config.locationId}&query=${encodeURIComponent(opts.email)}`,
+      config,
+    )
+    const data = await searchRes.json() as { contacts?: { id: string }[] }
+    if (data.contacts?.[0]?.id) return data.contacts[0].id
+
+    const created = await ghlPost('/contacts/', {
+      locationId: config.locationId,
+      email: opts.email,
+      firstName: opts.firstName ?? '',
+      lastName: opts.lastName ?? '',
+      tags: opts.tags ?? [],
+    }, config)
+    const createdData = await created.json() as { contact?: { id: string } }
+    return createdData.contact?.id ?? null
+  } catch {
+    return null
+  }
+}
+
 export async function sendGhlEmail(params: {
   contactId: string
   emailTo: string

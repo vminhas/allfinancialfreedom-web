@@ -249,6 +249,7 @@ export default function SettingsPage() {
     ZOOM_CLIENT_ID: '',
     ZOOM_CLIENT_SECRET: '',
     ATTENDANCE_PRESENT_THRESHOLD_PCT: '',
+    LC_DIGEST_RECIPIENT_EMAIL: '',
   })
 
   const [zoomTesting, setZoomTesting] = useState(false)
@@ -561,6 +562,7 @@ export default function SettingsPage() {
             <Field label="GHL Pipeline ID (AFF Recruit)" name="GHL_PIPELINE_ID" value={fields.GHL_PIPELINE_ID} onChange={set('GHL_PIPELINE_ID')} placeholder="Found in GHL → Opportunities → Pipelines URL" />
             <Field label="Anthropic API Key (Claude)" name="ANTHROPIC_API_KEY" value={fields.ANTHROPIC_API_KEY} onChange={set('ANTHROPIC_API_KEY')} placeholder="sk-ant-... (used for AI email drafting)" />
             <Field label="Vick's Email (for PropHog briefings)" name="VICK_EMAIL" value={fields.VICK_EMAIL} onChange={set('VICK_EMAIL')} placeholder="vick@allfinancialfreedom.com" />
+            <Field label="LC Daily Digest Recipient" name="LC_DIGEST_RECIPIENT_EMAIL" value={fields.LC_DIGEST_RECIPIENT_EMAIL} onChange={set('LC_DIGEST_RECIPIENT_EMAIL')} placeholder="melinee@allfinancialfreedom.com" />
 
             <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
               <button onClick={handleSave} disabled={saving} style={{

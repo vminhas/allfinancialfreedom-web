@@ -12,7 +12,17 @@ const ALLOWED_KEYS = [
   // Attendance threshold (percentage of meeting duration). Stored as
   // a string for consistency with the rest of the settings table.
   'ATTENDANCE_PRESENT_THRESHOLD_PCT',
+  // Recipient for the Licensing Coordinator daily digest email.
+  'LC_DIGEST_RECIPIENT_EMAIL',
 ]
+
+// Non-secret keys are returned in full so the settings page can show
+// the real value (and not save a masked string back over it). Secrets
+// stay masked to last-4.
+const PLAINTEXT_KEYS = new Set([
+  'GHL_PROPHOG_BOOKING_URL', 'VICK_EMAIL', 'LC_DIGEST_RECIPIENT_EMAIL',
+  'ATTENDANCE_PRESENT_THRESHOLD_PCT',
+])
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -20,11 +30,16 @@ export async function GET() {
 
   const values = await getSettings(ALLOWED_KEYS)
 
-  // Mask secrets — return only last 4 chars for display
+  // Mask secrets — return only last 4 chars for display. Plaintext
+  // (non-secret) keys come back in full.
   const masked: Record<string, string> = {}
   for (const key of ALLOWED_KEYS) {
     const v = values[key] ?? ''
-    masked[key] = v.length > 4 ? `${'•'.repeat(v.length - 4)}${v.slice(-4)}` : v ? '••••' : ''
+    if (PLAINTEXT_KEYS.has(key)) {
+      masked[key] = v
+    } else {
+      masked[key] = v.length > 4 ? `${'•'.repeat(v.length - 4)}${v.slice(-4)}` : v ? '••••' : ''
+    }
   }
 
   return NextResponse.json({ settings: masked })

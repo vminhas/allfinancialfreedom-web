@@ -8,7 +8,7 @@ import { logSubmissionActivity } from '@/lib/submission-activity'
 import { validatePhone, validateEmail } from '@/lib/contact-validation'
 import type { NewBusinessStatus, PolicyType } from '@/generated/prisma/client'
 
-const VALID_STATUSES: NewBusinessStatus[] = ['PENDING', 'ISSUED', 'DECLINED', 'LAPSED', 'NOT_TAKEN']
+const VALID_STATUSES: NewBusinessStatus[] = ['PENDING', 'ISSUED', 'DECLINED', 'LAPSED', 'NOT_TAKEN', 'HOLD']
 const VALID_POLICY_TYPES: PolicyType[] = ['TERM', 'WHOLE_LIFE', 'IUL', 'ANNUITY', 'DISABILITY', 'LTC', 'OTHER']
 
 const STAFF_EDITABLE = [

@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { requireRole, isAdmin } from '@/lib/permissions'
+import { isLicensingTopic } from '@/lib/licensing-topics'
+import { formatLicensingNoteBody } from '@/lib/lc-notes-format'
 
 // GET /api/vault/licensing-agents/[id]/notes
 // LC sees: scope=LICENSING only
@@ -44,20 +46,50 @@ export async function POST(
   const authorId = (session!.user as { id?: string }).id
   if (!authorId) return NextResponse.json({ error: 'Author missing' }, { status: 400 })
 
-  const body = await req.json() as { body: string; scope?: 'LICENSING' | 'ADMIN_ONLY' }
-  if (!body.body || body.body.trim().length === 0) {
-    return NextResponse.json({ error: 'Note body required' }, { status: 400 })
+  // Two shapes accepted:
+  //   Structured (LC SOP composer): { purpose, actionTaken?, additionalNote?, scope? }
+  //   Legacy free-text:             { body, scope? }
+  const payload = await req.json() as {
+    body?: string
+    purpose?: string
+    actionTaken?: string
+    additionalNote?: string
+    scope?: 'LICENSING' | 'ADMIN_ONLY'
+  }
+  const isStructured =
+    payload.purpose !== undefined ||
+    payload.actionTaken !== undefined ||
+    payload.additionalNote !== undefined
+
+  let noteBody: string
+  let purpose: string | null = null
+  if (isStructured) {
+    if (payload.purpose !== undefined && payload.purpose !== '' && !isLicensingTopic(payload.purpose)) {
+      return NextResponse.json({ error: 'Invalid purpose' }, { status: 400 })
+    }
+    purpose = payload.purpose ? payload.purpose : null
+    noteBody = formatLicensingNoteBody({
+      purpose,
+      actionTaken: payload.actionTaken,
+      additionalNote: payload.additionalNote,
+    })
+  } else {
+    if (!payload.body || payload.body.trim().length === 0) {
+      return NextResponse.json({ error: 'Note body required' }, { status: 400 })
+    }
+    noteBody = payload.body.trim()
   }
 
   // Force LICENSING scope for non-admin users
-  const requestedScope = body.scope === 'ADMIN_ONLY' ? 'ADMIN_ONLY' : 'LICENSING'
+  const requestedScope = payload.scope === 'ADMIN_ONLY' ? 'ADMIN_ONLY' : 'LICENSING'
   const scope = isAdmin(session) ? requestedScope : 'LICENSING'
 
   const note = await db.licensingNote.create({
     data: {
       agentProfileId: id,
       authorId,
-      body: body.body.trim(),
+      body: noteBody,
+      purpose,
       scope,
     },
     include: {

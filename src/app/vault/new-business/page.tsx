@@ -12,12 +12,20 @@ const fieldLabel = { fontSize: 10, fontWeight: 700 as const, letterSpacing: '0.1
 
 const STATUS_COLOR: Record<string, { bg: string; fg: string }> = {
   PENDING: { bg: 'rgba(245,158,11,0.15)', fg: '#F59E0B' },
+  HOLD: { bg: 'rgba(168,85,247,0.15)', fg: '#C084FC' },
   ISSUED: { bg: 'rgba(74,222,128,0.15)', fg: '#4ADE80' },
   DECLINED: { bg: 'rgba(239,68,68,0.15)', fg: '#EF4444' },
   LAPSED: { bg: 'rgba(107,114,128,0.2)', fg: '#9CA3AF' },
   NOT_TAKEN: { bg: 'rgba(107,114,128,0.2)', fg: '#9CA3AF' },
 }
-const STATUSES = ['PENDING', 'ISSUED', 'DECLINED', 'LAPSED', 'NOT_TAKEN'] as const
+const STATUSES = ['PENDING', 'HOLD', 'ISSUED', 'DECLINED', 'LAPSED', 'NOT_TAKEN'] as const
+// LC SOP labels: the guide calls PENDING "New" and uses "Hold" as a
+// distinct paused state. These labels drive the note composer + status
+// pills; the underlying enum values are unchanged.
+const STATUS_LABEL: Record<string, string> = {
+  PENDING: 'New', HOLD: 'Hold', ISSUED: 'Issued',
+  DECLINED: 'Declined', LAPSED: 'Lapsed', NOT_TAKEN: 'Not Taken',
+}
 const POLICY_LABEL: Record<string, string> = {
   TERM: 'Term', WHOLE_LIFE: 'Whole Life', IUL: 'IUL', ANNUITY: 'Annuity',
   DISABILITY: 'Disability', LTC: 'LTC', OTHER: 'Other',
@@ -295,7 +303,7 @@ export default function VaultNewBusinessPage() {
           <label style={fieldLabel}>Status</label>
           <select style={inputStyle} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
             <option value="">All</option>
-            {STATUSES.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+            {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABEL[s] ?? s}</option>)}
           </select>
         </div>
         <div style={{ minWidth: 170 }}>
@@ -519,7 +527,7 @@ function StatusPill({ status }: { status: string }) {
   const c = STATUS_COLOR[status] ?? STATUS_COLOR.PENDING
   return (
     <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 999, background: c.bg, color: c.fg, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-      {status.replace('_', ' ')}
+      {STATUS_LABEL[status] ?? status.replace('_', ' ')}
     </span>
   )
 }
@@ -534,6 +542,8 @@ function SubmissionDrawer({ id, onClose, onChanged }: { id: string; onClose: () 
   const [justSaved, setJustSaved] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [noteText, setNoteText] = useState('')
+  const [actionTaken, setActionTaken] = useState('')
+  const [tevahVerified, setTevahVerified] = useState(false)
   const [posting, setPosting] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
@@ -606,16 +616,40 @@ function SubmissionDrawer({ id, onClose, onChanged }: { id: string; onClose: () 
     } finally { setSaving(false) }
   }
 
+  // Structured SOP note. Requires Action Taken or Note (so an empty
+  // submit doesn't post). If the LC changed the status in the composer,
+  // PATCH the status FIRST (single status-change code path, keeps the
+  // notifyIssued/notifyDeclined pipeline intact) so the auto-generated
+  // licensing mirror note reflects the new status.
   const addNote = async () => {
-    if (!noteText.trim()) return
+    if (!actionTaken.trim() && !noteText.trim()) return
     setPosting(true)
     try {
+      if (detail && editStatus && editStatus !== detail.status) {
+        await fetch(`/api/vault/new-business/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status: editStatus,
+            issuedDate: issuedDate || null,
+            policyNumber: policyNumber || null,
+            declinedReason: declinedReason || null,
+          }),
+        })
+      }
       const res = await fetch(`/api/vault/new-business/${id}/notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body: noteText.trim() }),
+        body: JSON.stringify({
+          actionTaken: actionTaken.trim(),
+          tevahVerified,
+          note: noteText.trim(),
+        }),
       })
-      if (res.ok) { setNoteText(''); load(); onChanged() }
+      if (res.ok) {
+        setNoteText(''); setActionTaken(''); setTevahVerified(false)
+        load(); onChanged()
+      }
     } finally { setPosting(false) }
   }
 
@@ -676,7 +710,7 @@ function SubmissionDrawer({ id, onClose, onChanged }: { id: string; onClose: () 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div><label style={fieldLabel}>Status</label>
               <select style={inputStyle} value={editStatus} onChange={e => setEditStatus(e.target.value)}>
-                {STATUSES.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+                {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABEL[s] ?? s}</option>)}
               </select>
             </div>
             <div><label style={fieldLabel}>Issued Date</label>
@@ -780,14 +814,41 @@ function SubmissionDrawer({ id, onClose, onChanged }: { id: string; onClose: () 
         borderTop: '1px solid rgba(201,169,110,0.15)',
         background: '#0A1628',
       }}>
+        {/* Structured New Business note (LC SOP). Status + Action Taken
+            + Verified through Tevah + Note. On save, the agent's
+            licensing record gets the standardized one-liner
+            automatically (NEW BUSINESS SUBMITTED / NOTE). */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label style={{ fontSize: 10, color: '#6B8299', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Status</label>
+          <select
+            value={editStatus}
+            onChange={e => setEditStatus(e.target.value)}
+            style={{ ...inputStyle, width: 'auto', padding: '5px 8px', flex: '0 0 auto' }}
+          >
+            {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABEL[s] ?? s}</option>)}
+          </select>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#9BB0C4', cursor: 'pointer', marginLeft: 'auto' }}>
+            <input type="checkbox" checked={tevahVerified} onChange={e => setTevahVerified(e.target.checked)} />
+            Verified through Tevah
+          </label>
+        </div>
+        <input
+          value={actionTaken}
+          onChange={e => setActionTaken(e.target.value)}
+          placeholder="Action Taken (e.g. Called Ethos, confirmed issued)"
+          style={{ ...inputStyle, marginBottom: 8 }}
+        />
         <textarea
           value={noteText}
           onChange={e => setNoteText(e.target.value)}
-          placeholder="Add a note... (visible to the agent)"
-          style={{ ...inputStyle, height: 64, resize: 'vertical' }}
+          placeholder="Note (visible to the agent)"
+          style={{ ...inputStyle, height: 56, resize: 'vertical' }}
         />
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-          <button onClick={addNote} disabled={posting || !noteText.trim()} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: posting ? 'wait' : 'pointer', opacity: posting || !noteText.trim() ? 0.6 : 1 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, gap: 8 }}>
+          <span style={{ fontSize: 10, color: '#6B8299' }}>
+            Posting also logs a standardized note on the agent&apos;s licensing record.
+          </span>
+          <button onClick={addNote} disabled={posting || (!actionTaken.trim() && !noteText.trim())} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: posting ? 'wait' : 'pointer', opacity: posting || (!actionTaken.trim() && !noteText.trim()) ? 0.6 : 1, whiteSpace: 'nowrap' }}>
             {posting ? 'Posting...' : 'Add Note'}
           </button>
         </div>

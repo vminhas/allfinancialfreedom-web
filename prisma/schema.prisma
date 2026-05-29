@@ -1400,6 +1400,11 @@ model LicensingNote {
   authorId       String
   author         AdminUser    @relation(fields: [authorId], references: [id])
   body           String
+  // LC SOP: optional licensing "Purpose" for structured notes, stored
+  // as a LicensingRequestTopic enum string (e.g. 'SCHEDULE_EXAM'). Null
+  // for free-text notes and for the auto-generated New Business mirror
+  // notes. Source of truth for grouping the daily digest by purpose.
+  purpose        String?
   scope          NoteScope    @default(LICENSING)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
@@ -1416,6 +1421,10 @@ enum NewBusinessStatus {
   DECLINED
   LAPSED
   NOT_TAKEN
+  // Application paused (waiting on client info, underwriting, etc.).
+  // Added for the LC SOP, which tracks a "Hold" state distinct from
+  // Pending. The SOP's "New" maps to PENDING (the initial state).
+  HOLD
 }
 
 enum PolicyType {
@@ -1569,6 +1578,10 @@ model NewBusinessNote {
   authorAgent     AgentProfile?         @relation("SubmissionNoteAgent", fields: [authorAgentId], references: [id])
   authorAdminId   String?
   authorAdmin     AdminUser?            @relation("SubmissionNoteAdmin", fields: [authorAdminId], references: [id])
+
+  // LC SOP: each structured New Business note records whether the
+  // status was verified against the Tevah platform.
+  tevahVerified   Boolean               @default(false) @map("tevah_verified")
 
   createdAt       DateTime              @default(now())
 
@@ -1967,4 +1980,19 @@ model TeamMember {
 
   @@index([section, sortOrder])
   @@map("team_members")
+}
+
+// One row per day the Licensing Coordinator daily digest runs.
+// Gates the cron so a Vercel retry (or a double cron fire) doesn't
+// email Melinee + post to Discord twice. digestDate is the ET
+// calendar day ("YYYY-MM-DD"); the cron checks for an existing row
+// before sending and records which channels succeeded.
+model LcDigestRun {
+  id         String   @id @default(cuid())
+  digestDate String   @unique @map("digest_date")
+  sentAt     DateTime @default(now()) @map("sent_at")
+  emailOk    Boolean  @default(false) @map("email_ok")
+  discordOk  Boolean  @default(false) @map("discord_ok")
+
+  @@map("lc_digest_runs")
 }

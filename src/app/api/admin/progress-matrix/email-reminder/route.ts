@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/permissions'
-import { getGhlConfig, sendGhlEmail, ghlGet, ghlPost, OPS_MAILBOX } from '@/lib/ghl'
+import { getGhlConfig, sendGhlEmail, getOrCreateGhlContactId, OPS_MAILBOX } from '@/lib/ghl'
 
 // POST /api/admin/progress-matrix/email-reminder
 //
@@ -40,38 +40,9 @@ const SEND_DELAY_MS = 250
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
-// Mirrors the canonical pattern from /api/admin/agents/invite. Pulled
-// inline here rather than into a helper since we want this route to
-// be self-contained and the duplication is one-off; refactor if a
-// third caller appears.
-async function getOrCreateGhlContactId(opts: {
-  email: string
-  firstName: string
-  lastName: string
-  config: Awaited<ReturnType<typeof getGhlConfig>>
-}): Promise<string | null> {
-  const { config } = opts
-  try {
-    const searchRes = await ghlGet(
-      `/contacts/?locationId=${config.locationId}&query=${encodeURIComponent(opts.email)}`,
-      config,
-    )
-    const data = await searchRes.json() as { contacts?: { id: string }[] }
-    if (data.contacts?.[0]?.id) return data.contacts[0].id
-
-    const created = await ghlPost('/contacts/', {
-      locationId: config.locationId,
-      email: opts.email,
-      firstName: opts.firstName,
-      lastName: opts.lastName,
-      tags: ['agent-portal'],
-    }, config)
-    const createdData = await created.json() as { contact?: { id: string } }
-    return createdData.contact?.id ?? null
-  } catch {
-    return null
-  }
-}
+// getOrCreateGhlContactId now lives in @/lib/ghl (shared with the LC
+// daily digest). This route's calls pass tags: ['agent-portal'] to keep
+// the prior behavior.
 
 // 5 minutes — large enough to cover a 100-recipient batch with
 // 250ms-per-send pacing plus GHL round-trip variance.
@@ -174,7 +145,7 @@ export async function POST(req: NextRequest) {
 
     try {
       const contactId = await getOrCreateGhlContactId({
-        email, firstName: r.firstName, lastName: r.lastName, config,
+        email, firstName: r.firstName, lastName: r.lastName, tags: ['agent-portal'], config,
       })
       if (!contactId) throw new Error('Could not resolve GHL contact id')
 

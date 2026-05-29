@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { TOPIC_LABELS, type LicensingRequestTopic } from '@/components/LicensingRequestModal'
+import { LICENSING_TOPICS, LC_PURPOSE_LABELS, lcPurposeLabel } from '@/lib/licensing-topics'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { CARRIERS } from '@/lib/agent-constants'
 import DatePicker from '@/components/DatePicker'
@@ -76,6 +77,48 @@ interface LicensingAgent {
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
+
+// Collapsible "Daily SOP" reference for the Licensing Coordinator.
+// Static copy (no API). Always at the top of the Licensing Inbox so the
+// LC has the routine in front of them. Edit the steps in SOP_STEPS.
+const SOP_STEPS: string[] = [
+  'Morning: review the New Business queue (New + Hold first). Check Tevah for each open application and set "Verified through Tevah" when confirmed.',
+  'For each application you touch, add a structured New Business note (Status, Action Taken, Verified through Tevah, Note). The first note auto-logs "NEW BUSINESS SUBMITTED" on the agent; later notes log "NEW BUSINESS NOTE".',
+  'Licensing: work the open requests in your inbox. For each agent you help, add a structured Licensing note (Purpose, Action Taken, Additional Note).',
+  'Breezy HR: process new applicants that came in today.',
+  'End of day: make sure every status is current. The daily digest sends automatically at 9pm ET to leadership and the admin channel. Add any Misc items (flyers, announcement updates) to your own notes.',
+]
+
+function LcDailySopPanel() {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{
+      marginBottom: 20,
+      border: '1px solid rgba(201,169,110,0.18)',
+      borderRadius: 6,
+      background: 'rgba(201,169,110,0.04)',
+      overflow: 'hidden',
+    }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', textAlign: 'left', cursor: 'pointer',
+          background: 'transparent', border: 'none',
+          padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          color: '#C9A96E', fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase',
+        }}
+      >
+        <span>Daily SOP</span>
+        <span style={{ fontSize: 13 }}>{open ? '−' : '+'}</span>
+      </button>
+      {open && (
+        <ol style={{ margin: 0, padding: '0 20px 16px 36px', color: '#9BB0C4', fontSize: 12.5, lineHeight: 1.7 }}>
+          {SOP_STEPS.map((s, i) => <li key={i} style={{ marginBottom: 6 }}>{s}</li>)}
+        </ol>
+      )}
+    </div>
+  )
+}
 
 export default function LicensingWorkspacePage() {
   const { data: session } = useSession()
@@ -160,6 +203,8 @@ export default function LicensingWorkspacePage() {
           </div>
         </div>
       </div>
+
+      <LcDailySopPanel />
 
       {showAddAgentModal && (
         <LicensingAddAgentModal
@@ -1259,6 +1304,7 @@ interface NoteAuthor {
 interface NoteItem {
   id: string
   body: string
+  purpose?: string | null
   scope: 'LICENSING' | 'ADMIN_ONLY'
   createdAt: string
   updatedAt: string
@@ -1273,6 +1319,8 @@ function NotesTimeline({ agentId }: { agentId: string }) {
 
   const [notes, setNotes] = useState<NoteItem[] | null>(null)
   const [draft, setDraft] = useState('')
+  const [notePurpose, setNotePurpose] = useState<LicensingRequestTopic | ''>('')
+  const [noteAction, setNoteAction] = useState('')
   const [draftScope, setDraftScope] = useState<'LICENSING' | 'ADMIN_ONLY'>('LICENSING')
   const [submitting, setSubmitting] = useState(false)
 
@@ -1286,18 +1334,27 @@ function NotesTimeline({ agentId }: { agentId: string }) {
 
   useEffect(() => { load() }, [load])
 
+  // Structured Licensing note (LC SOP): Purpose + Action Taken +
+  // Additional Note. Requires a purpose plus at least one of the text
+  // fields so an empty submit doesn't post.
+  const canSubmit = !!notePurpose && (!!noteAction.trim() || !!draft.trim())
   const submit = async () => {
-    if (!draft.trim()) return
+    if (!canSubmit) return
     setSubmitting(true)
     const res = await fetch(`/api/vault/licensing-agents/${agentId}/notes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ body: draft, scope: isAdminUser ? draftScope : 'LICENSING' }),
+      body: JSON.stringify({
+        purpose: notePurpose,
+        actionTaken: noteAction.trim(),
+        additionalNote: draft.trim(),
+        scope: isAdminUser ? draftScope : 'LICENSING',
+      }),
     })
     if (res.ok) {
       const d = await res.json() as { note: NoteItem }
       setNotes(prev => [d.note, ...(prev ?? [])])
-      setDraft('')
+      setDraft(''); setNoteAction(''); setNotePurpose('')
     }
     setSubmitting(false)
   }
@@ -1346,11 +1403,39 @@ function NotesTimeline({ agentId }: { agentId: string }) {
         border: '1px solid rgba(201,169,110,0.12)',
         borderRadius: 6,
       }}>
+        {/* Structured Licensing note (LC SOP): Purpose, Action Taken,
+            Additional Note. */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+          <select
+            value={notePurpose}
+            onChange={e => setNotePurpose(e.target.value as LicensingRequestTopic | '')}
+            style={{
+              flex: '1 1 180px', boxSizing: 'border-box',
+              background: '#0A1628', border: '1px solid rgba(201,169,110,0.15)',
+              borderRadius: 4, color: notePurpose ? '#d1d9e2' : '#6B8299',
+              padding: '8px 10px', fontSize: 12, fontFamily: 'inherit',
+            }}
+          >
+            <option value="">Purpose...</option>
+            {LICENSING_TOPICS.map(t => <option key={t} value={t}>{LC_PURPOSE_LABELS[t]}</option>)}
+          </select>
+          <input
+            value={noteAction}
+            onChange={e => setNoteAction(e.target.value)}
+            placeholder="Action Taken"
+            style={{
+              flex: '2 1 220px', boxSizing: 'border-box',
+              background: '#0A1628', border: '1px solid rgba(201,169,110,0.15)',
+              borderRadius: 4, color: '#d1d9e2',
+              padding: '8px 10px', fontSize: 12, fontFamily: 'inherit',
+            }}
+          />
+        </div>
         <textarea
           value={draft}
           onChange={e => setDraft(e.target.value)}
           rows={3}
-          placeholder="Add a note about this agent's licensing journey..."
+          placeholder="Additional note (optional)"
           style={{
             width: '100%', boxSizing: 'border-box',
             background: '#0A1628',
@@ -1390,9 +1475,9 @@ function NotesTimeline({ agentId }: { agentId: string }) {
           )}
           <button
             onClick={submit}
-            disabled={submitting || !draft.trim()}
+            disabled={submitting || !canSubmit}
             style={{
-              background: submitting || !draft.trim() ? 'rgba(201,169,110,0.4)' : '#C9A96E',
+              background: submitting || !canSubmit ? 'rgba(201,169,110,0.4)' : '#C9A96E',
               color: '#142D48', border: 'none', borderRadius: 4,
               padding: '8px 16px', fontSize: 10, fontWeight: 700,
               letterSpacing: '0.1em', textTransform: 'uppercase',
@@ -1483,6 +1568,17 @@ function NotesTimeline({ agentId }: { agentId: string }) {
                                 border: '1px solid rgba(248,113,113,0.35)',
                               }}>
                                 🔒 Admin only
+                              </span>
+                            )}
+                            {note.purpose && (
+                              <span style={{
+                                fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                                padding: '2px 7px', borderRadius: 3,
+                                background: 'rgba(96,165,250,0.12)',
+                                color: '#60a5fa',
+                                border: '1px solid rgba(96,165,250,0.3)',
+                              }}>
+                                {lcPurposeLabel(note.purpose)}
                               </span>
                             )}
                           </div>

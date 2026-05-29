@@ -4,28 +4,13 @@ import { useEffect, useState } from 'react'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { LC_CALENDAR_URL } from '@/lib/agent-constants'
 
-export type LicensingRequestTopic =
-  | 'SCHEDULE_EXAM'
-  | 'PASS_POST_LICENSING'
-  | 'FINGERPRINTS_APPLY'
-  | 'GFI_APPOINTMENTS'
-  | 'CE_COURSES'
-  | 'EO_INSURANCE'
-  | 'DIRECT_DEPOSIT'
-  | 'UNDERWRITING'
-  | 'GENERAL'
-
-export const TOPIC_LABELS: Record<LicensingRequestTopic, string> = {
-  SCHEDULE_EXAM: 'Schedule my licensing exam',
-  PASS_POST_LICENSING: 'Post-licensing call (I just passed)',
-  FINGERPRINTS_APPLY: 'Fingerprints & state application',
-  GFI_APPOINTMENTS: 'Submit to GFI / carrier appointments',
-  CE_COURSES: 'CE courses (AML, Annuity, Ethics)',
-  EO_INSURANCE: 'E&O insurance',
-  DIRECT_DEPOSIT: 'Direct deposit setup',
-  UNDERWRITING: 'Underwriting question',
-  GENERAL: 'Something else',
-}
+// Topic vocabulary now lives in a server-safe module so API routes and
+// the digest cron can share it. Imported for local use here and
+// re-exported so existing importers of this modal keep working.
+import { TOPIC_LABELS } from '@/lib/licensing-topics'
+import type { LicensingRequestTopic } from '@/lib/licensing-topics'
+export { TOPIC_LABELS }
+export type { LicensingRequestTopic }
 
 interface ThreadMessage {
   id: string
