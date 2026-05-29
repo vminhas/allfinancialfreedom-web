@@ -1425,6 +1425,12 @@ enum NewBusinessStatus {
   // Added for the LC SOP, which tracks a "Hold" state distinct from
   // Pending. The SOP's "New" maps to PENDING (the initial state).
   HOLD
+  // Application submitted to the carrier and awaiting a decision. The
+  // SOP separates "New" (freshly logged, = PENDING, the default + what
+  // the claim/stats flow keys on) from "Pending" (actively at the
+  // carrier). This is that distinct "Pending" state, set manually by
+  // the LC; the default stays PENDING so nothing downstream changes.
+  PENDING_CARRIER
 }
 
 enum PolicyType {
@@ -1980,6 +1986,31 @@ model TeamMember {
 
   @@index([section, sortOrder])
   @@map("team_members")
+}
+
+// Licensing Coordinator task list. Two kinds:
+//   * recurring = true:  daily SOP steps. They show every day and are
+//     considered "done today" only when completedOn == today (ET), so
+//     they naturally reset each morning without a cron.
+//   * recurring = false: ad-hoc one-off tasks the LC adds (birthday
+//     flyers, announcement updates, Breezy messages outside the normal
+//     flow, etc.). Hidden from the active list once completed on a
+//     prior day; still queryable for past digests by completedOn.
+// completedOn stores the ET calendar day ("YYYY-MM-DD") the task was
+// last checked off, or null if not done. The nightly digest reports
+// everything completed today under "Tasks".
+model LcTask {
+  id          String   @id @default(cuid())
+  title       String
+  recurring   Boolean  @default(false)
+  completedOn String?  @map("completed_on")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt      @map("updated_at")
+
+  @@index([recurring, sortOrder])
+  @@index([completedOn])
+  @@map("lc_tasks")
 }
 
 // One row per day the Licensing Coordinator daily digest runs.

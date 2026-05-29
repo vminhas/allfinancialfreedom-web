@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import DatePicker from '@/components/DatePicker'
+import AgentTypeahead from '@/components/AgentTypeahead'
 import { TIME_RANGE_OPTIONS, rangeForKey, type TimeRangeKey } from '@/lib/time-range'
 
 const card = { background: '#132238', border: '1px solid rgba(201,169,110,0.1)', borderRadius: 6 }
@@ -12,18 +13,20 @@ const fieldLabel = { fontSize: 10, fontWeight: 700 as const, letterSpacing: '0.1
 
 const STATUS_COLOR: Record<string, { bg: string; fg: string }> = {
   PENDING: { bg: 'rgba(245,158,11,0.15)', fg: '#F59E0B' },
+  PENDING_CARRIER: { bg: 'rgba(96,165,250,0.15)', fg: '#60A5FA' },
   HOLD: { bg: 'rgba(168,85,247,0.15)', fg: '#C084FC' },
   ISSUED: { bg: 'rgba(74,222,128,0.15)', fg: '#4ADE80' },
   DECLINED: { bg: 'rgba(239,68,68,0.15)', fg: '#EF4444' },
   LAPSED: { bg: 'rgba(107,114,128,0.2)', fg: '#9CA3AF' },
   NOT_TAKEN: { bg: 'rgba(107,114,128,0.2)', fg: '#9CA3AF' },
 }
-const STATUSES = ['PENDING', 'HOLD', 'ISSUED', 'DECLINED', 'LAPSED', 'NOT_TAKEN'] as const
-// LC SOP labels: the guide calls PENDING "New" and uses "Hold" as a
-// distinct paused state. These labels drive the note composer + status
-// pills; the underlying enum values are unchanged.
+const STATUSES = ['PENDING', 'PENDING_CARRIER', 'HOLD', 'ISSUED', 'DECLINED', 'LAPSED', 'NOT_TAKEN'] as const
+// LC SOP labels: the guide calls the initial state "New" (= PENDING,
+// the default the claim/stats flow keys on) and "Pending" the separate
+// at-carrier state (= PENDING_CARRIER). "Hold" is a paused state. These
+// labels drive the note composer + status pills; enum values unchanged.
 const STATUS_LABEL: Record<string, string> = {
-  PENDING: 'New', HOLD: 'Hold', ISSUED: 'Issued',
+  PENDING: 'New', PENDING_CARRIER: 'Pending', HOLD: 'Hold', ISSUED: 'Issued',
   DECLINED: 'Declined', LAPSED: 'Lapsed', NOT_TAKEN: 'Not Taken',
 }
 const POLICY_LABEL: Record<string, string> = {
@@ -95,6 +98,7 @@ export default function VaultNewBusinessPage() {
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [assignment, setAssignment] = useState<string>('') // '' | 'me' | 'unassigned'
   const [agentFilter, setAgentFilter] = useState<string>('')   // '' or agentProfileId
+  const [agentFilterLabel, setAgentFilterLabel] = useState<string>('') // display name for the active-filter chip
   const [search, setSearch] = useState('')
   const [rangeKey, setRangeKey] = useState<TimeRangeKey>(DEFAULT_RANGE)
   const [customFrom, setCustomFrom] = useState<string>('')
@@ -267,14 +271,14 @@ export default function VaultNewBusinessPage() {
           {assignment === 'unassigned' && <FilterPill label="Unassigned" onClear={() => setAssignment('')} />}
           {agentFilter && (() => {
             const a = agentOptions.find(x => x.id === agentFilter)
-            const label = a ? `Agent: ${a.firstName} ${a.lastName}` : 'Agent: (selected)'
-            return <FilterPill label={label} onClear={() => setAgentFilter('')} />
+            const name = agentFilterLabel || (a ? `${a.firstName} ${a.lastName}` : '(selected)')
+            return <FilterPill label={`Agent: ${name}`} onClear={() => { setAgentFilter(''); setAgentFilterLabel('') }} />
           })()}
           {carrierFilter.trim() && <FilterPill label={`Carrier: ${carrierFilter.trim()}`} onClear={() => setCarrierFilter('')} />}
           {policyTypeFilter && <FilterPill label={`Type: ${POLICY_LABEL[policyTypeFilter] ?? policyTypeFilter}`} onClear={() => setPolicyTypeFilter('')} />}
           {search.trim() && <FilterPill label={`Search: "${search.trim()}"`} onClear={() => setSearch('')} />}
           <button
-            onClick={() => { setStatusFilter(''); setAssignment(''); setAgentFilter(''); setSearch(''); setCarrierFilter(''); setPolicyTypeFilter('') }}
+            onClick={() => { setStatusFilter(''); setAssignment(''); setAgentFilter(''); setAgentFilterLabel(''); setSearch(''); setCarrierFilter(''); setPolicyTypeFilter('') }}
             style={{ background: 'transparent', border: 'none', color: '#9B6DFF', fontSize: 11, cursor: 'pointer', textDecoration: 'underline' }}
           >Clear all</button>
         </div>
@@ -314,16 +318,18 @@ export default function VaultNewBusinessPage() {
             <option value="unassigned">Unassigned</option>
           </select>
         </div>
-        <div style={{ minWidth: 200 }}>
+        <div style={{ minWidth: 220 }}>
           <label style={fieldLabel}>Agent</label>
-          <select style={inputStyle} value={agentFilter} onChange={e => setAgentFilter(e.target.value)}>
-            <option value="">All agents</option>
-            {agentOptions.map(a => (
-              <option key={a.id} value={a.id}>
-                {a.firstName} {a.lastName} ({a.agentCode})
-              </option>
-            ))}
-          </select>
+          <AgentTypeahead
+            valueField="id"
+            value={agentFilter}
+            onChange={(v, opt) => {
+              setAgentFilter(v)
+              setAgentFilterLabel(opt ? `${opt.firstName} ${opt.lastName}` : '')
+            }}
+            includeFormer
+            placeholder="All agents (type to search)"
+          />
         </div>
         <div style={{ minWidth: 170 }}>
           <label style={fieldLabel}>Type</label>

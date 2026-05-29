@@ -78,19 +78,66 @@ interface LicensingAgent {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-// Collapsible "Daily SOP" reference for the Licensing Coordinator.
-// Static copy (no API). Always at the top of the Licensing Inbox so the
-// LC has the routine in front of them. Edit the steps in SOP_STEPS.
-const SOP_STEPS: string[] = [
-  'Morning: review the New Business queue (New + Hold first). Check Tevah for each open application and set "Verified through Tevah" when confirmed.',
-  'For each application you touch, add a structured New Business note (Status, Action Taken, Verified through Tevah, Note). The first note auto-logs "NEW BUSINESS SUBMITTED" on the agent; later notes log "NEW BUSINESS NOTE".',
-  'Licensing: work the open requests in your inbox. For each agent you help, add a structured Licensing note (Purpose, Action Taken, Additional Note).',
-  'Breezy HR: process new applicants that came in today.',
-  'End of day: make sure every status is current. The daily digest sends automatically at 9pm ET to leadership and the admin channel. Add any Misc items (flyers, announcement updates) to your own notes.',
-]
+// Daily tasks panel for the Licensing Coordinator. Recurring SOP steps
+// (seeded, reset each day) plus ad-hoc tasks she adds (birthday flyers,
+// announcement updates, off-platform Breezy messages, etc.). Whatever
+// is checked off today flows into the nightly digest's Tasks section.
+interface LcTask {
+  id: string
+  title: string
+  recurring: boolean
+  completedOn: string | null
+}
 
-function LcDailySopPanel() {
-  const [open, setOpen] = useState(false)
+function LcTasksPanel() {
+  const [open, setOpen] = useState(true)
+  const [tasks, setTasks] = useState<LcTask[]>([])
+  const [today, setToday] = useState('')
+  const [newTitle, setNewTitle] = useState('')
+  const [adding, setAdding] = useState(false)
+
+  const load = useCallback(() => {
+    fetch('/api/vault/lc-tasks')
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { tasks: LcTask[]; today: string } | null) => {
+        if (d) { setTasks(d.tasks); setToday(d.today) }
+      })
+      .catch(() => {})
+  }, [])
+  useEffect(() => { load() }, [load])
+
+  const isDone = (t: LcTask) => !!t.completedOn && t.completedOn === today
+  const doneCount = tasks.filter(isDone).length
+
+  const toggle = async (t: LcTask) => {
+    const next = !isDone(t)
+    setTasks(prev => prev.map(x => x.id === t.id ? { ...x, completedOn: next ? today : null } : x))
+    await fetch(`/api/vault/lc-tasks/${t.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ done: next }),
+    }).catch(() => load())
+  }
+
+  const addTask = async () => {
+    const title = newTitle.trim()
+    if (!title) return
+    setAdding(true)
+    try {
+      const res = await fetch('/api/vault/lc-tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+      })
+      if (res.ok) { setNewTitle(''); load() }
+    } finally { setAdding(false) }
+  }
+
+  const remove = async (id: string) => {
+    setTasks(prev => prev.filter(x => x.id !== id))
+    await fetch(`/api/vault/lc-tasks/${id}`, { method: 'DELETE' }).catch(() => load())
+  }
+
   return (
     <div style={{
       marginBottom: 20,
@@ -108,13 +155,67 @@ function LcDailySopPanel() {
           color: '#C9A96E', fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase',
         }}
       >
-        <span>Daily SOP</span>
+        <span>Daily Tasks{tasks.length > 0 ? ` · ${doneCount}/${tasks.length} done` : ''}</span>
         <span style={{ fontSize: 13 }}>{open ? '−' : '+'}</span>
       </button>
       {open && (
-        <ol style={{ margin: 0, padding: '0 20px 16px 36px', color: '#9BB0C4', fontSize: 12.5, lineHeight: 1.7 }}>
-          {SOP_STEPS.map((s, i) => <li key={i} style={{ marginBottom: 6 }}>{s}</li>)}
-        </ol>
+        <div style={{ padding: '0 16px 14px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {tasks.map(t => {
+              const done = isDone(t)
+              return (
+                <div key={t.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '6px 8px', borderRadius: 4, background: 'rgba(255,255,255,0.02)' }}>
+                  <input
+                    type="checkbox"
+                    checked={done}
+                    onChange={() => toggle(t)}
+                    style={{ marginTop: 2, width: 15, height: 15, accentColor: '#C9A96E', cursor: 'pointer', flexShrink: 0 }}
+                  />
+                  <span style={{
+                    flex: 1, fontSize: 12.5, lineHeight: 1.5,
+                    color: done ? '#6B8299' : '#d1d9e2',
+                    textDecoration: done ? 'line-through' : 'none',
+                  }}>
+                    {t.title}
+                    {t.recurring && (
+                      <span style={{ marginLeft: 8, fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#C9A96E', border: '1px solid rgba(201,169,110,0.3)', borderRadius: 3, padding: '1px 5px' }}>Daily</span>
+                    )}
+                  </span>
+                  <button
+                    onClick={() => remove(t.id)}
+                    title="Remove task"
+                    style={{ background: 'none', border: 'none', color: '#6B8299', fontSize: 13, cursor: 'pointer', lineHeight: 1, flexShrink: 0 }}
+                  >×</button>
+                </div>
+              )
+            })}
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <input
+              value={newTitle}
+              onChange={e => setNewTitle(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') addTask() }}
+              placeholder="Add a task (birthday flyer, announcement update, etc.)"
+              style={{
+                flex: 1, boxSizing: 'border-box',
+                background: '#0A1628', border: '1px solid rgba(201,169,110,0.15)',
+                borderRadius: 4, color: '#d1d9e2', padding: '8px 10px', fontSize: 12, fontFamily: 'inherit',
+              }}
+            />
+            <button
+              onClick={addTask}
+              disabled={adding || !newTitle.trim()}
+              style={{
+                background: adding || !newTitle.trim() ? 'rgba(201,169,110,0.4)' : '#C9A96E',
+                color: '#142D48', border: 'none', borderRadius: 4,
+                padding: '8px 14px', fontSize: 11, fontWeight: 700, cursor: adding ? 'wait' : 'pointer', whiteSpace: 'nowrap',
+              }}
+            >Add</button>
+          </div>
+          <p style={{ margin: '8px 0 0', fontSize: 10, color: '#6B8299' }}>
+            Checked tasks roll up into tonight&apos;s 9pm digest. Daily tasks reset each morning.
+          </p>
+        </div>
       )}
     </div>
   )
@@ -204,7 +305,7 @@ export default function LicensingWorkspacePage() {
         </div>
       </div>
 
-      <LcDailySopPanel />
+      <LcTasksPanel />
 
       {showAddAgentModal && (
         <LicensingAddAgentModal

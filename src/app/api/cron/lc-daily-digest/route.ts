@@ -109,6 +109,24 @@ export async function GET(req: NextRequest) {
     where: { source: { startsWith: 'breezy' }, createdAt: { gte: dayStart, lt: dayEnd } },
   })
 
+  // Tasks: everything the LC checked off today (recurring SOP steps +
+  // ad-hoc items like birthday flyers / announcement updates). This is
+  // the "Misc" section, now driven by the tasks panel instead of a
+  // manual reminder line.
+  const doneTasks = await db.lcTask.findMany({
+    where: { completedOn: digestDate },
+    orderBy: [{ recurring: 'desc' }, { sortOrder: 'asc' }],
+    select: { title: true, recurring: true },
+  })
+  // Ad-hoc tasks still open (not completed) so leadership sees what's
+  // outstanding. Recurring SOP steps are excluded from "outstanding"
+  // since they reset daily and aren't a backlog signal.
+  const openAdhoc = await db.lcTask.findMany({
+    where: { recurring: false, completedOn: null },
+    orderBy: { createdAt: 'asc' },
+    select: { title: true },
+  })
+
   // ---- Compose ----
   const dateLabel = dayStart.toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
@@ -126,6 +144,13 @@ export async function GET(req: NextRequest) {
       ).join('\n\n')
     : 'No Licensing notes today.'
 
+  const tasksDoneLines = doneTasks.length
+    ? doneTasks.map(t => `  - ${t.title}`).join('\n')
+    : '  None checked off today.'
+  const tasksOpenLines = openAdhoc.length
+    ? '\n\nStill open:\n' + openAdhoc.map(t => `  - ${t.title}`).join('\n')
+    : ''
+
   const textBody = [
     `Licensing Coordinator Daily Digest`,
     dateLabel,
@@ -138,7 +163,8 @@ export async function GET(req: NextRequest) {
     '',
     `Breezy HR Applicants: ${breezyCount}`,
     '',
-    'Misc: (add manually)',
+    `Tasks (${doneTasks.length} completed):`,
+    tasksDoneLines + tasksOpenLines,
   ].join('\n')
 
   // ---- Send email ----
@@ -189,6 +215,10 @@ export async function GET(req: NextRequest) {
       const licField = licensing.length
         ? licensing.map(l => `• ${l.agent} · ${l.purpose}${l.comment ? ` · ${l.comment}` : ''}`).join('\n').slice(0, 1024)
         : 'None today.'
+      const tasksField = (
+        (doneTasks.length ? doneTasks.map(t => `✓ ${t.title}`).join('\n') : 'None checked off today.') +
+        (openAdhoc.length ? `\n\nStill open:\n${openAdhoc.map(t => `• ${t.title}`).join('\n')}` : '')
+      ).slice(0, 1024)
       await sendChannelMessage(process.env.DISCORD_ADMIN_CHANNEL_ID, {
         embeds: [{
           title: 'Licensing Coordinator Daily Digest',
@@ -198,6 +228,7 @@ export async function GET(req: NextRequest) {
             { name: `New Business (${newBusiness.length})`, value: nbField },
             { name: `Licensing (${licensing.length})`, value: licField },
             { name: 'Breezy HR Applicants', value: String(breezyCount), inline: true },
+            { name: `Tasks (${doneTasks.length} done)`, value: tasksField },
           ],
           footer: { text: 'AFF Concierge · LC Daily Digest' },
           timestamp: new Date().toISOString(),

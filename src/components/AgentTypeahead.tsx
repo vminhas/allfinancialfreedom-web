@@ -221,7 +221,7 @@ export default function AgentTypeahead({
                   onMouseDown={e => { e.preventDefault(); select(a) }}
                   onMouseEnter={() => setHighlight(i)}
                   style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
+                    display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2,
                     width: '100%',
                     padding: '8px 12px', textAlign: 'left',
                     background: i === highlight ? 'rgba(201,169,110,0.10)' : 'transparent',
@@ -231,12 +231,16 @@ export default function AgentTypeahead({
                     opacity: isFormer ? 0.65 : 1,
                   }}
                 >
-                  <span style={{ minWidth: 0, flex: 1, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {/* Full name on its own line, wrapping if needed, so the
+                      last name is never truncated (the meeting tracker
+                      dropdown is narrow and several agents share a first
+                      name). */}
+                  <span style={{ fontSize: 13, lineHeight: 1.3, whiteSpace: 'normal', wordBreak: 'break-word' }}>
                     {a.firstName} {a.lastName}
                     {a.isLeadership && <span style={{ marginLeft: 6, fontSize: 9, color: '#C9A96E', letterSpacing: '0.1em' }}>· LEADERSHIP</span>}
                     {isFormer && !a.isLeadership && <span style={{ marginLeft: 6, fontSize: 9, color: '#9BB0C4', letterSpacing: '0.1em' }}>· FORMER</span>}
                   </span>
-                  <span style={{ fontSize: 11, color: '#6B8299', flexShrink: 0 }}>
+                  <span style={{ fontSize: 11, color: '#6B8299' }}>
                     {a.agentCode} · {a.isLeadership ? 'CEO/COO' : (PHASE_TITLE[a.phase] ?? `Phase ${a.phase}`)}
                   </span>
                 </button>

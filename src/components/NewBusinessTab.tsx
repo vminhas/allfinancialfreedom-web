@@ -22,10 +22,17 @@ const POLICY_TYPES = [
 
 const STATUS_COLOR: Record<string, { bg: string; fg: string }> = {
   PENDING: { bg: 'rgba(245,158,11,0.15)', fg: '#F59E0B' },
+  PENDING_CARRIER: { bg: 'rgba(96,165,250,0.15)', fg: '#60A5FA' },
+  HOLD: { bg: 'rgba(168,85,247,0.15)', fg: '#C084FC' },
   ISSUED: { bg: 'rgba(74,222,128,0.15)', fg: '#4ADE80' },
   DECLINED: { bg: 'rgba(239,68,68,0.15)', fg: '#EF4444' },
   LAPSED: { bg: 'rgba(107,114,128,0.2)', fg: '#9CA3AF' },
   NOT_TAKEN: { bg: 'rgba(107,114,128,0.2)', fg: '#9CA3AF' },
+}
+// Agent-facing status labels (matches the LC SOP vocabulary).
+const STATUS_LABEL: Record<string, string> = {
+  PENDING: 'New', PENDING_CARRIER: 'Pending', HOLD: 'Hold', ISSUED: 'Issued',
+  DECLINED: 'Declined', LAPSED: 'Lapsed', NOT_TAKEN: 'Not Taken',
 }
 
 interface SubmissionNote {
@@ -65,7 +72,7 @@ interface Submission {
   // Null means owner == insured.
   ownerFirstName: string | null
   ownerLastName: string | null
-  status: 'PENDING' | 'ISSUED' | 'DECLINED' | 'LAPSED' | 'NOT_TAKEN'
+  status: 'PENDING' | 'PENDING_CARRIER' | 'HOLD' | 'ISSUED' | 'DECLINED' | 'LAPSED' | 'NOT_TAKEN'
   issuedDate: string | null
   policyNumber: string | null
   declinedReason: string | null
@@ -369,7 +376,7 @@ function StatusPill({ status }: { status: string }) {
     <span style={{
       display: 'inline-block', padding: '2px 8px', borderRadius: 999,
       background: c.bg, color: c.fg, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
-    }}>{status.replace('_', ' ')}</span>
+    }}>{STATUS_LABEL[status] ?? status.replace('_', ' ')}</span>
   )
 }
 

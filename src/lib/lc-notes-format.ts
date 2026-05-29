@@ -15,6 +15,7 @@ import { lcPurposeLabel } from '@/lib/licensing-topics'
 // as "New" to match the LC's language.
 const STATUS_LABEL: Record<NewBusinessStatus, string> = {
   PENDING: 'New',
+  PENDING_CARRIER: 'Pending',
   HOLD: 'Hold',
   ISSUED: 'Issued',
   DECLINED: 'Declined',
