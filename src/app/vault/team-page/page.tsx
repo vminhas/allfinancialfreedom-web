@@ -303,74 +303,122 @@ async function getCroppedBlob(src: string, crop: Area, mimeType = 'image/jpeg'):
   return new Promise(res => canvas.toBlob(b => res(b!), mimeType, 0.92))
 }
 
-function CropModal({ imageSrc, aspect, onDone, onCancel }: {
+function CropModal({ imageSrc, aspect, sectionLabel, onDone, onCancel }: {
   imageSrc: string
   aspect: number
+  sectionLabel: string
   onDone: (blob: Blob) => void
   onCancel: () => void
 }) {
   const [crop, setCrop] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
   const [croppedArea, setCroppedArea] = useState<Area | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [applying, setApplying] = useState(false)
 
   const onCropComplete = useCallback((_: Area, pixels: Area) => {
     setCroppedArea(pixels)
   }, [])
 
+  useEffect(() => {
+    if (!croppedArea) return
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      try {
+        const blob = await getCroppedBlob(imageSrc, croppedArea)
+        if (!cancelled) {
+          const url = URL.createObjectURL(blob)
+          setPreviewUrl(prev => { if (prev) URL.revokeObjectURL(prev); return url })
+        }
+      } catch { /* ignore */ }
+    }, 150)
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [croppedArea, imageSrc])
+
   const handleApply = async () => {
     if (!croppedArea) return
+    setApplying(true)
     const blob = await getCroppedBlob(imageSrc, croppedArea)
     onDone(blob)
   }
 
   return (
-    <div onClick={onCancel} style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 200,
-      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 9999,
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
     }}>
       <div onClick={e => e.stopPropagation()} style={{
-        width: '100%', maxWidth: 500, background: '#132238', borderRadius: 8,
-        border: '1px solid rgba(201,169,110,0.2)', overflow: 'hidden',
+        width: '100%', maxWidth: 720, background: '#132238', borderRadius: 8,
+        border: '1px solid rgba(201,169,110,0.2)',
       }}>
-        <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>Crop Photo</div>
-          <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>Drag to reposition, scroll to zoom</div>
+        <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>Crop Photo</div>
+            <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>Drag to reposition, scroll or use slider to zoom</div>
+          </div>
+          <button onClick={onCancel} style={{ background: 'none', border: 'none', color: '#6B8299', fontSize: 20, cursor: 'pointer', padding: '0 4px' }}>&times;</button>
         </div>
-        <div style={{ position: 'relative', width: '100%', aspectRatio: '1/1', background: '#0A1628' }}>
-          <Cropper
-            image={imageSrc}
-            crop={crop}
-            zoom={zoom}
-            aspect={aspect}
-            onCropChange={setCrop}
-            onZoomChange={setZoom}
-            onCropComplete={onCropComplete}
-            style={{
-              containerStyle: { width: '100%', height: '100%' },
-              cropAreaStyle: { border: '2px solid #C9A96E' },
-            }}
-          />
+
+        <div style={{ display: 'flex', gap: 0 }}>
+          {/* Crop area */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ position: 'relative', width: '100%', height: 380, background: '#0A1628' }}>
+              <Cropper
+                image={imageSrc}
+                crop={crop}
+                zoom={zoom}
+                aspect={aspect}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onCropComplete={onCropComplete}
+                style={{
+                  containerStyle: { width: '100%', height: '100%' },
+                  cropAreaStyle: { border: '2px solid #C9A96E' },
+                }}
+              />
+            </div>
+            <div style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 12, borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+              <span style={{ fontSize: 10, color: '#6B8299', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', flexShrink: 0 }}>Zoom</span>
+              <input
+                type="range" min={1} max={3} step={0.02} value={zoom}
+                onChange={e => setZoom(Number(e.target.value))}
+                style={{ flex: 1, accentColor: '#C9A96E', height: 4 }}
+              />
+              <span style={{ fontSize: 11, color: '#9BB0C4', minWidth: 32, textAlign: 'right' }}>{Math.round(zoom * 100)}%</span>
+            </div>
+          </div>
+
+          {/* Live preview */}
+          <div style={{ width: 200, borderLeft: '1px solid rgba(255,255,255,0.06)', padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, background: 'rgba(10,22,40,0.5)' }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: '#C9A96E', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Preview</div>
+            <div style={{
+              width: 160, aspectRatio: String(aspect), borderRadius: 6, overflow: 'hidden',
+              background: 'linear-gradient(135deg, #142D48, #2A5280)', border: '1px solid rgba(201,169,110,0.15)',
+            }}>
+              {previewUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={previewUrl} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              )}
+            </div>
+            <div style={{ fontSize: 10, color: '#6B8299', textAlign: 'center', lineHeight: 1.4 }}>
+              How it will appear in<br />the {sectionLabel} section
+            </div>
+          </div>
         </div>
-        <div style={{ padding: '10px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 10, color: '#6B8299', flexShrink: 0 }}>Zoom</span>
-          <input
-            type="range" min={1} max={3} step={0.05} value={zoom}
-            onChange={e => setZoom(Number(e.target.value))}
-            style={{ flex: 1, accentColor: '#C9A96E' }}
-          />
-        </div>
+
         <div style={{
-          padding: '12px 18px', display: 'flex', justifyContent: 'flex-end', gap: 8,
+          padding: '14px 20px', display: 'flex', justifyContent: 'flex-end', gap: 8,
           borderTop: '1px solid rgba(255,255,255,0.06)',
         }}>
           <button onClick={onCancel} style={{
             background: 'transparent', border: '1px solid rgba(255,255,255,0.12)',
-            color: '#9BB0C4', borderRadius: 4, padding: '7px 14px', fontSize: 11, cursor: 'pointer',
+            color: '#9BB0C4', borderRadius: 4, padding: '8px 16px', fontSize: 12, cursor: 'pointer',
           }}>Cancel</button>
-          <button onClick={handleApply} style={{
+          <button onClick={handleApply} disabled={applying} style={{
             background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4,
-            padding: '7px 16px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
-          }}>Apply Crop</button>
+            padding: '8px 20px', fontSize: 12, fontWeight: 700, cursor: applying ? 'wait' : 'pointer',
+            opacity: applying ? 0.6 : 1,
+          }}>{applying ? 'Uploading...' : 'Apply & Upload'}</button>
         </div>
       </div>
     </div>
@@ -554,15 +602,17 @@ function EditModal({
           </div>
         </div>
 
-        {cropSrc && (
-          <CropModal
-            imageSrc={cropSrc}
-            aspect={SECTION_ASPECT[section]}
-            onDone={handleCropDone}
-            onCancel={() => { setCropSrc(null); if (fileRef.current) fileRef.current.value = '' }}
-          />
-        )}
       </div>
+
+      {cropSrc && (
+        <CropModal
+          imageSrc={cropSrc}
+          aspect={SECTION_ASPECT[section]}
+          sectionLabel={SECTION_META[section].label}
+          onDone={handleCropDone}
+          onCancel={() => { setCropSrc(null); if (fileRef.current) fileRef.current.value = '' }}
+        />
+      )}
     </div>
   )
 }
