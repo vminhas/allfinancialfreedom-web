@@ -6,7 +6,9 @@
 // land on /api/vault/team-page/* and the public /team page re-reads
 // on every request, so changes are live within seconds.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
+import Cropper from 'react-easy-crop'
+import type { Area } from 'react-easy-crop'
 
 type Section = 'LEADERSHIP' | 'DIRECTOR' | 'ASSOCIATE'
 
@@ -283,6 +285,98 @@ function Card({
   )
 }
 
+const SECTION_ASPECT: Record<Section, number> = {
+  LEADERSHIP: 3 / 4,
+  DIRECTOR: 4 / 5,
+  ASSOCIATE: 1,
+}
+
+async function getCroppedBlob(src: string, crop: Area, mimeType = 'image/jpeg'): Promise<Blob> {
+  const img = new Image()
+  img.crossOrigin = 'anonymous'
+  await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = rej; img.src = src })
+  const canvas = document.createElement('canvas')
+  canvas.width = crop.width
+  canvas.height = crop.height
+  const ctx = canvas.getContext('2d')!
+  ctx.drawImage(img, crop.x, crop.y, crop.width, crop.height, 0, 0, crop.width, crop.height)
+  return new Promise(res => canvas.toBlob(b => res(b!), mimeType, 0.92))
+}
+
+function CropModal({ imageSrc, aspect, onDone, onCancel }: {
+  imageSrc: string
+  aspect: number
+  onDone: (blob: Blob) => void
+  onCancel: () => void
+}) {
+  const [crop, setCrop] = useState({ x: 0, y: 0 })
+  const [zoom, setZoom] = useState(1)
+  const [croppedArea, setCroppedArea] = useState<Area | null>(null)
+
+  const onCropComplete = useCallback((_: Area, pixels: Area) => {
+    setCroppedArea(pixels)
+  }, [])
+
+  const handleApply = async () => {
+    if (!croppedArea) return
+    const blob = await getCroppedBlob(imageSrc, croppedArea)
+    onDone(blob)
+  }
+
+  return (
+    <div onClick={onCancel} style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 200,
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        width: '100%', maxWidth: 500, background: '#132238', borderRadius: 8,
+        border: '1px solid rgba(201,169,110,0.2)', overflow: 'hidden',
+      }}>
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>Crop Photo</div>
+          <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>Drag to reposition, scroll to zoom</div>
+        </div>
+        <div style={{ position: 'relative', width: '100%', aspectRatio: '1/1', background: '#0A1628' }}>
+          <Cropper
+            image={imageSrc}
+            crop={crop}
+            zoom={zoom}
+            aspect={aspect}
+            onCropChange={setCrop}
+            onZoomChange={setZoom}
+            onCropComplete={onCropComplete}
+            style={{
+              containerStyle: { width: '100%', height: '100%' },
+              cropAreaStyle: { border: '2px solid #C9A96E' },
+            }}
+          />
+        </div>
+        <div style={{ padding: '10px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 10, color: '#6B8299', flexShrink: 0 }}>Zoom</span>
+          <input
+            type="range" min={1} max={3} step={0.05} value={zoom}
+            onChange={e => setZoom(Number(e.target.value))}
+            style={{ flex: 1, accentColor: '#C9A96E' }}
+          />
+        </div>
+        <div style={{
+          padding: '12px 18px', display: 'flex', justifyContent: 'flex-end', gap: 8,
+          borderTop: '1px solid rgba(255,255,255,0.06)',
+        }}>
+          <button onClick={onCancel} style={{
+            background: 'transparent', border: '1px solid rgba(255,255,255,0.12)',
+            color: '#9BB0C4', borderRadius: 4, padding: '7px 14px', fontSize: 11, cursor: 'pointer',
+          }}>Cancel</button>
+          <button onClick={handleApply} style={{
+            background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4,
+            padding: '7px 16px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+          }}>Apply Crop</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function EditModal({
   target, onClose, onSave, onUploadPhoto, onDelete,
 }: {
@@ -300,6 +394,8 @@ function EditModal({
   const [form, setForm] = useState<Partial<Member>>(initial)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [cropSrc, setCropSrc] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   const showField = (k: 'title' | 'credentials' | 'specialty' | 'location' | 'initials' | 'bio' | 'calendly') => {
     if (section === 'ASSOCIATE') return ['specialty', 'location', 'initials', 'calendly'].includes(k)
@@ -319,9 +415,21 @@ function EditModal({
     } finally { setSaving(false) }
   }
 
-  const handlePhoto = async (file: File) => {
+  const handleFileSelect = (file: File) => {
+    const url = URL.createObjectURL(file)
+    setCropSrc(url)
+  }
+
+  const handleCropDone = async (blob: Blob) => {
+    setCropSrc(null)
     setUploading(true)
-    try { await onUploadPhoto(file) } finally { setUploading(false) }
+    try {
+      const file = new File([blob], 'cropped.jpg', { type: 'image/jpeg' })
+      await onUploadPhoto(file)
+    } finally {
+      setUploading(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
   }
 
   const inp: React.CSSProperties = { width: '100%', padding: '8px 10px', fontSize: 13, background: '#0A1628', border: '1px solid rgba(201,169,110,0.2)', borderRadius: 4, color: '#fff', outline: 'none', fontFamily: 'inherit' }
@@ -357,10 +465,11 @@ function EditModal({
             </div>
             <label style={{ display: 'block', marginTop: 8 }}>
               <input
+                ref={fileRef}
                 type="file"
                 accept="image/jpeg,image/png,image/webp,image/gif"
                 disabled={isNew || uploading}
-                onChange={e => { const f = e.target.files?.[0]; if (f) handlePhoto(f) }}
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleFileSelect(f) }}
                 style={{ display: 'none' }}
               />
               <span style={{
@@ -444,6 +553,15 @@ function EditModal({
             <button onClick={handleSave} disabled={saving || !form.name?.trim()} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '7px 16px', fontSize: 11, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', opacity: saving || !form.name?.trim() ? 0.6 : 1 }}>{saving ? 'Saving…' : 'Save'}</button>
           </div>
         </div>
+
+        {cropSrc && (
+          <CropModal
+            imageSrc={cropSrc}
+            aspect={SECTION_ASPECT[section]}
+            onDone={handleCropDone}
+            onCancel={() => { setCropSrc(null); if (fileRef.current) fileRef.current.value = '' }}
+          />
+        )}
       </div>
     </div>
   )
