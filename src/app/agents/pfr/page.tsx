@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
   Tooltip, RadialBarChart, RadialBar, Legend,
@@ -67,6 +67,12 @@ const defaultPFR: PFRData = {
 
 export default function PFRPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const previewToken = searchParams.get('preview')
+  const adminAgentId = searchParams.get('agentProfileId')
+  const qs = previewToken
+    ? `?preview=${encodeURIComponent(previewToken)}`
+    : adminAgentId ? `?agentProfileId=${encodeURIComponent(adminAgentId)}` : ''
   const isMobile = useIsMobile()
   const [data, setData] = useState<PFRData>(defaultPFR)
   const [loading, setLoading] = useState(true)
@@ -80,15 +86,16 @@ export default function PFRPage() {
   const [whyDraft, setWhyDraft] = useState('')
   const [whyEditing, setWhyEditing] = useState(false)
   const [whySaving, setWhySaving] = useState(false)
+  const [whySaved, setWhySaved] = useState(false)
   const [whyShowHistory, setWhyShowHistory] = useState(false)
 
   useEffect(() => {
-    fetch('/api/agents/why-statements').then(r => r.ok ? r.json() : null)
+    fetch(`/api/agents/why-statements${qs}`).then(r => r.ok ? r.json() : null)
       .then((d: { statements?: { id: string; content: string; createdAt: string }[] } | null) => {
         if (d?.statements) setWhyStatements(d.statements)
       })
-    fetch('/api/agents/pfr').then(r => {
-      if (r.status === 401) { router.push('/agents/login'); return null }
+    fetch(`/api/agents/pfr${qs}`).then(r => {
+      if (r.status === 401 && !previewToken && !adminAgentId) { router.push('/agents/login'); return null }
       return r.json()
     }).then((d: { pfr?: PFRData & { visionBoardUrl?: string | null } } | null) => {
       if (d?.pfr) {
@@ -104,17 +111,17 @@ export default function PFRPage() {
       }
       setLoading(false)
     })
-  }, [router])
+  }, [router, qs])
 
   const save = useCallback(async (updated: PFRData) => {
     setSaving(true)
-    await fetch('/api/agents/pfr', {
+    await fetch(`/api/agents/pfr${qs}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updated),
     })
     setSaving(false)
     setLastSaved(new Date())
-  }, [])
+  }, [qs])
 
   const updateField = <K extends keyof PFRData>(key: K, value: PFRData[K]) => {
     const updated = { ...data, [key]: value }; setData(updated); save(updated)
@@ -161,7 +168,7 @@ export default function PFRPage() {
     if (!whyDraft.trim()) return
     setWhySaving(true)
     try {
-      const res = await fetch('/api/agents/why-statements', {
+      const res = await fetch(`/api/agents/why-statements${qs}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: whyDraft.trim() }),
@@ -171,6 +178,8 @@ export default function PFRPage() {
         setWhyStatements(prev => [d.statement!, ...prev])
         setWhyDraft('')
         setWhyEditing(false)
+        setWhySaved(true)
+        setTimeout(() => setWhySaved(false), 3000)
       }
     } finally {
       setWhySaving(false)
@@ -608,8 +617,11 @@ export default function PFRPage() {
                   {whyStatements[0].content}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
-                  <div style={{ fontSize: 10, color: '#4B5563' }}>
-                    {new Date(whyStatements[0].createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ fontSize: 10, color: '#4B5563' }}>
+                      {new Date(whyStatements[0].createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </div>
+                    {whySaved && <span style={{ fontSize: 10, color: '#4ade80', fontWeight: 600 }}>Saved</span>}
                   </div>
                   <button
                     onClick={() => { setWhyDraft(whyStatements[0].content); setWhyEditing(true) }}

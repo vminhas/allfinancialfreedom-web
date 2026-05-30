@@ -3,32 +3,46 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { getAgentProfileIdFromEmail as getProfileId } from '@/lib/agent-identity'
+import { getSetting } from '@/lib/settings'
 
-export async function GET() {
+async function resolveProfileId(req: NextRequest): Promise<string | null> {
+  const url = new URL(req.url)
+
+  const previewToken = url.searchParams.get('preview')
+  if (previewToken) {
+    const raw = await getSetting(`PREVIEW_TOKEN_${previewToken}`)
+    if (raw) {
+      const data = JSON.parse(raw) as { agentProfileId: string; expires: string }
+      if (new Date(data.expires) >= new Date()) return data.agentProfileId
+    }
+  }
+
   const session = await getServerSession(authOptions)
-  const role = (session?.user as { role?: string } | undefined)?.role
-  if (!session || (role !== 'agent' && role !== 'admin' && role !== 'licensing_coordinator')) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session) return null
+  const role = (session.user as { role?: string }).role
+
+  if (role === 'admin') {
+    return url.searchParams.get('agentProfileId')
   }
 
   if (role === 'agent') {
-    const profileId = await getProfileId(session.user!.email!)
-    if (!profileId) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
-    const pfr = await db.personalFinancialReview.findUnique({ where: { agentProfileId: profileId } })
-    return NextResponse.json({ pfr })
+    return getProfileId(session.user!.email!)
   }
 
-  return NextResponse.json({ error: 'Use vault endpoint for admin access' }, { status: 400 })
+  return null
+}
+
+export async function GET(req: NextRequest) {
+  const profileId = await resolveProfileId(req)
+  if (!profileId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const pfr = await db.personalFinancialReview.findUnique({ where: { agentProfileId: profileId } })
+  return NextResponse.json({ pfr })
 }
 
 export async function PUT(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const profileId = await getProfileId(session.user!.email!)
-  if (!profileId) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+  const profileId = await resolveProfileId(req)
+  if (!profileId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json() as {
     monthlyIncome?: number

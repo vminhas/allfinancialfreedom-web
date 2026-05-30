@@ -1617,7 +1617,7 @@ function AgentDashboardInner() {
                         <button
                           onClick={e => {
                             e.stopPropagation()
-                            if (item.action!.tab === 'pfr') { window.location.href = '/agents/pfr'; return }
+                            if (item.action!.tab === 'pfr') { window.location.href = `/agents/pfr${previewToken ? `?preview=${encodeURIComponent(previewToken)}` : ''}`; return }
                             goToTab(item.action!.tab as typeof activeTab)
                           }}
                           style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 10, cursor: 'pointer', padding: '0 4px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 3 }}

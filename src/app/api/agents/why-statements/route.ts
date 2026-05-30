@@ -3,15 +3,38 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { getAgentProfileIdFromEmail } from '@/lib/agent-identity'
+import { getSetting } from '@/lib/settings'
 
-export async function GET() {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+async function resolveProfileId(req: NextRequest): Promise<string | null> {
+  const url = new URL(req.url)
+
+  const previewToken = url.searchParams.get('preview')
+  if (previewToken) {
+    const raw = await getSetting(`PREVIEW_TOKEN_${previewToken}`)
+    if (raw) {
+      const data = JSON.parse(raw) as { agentProfileId: string; expires: string }
+      if (new Date(data.expires) >= new Date()) return data.agentProfileId
+    }
   }
 
-  const profileId = await getAgentProfileIdFromEmail(session.user!.email!)
-  if (!profileId) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+  const session = await getServerSession(authOptions)
+  if (!session) return null
+  const role = (session.user as { role?: string }).role
+
+  if (role === 'admin') {
+    return url.searchParams.get('agentProfileId')
+  }
+
+  if (role === 'agent') {
+    return getAgentProfileIdFromEmail(session.user!.email!)
+  }
+
+  return null
+}
+
+export async function GET(req: NextRequest) {
+  const profileId = await resolveProfileId(req)
+  if (!profileId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const statements = await db.whyStatement.findMany({
     where: { agentProfileId: profileId },
@@ -22,13 +45,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const profileId = await getAgentProfileIdFromEmail(session.user!.email!)
-  if (!profileId) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+  const profileId = await resolveProfileId(req)
+  if (!profileId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { content } = await req.json() as { content?: string }
   if (!content || content.trim().length === 0) {
