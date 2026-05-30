@@ -221,6 +221,8 @@ function ProgressionMatrixView() {
 // Mobile top bar reuses the same paddingTop pattern flagged in CLAUDE.md
 // so the iPhone status bar doesn't overlap "Back to portal."
 function Shell({ children }: { children: React.ReactNode }) {
+  const preview = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('preview') : null
+  const backHref = preview ? `/agents?preview=${encodeURIComponent(preview)}` : '/agents'
   return (
     <div style={{ minHeight: '100vh', background: '#0A1628', color: '#fff' }}>
       <div style={{
@@ -238,7 +240,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           <span style={{ marginLeft: 12, fontSize: 11, color: '#4B5563' }}>Leaderboard</span>
         </div>
         <Link
-          href="/agents"
+          href={backHref}
           style={{ color: '#9BB0C4', fontSize: 12, textDecoration: 'none', padding: '6px 12px', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4 }}
         >
           ← Back to portal

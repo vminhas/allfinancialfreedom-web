@@ -97,6 +97,8 @@ export default function ResourcesPage() {
   const lockedCount = totalCount - unlockedCount
   const progressPct = totalCount > 0 ? Math.round((unlockedCount / totalCount) * 100) : 0
   const currentPhaseColor = PHASE_COLOR[agentPhase] ?? '#C9A96E'
+  const preview = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('preview') : null
+  const backHref = preview ? `/agents?preview=${encodeURIComponent(preview)}` : '/agents'
 
   return (
     <div style={{ minHeight: '100vh', background: '#0A1628', color: '#fff' }}>
@@ -115,7 +117,7 @@ export default function ResourcesPage() {
           <span style={{ marginLeft: 12, fontSize: 11, color: '#4B5563' }}>Resources</span>
         </div>
         <Link
-          href="/agents"
+          href={backHref}
           style={{ color: '#9BB0C4', fontSize: 12, textDecoration: 'none', padding: '6px 12px', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4 }}
         >
           ← Back to portal

@@ -52,6 +52,8 @@ export default function BookPage() {
   // in vault settings (Promise.all on the cleaned save preserves array
   // order, so we just filter per group here).
   const byGroup = (g: BookingLink['group']) => links.filter(l => l.group === g)
+  const preview = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('preview') : null
+  const backHref = preview ? `/agents?preview=${encodeURIComponent(preview)}` : '/agents'
 
   return (
     <div style={{ minHeight: '100vh', background: '#0A1628', color: '#fff' }}>
@@ -70,7 +72,7 @@ export default function BookPage() {
           <span style={{ marginLeft: 12, fontSize: 11, color: '#4B5563' }}>Book a Time</span>
         </div>
         <Link
-          href="/agents"
+          href={backHref}
           style={{ background: 'transparent', color: '#9BB0C4', fontSize: 12, textDecoration: 'none', padding: '6px 12px', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4 }}
         >
           ← Back to portal
