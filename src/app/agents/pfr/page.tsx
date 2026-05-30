@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
@@ -66,6 +66,10 @@ const defaultPFR: PFRData = {
 }
 
 export default function PFRPage() {
+  return <Suspense><PFRPageInner /></Suspense>
+}
+
+function PFRPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const previewToken = searchParams.get('preview')
