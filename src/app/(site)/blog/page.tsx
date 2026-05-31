@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { getAllArticles, getAllCategories } from '@/lib/blog'
+import { getAllArticlesAsync, getAllCategoriesAsync } from '@/lib/blog'
 import Footer from '@/components/Footer'
 import CTABanner from '@/components/CTABanner'
 import BlogSearch from '@/components/BlogSearch'
@@ -18,6 +18,10 @@ export const metadata: Metadata = {
   },
 }
 
+// Re-render on every request so a newly-published GeneratedArticle
+// shows up immediately without waiting for a redeploy or ISR window.
+export const revalidate = 0
+
 const PAGE_1_SIZE = 10
 const PAGE_N_SIZE = 9
 
@@ -27,8 +31,8 @@ export default async function BlogPage({
   searchParams: Promise<{ category?: string; search?: string; page?: string }>
 }) {
   const { category, search, page } = await searchParams
-  const allArticles = getAllArticles()
-  const categories = getAllCategories()
+  const allArticles = await getAllArticlesAsync()
+  const categories = await getAllCategoriesAsync()
   const activeCategory = category ?? 'All'
   const searchQuery = (search ?? '').toLowerCase().trim()
   const currentPage = Math.max(1, parseInt(page ?? '1', 10))

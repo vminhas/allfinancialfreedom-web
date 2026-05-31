@@ -1,12 +1,17 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getArticle, getAllArticles } from '@/lib/blog'
+import { getArticleAsync, getAllArticlesAsync } from '@/lib/blog'
 import Footer from '@/components/Footer'
 import BookingCTA from '@/components/BookingCTA'
 
+// Re-fetch on every request so a newly-published GeneratedArticle is
+// visible immediately instead of waiting for the next deploy.
+export const revalidate = 0
+export const dynamicParams = true
+
 export async function generateStaticParams() {
-  return getAllArticles().map(a => ({ slug: a.slug }))
+  return (await getAllArticlesAsync()).map(a => ({ slug: a.slug }))
 }
 
 export async function generateMetadata({
@@ -15,7 +20,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>
 }): Promise<Metadata> {
   const { slug } = await params
-  const article = getArticle(slug)
+  const article = await getArticleAsync(slug)
   if (!article) return {}
   return {
     title: `${article.title} | All Financial Freedom Insights`,
@@ -193,7 +198,7 @@ function renderMarkdown(content: string): React.ReactNode[] {
 
 export default async function ArticlePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const article = getArticle(slug)
+  const article = await getArticleAsync(slug)
   if (!article) notFound()
 
   const formattedDate = new Date(article.date).toLocaleDateString('en-US', {
