@@ -56,8 +56,9 @@ export const PHASE_GROUPS: Record<number, PhaseGroupDef[]> = {
     { key: 'milestones', label: 'Promotions & Recognition', icon: 'TrendingUp', description: 'Earn your Senior Associate Promotion and Net License.' },
   ],
   3: [
-    { key: 'skills', label: 'Independent Skills', icon: 'Phone', description: 'Prove you can run appointments and recruit on your own.' },
     { key: 'products', label: 'Product Mastery', icon: 'Package', description: 'Learn the core AFF product suite inside and out.' },
+    { key: 'illustrations', label: 'Illustrations', icon: 'BarChart2', description: 'Build and present product illustrations for clients.' },
+    { key: 'skills', label: 'Independent Skills', icon: 'Phone', description: 'Prove you can run appointments and recruit on your own.' },
     { key: 'signoffs', label: 'CFT Sign-Offs', icon: 'CheckCircle', description: 'Get approved by your trainer, coordinator, and EMD.', showTrainer: true },
   ],
   4: [
