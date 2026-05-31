@@ -12,6 +12,7 @@ export async function GET() {
 
   let items = await db.phaseItemDefinition.findMany({
     orderBy: [{ phase: 'asc' }, { sortOrder: 'asc' }],
+    include: { slots: { orderBy: { sortOrder: 'asc' } } },
   })
 
   // Auto-seed from constants if DB is empty
@@ -34,6 +35,7 @@ export async function GET() {
     await db.phaseItemDefinition.createMany({ data: allItems, skipDuplicates: true })
     items = await db.phaseItemDefinition.findMany({
       orderBy: [{ phase: 'asc' }, { sortOrder: 'asc' }],
+      include: { slots: { orderBy: { sortOrder: 'asc' } } },
     })
   }
 

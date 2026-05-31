@@ -68,6 +68,22 @@ interface Milestone {
   completedAt: string
 }
 
+interface SlotDef {
+  id: string
+  label: string
+  slotType: 'business_partner' | 'field_appointment'
+  sortOrder: number
+  phaseItemDefinitionId: string
+}
+
+interface SlotFulfillment {
+  slotDefId: string
+  slotDef: SlotDef
+  businessPartner: { id: string; name: string } | null
+  fta: { id: string; name: string; appointmentDate: string } | null
+  fulfilledAt: string
+}
+
 interface AgentData {
   id: string
   agentCode: string
@@ -100,6 +116,7 @@ interface AgentData {
   npn: string | null
   allPhaseProgress: PhaseProgress[]
   phaseItems: PhaseItem[]
+  slotFulfillments: SlotFulfillment[]
   carrierAppointments: CarrierAppointment[]
   selectedCarriers: string[]
   milestones: Milestone[]
@@ -112,6 +129,144 @@ interface AgentData {
     businessPartner: { id: string; name: string } | null
   }[]
   counts: { businessPartners: number; callLogs: number }
+}
+
+// ── ItemSlots ─────────────────────────────────────────────────────────────────
+// Renders the milestone slots for a checklist item. Each slot is a named
+// placeholder the agent fills by linking a BP or FTA from their tracker.
+function ItemSlots({ itemKey, slots, fulfillments, onFulfillmentChange }: {
+  itemKey: string
+  slots: SlotDef[]
+  fulfillments: SlotFulfillment[]
+  onFulfillmentChange: () => void
+}) {
+  const [pickerSlotId, setPickerSlotId] = useState<string | null>(null)
+  const [pickerRecords, setPickerRecords] = useState<{ id: string; name: string; sub?: string }[]>([])
+  const [pickerLoading, setPickerLoading] = useState(false)
+  const [saving, setSaving] = useState<string | null>(null)
+
+  const openPicker = async (slot: SlotDef) => {
+    setPickerSlotId(slot.id)
+    setPickerLoading(true)
+    const r = await fetch(`/api/agents/tracker-records?type=${slot.slotType}`)
+    const d = r.ok ? await r.json() as { records: Array<{ id: string; name: string; category?: string; appointmentDate?: string; businessPartner?: { name: string } | null }> } : { records: [] }
+    setPickerRecords(d.records.map(rec => ({
+      id: rec.id,
+      name: rec.businessPartner?.name ?? rec.name,
+      sub: rec.appointmentDate ? new Date(rec.appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : rec.category ?? undefined,
+    })))
+    setPickerLoading(false)
+  }
+
+  const linkRecord = async (slot: SlotDef, recordId: string) => {
+    setSaving(slot.id)
+    await fetch('/api/agents/slot-fulfillment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(slot.slotType === 'business_partner' ? { slotDefId: slot.id, businessPartnerId: recordId } : { slotDefId: slot.id, ftaId: recordId }),
+    })
+    setSaving(null)
+    setPickerSlotId(null)
+    onFulfillmentChange()
+  }
+
+  const unlinkRecord = async (slot: SlotDef) => {
+    setSaving(slot.id)
+    await fetch(`/api/agents/slot-fulfillment?slotDefId=${slot.id}`, { method: 'DELETE' })
+    setSaving(null)
+    onFulfillmentChange()
+  }
+
+  // Sort slots by sortOrder
+  const sorted = [...slots].sort((a, b) => a.sortOrder - b.sortOrder)
+
+  return (
+    <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px dashed rgba(155,109,255,0.2)' }}>
+      <div style={{ fontSize: 9, fontWeight: 700, color: '#9B6DFF', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 8 }}>
+        Required · {sorted.filter(s => fulfillments.some(f => f.slotDefId === s.id)).length}/{sorted.length} linked
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {sorted.map(slot => {
+          const fulfillment = fulfillments.find(f => f.slotDefId === slot.id)
+          const isSaving = saving === slot.id
+          const linked = fulfillment?.businessPartner ?? fulfillment?.fta
+          const linkedName = fulfillment?.businessPartner?.name ?? (fulfillment?.fta ? (fulfillment.fta.name) : null)
+
+          return (
+            <div key={slot.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 5, background: linked ? 'rgba(74,222,128,0.05)' : 'rgba(155,109,255,0.04)', border: `1px solid ${linked ? 'rgba(74,222,128,0.18)' : 'rgba(155,109,255,0.15)'}` }}>
+              {/* Status dot */}
+              <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: linked ? '#4ade80' : 'rgba(155,109,255,0.4)', border: linked ? 'none' : '1px solid rgba(155,109,255,0.5)' }} />
+
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ fontSize: 11, color: linked ? '#9BB0C4' : '#ffffff', fontWeight: 500 }}>{slot.label}</span>
+                {linkedName && (
+                  <span style={{ marginLeft: 8, fontSize: 11, color: '#4ade80', fontWeight: 600 }}>{linkedName}</span>
+                )}
+                {!linked && (
+                  <span style={{ marginLeft: 6, fontSize: 9, color: '#6B8299' }}>
+                    · {slot.slotType === 'business_partner' ? 'Link a Business Partner' : 'Link a Field Appointment'}
+                  </span>
+                )}
+              </div>
+
+              {linked ? (
+                <button
+                  onClick={e => { e.stopPropagation(); unlinkRecord(slot) }}
+                  disabled={isSaving}
+                  style={{ background: 'none', border: 'none', color: '#6B8299', fontSize: 10, cursor: 'pointer', padding: '2px 6px', flexShrink: 0 }}
+                >
+                  {isSaving ? '…' : 'Unlink'}
+                </button>
+              ) : (
+                <button
+                  onClick={e => { e.stopPropagation(); openPicker(slot) }}
+                  disabled={isSaving}
+                  style={{ padding: '4px 10px', borderRadius: 4, fontSize: 10, fontWeight: 600, background: 'rgba(155,109,255,0.12)', border: '1px solid rgba(155,109,255,0.3)', color: '#9B6DFF', cursor: 'pointer', flexShrink: 0 }}
+                >
+                  {isSaving ? '…' : '+ Link'}
+                </button>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Picker dropdown */}
+      {pickerSlotId && (
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{ marginTop: 8, padding: '10px 12px', borderRadius: 6, background: '#0A1628', border: '1px solid rgba(155,109,255,0.25)', maxHeight: 220, overflowY: 'auto' }}
+        >
+          {pickerLoading ? (
+            <div style={{ fontSize: 11, color: '#6B8299', padding: '8px 0' }}>Loading...</div>
+          ) : pickerRecords.length === 0 ? (
+            <div style={{ fontSize: 11, color: '#6B8299', padding: '8px 0' }}>
+              No records found. Make sure you have {slots.find(s => s.id === pickerSlotId)?.slotType === 'business_partner' ? 'Business Partners' : 'completed Field Appointments'} in your tracker.
+            </div>
+          ) : (
+            pickerRecords.map(rec => (
+              <button
+                key={rec.id}
+                onClick={() => { const slot = slots.find(s => s.id === pickerSlotId); if (slot) linkRecord(slot, rec.id) }}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '7px 8px', background: 'none', border: 'none', borderRadius: 4, cursor: 'pointer', textAlign: 'left' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(155,109,255,0.08)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >
+                <span style={{ fontSize: 12, color: '#ffffff', flex: 1 }}>{rec.name}</span>
+                {rec.sub && <span style={{ fontSize: 10, color: '#6B8299' }}>{rec.sub}</span>}
+              </button>
+            ))
+          )}
+          <button
+            onClick={e => { e.stopPropagation(); setPickerSlotId(null) }}
+            style={{ marginTop: 6, fontSize: 10, color: '#6B8299', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0' }}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // Pre-emptive heads-up shown next to every Connect Discord button.
@@ -365,7 +520,7 @@ function AgentDashboardInner() {
     fetch('/api/agents/phase-items')
       .then(r => r.ok ? r.json() : null)
       .then((d: {
-        items: Record<string, { itemKey: string; label: string; description: string; duration?: string; groupKey?: string; adminOnly?: boolean; coordinatorTopic?: string; actionJson?: string; videoUrl?: string | null; videoTitle?: string | null; videos?: Array<{ url: string; title?: string | null }> | null }[]>
+        items: Record<string, { itemKey: string; label: string; description: string; duration?: string; groupKey?: string; adminOnly?: boolean; coordinatorTopic?: string; actionJson?: string; videoUrl?: string | null; videoTitle?: string | null; videos?: Array<{ url: string; title?: string | null }> | null; slots?: SlotDef[] }[]>
         groups?: Record<string, Array<{ key: string; label: string; icon?: string | null; description?: string | null; showTrainer?: boolean; videos?: Array<{ url: string; title: string | null; orientation?: 'landscape' | 'portrait' }> }>>
         source: string
       } | null) => {
@@ -388,6 +543,7 @@ function AgentDashboardInner() {
                 videoUrl: videos[0]?.url,
                 videoTitle: videos[0]?.title ?? undefined,
                 videos,
+                slots: (i.slots ?? []) as SlotDef[],
               }
             })
           }
@@ -1518,8 +1674,8 @@ function AgentDashboardInner() {
                     >
                       {/* Checkbox — click stops propagation so it only toggles completion */}
                       <button
-                        onClick={e => { e.stopPropagation(); if (!item.adminOnly) toggleItem(item.key, activeChecklistPhase, done) }}
-                        disabled={isToggling || item.adminOnly}
+                        onClick={e => { e.stopPropagation(); const hasSlots = !!(item as typeof item & { slots?: SlotDef[] }).slots?.length; if (!item.adminOnly && !hasSlots) toggleItem(item.key, activeChecklistPhase, done) }}
+                        disabled={isToggling || item.adminOnly || !!(item as typeof item & { slots?: SlotDef[] }).slots?.length}
                         title={item.adminOnly ? 'This item is approved by leadership' : undefined}
                         style={{
                           background: 'none', border: 'none', padding: 0,
@@ -1816,6 +1972,20 @@ function AgentDashboardInner() {
                             />
                           ))}
 
+
+                          {/* Milestone slots — shown when admin has defined linkable slots on this item */}
+                          {(item as typeof item & { slots?: SlotDef[] }).slots?.length ? (
+                            <ItemSlots
+                              itemKey={item.key}
+                              slots={(item as typeof item & { slots?: SlotDef[] }).slots!}
+                              fulfillments={data.slotFulfillments ?? []}
+                              onFulfillmentChange={() => {
+                                fetch('/api/agents/me').then(r => r.ok ? r.json() : null).then(d => {
+                                  if (d) setData(d)
+                                }).catch(() => {})
+                              }}
+                            />
+                          ) : null}
 
                           {/* Coordinator request — inline CTAs for items with coordinatorTopic. */}
                           {/* Two paths: an async message (modal) or a synchronous calendar booking. */}

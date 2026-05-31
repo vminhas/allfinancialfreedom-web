@@ -60,6 +60,13 @@ export async function GET(req: NextRequest) {
             },
             carrierAppointments: { orderBy: { carrier: 'asc' } },
             milestones: { orderBy: { completedAt: 'desc' } },
+            slotFulfillments: {
+              include: {
+                slotDef: { select: { id: true, label: true, slotType: true, sortOrder: true, phaseItemDefinitionId: true } },
+                businessPartner: { select: { id: true, name: true } },
+                fta: { select: { id: true, name: true, appointmentDate: true } },
+              },
+            },
             _count: { select: { businessPartners: true, callLogs: true } },
             // Completed FTAs in chronological order so the agent
             // dashboard can zip them onto the fta_N checklist items

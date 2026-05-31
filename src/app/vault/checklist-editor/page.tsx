@@ -6,6 +6,13 @@ import { useIsMobile } from '@/lib/useIsMobile'
 import MarkdownDescription from '@/components/MarkdownDescription'
 import { AVAILABLE_ICONS } from '@/lib/checklist-icons'
 
+interface SlotDef {
+  id: string
+  label: string
+  slotType: 'business_partner' | 'field_appointment'
+  sortOrder: number
+}
+
 interface PhaseItemDef {
   id: string
   phase: number
@@ -25,6 +32,7 @@ interface PhaseItemDef {
   postToActivity: boolean
   pingAdmin: boolean
   postToAnnouncements: boolean
+  slots: SlotDef[]
 }
 
 const PROGRESSION_OPTIONS = SYSTEM_PROGRESSIONS.map(p => ({ key: p.key, label: p.label }))
@@ -534,6 +542,16 @@ export default function ChecklistEditorPage() {
             )}
           </div>
 
+          {/* Slots — only visible when editing an existing item */}
+          {editingId && (
+            <SlotsEditor
+              itemId={editingId}
+              slots={(items.find(i => i.id === editingId)?.slots ?? [])}
+              onRefresh={fetchItems}
+              isMobile={isMobile}
+            />
+          )}
+
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
             <button onClick={resetForm} style={{ padding: '8px 16px', borderRadius: 4, fontSize: 12, background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#9BB0C4', cursor: 'pointer' }}>Cancel</button>
             <button onClick={handleSave} disabled={saving || !form.label || !form.description} style={{
@@ -884,6 +902,115 @@ function ProgressionsEditor({ progressions, onRefresh, isMobile }: { progression
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+// ── Slots editor ─────────────────────────────────────────────────────────────
+// Embedded inside the item edit form. Lets admins add/remove slot definitions
+// (e.g. "Business Partner 1", type = business_partner) that agents must fill
+// by linking a real BP or FTA record before the item auto-completes.
+function SlotsEditor({ itemId, slots, onRefresh, isMobile }: {
+  itemId: string
+  slots: SlotDef[]
+  onRefresh: () => void
+  isMobile: boolean
+}) {
+  const [addLabel, setAddLabel] = useState('')
+  const [addType, setAddType] = useState<'business_partner' | 'field_appointment'>('business_partner')
+  const [adding, setAdding] = useState(false)
+  const [showAdd, setShowAdd] = useState(false)
+
+  const inp: React.CSSProperties = {
+    padding: '7px 10px', fontSize: 12, background: '#0A1628',
+    border: '1px solid rgba(201,169,110,0.2)', borderRadius: 4, color: '#ffffff', outline: 'none',
+  }
+
+  const handleAdd = async () => {
+    if (!addLabel.trim()) return
+    setAdding(true)
+    await fetch('/api/admin/phase-items/slots', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phaseItemDefinitionId: itemId, label: addLabel.trim(), slotType: addType }),
+    })
+    setAddLabel('')
+    setShowAdd(false)
+    setAdding(false)
+    onRefresh()
+  }
+
+  const handleDelete = async (slotId: string) => {
+    if (!confirm('Delete this slot? Any agent fulfillments linked to it will also be removed.')) return
+    await fetch(`/api/admin/phase-items/slots?id=${slotId}`, { method: 'DELETE' })
+    onRefresh()
+  }
+
+  return (
+    <div style={{ marginTop: 18, padding: '14px 16px', background: 'rgba(155,109,255,0.04)', border: '1px solid rgba(155,109,255,0.18)', borderRadius: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <div style={{ fontSize: 9, fontWeight: 700, color: '#9B6DFF', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+          Milestone Slots ({slots.length})
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowAdd(s => !s)}
+          style={{ padding: '4px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'transparent', border: '1px solid rgba(155,109,255,0.3)', color: '#9B6DFF', cursor: 'pointer' }}
+        >
+          {showAdd ? 'Cancel' : '+ Add Slot'}
+        </button>
+      </div>
+
+      <div style={{ fontSize: 10, color: '#6B8299', marginBottom: slots.length || showAdd ? 10 : 0, lineHeight: 1.5 }}>
+        Each slot is a named placeholder an agent fills by linking a real BP or FTA record.
+        When all slots are filled, the item auto-completes. Items with slots cannot be manually checked.
+      </div>
+
+      {/* Existing slots */}
+      {slots.map(slot => (
+        <div key={slot.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', marginBottom: 4, background: 'rgba(155,109,255,0.06)', border: '1px solid rgba(155,109,255,0.12)', borderRadius: 4 }}>
+          <div style={{ flex: 1 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#ffffff' }}>{slot.label}</span>
+            <span style={{ marginLeft: 8, fontSize: 9, color: '#9B6DFF', padding: '1px 6px', background: 'rgba(155,109,255,0.12)', borderRadius: 3, textTransform: 'uppercase', fontWeight: 600 }}>
+              {slot.slotType === 'business_partner' ? 'Business Partner' : 'Field Appointment'}
+            </span>
+          </div>
+          <button
+            onClick={() => handleDelete(slot.id)}
+            style={{ background: 'none', border: 'none', color: '#f87171', fontSize: 11, cursor: 'pointer', padding: '2px 6px' }}
+          >
+            Remove
+          </button>
+        </div>
+      ))}
+
+      {/* Add new slot form */}
+      {showAdd && (
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr auto auto', gap: 8, marginTop: 8, alignItems: 'end' }}>
+          <input
+            value={addLabel}
+            onChange={e => setAddLabel(e.target.value)}
+            placeholder='e.g. "Business Partner 1"'
+            style={{ ...inp, width: '100%' }}
+            onKeyDown={e => { if (e.key === 'Enter') handleAdd() }}
+          />
+          <select
+            value={addType}
+            onChange={e => setAddType(e.target.value as 'business_partner' | 'field_appointment')}
+            style={{ ...inp, cursor: 'pointer' }}
+          >
+            <option value="business_partner">Business Partner</option>
+            <option value="field_appointment">Field Appointment</option>
+          </select>
+          <button
+            onClick={handleAdd}
+            disabled={adding || !addLabel.trim()}
+            style={{ padding: '7px 14px', borderRadius: 4, fontSize: 11, fontWeight: 700, background: '#9B6DFF', border: 'none', color: '#ffffff', cursor: adding ? 'wait' : 'pointer', opacity: adding ? 0.7 : 1, whiteSpace: 'nowrap' }}
+          >
+            {adding ? 'Adding...' : 'Add'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

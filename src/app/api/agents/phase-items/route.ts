@@ -11,6 +11,7 @@ export async function GET() {
   const [dbItems, dbGroups] = await Promise.all([
     db.phaseItemDefinition.findMany({
       orderBy: [{ phase: 'asc' }, { sortOrder: 'asc' }],
+      include: { slots: { orderBy: { sortOrder: 'asc' } } },
     }),
     db.phaseGroupDefinition.findMany({
       orderBy: [{ phase: 'asc' }, { sortOrder: 'asc' }],

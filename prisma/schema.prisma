@@ -393,6 +393,7 @@ model AgentProfile {
   agentNotesAbout       AgentNote[]                @relation("AgentNoteSubject")
   authoredAgentNotes    AgentNote[]                @relation("AgentNoteAuthorAgent")
   whyStatements         WhyStatement[]
+  slotFulfillments      AgentSlotFulfillment[]
 
   @@index([recruiterId])
   @@map("agent_profiles")
@@ -539,6 +540,7 @@ model PhaseItemDefinition {
   postToActivity        Boolean  @default(true)  @map("post_to_activity")
   pingAdmin             Boolean  @default(false) @map("ping_admin")
   postToAnnouncements   Boolean  @default(false) @map("post_to_announcements")
+  slots       PhaseItemSlotDef[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -563,6 +565,40 @@ model PhaseGroupDefinition {
   updatedAt   DateTime @updatedAt
 
   @@map("phase_group_definitions")
+}
+
+// Slot template attached to a PhaseItemDefinition. Each slot is a named
+// placeholder (e.g. "Business Partner 1") that an agent fills by linking
+// a real record from their tracker. When all slots for an item are filled
+// the parent PhaseItem auto-completes.
+model PhaseItemSlotDef {
+  id                    String               @id @default(cuid())
+  phaseItemDefinitionId String
+  phaseItemDefinition   PhaseItemDefinition  @relation(fields: [phaseItemDefinitionId], references: [id], onDelete: Cascade)
+  label                 String               // e.g. "Business Partner 1"
+  slotType              String               // 'business_partner' | 'field_appointment'
+  sortOrder             Int                  @default(0)
+  fulfillments          AgentSlotFulfillment[]
+  createdAt             DateTime             @default(now())
+
+  @@map("phase_item_slot_defs")
+}
+
+// Records which specific BP or FTA an agent used to fulfill a slot.
+model AgentSlotFulfillment {
+  id                String                    @id @default(cuid())
+  slotDefId         String
+  slotDef           PhaseItemSlotDef          @relation(fields: [slotDefId], references: [id], onDelete: Cascade)
+  agentProfileId    String
+  agentProfile      AgentProfile              @relation(fields: [agentProfileId], references: [id], onDelete: Cascade)
+  businessPartnerId String?
+  businessPartner   BusinessPartner?          @relation(fields: [businessPartnerId], references: [id], onDelete: SetNull)
+  ftaId             String?
+  fta               FieldTrainingAppointment? @relation(fields: [ftaId], references: [id], onDelete: SetNull)
+  fulfilledAt       DateTime                  @default(now())
+
+  @@unique([slotDefId, agentProfileId])
+  @@map("agent_slot_fulfillments")
 }
 
 model ProgressionDefinition {
@@ -870,7 +906,8 @@ model BusinessPartner {
   // Reverse side of FieldTrainingAppointment.businessPartner relation. An
   // FTA contact (category='fta_contact') typically generates one or more
   // appointments over time, so this is a one-to-many.
-  ftaAppointments FieldTrainingAppointment[]
+  ftaAppointments  FieldTrainingAppointment[]
+  slotFulfillments AgentSlotFulfillment[]
 
   @@index([agentProfileId, status])
   @@index([linkedAgentProfileId])
@@ -1661,6 +1698,7 @@ model FieldTrainingAppointment {
   cancelledAt       DateTime?
 
   phaseItems        PhaseItem[]
+  slotFulfillments  AgentSlotFulfillment[]
 
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
