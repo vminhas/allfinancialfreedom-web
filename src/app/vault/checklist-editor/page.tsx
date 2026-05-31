@@ -56,6 +56,8 @@ export default function ChecklistEditorPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
+  const dragSrcIdx = useRef<number | null>(null)
 
   const [form, setForm] = useState({
     itemKey: '', label: '', description: '', duration: '',
@@ -201,6 +203,22 @@ export default function ChecklistEditorPage() {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ orderedIds }),
+    })
+    fetchItems()
+  }
+
+  const handleDrop = async (dropIdx: number) => {
+    const fromIdx = dragSrcIdx.current
+    if (fromIdx === null || fromIdx === dropIdx) { setDragOverId(null); dragSrcIdx.current = null; return }
+    const newItems = [...phaseItems]
+    const [moved] = newItems.splice(fromIdx, 1)
+    newItems.splice(dropIdx, 0, moved)
+    dragSrcIdx.current = null
+    setDragOverId(null)
+    await fetch('/api/admin/phase-items/reorder', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderedIds: newItems.map(i => i.id) }),
     })
     fetchItems()
   }
@@ -536,30 +554,33 @@ export default function ChecklistEditorPage() {
         ) : phaseItems.map((item, idx) => {
           const group = groups.find(g => g.key === item.groupKey)
           const isEditingThis = editingId === item.id
+          const isDragOver = dragOverId === item.id && dragSrcIdx.current !== idx
           return (
-            <div key={item.id} style={{
-              display: 'flex', alignItems: 'flex-start', gap: 10,
-              padding: '12px 16px', borderRadius: 6,
-              // Strong visual coupling between the row and the form: gold
-              // left rule, gold-tinted background, glow shadow. Without this,
-              // the form (which sits above the items list) is hard to
-              // associate with the row being edited, especially in long phases.
-              background: isEditingThis ? 'rgba(201,169,110,0.06)' : '#132238',
-              border: isEditingThis ? '1px solid rgba(201,169,110,0.45)' : '1px solid rgba(255,255,255,0.05)',
-              borderLeft: isEditingThis ? '3px solid #C9A96E' : '1px solid rgba(255,255,255,0.05)',
-              boxShadow: isEditingThis ? '0 0 0 4px rgba(201,169,110,0.06)' : 'none',
-              transition: 'background 0.15s, border-color 0.15s',
-            }}>
-              {/* Reorder buttons */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0, paddingTop: 2 }}>
-                <button onClick={() => moveItem(item.id, 'up')} disabled={idx === 0} style={{
-                  background: 'none', border: 'none', color: idx === 0 ? '#2a3a4d' : '#6B8299',
-                  cursor: idx === 0 ? 'default' : 'pointer', fontSize: 11, padding: '0 4px', lineHeight: 1,
-                }}>&#9650;</button>
-                <button onClick={() => moveItem(item.id, 'down')} disabled={idx === phaseItems.length - 1} style={{
-                  background: 'none', border: 'none', color: idx === phaseItems.length - 1 ? '#2a3a4d' : '#6B8299',
-                  cursor: idx === phaseItems.length - 1 ? 'default' : 'pointer', fontSize: 11, padding: '0 4px', lineHeight: 1,
-                }}>&#9660;</button>
+            <div
+              key={item.id}
+              draggable
+              onDragStart={() => { dragSrcIdx.current = idx }}
+              onDragOver={e => { e.preventDefault(); setDragOverId(item.id) }}
+              onDrop={() => handleDrop(idx)}
+              onDragEnd={() => { dragSrcIdx.current = null; setDragOverId(null) }}
+              style={{
+                display: 'flex', alignItems: 'flex-start', gap: 10,
+                padding: '12px 16px', borderRadius: 6,
+                background: isEditingThis ? 'rgba(201,169,110,0.06)' : '#132238',
+                border: isDragOver
+                  ? '1px solid rgba(201,169,110,0.6)'
+                  : isEditingThis ? '1px solid rgba(201,169,110,0.45)' : '1px solid rgba(255,255,255,0.05)',
+                borderLeft: isDragOver
+                  ? '3px solid #C9A96E'
+                  : isEditingThis ? '3px solid #C9A96E' : '1px solid rgba(255,255,255,0.05)',
+                boxShadow: isEditingThis ? '0 0 0 4px rgba(201,169,110,0.06)' : 'none',
+                opacity: dragSrcIdx.current === idx ? 0.4 : 1,
+                transition: 'background 0.15s, border-color 0.15s, opacity 0.15s',
+                cursor: 'grab',
+              }}>
+              {/* Drag handle */}
+              <div style={{ flexShrink: 0, paddingTop: 3, color: '#3a5068', fontSize: 14, lineHeight: 1, userSelect: 'none', cursor: 'grab' }}>
+                ⠿
               </div>
 
               {/* Item content */}
