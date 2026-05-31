@@ -3,25 +3,25 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 
-async function getAgentProfile(session: Awaited<ReturnType<typeof getServerSession>>) {
-  if (!session || (session.user as { role?: string }).role !== 'agent') return null
-  const email = session.user?.email
-  if (typeof email !== 'string') return null
-  const agentUser = await db.agentUser.findFirst({
-    where: { email: { equals: email, mode: 'insensitive' } },
-    include: { profile: { select: { id: true, phase: true } } },
-  })
-  return agentUser?.profile ?? null
-}
-
 // POST /api/agents/slot-fulfillment
 // Body: { slotDefId, businessPartnerId? } | { slotDefId, ftaId? }
 // Links a BP or FTA record to a slot. When all slots for the parent item
 // are filled, auto-completes the PhaseItem and fires Discord notifications.
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
-  const profile = await getAgentProfile(session)
-  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session || (session.user as { role?: string }).role !== 'agent') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  const email = session.user!.email
+  if (typeof email !== 'string' || !email.trim()) {
+    return NextResponse.json({ error: 'No email in session' }, { status: 401 })
+  }
+  const agentUser = await db.agentUser.findFirst({
+    where: { email: { equals: email, mode: 'insensitive' } },
+    include: { profile: { select: { id: true, phase: true } } },
+  })
+  if (!agentUser?.profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+  const profile = agentUser.profile
 
   const body = await req.json() as {
     slotDefId: string
@@ -137,8 +137,19 @@ export async function POST(req: NextRequest) {
 // Unlinks the record from this slot and un-completes the parent item if needed.
 export async function DELETE(req: NextRequest) {
   const session = await getServerSession(authOptions)
-  const profile = await getAgentProfile(session)
-  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session || (session.user as { role?: string }).role !== 'agent') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  const email = session.user!.email
+  if (typeof email !== 'string' || !email.trim()) {
+    return NextResponse.json({ error: 'No email in session' }, { status: 401 })
+  }
+  const agentUser = await db.agentUser.findFirst({
+    where: { email: { equals: email, mode: 'insensitive' } },
+    include: { profile: { select: { id: true } } },
+  })
+  if (!agentUser?.profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+  const profile = agentUser.profile
 
   const slotDefId = new URL(req.url).searchParams.get('slotDefId')
   if (!slotDefId) return NextResponse.json({ error: 'slotDefId required' }, { status: 400 })
