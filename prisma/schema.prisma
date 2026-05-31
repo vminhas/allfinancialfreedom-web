@@ -2032,6 +2032,42 @@ model LcTask {
   @@map("lc_tasks")
 }
 
+// Auto-generated blog article drafted by the weekly cron. The
+// orchestrator (src/lib/article-generator.ts) runs Opus 4.8 with web
+// search, dedupes against the existing MDX corpus, writes a full MDX
+// body, and stores it here as DRAFT. The blog read path includes
+// PUBLISHED rows alongside the static content/blog/*.mdx files so a
+// publish goes live without a redeploy.
+//   status: DRAFT      created by the cron, awaiting approval
+//           PUBLISHED  approved, public on /blog/<slug>
+//           REJECTED   declined; kept for prompt-tuning
+//   autoPublishAt: if set, the cron's follow-up publishes the draft at
+//           this time unless it was already approved or rejected. Lets
+//           us run "draft on Friday morning, auto-publish by noon
+//           unless someone rejects."
+model GeneratedArticle {
+  id            String   @id @default(cuid())
+  slug          String   @unique
+  title         String
+  category      String
+  excerpt       String   @db.Text
+  coverImage    String
+  tags          String[]
+  mdxBody       String   @db.Text   @map("mdx_body")
+  sourceUrls    String[]            @map("source_urls")
+  relatedSlugs  String[]            @map("related_slugs")
+  status        String   @default("DRAFT")
+  autoPublishAt DateTime?           @map("auto_publish_at")
+  publishedAt   DateTime?           @map("published_at")
+  rejectedReason String?            @map("rejected_reason")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt      @map("updated_at")
+
+  @@index([status, createdAt])
+  @@index([status, autoPublishAt])
+  @@map("generated_articles")
+}
+
 // One row per day the Licensing Coordinator daily digest runs.
 // Gates the cron so a Vercel retry (or a double cron fire) doesn't
 // email Melinee + post to Discord twice. digestDate is the ET
