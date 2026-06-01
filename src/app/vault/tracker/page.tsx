@@ -136,6 +136,8 @@ export default function TrackerPage() {
   // Trading-card modal: opened from the drawer's "Trading Card" button.
   const [cardCode, setCardCode] = useState<string | null>(null)
   const [drawerLoading, setDrawerLoading] = useState(false)
+  const [livePhaseItems, setLivePhaseItems] = useState<Record<number, typeof PHASE_ITEMS[1]> | null>(null)
+  const [livePhaseGroups, setLivePhaseGroups] = useState<Record<number, typeof PHASE_GROUPS[1]> | null>(null)
   const [inviteLoading, setInviteLoading] = useState(false)
   const [inviteMsg, setInviteMsg] = useState('')
   const [stats, setStats] = useState<DashStats | null>(null)
@@ -274,6 +276,38 @@ export default function TrackerPage() {
     }
   }, [])
 
+  useEffect(() => {
+    fetch('/api/agents/phase-items')
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { items: Record<string, { itemKey: string; label: string; description: string; duration?: string; groupKey?: string; adminOnly?: boolean; coordinatorTopic?: string; actionJson?: string }[]>; groups?: Record<string, Array<{ key: string; label: string; icon?: string | null; description?: string | null; showTrainer?: boolean }>>; source: string } | null) => {
+        if (d?.source === 'database' && d.items) {
+          const mapped: Record<number, typeof PHASE_ITEMS[1]> = {}
+          for (const [phase, items] of Object.entries(d.items)) {
+            mapped[parseInt(phase)] = items.map(i => ({
+              key: i.itemKey, label: i.label, description: i.description,
+              duration: i.duration, group: i.groupKey ?? undefined,
+              adminOnly: i.adminOnly,
+              coordinatorTopic: i.coordinatorTopic as typeof PHASE_ITEMS[1][0]['coordinatorTopic'],
+              action: i.actionJson ? JSON.parse(i.actionJson) : undefined,
+            }))
+          }
+          setLivePhaseItems(mapped)
+        }
+        if (d?.groups && !Array.isArray(d.groups)) {
+          const mapped: Record<number, typeof PHASE_GROUPS[1]> = {}
+          for (const [phase, groups] of Object.entries(d.groups)) {
+            if (!Array.isArray(groups)) continue
+            mapped[parseInt(phase)] = groups.map(g => ({
+              key: g.key, label: g.label,
+              icon: g.icon ?? undefined,
+              description: g.description ?? undefined,
+              showTrainer: g.showTrainer ?? false,
+            }))
+          }
+          setLivePhaseGroups(mapped)
+        }
+      }).catch(() => {})
+  }, [])
   useEffect(() => { fetchAgents() }, [fetchAgents])
   useEffect(() => { fetchStats() }, [fetchStats])
   useEffect(() => { fetchTrends() }, [fetchTrends])
@@ -1260,6 +1294,8 @@ export default function TrackerPage() {
                 onOpenCard={setCardCode}
                 initialTab={(searchParams.get('tab') as TabKey) ?? undefined}
                 onTabChange={tab => updateUrl(selectedAgent?.id ?? null, tab)}
+                livePhaseItems={livePhaseItems}
+                livePhaseGroups={livePhaseGroups}
               />
             ) : null}
           </div>
@@ -1325,6 +1361,8 @@ function AgentDrawer({
   onOpenCard,
   initialTab,
   onTabChange,
+  livePhaseItems,
+  livePhaseGroups,
 }: {
   agent: DetailedAgent
   onAdvancePhase: () => void
@@ -1342,6 +1380,8 @@ function AgentDrawer({
   onClose: () => void
   initialTab?: TabKey
   onTabChange?: (tab: TabKey) => void
+  livePhaseItems?: Record<number, typeof PHASE_ITEMS[1]> | null
+  livePhaseGroups?: Record<number, typeof PHASE_GROUPS[1]> | null
 }) {
   const [activeTab, setActiveTabRaw] = useState<TabKey>(initialTab && (TABS as readonly string[]).includes(initialTab) ? initialTab : 'progress')
   const setActiveTab = (tab: TabKey) => {
@@ -1526,11 +1566,11 @@ function AgentDrawer({
     agent.phase,
     agent.phaseStartedAt ? new Date(agent.phaseStartedAt) : null,
     agent.phaseItems.filter(i => i.phase === agent.phase && i.completed).length,
-    PHASE_ITEMS[agent.phase]?.length ?? 0
+    (livePhaseItems ?? PHASE_ITEMS)[agent.phase]?.length ?? 0
   )
 
-  const phasePct = PHASE_ITEMS[agent.phase]?.length
-    ? Math.round((agent.phaseItems.filter(i => i.phase === agent.phase && i.completed).length / (PHASE_ITEMS[agent.phase]?.length ?? 1)) * 100)
+  const phasePct = (livePhaseItems ?? PHASE_ITEMS)[agent.phase]?.length
+    ? Math.round((agent.phaseItems.filter(i => i.phase === agent.phase && i.completed).length / ((livePhaseItems ?? PHASE_ITEMS)[agent.phase]?.length ?? 1)) * 100)
     : 0
 
   const sLabel = {
@@ -1847,7 +1887,7 @@ function AgentDrawer({
           {/* Phase sub-tabs — bounce between phases independently of current phase */}
           <div style={{ display: 'flex', gap: 4, marginBottom: 16, flexWrap: 'wrap' }}>
             {[1, 2, 3, 4, 5, 6].map(ph => {
-              const items = PHASE_ITEMS[ph] ?? []
+              const items = (livePhaseItems ?? PHASE_ITEMS)[ph] ?? []
               const done = localPhaseItems.filter(p => p.phase === ph && p.completed).length
               const total = items.length
               const pct = total > 0 ? Math.round((done / total) * 100) : 0
@@ -1885,8 +1925,8 @@ function AgentDrawer({
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {(() => {
-              const allItems = PHASE_ITEMS[drawerChecklistPhase] ?? []
-              const groups = PHASE_GROUPS[drawerChecklistPhase] ?? []
+              const allItems = (livePhaseItems ?? PHASE_ITEMS)[drawerChecklistPhase] ?? []
+              const groups = (livePhaseGroups ?? PHASE_GROUPS)[drawerChecklistPhase] ?? []
 
               const groupedItems: { group: typeof groups[0] | null; items: typeof allItems }[] = []
               const usedKeys = new Set<string>()
