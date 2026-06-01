@@ -65,3 +65,21 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ statement })
 }
+
+export async function DELETE(req: NextRequest) {
+  const profileId = await resolveProfileId(req)
+  if (!profileId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const id = new URL(req.url).searchParams.get('id')
+  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+
+  await db.whyStatement.deleteMany({ where: { id, agentProfileId: profileId } })
+
+  // Clear the mirror on PFR too
+  await db.personalFinancialReview.updateMany({
+    where: { agentProfileId: profileId },
+    data: { whyStatement: null },
+  })
+
+  return NextResponse.json({ ok: true })
+}

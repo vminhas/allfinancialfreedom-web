@@ -627,14 +627,29 @@ function PFRPageInner() {
                     </div>
                     {whySaved && <span style={{ fontSize: 10, color: '#4ade80', fontWeight: 600 }}>Saved</span>}
                   </div>
-                  <button
-                    onClick={() => { setWhyDraft(whyStatements[0].content); setWhyEditing(true) }}
-                    style={{
-                      background: 'none', border: '1px solid rgba(201,169,110,0.3)',
-                      borderRadius: 4, padding: '3px 10px', fontSize: 10, color: '#C9A96E',
-                      cursor: 'pointer',
-                    }}
-                  >Edit</button>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      onClick={() => { setWhyDraft(whyStatements[0].content); setWhyEditing(true) }}
+                      style={{
+                        background: 'none', border: '1px solid rgba(201,169,110,0.3)',
+                        borderRadius: 4, padding: '3px 10px', fontSize: 10, color: '#C9A96E',
+                        cursor: 'pointer',
+                      }}
+                    >Edit</button>
+                    <button
+                      onClick={async () => {
+                        if (!confirm('Remove your Why statement?')) return
+                        await fetch(`/api/agents/why-statements?id=${whyStatements[0].id}`, { method: 'DELETE' })
+                        setWhyStatements([])
+                        setWhyDraft('')
+                      }}
+                      style={{
+                        background: 'none', border: '1px solid rgba(239,68,68,0.3)',
+                        borderRadius: 4, padding: '3px 10px', fontSize: 10, color: '#f87171',
+                        cursor: 'pointer',
+                      }}
+                    >Remove</button>
+                  </div>
                 </div>
               </div>
             )}
