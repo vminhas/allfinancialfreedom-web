@@ -2,26 +2,45 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { getSetting } from '@/lib/settings'
+
+async function resolveProfile(req: NextRequest) {
+  const url = new URL(req.url)
+  const previewToken = url.searchParams.get('preview')
+  if (previewToken) {
+    const raw = await getSetting(`PREVIEW_TOKEN_${previewToken}`)
+    if (raw) {
+      const data = JSON.parse(raw) as { agentProfileId: string; expires: string }
+      if (new Date(data.expires) >= new Date()) {
+        return db.agentProfile.findUnique({ where: { id: data.agentProfileId }, select: { id: true, phase: true } })
+      }
+    }
+  }
+  const session = await getServerSession(authOptions)
+  if (!session) return null
+  const role = (session.user as { role?: string }).role
+  if (role === 'admin') {
+    const id = url.searchParams.get('agentProfileId')
+    if (id) return db.agentProfile.findUnique({ where: { id }, select: { id: true, phase: true } })
+    return null
+  }
+  if (role !== 'agent') return null
+  const email = session.user!.email
+  if (typeof email !== 'string' || !email.trim()) return null
+  const agentUser = await db.agentUser.findFirst({
+    where: { email: { equals: email, mode: 'insensitive' } },
+    include: { profile: { select: { id: true, phase: true } } },
+  })
+  return agentUser?.profile ?? null
+}
 
 // POST /api/agents/slot-fulfillment
 // Body: { slotDefId }
 // Marks a slot as completed. When the required number of slots are done,
 // auto-completes the parent PhaseItem and fires Discord notifications.
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-  const email = session.user!.email
-  if (typeof email !== 'string' || !email.trim()) {
-    return NextResponse.json({ error: 'No email in session' }, { status: 401 })
-  }
-  const agentUser = await db.agentUser.findFirst({
-    where: { email: { equals: email, mode: 'insensitive' } },
-    include: { profile: { select: { id: true, phase: true } } },
-  })
-  if (!agentUser?.profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
-  const profile = agentUser.profile
+  const profile = await resolveProfile(req)
+  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json() as { slotDefId: string }
   if (!body.slotDefId) return NextResponse.json({ error: 'slotDefId required' }, { status: 400 })
@@ -117,20 +136,8 @@ export async function POST(req: NextRequest) {
 // DELETE /api/agents/slot-fulfillment?slotDefId=xxx
 // Unchecks a slot and un-completes the parent item if needed.
 export async function DELETE(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-  const email = session.user!.email
-  if (typeof email !== 'string' || !email.trim()) {
-    return NextResponse.json({ error: 'No email in session' }, { status: 401 })
-  }
-  const agentUser = await db.agentUser.findFirst({
-    where: { email: { equals: email, mode: 'insensitive' } },
-    include: { profile: { select: { id: true } } },
-  })
-  if (!agentUser?.profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
-  const profile = agentUser.profile
+  const profile = await resolveProfile(req)
+  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const slotDefId = new URL(req.url).searchParams.get('slotDefId')
   if (!slotDefId) return NextResponse.json({ error: 'slotDefId required' }, { status: 400 })

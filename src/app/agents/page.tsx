@@ -138,21 +138,23 @@ interface AgentData {
 
 // ── ItemSlots ─────────────────────────────────────────────────────────────────
 // Simple checkbox sub-tasks nested under a parent checklist item.
-function ItemSlots({ slots, requiredCount, fulfillments, onFulfillmentChange }: {
+function ItemSlots({ slots, requiredCount, fulfillments, onFulfillmentChange, previewQs }: {
   itemKey: string
   slots: SlotDef[]
   requiredCount?: number | null
   fulfillments: SlotFulfillment[]
   onFulfillmentChange: () => void
+  previewQs?: string
 }) {
   const [toggling, setToggling] = useState<string | null>(null)
+  const qs = previewQs || ''
 
   const toggle = async (slot: SlotDef, currentlyDone: boolean) => {
     setToggling(slot.id)
     if (currentlyDone) {
-      await fetch(`/api/agents/slot-fulfillment?slotDefId=${slot.id}`, { method: 'DELETE' })
+      await fetch(`/api/agents/slot-fulfillment?slotDefId=${slot.id}${qs ? '&' + qs.slice(1) : ''}`, { method: 'DELETE' })
     } else {
-      await fetch('/api/agents/slot-fulfillment', {
+      await fetch(`/api/agents/slot-fulfillment${qs}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ slotDefId: slot.id }),
@@ -1937,8 +1939,10 @@ function AgentDashboardInner() {
                               slots={(item as typeof item & SlotItemMeta).slots!}
                               requiredCount={(item as typeof item & SlotItemMeta).slotRequiredCount}
                               fulfillments={data.slotFulfillments ?? []}
+                              previewQs={previewToken ? `?preview=${encodeURIComponent(previewToken)}` : ''}
                               onFulfillmentChange={() => {
-                                fetch('/api/agents/me').then(r => r.ok ? r.json() : null).then(d => {
+                                const meUrl = previewToken ? `/api/agents/me?preview=${encodeURIComponent(previewToken)}` : '/api/agents/me'
+                                fetch(meUrl).then(r => r.ok ? r.json() : null).then(d => {
                                   if (d) setData(d)
                                 }).catch(() => {})
                               }}
