@@ -583,7 +583,8 @@ function AgentDashboardInner() {
   const toggleItem = async (itemKey: string, phase: number, current: boolean) => {
     if (!data) return
     setTogglingKey(itemKey)
-    await fetch('/api/agents/progress', {
+    const progressQs = previewToken ? `?preview=${encodeURIComponent(previewToken)}` : ''
+    await fetch(`/api/agents/progress${progressQs}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ itemKey, phase, completed: !current }),
