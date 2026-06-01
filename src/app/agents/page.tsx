@@ -147,10 +147,11 @@ function ItemSlots({ slots, requiredCount, fulfillments, onFulfillmentChange, pr
   previewQs?: string
 }) {
   const [toggling, setToggling] = useState<string | null>(null)
+  const [optimistic, setOptimistic] = useState<Record<string, boolean>>({})
   const qs = previewQs || ''
 
   const toggle = async (slot: SlotDef, currentlyDone: boolean) => {
-    setToggling(slot.id)
+    setOptimistic(prev => ({ ...prev, [slot.id]: !currentlyDone }))
     if (currentlyDone) {
       await fetch(`/api/agents/slot-fulfillment?slotDefId=${slot.id}${qs ? '&' + qs.slice(1) : ''}`, { method: 'DELETE' })
     } else {
@@ -160,13 +161,15 @@ function ItemSlots({ slots, requiredCount, fulfillments, onFulfillmentChange, pr
         body: JSON.stringify({ slotDefId: slot.id }),
       })
     }
-    setToggling(null)
     onFulfillmentChange()
   }
 
+  const isDone = (slotId: string) =>
+    slotId in optimistic ? optimistic[slotId] : fulfillments.some(f => f.slotDefId === slotId)
+
   const sorted = [...slots].sort((a, b) => a.sortOrder - b.sortOrder)
   const required = requiredCount ?? sorted.length
-  const filled = sorted.filter(s => fulfillments.some(f => f.slotDefId === s.id)).length
+  const filled = sorted.filter(s => isDone(s.id)).length
   const isOR = required < sorted.length
 
   return (
@@ -178,13 +181,13 @@ function ItemSlots({ slots, requiredCount, fulfillments, onFulfillmentChange, pr
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {sorted.map(slot => {
-          const done = fulfillments.some(f => f.slotDefId === slot.id)
+          const done = isDone(slot.id)
           const isToggling = toggling === slot.id
           return (
             <button
               key={slot.id}
-              onClick={e => { e.stopPropagation(); if (!isToggling) toggle(slot, done) }}
-              disabled={isToggling}
+              onClick={e => { e.stopPropagation(); toggle(slot, done) }}
+              disabled={false}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10,
                 padding: '7px 10px', borderRadius: 4, cursor: 'pointer',
