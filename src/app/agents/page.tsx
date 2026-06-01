@@ -137,145 +137,80 @@ interface AgentData {
 }
 
 // ── ItemSlots ─────────────────────────────────────────────────────────────────
-// Renders the milestone slots for a checklist item. Each slot is a named
-// placeholder the agent fills by linking a BP or FTA from their tracker.
-function ItemSlots({ itemKey, slots, requiredCount, fulfillments, onFulfillmentChange }: {
+// Simple checkbox sub-tasks nested under a parent checklist item.
+function ItemSlots({ slots, requiredCount, fulfillments, onFulfillmentChange }: {
   itemKey: string
   slots: SlotDef[]
   requiredCount?: number | null
   fulfillments: SlotFulfillment[]
   onFulfillmentChange: () => void
 }) {
-  const [pickerSlotId, setPickerSlotId] = useState<string | null>(null)
-  const [pickerRecords, setPickerRecords] = useState<{ id: string; name: string; sub?: string }[]>([])
-  const [pickerLoading, setPickerLoading] = useState(false)
-  const [saving, setSaving] = useState<string | null>(null)
+  const [toggling, setToggling] = useState<string | null>(null)
 
-  const openPicker = async (slot: SlotDef) => {
-    setPickerSlotId(slot.id)
-    setPickerLoading(true)
-    const r = await fetch(`/api/agents/tracker-records?type=${slot.slotType}`)
-    const d = r.ok ? await r.json() as { records: Array<{ id: string; name: string; category?: string; appointmentDate?: string; businessPartner?: { name: string } | null }> } : { records: [] }
-    setPickerRecords(d.records.map(rec => ({
-      id: rec.id,
-      name: rec.businessPartner?.name ?? rec.name,
-      sub: rec.appointmentDate ? new Date(rec.appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : rec.category ?? undefined,
-    })))
-    setPickerLoading(false)
-  }
-
-  const linkRecord = async (slot: SlotDef, recordId: string) => {
-    setSaving(slot.id)
-    await fetch('/api/agents/slot-fulfillment', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(slot.slotType === 'business_partner' ? { slotDefId: slot.id, businessPartnerId: recordId } : { slotDefId: slot.id, ftaId: recordId }),
-    })
-    setSaving(null)
-    setPickerSlotId(null)
+  const toggle = async (slot: SlotDef, currentlyDone: boolean) => {
+    setToggling(slot.id)
+    if (currentlyDone) {
+      await fetch(`/api/agents/slot-fulfillment?slotDefId=${slot.id}`, { method: 'DELETE' })
+    } else {
+      await fetch('/api/agents/slot-fulfillment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slotDefId: slot.id }),
+      })
+    }
+    setToggling(null)
     onFulfillmentChange()
   }
 
-  const unlinkRecord = async (slot: SlotDef) => {
-    setSaving(slot.id)
-    await fetch(`/api/agents/slot-fulfillment?slotDefId=${slot.id}`, { method: 'DELETE' })
-    setSaving(null)
-    onFulfillmentChange()
-  }
-
-  // Sort slots by sortOrder
   const sorted = [...slots].sort((a, b) => a.sortOrder - b.sortOrder)
   const required = requiredCount ?? sorted.length
   const filled = sorted.filter(s => fulfillments.some(f => f.slotDefId === s.id)).length
   const isOR = required < sorted.length
 
   return (
-    <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px dashed rgba(155,109,255,0.2)' }}>
-      <div style={{ fontSize: 9, fontWeight: 700, color: '#9B6DFF', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 8 }}>
-        {isOR
-          ? `Complete any ${required} of ${sorted.length} · ${filled} linked`
-          : `Required · ${filled}/${sorted.length} linked`}
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed rgba(255,255,255,0.06)' }}>
+      {isOR && (
+        <div style={{ fontSize: 9, color: '#6B8299', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
+          Complete any {required} of {sorted.length} &middot; {filled} done
+        </div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {sorted.map(slot => {
-          const fulfillment = fulfillments.find(f => f.slotDefId === slot.id)
-          const isSaving = saving === slot.id
-          const linked = fulfillment?.businessPartner ?? fulfillment?.fta
-          const linkedName = fulfillment?.businessPartner?.name ?? (fulfillment?.fta ? (fulfillment.fta.name) : null)
-
+          const done = fulfillments.some(f => f.slotDefId === slot.id)
+          const isToggling = toggling === slot.id
           return (
-            <div key={slot.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 5, background: linked ? 'rgba(74,222,128,0.05)' : 'rgba(155,109,255,0.04)', border: `1px solid ${linked ? 'rgba(74,222,128,0.18)' : 'rgba(155,109,255,0.15)'}` }}>
-              {/* Status dot */}
-              <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: linked ? '#4ade80' : 'rgba(155,109,255,0.4)', border: linked ? 'none' : '1px solid rgba(155,109,255,0.5)' }} />
-
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ fontSize: 11, color: linked ? '#9BB0C4' : '#ffffff', fontWeight: 500 }}>{slot.label}</span>
-                {linkedName && (
-                  <span style={{ marginLeft: 8, fontSize: 11, color: '#4ade80', fontWeight: 600 }}>{linkedName}</span>
-                )}
-                {!linked && (
-                  <span style={{ marginLeft: 6, fontSize: 9, color: '#6B8299' }}>
-                    · {slot.slotType === 'business_partner' ? 'Link a Business Partner' : 'Link a Field Appointment'}
-                  </span>
-                )}
+            <button
+              key={slot.id}
+              onClick={e => { e.stopPropagation(); if (!isToggling) toggle(slot, done) }}
+              disabled={isToggling}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '7px 10px', borderRadius: 4, cursor: 'pointer',
+                background: done ? 'rgba(74,222,128,0.05)' : 'rgba(255,255,255,0.02)',
+                border: `1px solid ${done ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.06)'}`,
+                textAlign: 'left', width: '100%',
+                opacity: isToggling ? 0.6 : 1,
+                transition: 'all 0.15s',
+              }}
+            >
+              {/* Mini checkbox */}
+              <div style={{
+                width: 16, height: 16, borderRadius: 3, flexShrink: 0,
+                background: done ? '#4ade80' : 'transparent',
+                border: `2px solid ${done ? '#4ade80' : 'rgba(255,255,255,0.2)'}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 9, color: '#0A1628', fontWeight: 700,
+                transition: 'all 0.15s',
+              }}>
+                {done && '✓'}
               </div>
-
-              {linked ? (
-                <button
-                  onClick={e => { e.stopPropagation(); unlinkRecord(slot) }}
-                  disabled={isSaving}
-                  style={{ background: 'none', border: 'none', color: '#6B8299', fontSize: 10, cursor: 'pointer', padding: '2px 6px', flexShrink: 0 }}
-                >
-                  {isSaving ? '…' : 'Unlink'}
-                </button>
-              ) : (
-                <button
-                  onClick={e => { e.stopPropagation(); openPicker(slot) }}
-                  disabled={isSaving}
-                  style={{ padding: '4px 10px', borderRadius: 4, fontSize: 10, fontWeight: 600, background: 'rgba(155,109,255,0.12)', border: '1px solid rgba(155,109,255,0.3)', color: '#9B6DFF', cursor: 'pointer', flexShrink: 0 }}
-                >
-                  {isSaving ? '…' : '+ Link'}
-                </button>
-              )}
-            </div>
+              <span style={{ fontSize: 12, color: done ? '#6B8299' : '#C8D6E5' }}>
+                {slot.label}
+              </span>
+            </button>
           )
         })}
       </div>
-
-      {/* Picker dropdown */}
-      {pickerSlotId && (
-        <div
-          onClick={e => e.stopPropagation()}
-          style={{ marginTop: 8, padding: '10px 12px', borderRadius: 6, background: '#0A1628', border: '1px solid rgba(155,109,255,0.25)', maxHeight: 220, overflowY: 'auto' }}
-        >
-          {pickerLoading ? (
-            <div style={{ fontSize: 11, color: '#6B8299', padding: '8px 0' }}>Loading...</div>
-          ) : pickerRecords.length === 0 ? (
-            <div style={{ fontSize: 11, color: '#6B8299', padding: '8px 0' }}>
-              No records found. Make sure you have {slots.find(s => s.id === pickerSlotId)?.slotType === 'business_partner' ? 'Business Partners' : 'completed Field Appointments'} in your tracker.
-            </div>
-          ) : (
-            pickerRecords.map(rec => (
-              <button
-                key={rec.id}
-                onClick={() => { const slot = slots.find(s => s.id === pickerSlotId); if (slot) linkRecord(slot, rec.id) }}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '7px 8px', background: 'none', border: 'none', borderRadius: 4, cursor: 'pointer', textAlign: 'left' }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(155,109,255,0.08)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-              >
-                <span style={{ fontSize: 12, color: '#ffffff', flex: 1 }}>{rec.name}</span>
-                {rec.sub && <span style={{ fontSize: 10, color: '#6B8299' }}>{rec.sub}</span>}
-              </button>
-            ))
-          )}
-          <button
-            onClick={e => { e.stopPropagation(); setPickerSlotId(null) }}
-            style={{ marginTop: 6, fontSize: 10, color: '#6B8299', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0' }}
-          >
-            Cancel
-          </button>
-        </div>
-      )}
     </div>
   )
 }

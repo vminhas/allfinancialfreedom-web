@@ -4,9 +4,9 @@ import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 
 // POST /api/agents/slot-fulfillment
-// Body: { slotDefId, businessPartnerId? } | { slotDefId, ftaId? }
-// Links a BP or FTA record to a slot. When all slots for the parent item
-// are filled, auto-completes the PhaseItem and fires Discord notifications.
+// Body: { slotDefId }
+// Marks a slot as completed. When the required number of slots are done,
+// auto-completes the parent PhaseItem and fires Discord notifications.
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session || (session.user as { role?: string }).role !== 'agent') {
@@ -23,15 +23,8 @@ export async function POST(req: NextRequest) {
   if (!agentUser?.profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
   const profile = agentUser.profile
 
-  const body = await req.json() as {
-    slotDefId: string
-    businessPartnerId?: string
-    ftaId?: string
-  }
+  const body = await req.json() as { slotDefId: string }
   if (!body.slotDefId) return NextResponse.json({ error: 'slotDefId required' }, { status: 400 })
-  if (!body.businessPartnerId && !body.ftaId) {
-    return NextResponse.json({ error: 'businessPartnerId or ftaId required' }, { status: 400 })
-  }
 
   const slotDef = await db.phaseItemSlotDef.findUnique({
     where: { id: body.slotDefId },
@@ -43,23 +36,13 @@ export async function POST(req: NextRequest) {
   })
   if (!slotDef) return NextResponse.json({ error: 'Slot not found' }, { status: 404 })
 
-  // Upsert the fulfillment (agent can re-link a different record)
-  const fulfillment = await db.agentSlotFulfillment.upsert({
+  // Mark the slot complete (no linked record needed — just a completion flag)
+  await db.agentSlotFulfillment.upsert({
     where: { slotDefId_agentProfileId: { slotDefId: body.slotDefId, agentProfileId: profile.id } },
-    create: {
-      slotDefId: body.slotDefId,
-      agentProfileId: profile.id,
-      businessPartnerId: body.businessPartnerId ?? null,
-      ftaId: body.ftaId ?? null,
-    },
-    update: {
-      businessPartnerId: body.businessPartnerId ?? null,
-      ftaId: body.ftaId ?? null,
-      fulfilledAt: new Date(),
-    },
+    create: { slotDefId: body.slotDefId, agentProfileId: profile.id },
+    update: { fulfilledAt: new Date() },
   })
 
-  // Check if all slots for this definition are now fulfilled
   const def = slotDef.phaseItemDefinition
   const [totalSlots, filledSlots] = await Promise.all([
     db.phaseItemSlotDef.count({ where: { phaseItemDefinitionId: def.id } }),
@@ -71,14 +54,12 @@ export async function POST(req: NextRequest) {
   const required = def.slotRequiredCount ?? totalSlots
   const allFilled = filledSlots >= required
 
-  // Read prior completion state
   const prior = await db.phaseItem.findUnique({
     where: { agentProfileId_phase_itemKey: { agentProfileId: profile.id, phase: def.phase, itemKey: def.itemKey } },
     select: { completed: true, activityMsgId: true, announcementMsgId: true },
   })
   const wasCompleted = prior?.completed ?? false
 
-  // Upsert the PhaseItem completion state
   const phaseItem = await db.phaseItem.upsert({
     where: { agentProfileId_phase_itemKey: { agentProfileId: profile.id, phase: def.phase, itemKey: def.itemKey } },
     create: { agentProfileId: profile.id, phase: def.phase, itemKey: def.itemKey, completed: allFilled, completedAt: allFilled ? new Date() : null },
@@ -87,7 +68,6 @@ export async function POST(req: NextRequest) {
 
   const isRealTransition = allFilled && !wasCompleted
 
-  // Fire Discord on real completion
   if (isRealTransition && process.env.DISCORD_BOT_TOKEN) {
     try {
       const ACTIVITY_CHANNEL = process.env.DISCORD_AGENT_ACTIVITY_CHANNEL_ID ?? '1501070249695383622'
@@ -131,11 +111,11 @@ export async function POST(req: NextRequest) {
     } catch { /* non-fatal */ }
   }
 
-  return NextResponse.json({ fulfillment, completed: allFilled })
+  return NextResponse.json({ completed: allFilled })
 }
 
 // DELETE /api/agents/slot-fulfillment?slotDefId=xxx
-// Unlinks the record from this slot and un-completes the parent item if needed.
+// Unchecks a slot and un-completes the parent item if needed.
 export async function DELETE(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session || (session.user as { role?: string }).role !== 'agent') {
@@ -161,13 +141,9 @@ export async function DELETE(req: NextRequest) {
   })
   if (!slotDef) return NextResponse.json({ error: 'Slot not found' }, { status: 404 })
 
-  await db.agentSlotFulfillment.deleteMany({
-    where: { slotDefId, agentProfileId: profile.id },
-  })
+  await db.agentSlotFulfillment.deleteMany({ where: { slotDefId, agentProfileId: profile.id } })
 
   const def = slotDef.phaseItemDefinition
-
-  // Un-complete the parent item — if it was completed, retract Discord messages
   const prior = await db.phaseItem.findUnique({
     where: { agentProfileId_phase_itemKey: { agentProfileId: profile.id, phase: def.phase, itemKey: def.itemKey } },
     select: { id: true, completed: true, activityMsgId: true, announcementMsgId: true },
@@ -178,7 +154,6 @@ export async function DELETE(req: NextRequest) {
       where: { id: prior.id },
       data: { completed: false, completedAt: null, activityMsgId: null, announcementMsgId: null },
     })
-
     if (process.env.DISCORD_BOT_TOKEN && (prior.activityMsgId || prior.announcementMsgId)) {
       try {
         const { deleteChannelMessage } = await import('@/lib/discord')
