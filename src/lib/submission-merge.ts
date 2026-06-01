@@ -78,7 +78,10 @@ export interface DuplicatePairCandidate {
   keepId: string   // older row, becomes the keeper on merge
   mergeId: string  // newer row, gets merged into keeper
   agentProfileId: string
-  confidence: 'high' | 'medium' | 'low'
+  // 'distinct' = surface-attributes match BUT the two rows carry
+  // different carrier policy numbers, so they are almost certainly two
+  // real policies. Shown for manual review, excluded from bulk merge.
+  confidence: 'high' | 'medium' | 'low' | 'distinct'
   reason: string
   keep: PairSide
   merge: PairSide
@@ -160,23 +163,40 @@ export async function findDuplicatePairs(): Promise<DuplicatePairCandidate[]> {
 
         let confidence: DuplicatePairCandidate['confidence'] = 'low'
         let reason = ''
-        const havePolicyNumberMatch =
-          keep.policyNumber && merge.policyNumber &&
-          keep.policyNumber.trim() === merge.policyNumber.trim()
+
+        const kpn = keep.policyNumber?.trim() || null
+        const mpn = merge.policyNumber?.trim() || null
+        const havePolicyNumberMatch = kpn != null && mpn != null && kpn === mpn
+        // Two DIFFERENT non-null policy numbers is the carrier saying
+        // "these are two separate policies." That is disqualifying
+        // evidence: never auto-merge, even if name + points + carrier
+        // all match (people buy two identical small IULs all the time,
+        // and carriers issue sequential numbers). These surface as a
+        // "distinct" bucket the admin can still merge manually after a
+        // human confirms, but they are excluded from bulk merge.
+        const haveDistinctPolicyNumbers = kpn != null && mpn != null && kpn !== mpn
         const exactlyOneTevah =
           (keep.tevahClientId != null) !== (merge.tevahClientId != null)
         const samePoints =
           keep.points != null && merge.points != null && Math.abs(keep.points - merge.points) < 0.5
 
         if (havePolicyNumberMatch) {
+          // Same policy number on both rows = genuinely the same policy.
           confidence = 'high'
           reason = 'matching policy number'
+        } else if (haveDistinctPolicyNumbers) {
+          // Different policy numbers = carrier says these are separate.
+          // Demote regardless of name/points so they never bulk-merge.
+          confidence = 'distinct'
+          reason = `different policy numbers (${kpn} vs ${mpn}) · likely two real policies, verify before merging`
         } else if (exactlyOneTevah) {
+          // The original problem: one manual row (no policy #, no Tevah
+          // id) and one Tevah row. Safe to collapse.
           confidence = 'high'
           reason = 'manual + Tevah pattern (one row has tevahClientId)'
         } else if (samePoints) {
           confidence = 'medium'
-          reason = 'name + carrier + product + points match'
+          reason = 'name + carrier + product + points match, no policy numbers to compare'
         } else {
           confidence = 'low'
           reason = 'name + carrier + product match, points differ'
@@ -210,7 +230,7 @@ export async function findDuplicatePairs(): Promise<DuplicatePairCandidate[]> {
   }
 
   // Sort: high confidence first, then medium, then low.
-  const order = { high: 0, medium: 1, low: 2 }
+  const order = { high: 0, medium: 1, low: 2, distinct: 3 }
   pairs.sort((a, b) => order[a.confidence] - order[b.confidence])
   return pairs
 }

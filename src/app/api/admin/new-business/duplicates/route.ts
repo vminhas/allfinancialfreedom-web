@@ -41,6 +41,7 @@ export async function GET() {
       high: pairs.filter(p => p.confidence === 'high').length,
       medium: pairs.filter(p => p.confidence === 'medium').length,
       low: pairs.filter(p => p.confidence === 'low').length,
+      distinct: pairs.filter(p => p.confidence === 'distinct').length,
     },
   })
 }

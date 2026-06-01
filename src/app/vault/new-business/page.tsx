@@ -499,7 +499,7 @@ interface DuplicatesPair {
   keepId: string
   mergeId: string
   agentProfileId: string
-  confidence: 'high' | 'medium' | 'low'
+  confidence: 'high' | 'medium' | 'low' | 'distinct'
   reason: string
   keep: PairSide
   merge: PairSide
@@ -522,7 +522,7 @@ interface PairSide {
 
 function DuplicatesModal({ onClose, onMerged }: { onClose: () => void; onMerged: () => void }) {
   const [pairs, setPairs] = useState<DuplicatesPair[] | null>(null)
-  const [summary, setSummary] = useState<{ total: number; high: number; medium: number; low: number } | null>(null)
+  const [summary, setSummary] = useState<{ total: number; high: number; medium: number; low: number; distinct: number } | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [bulkBusy, setBulkBusy] = useState(false)
   const [flash, setFlash] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
@@ -543,7 +543,13 @@ function DuplicatesModal({ onClose, onMerged }: { onClose: () => void; onMerged:
   useEffect(() => { load() }, [load])
 
   const mergeOne = async (p: DuplicatesPair) => {
-    if (!confirm(`Merge these two submissions?\n\nKeeper (older): ${p.keep.clientFirstName} ${p.keep.clientLastName} · ${p.keep.carrier} · ${p.keep.policyType} · ${p.keep.status}\nMerged in (newer): ${p.merge.status}\n\n${p.merge.notesCount} note(s), ${p.merge.policyNumber ? 'policy #' + p.merge.policyNumber : 'no policy #'} will move to the keeper. The merged row is deleted.`)) return
+    // Distinct policy numbers means the carrier issued two separate
+    // policies. Make the LC explicitly confirm they are NOT two real
+    // policies before deleting one (which would undercount production).
+    const distinctWarning = p.confidence === 'distinct'
+      ? `\n\n⚠ THESE HAVE DIFFERENT POLICY NUMBERS (${p.keep.policyNumber} vs ${p.merge.policyNumber}). The carrier treats these as TWO SEPARATE POLICIES. Only merge if you have confirmed they are genuinely the same policy (e.g. a re-key). Merging deletes one and will undercount the agent's production.\n`
+      : ''
+    if (!confirm(`Merge these two submissions?${distinctWarning}\n\nKeeper (older): ${p.keep.clientFirstName} ${p.keep.clientLastName} · ${p.keep.carrier} · ${p.keep.policyType} · ${p.keep.status}\nMerged in (newer): ${p.merge.status}\n\n${p.merge.notesCount} note(s)${p.merge.policyNumber ? ', policy #' + p.merge.policyNumber : ''} will move to the keeper. The merged row is deleted.`)) return
     setBusyId(p.mergeId)
     try {
       const res = await fetch('/api/admin/new-business/merge', {
@@ -611,6 +617,7 @@ function DuplicatesModal({ onClose, onMerged }: { onClose: () => void; onMerged:
             <span style={{ color: '#4ade80' }}><strong>{summary.high}</strong> high</span>
             <span style={{ color: '#fbbf24' }}><strong>{summary.medium}</strong> medium</span>
             <span style={{ color: '#9BB0C4' }}><strong>{summary.low}</strong> low</span>
+            {summary.distinct > 0 && <span style={{ color: '#60a5fa' }}><strong>{summary.distinct}</strong> distinct policy #s</span>}
             {summary.high > 0 && (
               <button
                 onClick={mergeAllHighConfidence}
@@ -631,7 +638,7 @@ function DuplicatesModal({ onClose, onMerged }: { onClose: () => void; onMerged:
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {pairs.map(p => {
-                const pillColor = p.confidence === 'high' ? '#4ade80' : p.confidence === 'medium' ? '#fbbf24' : '#9BB0C4'
+                const pillColor = p.confidence === 'high' ? '#4ade80' : p.confidence === 'medium' ? '#fbbf24' : p.confidence === 'distinct' ? '#60a5fa' : '#9BB0C4'
                 return (
                   <div key={`${p.keepId}-${p.mergeId}`} style={{ background: '#132238', border: '1px solid rgba(201,169,110,0.1)', borderRadius: 6, padding: 14 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
