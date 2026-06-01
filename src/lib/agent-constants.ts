@@ -3,6 +3,7 @@
 // onboarding. Items handled by the Licensing Coordinator include a
 // `coordinatorTopic` so the agent portal can render a direct-request button.
 export type LicensingCoordinatorTopic =
+  | 'PRE_LICENSING_COURSE'
   | 'SCHEDULE_EXAM'
   | 'PASS_POST_LICENSING'
   | 'FINGERPRINTS_APPLY'

@@ -4,6 +4,7 @@
 // server bundle.
 
 export type LicensingRequestTopic =
+  | 'PRE_LICENSING_COURSE'
   | 'SCHEDULE_EXAM'
   | 'PASS_POST_LICENSING'
   | 'FINGERPRINTS_APPLY'
@@ -15,6 +16,7 @@ export type LicensingRequestTopic =
   | 'GENERAL'
 
 export const LICENSING_TOPICS: LicensingRequestTopic[] = [
+  'PRE_LICENSING_COURSE',
   'SCHEDULE_EXAM',
   'PASS_POST_LICENSING',
   'FINGERPRINTS_APPLY',
@@ -28,6 +30,7 @@ export const LICENSING_TOPICS: LicensingRequestTopic[] = [
 
 // Agent-facing phrasing (used in the request modal the agent submits).
 export const TOPIC_LABELS: Record<LicensingRequestTopic, string> = {
+  PRE_LICENSING_COURSE: 'Pre-licensing course',
   SCHEDULE_EXAM: 'Schedule my licensing exam',
   PASS_POST_LICENSING: 'Post-licensing call (I just passed)',
   FINGERPRINTS_APPLY: 'Fingerprints & state application',
@@ -42,6 +45,7 @@ export const TOPIC_LABELS: Record<LicensingRequestTopic, string> = {
 // LC-facing "Purpose" phrasing, matching the LC Notes Guide SOP wording.
 // Used in the structured Licensing note composer and the daily digest.
 export const LC_PURPOSE_LABELS: Record<LicensingRequestTopic, string> = {
+  PRE_LICENSING_COURSE: 'Pre-Licensing Course',
   SCHEDULE_EXAM: 'Schedule Exam',
   PASS_POST_LICENSING: 'Post-Licensing',
   FINGERPRINTS_APPLY: 'Finger-Prints + Apply for License',

@@ -388,6 +388,7 @@ export default function ChecklistEditorPage() {
               <div style={lbl}>Coordinator Topic</div>
               <select value={form.coordinatorTopic} onChange={e => setForm(f => ({ ...f, coordinatorTopic: e.target.value }))} style={{ ...inp, cursor: 'pointer' }}>
                 <option value="">None</option>
+                <option value="PRE_LICENSING_COURSE">Pre-Licensing Course</option>
                 <option value="SCHEDULE_EXAM">Schedule Exam</option>
                 <option value="PASS_POST_LICENSING">Post-Licensing</option>
                 <option value="FINGERPRINTS_APPLY">Fingerprints</option>
