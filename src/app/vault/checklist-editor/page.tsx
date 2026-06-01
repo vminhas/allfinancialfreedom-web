@@ -573,11 +573,32 @@ export default function ChecklistEditorPage() {
           </div>
         ) : phaseItems.map((item, idx) => {
           const group = groups.find(g => g.key === item.groupKey)
+          const prevGroup = idx > 0 ? phaseItems[idx - 1].groupKey : null
+          const showGroupHeader = item.groupKey !== prevGroup
           const isEditingThis = editingId === item.id
           const isDragOver = dragOverId === item.id && dragSrcIdx.current !== idx
           return (
+            <div key={item.id}>
+              {showGroupHeader && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '10px 16px 6px',
+                  marginTop: idx === 0 ? 0 : 8,
+                }}>
+                  <div style={{ height: 1, flex: 1, background: 'rgba(255,255,255,0.06)' }} />
+                  <span style={{
+                    fontSize: 8, fontWeight: 700, letterSpacing: '0.18em',
+                    textTransform: 'uppercase', color: '#6B8299',
+                    padding: '2px 8px', borderRadius: 3,
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                  }}>
+                    {group?.label ?? '(No group)'}
+                  </span>
+                  <div style={{ height: 1, flex: 1, background: 'rgba(255,255,255,0.06)' }} />
+                </div>
+              )}
             <div
-              key={item.id}
               draggable
               onDragStart={() => { dragSrcIdx.current = idx }}
               onDragOver={e => { e.preventDefault(); setDragOverId(item.id) }}
@@ -660,6 +681,7 @@ export default function ChecklistEditorPage() {
                 <button onClick={() => handleDelete(item.id)} style={{ background: 'none', border: 'none', color: '#f87171', fontSize: 11, cursor: 'pointer' }}>Delete</button>
               </div>
             </div>
+            </div>
           )
         })}
       </div>
@@ -684,8 +706,26 @@ function GroupsEditor({ groups, onRefresh, isMobile }: { groups: PhaseGroupDef[]
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState({ groupKey: '', label: '', icon: '', description: '', showTrainer: false, videoUrl: '', videoTitle: '', videoOrientation: 'landscape' as 'landscape' | 'portrait' })
   const [saving, setSaving] = useState(false)
+  const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null)
+  const dragGroupSrcIdx = useRef<number | null>(null)
 
   const phaseGroups = groups.filter(g => g.phase === activePhase).sort((a, b) => a.sortOrder - b.sortOrder)
+
+  const handleGroupDrop = async (dropIdx: number) => {
+    const fromIdx = dragGroupSrcIdx.current
+    if (fromIdx === null || fromIdx === dropIdx) { setDragOverGroupId(null); dragGroupSrcIdx.current = null; return }
+    const newGroups = [...phaseGroups]
+    const [moved] = newGroups.splice(fromIdx, 1)
+    newGroups.splice(dropIdx, 0, moved)
+    dragGroupSrcIdx.current = null
+    setDragOverGroupId(null)
+    await fetch('/api/admin/phase-groups/reorder', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderedIds: newGroups.map(g => g.id) }),
+    })
+    onRefresh()
+  }
   const inp: React.CSSProperties = { width: '100%', padding: '8px 10px', fontSize: 13, background: '#0A1628', border: '1px solid rgba(201,169,110,0.2)', borderRadius: 4, color: '#ffffff', outline: 'none' }
   const lbl: React.CSSProperties = { fontSize: 9, fontWeight: 700, color: '#9BB0C4', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }
 
@@ -776,8 +816,26 @@ function GroupsEditor({ groups, onRefresh, isMobile }: { groups: PhaseGroupDef[]
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {phaseGroups.map(g => (
-          <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderRadius: 6, background: '#132238', border: '1px solid rgba(255,255,255,0.05)' }}>
+        {phaseGroups.map((g, gIdx) => (
+          <div
+            key={g.id}
+            draggable
+            onDragStart={() => { dragGroupSrcIdx.current = gIdx }}
+            onDragOver={e => { e.preventDefault(); setDragOverGroupId(g.id) }}
+            onDrop={() => handleGroupDrop(gIdx)}
+            onDragEnd={() => { dragGroupSrcIdx.current = null; setDragOverGroupId(null) }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderRadius: 6,
+              background: '#132238',
+              border: dragOverGroupId === g.id && dragGroupSrcIdx.current !== gIdx
+                ? '1px solid rgba(201,169,110,0.6)'
+                : '1px solid rgba(255,255,255,0.05)',
+              opacity: dragGroupSrcIdx.current === gIdx ? 0.4 : 1,
+              cursor: 'grab',
+              transition: 'border-color 0.15s, opacity 0.15s',
+            }}>
+            {/* Drag handle */}
+            <div style={{ color: '#3a5068', fontSize: 14, flexShrink: 0, userSelect: 'none', cursor: 'grab' }}>⠿</div>
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 13, fontWeight: 600, color: '#ffffff' }}>{g.label}</span>
