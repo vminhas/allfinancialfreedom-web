@@ -158,6 +158,7 @@ export default function ChecklistEditorPage() {
             adminOnly: form.adminOnly,
             coordinatorTopic: form.coordinatorTopic || null,
             linkedProgression: form.linkedProgression || null,
+            actionJson: null,
             videos: form.videos.filter(v => v.url.trim()).map(v => ({ url: v.url.trim(), title: v.title.trim() || null })),
             postToActivity: form.postToActivity,
             pingAdmin: form.pingAdmin,
