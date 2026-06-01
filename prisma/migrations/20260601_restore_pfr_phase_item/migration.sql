@@ -22,4 +22,6 @@ VALUES (
   now(),
   now()
 )
-ON CONFLICT ("itemKey") DO NOTHING;
+ON CONFLICT ("itemKey") DO UPDATE SET
+  "actionJson" = EXCLUDED."actionJson",
+  "updatedAt" = now();
