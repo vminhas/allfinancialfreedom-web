@@ -581,21 +581,30 @@ function AgentDashboardInner() {
   }, [data?.id])
 
   const toggleItem = async (itemKey: string, phase: number, current: boolean) => {
-    if (!data) return
+    if (!data || togglingKey) return
+    const newCompleted = !current
     setTogglingKey(itemKey)
-    const progressQs = previewToken ? `?preview=${encodeURIComponent(previewToken)}` : ''
-    await fetch(`/api/agents/progress${progressQs}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ itemKey, phase, completed: !current }),
+    setData(prev => {
+      if (!prev) return prev
+      const existing = prev.phaseItems.find(i => i.itemKey === itemKey && i.phase === phase)
+      const updatedItems = existing
+        ? prev.phaseItems.map(i => i.itemKey === itemKey && i.phase === phase ? { ...i, completed: newCompleted, completedAt: newCompleted ? new Date().toISOString() : null } : i)
+        : [...prev.phaseItems, { phase, itemKey, completed: newCompleted, completedAt: newCompleted ? new Date().toISOString() : null }]
+      return { ...prev, phaseItems: updatedItems }
     })
-    await fetchData()
-    setTogglingKey(null)
-    if (!current && CONFETTI_MILESTONES.has(itemKey)) {
+    if (newCompleted && CONFETTI_MILESTONES.has(itemKey)) {
       import('canvas-confetti').then(({ default: confetti }) => {
         confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 }, colors: ['#C9A96E', '#4ade80', '#60a5fa', '#ffffff'] })
       })
     }
+    const progressQs = previewToken ? `?preview=${encodeURIComponent(previewToken)}` : ''
+    setTogglingKey(null)
+    await fetch(`/api/agents/progress${progressQs}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ itemKey, phase, completed: newCompleted }),
+    })
+    fetchData()
   }
 
   if (loading) {
