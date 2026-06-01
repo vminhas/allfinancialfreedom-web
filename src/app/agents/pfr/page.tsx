@@ -240,7 +240,7 @@ function PFRPageInner() {
     <div style={{ minHeight: '100vh', background: '#0A1628', color: '#ffffff', fontFamily: "'DM Sans', sans-serif" }}>
       <div style={{ padding: isMobile ? '16px 16px' : '20px 32px', borderBottom: '1px solid rgba(201,169,110,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <button onClick={() => router.push('/agents')} style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 12, cursor: 'pointer', padding: 0, marginBottom: 4 }}>
+          <button onClick={() => router.push(`/agents${qs}`)} style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 12, cursor: 'pointer', padding: 0, marginBottom: 4 }}>
             ← Back to Portal
           </button>
           <h1 style={{ fontSize: isMobile ? 16 : 20, fontWeight: 700, margin: 0, letterSpacing: '0.03em' }}>Personal Financial Review</h1>
