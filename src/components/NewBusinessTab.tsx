@@ -28,10 +28,12 @@ const STATUS_COLOR: Record<string, { bg: string; fg: string }> = {
   DECLINED: { bg: 'rgba(239,68,68,0.15)', fg: '#EF4444' },
   LAPSED: { bg: 'rgba(107,114,128,0.2)', fg: '#9CA3AF' },
   NOT_TAKEN: { bg: 'rgba(107,114,128,0.2)', fg: '#9CA3AF' },
+  CONDITIONALLY_ISSUED: { bg: 'rgba(74,222,128,0.10)', fg: '#86EFAC' },
 }
 // Agent-facing status labels (matches the LC SOP vocabulary).
 const STATUS_LABEL: Record<string, string> = {
   PENDING: 'New', PENDING_CARRIER: 'Pending', HOLD: 'Hold', ISSUED: 'Issued',
+  CONDITIONALLY_ISSUED: 'Conditionally Issued',
   DECLINED: 'Declined', LAPSED: 'Lapsed', NOT_TAKEN: 'Not Taken',
 }
 

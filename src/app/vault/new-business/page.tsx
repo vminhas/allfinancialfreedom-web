@@ -19,14 +19,16 @@ const STATUS_COLOR: Record<string, { bg: string; fg: string }> = {
   DECLINED: { bg: 'rgba(239,68,68,0.15)', fg: '#EF4444' },
   LAPSED: { bg: 'rgba(107,114,128,0.2)', fg: '#9CA3AF' },
   NOT_TAKEN: { bg: 'rgba(107,114,128,0.2)', fg: '#9CA3AF' },
+  CONDITIONALLY_ISSUED: { bg: 'rgba(74,222,128,0.10)', fg: '#86EFAC' },
 }
-const STATUSES = ['PENDING', 'PENDING_CARRIER', 'HOLD', 'ISSUED', 'DECLINED', 'LAPSED', 'NOT_TAKEN'] as const
+const STATUSES = ['PENDING', 'PENDING_CARRIER', 'HOLD', 'ISSUED', 'CONDITIONALLY_ISSUED', 'DECLINED', 'LAPSED', 'NOT_TAKEN'] as const
 // LC SOP labels: the guide calls the initial state "New" (= PENDING,
 // the default the claim/stats flow keys on) and "Pending" the separate
 // at-carrier state (= PENDING_CARRIER). "Hold" is a paused state. These
 // labels drive the note composer + status pills; enum values unchanged.
 const STATUS_LABEL: Record<string, string> = {
   PENDING: 'New', PENDING_CARRIER: 'Pending', HOLD: 'Hold', ISSUED: 'Issued',
+  CONDITIONALLY_ISSUED: 'Conditionally Issued',
   DECLINED: 'Declined', LAPSED: 'Lapsed', NOT_TAKEN: 'Not Taken',
 }
 const POLICY_LABEL: Record<string, string> = {

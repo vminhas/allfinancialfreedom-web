@@ -1471,6 +1471,7 @@ enum NewBusinessStatus {
   // carrier). This is that distinct "Pending" state, set manually by
   // the LC; the default stays PENDING so nothing downstream changes.
   PENDING_CARRIER
+  CONDITIONALLY_ISSUED
 }
 
 enum PolicyType {
