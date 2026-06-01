@@ -222,8 +222,7 @@ export const PHASE_ITEMS: Record<number, PhaseItemDef[]> = {
       description: 'Master all phone scripts: reference call script, ETHOR call script, recruiting calls, and follow-up calls. Demonstrate the ability to set quality appointments via phone alone.',
       action: { type: 'resource-link', resourceKey: 'scripts_phone', label: 'View call scripts' } },
     { key: 'recruiting_interview', label: 'Recruiting Interview', group: 'skills',
-      description: 'Conduct a full recruiting interview with a prospective agent candidate using the official AFF interview process.',
-      action: { type: 'navigate-tab', tab: 'partners', label: 'Log interview' } },
+      description: 'Conduct a full recruiting interview with a prospective agent candidate using the official AFF interview process.' },
     { key: 'system_knowledge', label: 'System Knowledge', group: 'skills',
       description: 'Demonstrate comprehensive knowledge of the full AFF system: the business model, compensation structure, agent career path, and how to explain it to prospects.' },
 
