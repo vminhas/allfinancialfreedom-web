@@ -110,6 +110,7 @@ export default function VaultNewBusinessPage() {
   const [policyTypeFilter, setPolicyTypeFilter] = useState('')
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
+  const [showDuplicates, setShowDuplicates] = useState(false)
   const PAGE_SIZE = 50
   // Agent picker options. Loaded once on mount and not refiltered as the
   // list narrows so the dropdown always shows every agent that has at
@@ -192,15 +193,32 @@ export default function VaultNewBusinessPage() {
 
   return (
     <div style={{ padding: '24px 28px' }}>
-      <div style={{ marginBottom: 24, paddingBottom: 20, borderBottom: '1px solid rgba(201,169,110,0.08)' }}>
-        <div style={sectionLabel}>Licensing Coordinator</div>
-        <h1 style={{ fontSize: 'clamp(22px, 5vw, 32px)', fontWeight: 300, color: '#ffffff', margin: '0 0 6px', letterSpacing: '-0.02em' }}>
-          New Business
-        </h1>
-        <p style={{ color: '#6B8299', fontSize: 13, margin: 0 }}>
-          Submissions from agents. Update status as you work them in Tevah; notes here are visible to the agent.
-        </p>
+      <div style={{ marginBottom: 24, paddingBottom: 20, borderBottom: '1px solid rgba(201,169,110,0.08)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={sectionLabel}>Licensing Coordinator</div>
+          <h1 style={{ fontSize: 'clamp(22px, 5vw, 32px)', fontWeight: 300, color: '#ffffff', margin: '0 0 6px', letterSpacing: '-0.02em' }}>
+            New Business
+          </h1>
+          <p style={{ color: '#6B8299', fontSize: 13, margin: 0 }}>
+            Submissions from agents. Update status as you work them in Tevah; notes here are visible to the agent.
+          </p>
+        </div>
+        <button
+          onClick={() => setShowDuplicates(true)}
+          title="Find existing duplicate submissions (same writer + client + product) and merge them"
+          style={{
+            background: 'transparent', color: '#9BB0C4',
+            border: '1px solid rgba(255,255,255,0.12)', borderRadius: 4,
+            padding: '8px 14px', fontSize: 11, fontWeight: 700,
+            letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Find duplicates
+        </button>
       </div>
+
+      {showDuplicates && <DuplicatesModal onClose={() => setShowDuplicates(false)} onMerged={refresh} />}
 
       {/* KPI cards. The first five act as quick filters — clicking sets the
           relevant status/assignment combination on the table; clicking again
@@ -466,6 +484,202 @@ export default function VaultNewBusinessPage() {
       )}
 
       {openId && <SubmissionDrawer id={openId} onClose={() => setOpenId(null)} onChanged={refresh} />}
+    </div>
+  )
+}
+
+// "Find duplicates" sweep: lists same-writer/same-client/same-type
+// submission pairs that share a fuzzy-matched carrier and applied
+// within a 60-day window. Each pair has a confidence rating ("high"
+// = matching policy number OR exactly-one-side-has-Tevah-id, the
+// manual + Tevah pattern). The admin can merge individual pairs or
+// bulk-merge all high-confidence ones. Merge mechanics live in
+// src/lib/submission-merge.ts and run inside one transaction.
+interface DuplicatesPair {
+  keepId: string
+  mergeId: string
+  agentProfileId: string
+  confidence: 'high' | 'medium' | 'low'
+  reason: string
+  keep: PairSide
+  merge: PairSide
+  agent: { firstName: string; lastName: string; agentCode: string } | null
+}
+interface PairSide {
+  id: string
+  clientFirstName: string
+  clientLastName: string
+  carrier: string
+  policyType: string
+  status: string
+  points: number | null
+  policyNumber: string | null
+  applicationDate: string
+  createdAt: string
+  tevahClientId: number | null
+  notesCount: number
+}
+
+function DuplicatesModal({ onClose, onMerged }: { onClose: () => void; onMerged: () => void }) {
+  const [pairs, setPairs] = useState<DuplicatesPair[] | null>(null)
+  const [summary, setSummary] = useState<{ total: number; high: number; medium: number; low: number } | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const [flash, setFlash] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
+
+  const showFlash = (kind: 'ok' | 'err', text: string) => {
+    setFlash({ kind, text })
+    setTimeout(() => setFlash(null), 3000)
+  }
+
+  const load = useCallback(async () => {
+    setPairs(null)
+    const res = await fetch('/api/admin/new-business/duplicates')
+    if (!res.ok) { setPairs([]); return }
+    const d = await res.json() as { pairs: DuplicatesPair[]; summary: typeof summary }
+    setPairs(d.pairs)
+    setSummary(d.summary)
+  }, [])
+  useEffect(() => { load() }, [load])
+
+  const mergeOne = async (p: DuplicatesPair) => {
+    if (!confirm(`Merge these two submissions?\n\nKeeper (older): ${p.keep.clientFirstName} ${p.keep.clientLastName} · ${p.keep.carrier} · ${p.keep.policyType} · ${p.keep.status}\nMerged in (newer): ${p.merge.status}\n\n${p.merge.notesCount} note(s), ${p.merge.policyNumber ? 'policy #' + p.merge.policyNumber : 'no policy #'} will move to the keeper. The merged row is deleted.`)) return
+    setBusyId(p.mergeId)
+    try {
+      const res = await fetch('/api/admin/new-business/merge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keepId: p.keepId, mergeId: p.mergeId }),
+      })
+      if (res.ok) { showFlash('ok', 'Merged.'); await load(); onMerged() }
+      else {
+        const d = await res.json().catch(() => ({}))
+        showFlash('err', d.error ?? 'Merge failed.')
+      }
+    } finally { setBusyId(null) }
+  }
+
+  const mergeAllHighConfidence = async () => {
+    const targets = (pairs ?? []).filter(p => p.confidence === 'high')
+    if (targets.length === 0) return
+    if (!confirm(`Merge all ${targets.length} high-confidence pairs?\n\nThis is destructive: each newer row is deleted after its data and notes move to the older row. Cannot be undone.`)) return
+    setBulkBusy(true)
+    let ok = 0, fail = 0
+    try {
+      for (const p of targets) {
+        const res = await fetch('/api/admin/new-business/merge', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ keepId: p.keepId, mergeId: p.mergeId }),
+        })
+        if (res.ok) ok += 1
+        else fail += 1
+      }
+      showFlash(fail === 0 ? 'ok' : 'err', `${ok} merged${fail > 0 ? `, ${fail} failed` : ''}.`)
+      await load()
+      onMerged()
+    } finally { setBulkBusy(false) }
+  }
+
+  const fmt = (s: string) => new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 980, maxHeight: '90vh', display: 'flex', flexDirection: 'column', background: '#0F1E33', border: '1px solid rgba(201,169,110,0.2)', borderRadius: 8 }}>
+        <div style={{ padding: '18px 22px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#fff' }}>Find duplicates</h2>
+            <p style={{ margin: '4px 0 0', fontSize: 12, color: '#6B8299', lineHeight: 1.5 }}>
+              Same writer + client + product, carrier-fuzzy match, applied within 60 days. Keeper is the older row; the newer row&apos;s notes and Tevah fields move to the keeper.
+            </p>
+          </div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#9BB0C4', fontSize: 20, cursor: 'pointer' }}>×</button>
+        </div>
+
+        {flash && (
+          <div style={{
+            margin: '10px 22px 0', padding: '10px 14px', borderRadius: 6, fontSize: 12,
+            background: flash.kind === 'ok' ? 'rgba(74,222,128,0.1)' : 'rgba(248,113,113,0.1)',
+            border: `1px solid ${flash.kind === 'ok' ? 'rgba(74,222,128,0.3)' : 'rgba(248,113,113,0.3)'}`,
+            color: flash.kind === 'ok' ? '#86efac' : '#fca5a5',
+          }}>{flash.text}</div>
+        )}
+
+        {summary && (
+          <div style={{ padding: '12px 22px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', fontSize: 12, color: '#9BB0C4', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+            <span><strong style={{ color: '#fff' }}>{summary.total}</strong> candidate pair{summary.total === 1 ? '' : 's'}</span>
+            <span style={{ color: '#4ade80' }}><strong>{summary.high}</strong> high</span>
+            <span style={{ color: '#fbbf24' }}><strong>{summary.medium}</strong> medium</span>
+            <span style={{ color: '#9BB0C4' }}><strong>{summary.low}</strong> low</span>
+            {summary.high > 0 && (
+              <button
+                onClick={mergeAllHighConfidence}
+                disabled={bulkBusy}
+                style={{ marginLeft: 'auto', background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: bulkBusy ? 'wait' : 'pointer' }}
+              >
+                {bulkBusy ? 'Merging...' : `Merge all ${summary.high} high-confidence`}
+              </button>
+            )}
+          </div>
+        )}
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 22px' }}>
+          {pairs === null ? (
+            <div style={{ color: '#6B8299', fontSize: 13 }}>Scanning...</div>
+          ) : pairs.length === 0 ? (
+            <div style={{ color: '#4B5563', fontSize: 13, padding: '24px 0', textAlign: 'center' }}>No duplicate candidates found. Inbound dedup is working.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {pairs.map(p => {
+                const pillColor = p.confidence === 'high' ? '#4ade80' : p.confidence === 'medium' ? '#fbbf24' : '#9BB0C4'
+                return (
+                  <div key={`${p.keepId}-${p.mergeId}`} style={{ background: '#132238', border: '1px solid rgba(201,169,110,0.1)', borderRadius: 6, padding: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: pillColor, border: `1px solid ${pillColor}55`, background: `${pillColor}1a`, borderRadius: 3, padding: '2px 8px' }}>
+                        {p.confidence}
+                      </span>
+                      <span style={{ fontSize: 12, color: '#fff', fontWeight: 600 }}>
+                        {p.keep.clientFirstName} {p.keep.clientLastName} · {p.keep.policyType}
+                      </span>
+                      {p.agent && (
+                        <span style={{ fontSize: 11, color: '#6B8299' }}>· {p.agent.firstName} {p.agent.lastName} ({p.agent.agentCode})</span>
+                      )}
+                      <span style={{ fontSize: 11, color: '#6B8299', marginLeft: 'auto' }}>{p.reason}</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 11 }}>
+                      <PairCard label="Keeper (older)" side={p.keep} fmt={fmt} highlight />
+                      <PairCard label="Merged in (newer)" side={p.merge} fmt={fmt} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
+                      <button
+                        onClick={() => mergeOne(p)}
+                        disabled={busyId === p.mergeId || bulkBusy}
+                        style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: busyId === p.mergeId ? 'wait' : 'pointer' }}
+                      >
+                        {busyId === p.mergeId ? 'Merging...' : 'Merge this pair'}
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PairCard({ label, side, fmt, highlight }: { label: string; side: PairSide; fmt: (s: string) => string; highlight?: boolean }) {
+  return (
+    <div style={{ background: highlight ? 'rgba(201,169,110,0.05)' : 'rgba(255,255,255,0.02)', border: `1px solid ${highlight ? 'rgba(201,169,110,0.25)' : 'rgba(255,255,255,0.05)'}`, borderRadius: 4, padding: 10 }}>
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: highlight ? '#C9A96E' : '#6B8299', marginBottom: 6 }}>{label}</div>
+      <div style={{ color: '#fff', fontSize: 12, marginBottom: 4 }}>{side.carrier} · {side.status}</div>
+      <div style={{ color: '#9BB0C4', fontSize: 11, lineHeight: 1.6 }}>
+        <div>Applied: {fmt(side.applicationDate)} · Submitted: {fmt(side.createdAt)}</div>
+        <div>Points: {side.points ?? '—'} {side.policyNumber ? `· Policy # ${side.policyNumber}` : ''}</div>
+        <div>{side.notesCount} note{side.notesCount === 1 ? '' : 's'} {side.tevahClientId != null ? '· Tevah ✓' : '· no Tevah'}</div>
+      </div>
     </div>
   )
 }

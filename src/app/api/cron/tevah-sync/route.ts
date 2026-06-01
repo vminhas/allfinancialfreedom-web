@@ -541,14 +541,21 @@ export async function syncClients() {
       //   1. Exact policyNumber match (same writer, no tevahClientId yet).
       //      Carriers issue a policy number shortly after submission; the
       //      agent will have entered it when the carrier emailed them.
-      //   2. Fuzzy match on writer + carrier + client first/last name +
-      //      applicationDate within ±14 days. Catches the case where the
-      //      agent submitted before the carrier issued a policy number.
+      //   2. Fuzzy match on writer + carrier (normalized) + client
+      //      first/last name (normalized) + applicationDate within
+      //      ±60 days. Catches the case where the agent submitted
+      //      before the carrier issued a policy number, and where the
+      //      carrier string differs cosmetically between manual entry
+      //      ("Ethos") and the Tevah feed ("Ethos Life Insurance Co").
       // We never match across different writers — splits get one row per
       // writer per the existing model, so cross-writer matching would
       // collapse two legitimate rows into one.
       const CARRIER = client.carrierDisplayName || client.carrierName
-      const FUZZY_WINDOW_MS = 14 * 24 * 60 * 60 * 1000
+      const FUZZY_WINDOW_MS = 60 * 24 * 60 * 60 * 1000
+      const { normCarrier, normName } = await import('@/lib/submission-merge')
+      const carrierNorm = normCarrier(CARRIER)
+      const clientFirstN = normName(clientFirst)
+      const clientLastN = normName(clientLast)
 
       let matchedExistingId: string | null = null
       if (client.policyNumber?.trim()) {
@@ -563,22 +570,31 @@ export async function syncClients() {
         matchedExistingId = byNumber?.id ?? null
       }
       if (!matchedExistingId) {
-        const fuzzy = await db.newBusinessSubmission.findFirst({
+        // Pull candidates by writer + ±60d window, then filter by
+        // normalized carrier + name in JS (Prisma can't normalize
+        // server-side). Manual rows are rare per writer, so the
+        // candidate set is small.
+        const candidates = await db.newBusinessSubmission.findMany({
           where: {
             tevahClientId: null,
             agentProfileId: writerProfile.id,
-            carrier: CARRIER,
-            clientFirstName: { equals: clientFirst, mode: 'insensitive' },
-            clientLastName: { equals: clientLast, mode: 'insensitive' },
             applicationDate: {
               gte: new Date(applicationDate.getTime() - FUZZY_WINDOW_MS),
               lte: new Date(applicationDate.getTime() + FUZZY_WINDOW_MS),
             },
           },
-          select: { id: true },
+          select: {
+            id: true, carrier: true, clientFirstName: true, clientLastName: true,
+            policyType: true, createdAt: true,
+          },
           orderBy: { createdAt: 'asc' },
         })
-        matchedExistingId = fuzzy?.id ?? null
+        const matched = candidates.find(c =>
+          normCarrier(c.carrier) === carrierNorm &&
+          normName(c.clientFirstName) === clientFirstN &&
+          normName(c.clientLastName) === clientLastN,
+        )
+        matchedExistingId = matched?.id ?? null
       }
 
       // Find split partner: same policyNumber, different writing agent code.
