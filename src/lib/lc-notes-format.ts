@@ -18,6 +18,7 @@ const STATUS_LABEL: Record<NewBusinessStatus, string> = {
   PENDING_CARRIER: 'Pending',
   HOLD: 'Hold',
   ISSUED: 'Issued',
+  CONDITIONALLY_ISSUED: 'Conditionally Issued',
   DECLINED: 'Declined',
   LAPSED: 'Lapsed',
   NOT_TAKEN: 'Not Taken',

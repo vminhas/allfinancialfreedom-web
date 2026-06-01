@@ -6,7 +6,7 @@ import { requireRole } from '@/lib/permissions'
 import { parseRangeFromSearch, prismaDateClause } from '@/lib/time-range'
 import type { NewBusinessStatus, Prisma } from '@/generated/prisma/client'
 
-const VALID_STATUSES: NewBusinessStatus[] = ['PENDING', 'PENDING_CARRIER', 'ISSUED', 'DECLINED', 'LAPSED', 'NOT_TAKEN', 'HOLD']
+const VALID_STATUSES: NewBusinessStatus[] = ['PENDING', 'PENDING_CARRIER', 'ISSUED', 'CONDITIONALLY_ISSUED', 'DECLINED', 'LAPSED', 'NOT_TAKEN', 'HOLD']
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
