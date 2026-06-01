@@ -89,6 +89,10 @@ export async function findTraineeProfiles(ctx: TrainerContext) {
       state: true,
       status: true,
       cft: true,
+      // passwordHash drives the "on the portal yet" signal so a CFT can
+      // tell whether a trainee has actually logged in (ACTIVE) vs only
+      // been invited (INVITED).
+      agentUser: { select: { id: true, passwordHash: true, email: true, createdAt: true } },
     },
     orderBy: [{ status: 'asc' }, { phase: 'desc' }, { firstName: 'asc' }],
   })

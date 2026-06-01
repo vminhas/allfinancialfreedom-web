@@ -6211,6 +6211,9 @@ interface TraineeRow {
   phaseStartedAt: string | null
   state: string | null
   status: string
+  // On-portal signal, same as the recruited tree: ACTIVE = logged in,
+  // INVITED = created but never activated, INACTIVE = off the team.
+  memberStatus?: MemberStatus
   partnerCount: number
   ftaCount: number
 }
@@ -6465,9 +6468,13 @@ function AlsoTrainingSection({ members, previewToken }: {
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>
                     {display}
                     <span style={{ marginLeft: 8, fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#C9A96E', padding: '2px 6px', background: 'rgba(201,169,110,0.10)', border: '1px solid rgba(201,169,110,0.25)', borderRadius: 3 }}>Trainee</span>
-                    {t.status === 'INACTIVE' && (
+                    {t.status === 'INACTIVE' ? (
                       <span style={{ marginLeft: 6, fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6B8299', padding: '2px 6px', background: 'rgba(107,130,153,0.12)', borderRadius: 3 }}>Inactive</span>
-                    )}
+                    ) : t.memberStatus === 'INVITED' ? (
+                      <span title="Invited but has not logged into the portal yet" style={{ marginLeft: 6, fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#60A5FA', padding: '2px 6px', background: 'rgba(96,165,250,0.12)', border: '1px solid rgba(96,165,250,0.30)', borderRadius: 3 }}>Invited</span>
+                    ) : t.memberStatus === 'ACTIVE' ? (
+                      <span title="Logged into the portal" style={{ marginLeft: 6, fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#4ADE80', padding: '2px 6px', background: 'rgba(74,222,128,0.12)', border: '1px solid rgba(74,222,128,0.30)', borderRadius: 3 }}>On portal</span>
+                    ) : null}
                   </div>
                   <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2 }}>
                     {t.agentCode}{t.state ? ` · ${t.state}` : ''} · Phase {t.phase}

@@ -369,6 +369,10 @@ export async function GET(req: NextRequest) {
     phase: number
     state: string | null
     status: string
+    // Same on-portal signal the recruited tree shows, so a CFT who
+    // didn't recruit the agent can still see whether they're actually
+    // using the portal (ACTIVE) or only invited (INVITED).
+    memberStatus: MemberStatus
     partnerCount: number
     ftaCount: number
   }> = []
@@ -407,19 +411,30 @@ export async function GET(req: NextRequest) {
         ])
         const bpByAgent = new Map(bp.map(r => [r.agentProfileId, r._count._all]))
         const ftaByAgent = new Map(fta.map(r => [r.agentProfileId, r._count._all]))
-        cftOnlyMembers = cftOnly.map(t => ({
-          id: t.id,
-          agentCode: t.agentCode,
-          firstName: t.firstName,
-          lastName: t.lastName,
-          preferredName: t.preferredName,
-          avatarUrl: t.avatarUrl,
-          phase: t.phase,
-          state: t.state,
-          status: t.status,
-          partnerCount: bpByAgent.get(t.id) ?? 0,
-          ftaCount: ftaByAgent.get(t.id) ?? 0,
-        }))
+        cftOnlyMembers = cftOnly.map(t => {
+          // Mirror the recruited-tree memberStatus rule: INACTIVE wins,
+          // else a set password means they have logged into the portal
+          // (ACTIVE), else they were created but never activated
+          // (INVITED). This is the "on the portal yet" answer.
+          let memberStatus: MemberStatus
+          if (t.status === 'INACTIVE') memberStatus = 'INACTIVE'
+          else if (t.agentUser?.passwordHash) memberStatus = 'ACTIVE'
+          else memberStatus = 'INVITED'
+          return {
+            id: t.id,
+            agentCode: t.agentCode,
+            firstName: t.firstName,
+            lastName: t.lastName,
+            preferredName: t.preferredName,
+            avatarUrl: t.avatarUrl,
+            phase: t.phase,
+            state: t.state,
+            status: t.status,
+            memberStatus,
+            partnerCount: bpByAgent.get(t.id) ?? 0,
+            ftaCount: ftaByAgent.get(t.id) ?? 0,
+          }
+        })
       }
     }
   }
