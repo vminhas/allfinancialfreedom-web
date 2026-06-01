@@ -639,7 +639,7 @@ function PFRPageInner() {
                     <button
                       onClick={async () => {
                         if (!confirm('Remove your Why statement?')) return
-                        await fetch(`/api/agents/why-statements?id=${whyStatements[0].id}`, { method: 'DELETE' })
+                        await fetch(`/api/agents/why-statements?id=${whyStatements[0].id}${qs ? '&' + qs.slice(1) : ''}`, { method: 'DELETE' })
                         setWhyStatements([])
                         setWhyDraft('')
                       }}
