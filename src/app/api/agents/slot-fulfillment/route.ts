@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     where: { id: body.slotDefId },
     include: {
       phaseItemDefinition: {
-        select: { id: true, itemKey: true, phase: true, postToActivity: true, pingAdmin: true, postToAnnouncements: true, label: true },
+        select: { id: true, itemKey: true, phase: true, postToActivity: true, pingAdmin: true, postToAnnouncements: true, label: true, slotRequiredCount: true },
       },
     },
   })
@@ -68,7 +68,8 @@ export async function POST(req: NextRequest) {
     }),
   ])
 
-  const allFilled = filledSlots >= totalSlots
+  const required = def.slotRequiredCount ?? totalSlots
+  const allFilled = filledSlots >= required
 
   // Read prior completion state
   const prior = await db.phaseItem.findUnique({

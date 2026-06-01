@@ -39,6 +39,27 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(slot)
 }
 
+// PUT /api/admin/phase-items/slots — edit an existing slot's label or type
+export async function PUT(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  const denied = requireRole(session, 'admin')
+  if (denied) return denied
+
+  const body = await req.json() as {
+    id: string
+    label?: string
+    slotType?: 'business_partner' | 'field_appointment'
+  }
+  if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+
+  const data: Record<string, unknown> = {}
+  if (body.label !== undefined) data.label = body.label
+  if (body.slotType !== undefined) data.slotType = body.slotType
+
+  const slot = await db.phaseItemSlotDef.update({ where: { id: body.id }, data })
+  return NextResponse.json(slot)
+}
+
 // DELETE /api/admin/phase-items/slots?id=xxx — remove a slot definition
 // Also clears all agent fulfillments for that slot (cascade via FK).
 export async function DELETE(req: NextRequest) {

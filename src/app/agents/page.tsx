@@ -76,6 +76,11 @@ interface SlotDef {
   phaseItemDefinitionId: string
 }
 
+interface SlotItemMeta {
+  slots: SlotDef[]
+  slotRequiredCount?: number | null
+}
+
 interface SlotFulfillment {
   slotDefId: string
   slotDef: SlotDef
@@ -134,9 +139,10 @@ interface AgentData {
 // ── ItemSlots ─────────────────────────────────────────────────────────────────
 // Renders the milestone slots for a checklist item. Each slot is a named
 // placeholder the agent fills by linking a BP or FTA from their tracker.
-function ItemSlots({ itemKey, slots, fulfillments, onFulfillmentChange }: {
+function ItemSlots({ itemKey, slots, requiredCount, fulfillments, onFulfillmentChange }: {
   itemKey: string
   slots: SlotDef[]
+  requiredCount?: number | null
   fulfillments: SlotFulfillment[]
   onFulfillmentChange: () => void
 }) {
@@ -179,11 +185,16 @@ function ItemSlots({ itemKey, slots, fulfillments, onFulfillmentChange }: {
 
   // Sort slots by sortOrder
   const sorted = [...slots].sort((a, b) => a.sortOrder - b.sortOrder)
+  const required = requiredCount ?? sorted.length
+  const filled = sorted.filter(s => fulfillments.some(f => f.slotDefId === s.id)).length
+  const isOR = required < sorted.length
 
   return (
     <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px dashed rgba(155,109,255,0.2)' }}>
       <div style={{ fontSize: 9, fontWeight: 700, color: '#9B6DFF', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 8 }}>
-        Required · {sorted.filter(s => fulfillments.some(f => f.slotDefId === s.id)).length}/{sorted.length} linked
+        {isOR
+          ? `Complete any ${required} of ${sorted.length} · ${filled} linked`
+          : `Required · ${filled}/${sorted.length} linked`}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {sorted.map(slot => {
@@ -520,7 +531,7 @@ function AgentDashboardInner() {
     fetch('/api/agents/phase-items')
       .then(r => r.ok ? r.json() : null)
       .then((d: {
-        items: Record<string, { itemKey: string; label: string; description: string; duration?: string; groupKey?: string; adminOnly?: boolean; coordinatorTopic?: string; actionJson?: string; videoUrl?: string | null; videoTitle?: string | null; videos?: Array<{ url: string; title?: string | null }> | null; slots?: SlotDef[] }[]>
+        items: Record<string, { itemKey: string; label: string; description: string; duration?: string; groupKey?: string; adminOnly?: boolean; coordinatorTopic?: string; actionJson?: string; videoUrl?: string | null; videoTitle?: string | null; videos?: Array<{ url: string; title?: string | null }> | null; slots?: SlotDef[]; slotRequiredCount?: number | null }[]>
         groups?: Record<string, Array<{ key: string; label: string; icon?: string | null; description?: string | null; showTrainer?: boolean; videos?: Array<{ url: string; title: string | null; orientation?: 'landscape' | 'portrait' }> }>>
         source: string
       } | null) => {
@@ -544,6 +555,7 @@ function AgentDashboardInner() {
                 videoTitle: videos[0]?.title ?? undefined,
                 videos,
                 slots: (i.slots ?? []) as SlotDef[],
+                slotRequiredCount: i.slotRequiredCount ?? null,
               }
             })
           }
@@ -1674,8 +1686,8 @@ function AgentDashboardInner() {
                     >
                       {/* Checkbox — click stops propagation so it only toggles completion */}
                       <button
-                        onClick={e => { e.stopPropagation(); const hasSlots = !!(item as typeof item & { slots?: SlotDef[] }).slots?.length; if (!item.adminOnly && !hasSlots) toggleItem(item.key, activeChecklistPhase, done) }}
-                        disabled={isToggling || item.adminOnly || !!(item as typeof item & { slots?: SlotDef[] }).slots?.length}
+                        onClick={e => { e.stopPropagation(); const hasSlots = !!(item as typeof item & SlotItemMeta).slots?.length; if (!item.adminOnly && !hasSlots) toggleItem(item.key, activeChecklistPhase, done) }}
+                        disabled={isToggling || item.adminOnly || !!(item as typeof item & SlotItemMeta).slots?.length}
                         title={item.adminOnly ? 'This item is approved by leadership' : undefined}
                         style={{
                           background: 'none', border: 'none', padding: 0,
@@ -1974,10 +1986,11 @@ function AgentDashboardInner() {
 
 
                           {/* Milestone slots — shown when admin has defined linkable slots on this item */}
-                          {(item as typeof item & { slots?: SlotDef[] }).slots?.length ? (
+                          {(item as typeof item & SlotItemMeta).slots?.length ? (
                             <ItemSlots
                               itemKey={item.key}
-                              slots={(item as typeof item & { slots?: SlotDef[] }).slots!}
+                              slots={(item as typeof item & SlotItemMeta).slots!}
+                              requiredCount={(item as typeof item & SlotItemMeta).slotRequiredCount}
                               fulfillments={data.slotFulfillments ?? []}
                               onFulfillmentChange={() => {
                                 fetch('/api/agents/me').then(r => r.ok ? r.json() : null).then(d => {

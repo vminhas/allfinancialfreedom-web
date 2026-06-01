@@ -32,6 +32,7 @@ interface PhaseItemDef {
   postToActivity: boolean
   pingAdmin: boolean
   postToAnnouncements: boolean
+  slotRequiredCount: number | null
   slots: SlotDef[]
 }
 
@@ -547,6 +548,7 @@ export default function ChecklistEditorPage() {
             <SlotsEditor
               itemId={editingId}
               slots={(items.find(i => i.id === editingId)?.slots ?? [])}
+              requiredCount={items.find(i => i.id === editingId)?.slotRequiredCount ?? null}
               onRefresh={fetchItems}
               isMobile={isMobile}
             />
@@ -907,23 +909,48 @@ function ProgressionsEditor({ progressions, onRefresh, isMobile }: { progression
 }
 
 // ── Slots editor ─────────────────────────────────────────────────────────────
-// Embedded inside the item edit form. Lets admins add/remove slot definitions
-// (e.g. "Business Partner 1", type = business_partner) that agents must fill
-// by linking a real BP or FTA record before the item auto-completes.
-function SlotsEditor({ itemId, slots, onRefresh, isMobile }: {
+function SlotsEditor({ itemId, slots, requiredCount, onRefresh, isMobile }: {
   itemId: string
   slots: SlotDef[]
+  requiredCount: number | null
   onRefresh: () => void
   isMobile: boolean
 }) {
+  const [editingSlotId, setEditingSlotId] = useState<string | null>(null)
+  const [editLabel, setEditLabel] = useState('')
+  const [editType, setEditType] = useState<'business_partner' | 'field_appointment'>('business_partner')
+  const [saving, setSaving] = useState(false)
+
   const [addLabel, setAddLabel] = useState('')
   const [addType, setAddType] = useState<'business_partner' | 'field_appointment'>('business_partner')
   const [adding, setAdding] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
 
+  const [reqCount, setReqCount] = useState<string>(requiredCount !== null ? String(requiredCount) : '')
+  const [savingReq, setSavingReq] = useState(false)
+
   const inp: React.CSSProperties = {
     padding: '7px 10px', fontSize: 12, background: '#0A1628',
     border: '1px solid rgba(201,169,110,0.2)', borderRadius: 4, color: '#ffffff', outline: 'none',
+  }
+
+  const startEdit = (slot: SlotDef) => {
+    setEditingSlotId(slot.id)
+    setEditLabel(slot.label)
+    setEditType(slot.slotType)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editingSlotId || !editLabel.trim()) return
+    setSaving(true)
+    await fetch('/api/admin/phase-items/slots', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: editingSlotId, label: editLabel.trim(), slotType: editType }),
+    })
+    setSaving(false)
+    setEditingSlotId(null)
+    onRefresh()
   }
 
   const handleAdd = async () => {
@@ -946,6 +973,18 @@ function SlotsEditor({ itemId, slots, onRefresh, isMobile }: {
     onRefresh()
   }
 
+  const handleSaveReqCount = async () => {
+    setSavingReq(true)
+    const parsed = reqCount.trim() === '' ? null : parseInt(reqCount.trim(), 10)
+    await fetch('/api/admin/phase-items', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: itemId, slotRequiredCount: isNaN(parsed as number) ? null : parsed }),
+    })
+    setSavingReq(false)
+    onRefresh()
+  }
+
   return (
     <div style={{ marginTop: 18, padding: '14px 16px', background: 'rgba(155,109,255,0.04)', border: '1px solid rgba(155,109,255,0.18)', borderRadius: 6 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -954,33 +993,59 @@ function SlotsEditor({ itemId, slots, onRefresh, isMobile }: {
         </div>
         <button
           type="button"
-          onClick={() => setShowAdd(s => !s)}
+          onClick={() => { setShowAdd(s => !s); setEditingSlotId(null) }}
           style={{ padding: '4px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'transparent', border: '1px solid rgba(155,109,255,0.3)', color: '#9B6DFF', cursor: 'pointer' }}
         >
           {showAdd ? 'Cancel' : '+ Add Slot'}
         </button>
       </div>
 
-      <div style={{ fontSize: 10, color: '#6B8299', marginBottom: slots.length || showAdd ? 10 : 0, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 10, color: '#6B8299', marginBottom: 10, lineHeight: 1.5 }}>
         Each slot is a named placeholder an agent fills by linking a real BP or FTA record.
-        When all slots are filled, the item auto-completes. Items with slots cannot be manually checked.
+        Items with slots cannot be manually checked — completion is driven by linked records.
       </div>
 
       {/* Existing slots */}
       {slots.map(slot => (
-        <div key={slot.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', marginBottom: 4, background: 'rgba(155,109,255,0.06)', border: '1px solid rgba(155,109,255,0.12)', borderRadius: 4 }}>
-          <div style={{ flex: 1 }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: '#ffffff' }}>{slot.label}</span>
-            <span style={{ marginLeft: 8, fontSize: 9, color: '#9B6DFF', padding: '1px 6px', background: 'rgba(155,109,255,0.12)', borderRadius: 3, textTransform: 'uppercase', fontWeight: 600 }}>
-              {slot.slotType === 'business_partner' ? 'Business Partner' : 'Field Appointment'}
-            </span>
-          </div>
-          <button
-            onClick={() => handleDelete(slot.id)}
-            style={{ background: 'none', border: 'none', color: '#f87171', fontSize: 11, cursor: 'pointer', padding: '2px 6px' }}
-          >
-            Remove
-          </button>
+        <div key={slot.id} style={{ marginBottom: 4 }}>
+          {editingSlotId === slot.id ? (
+            /* Inline edit form */
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr auto auto auto', gap: 6, padding: '8px 10px', background: 'rgba(155,109,255,0.1)', border: '1px solid rgba(155,109,255,0.3)', borderRadius: 4, alignItems: 'center' }}>
+              <input
+                value={editLabel}
+                onChange={e => setEditLabel(e.target.value)}
+                style={{ ...inp }}
+                onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') setEditingSlotId(null) }}
+                autoFocus
+              />
+              <select
+                value={editType}
+                onChange={e => setEditType(e.target.value as 'business_partner' | 'field_appointment')}
+                style={{ ...inp, cursor: 'pointer' }}
+              >
+                <option value="business_partner">Business Partner</option>
+                <option value="field_appointment">Field Appointment</option>
+              </select>
+              <button onClick={handleSaveEdit} disabled={saving || !editLabel.trim()} style={{ padding: '7px 12px', borderRadius: 4, fontSize: 11, fontWeight: 700, background: '#9B6DFF', border: 'none', color: '#fff', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                {saving ? '...' : 'Save'}
+              </button>
+              <button onClick={() => setEditingSlotId(null)} style={{ padding: '7px 10px', borderRadius: 4, fontSize: 11, background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#9BB0C4', cursor: 'pointer' }}>
+                Cancel
+              </button>
+            </div>
+          ) : (
+            /* Display row */
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', background: 'rgba(155,109,255,0.06)', border: '1px solid rgba(155,109,255,0.12)', borderRadius: 4 }}>
+              <div style={{ flex: 1 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: '#ffffff' }}>{slot.label}</span>
+                <span style={{ marginLeft: 8, fontSize: 9, color: '#9B6DFF', padding: '1px 6px', background: 'rgba(155,109,255,0.12)', borderRadius: 3, textTransform: 'uppercase', fontWeight: 600 }}>
+                  {slot.slotType === 'business_partner' ? 'Business Partner' : 'Field Appointment'}
+                </span>
+              </div>
+              <button onClick={() => startEdit(slot)} style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 11, cursor: 'pointer', padding: '2px 6px' }}>Edit</button>
+              <button onClick={() => handleDelete(slot.id)} style={{ background: 'none', border: 'none', color: '#f87171', fontSize: 11, cursor: 'pointer', padding: '2px 6px' }}>Remove</button>
+            </div>
+          )}
         </div>
       ))}
 
@@ -993,6 +1058,7 @@ function SlotsEditor({ itemId, slots, onRefresh, isMobile }: {
             placeholder='e.g. "Business Partner 1"'
             style={{ ...inp, width: '100%' }}
             onKeyDown={e => { if (e.key === 'Enter') handleAdd() }}
+            autoFocus
           />
           <select
             value={addType}
@@ -1002,13 +1068,46 @@ function SlotsEditor({ itemId, slots, onRefresh, isMobile }: {
             <option value="business_partner">Business Partner</option>
             <option value="field_appointment">Field Appointment</option>
           </select>
-          <button
-            onClick={handleAdd}
-            disabled={adding || !addLabel.trim()}
-            style={{ padding: '7px 14px', borderRadius: 4, fontSize: 11, fontWeight: 700, background: '#9B6DFF', border: 'none', color: '#ffffff', cursor: adding ? 'wait' : 'pointer', opacity: adding ? 0.7 : 1, whiteSpace: 'nowrap' }}
-          >
+          <button onClick={handleAdd} disabled={adding || !addLabel.trim()} style={{ padding: '7px 14px', borderRadius: 4, fontSize: 11, fontWeight: 700, background: '#9B6DFF', border: 'none', color: '#ffffff', cursor: adding ? 'wait' : 'pointer', opacity: adding ? 0.7 : 1, whiteSpace: 'nowrap' }}>
             {adding ? 'Adding...' : 'Add'}
           </button>
+        </div>
+      )}
+
+      {/* Required count — only shown when there are 2+ slots */}
+      {slots.length >= 2 && (
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid rgba(155,109,255,0.15)' }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: '#9B6DFF', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>
+            Completion Requirement
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 11, color: '#9BB0C4' }}>Agent must fill</span>
+            <input
+              type="number"
+              min={1}
+              max={slots.length}
+              value={reqCount}
+              onChange={e => setReqCount(e.target.value)}
+              placeholder={String(slots.length)}
+              style={{ ...inp, width: 56, textAlign: 'center' }}
+            />
+            <span style={{ fontSize: 11, color: '#9BB0C4' }}>of {slots.length} slots</span>
+            <span style={{ fontSize: 10, color: '#4B5563' }}>
+              (leave blank = all {slots.length} required)
+            </span>
+            <button
+              onClick={handleSaveReqCount}
+              disabled={savingReq}
+              style={{ padding: '5px 12px', borderRadius: 4, fontSize: 11, fontWeight: 700, background: 'rgba(155,109,255,0.15)', border: '1px solid rgba(155,109,255,0.3)', color: '#9B6DFF', cursor: 'pointer' }}
+            >
+              {savingReq ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+          {requiredCount !== null && requiredCount < slots.length && (
+            <div style={{ marginTop: 6, fontSize: 10, color: '#4ade80' }}>
+              Currently: any {requiredCount} of {slots.length} slots completes this task (OR logic)
+            </div>
+          )}
         </div>
       )}
     </div>

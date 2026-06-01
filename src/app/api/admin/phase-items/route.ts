@@ -135,6 +135,7 @@ export async function PUT(req: NextRequest) {
     postToActivity?: boolean
     pingAdmin?: boolean
     postToAnnouncements?: boolean
+    slotRequiredCount?: number | null
   }
 
   if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 })
@@ -166,6 +167,7 @@ export async function PUT(req: NextRequest) {
   if (body.pingAdmin !== undefined) data.pingAdmin = body.pingAdmin
   if (body.postToAnnouncements !== undefined) data.postToAnnouncements = body.postToAnnouncements
   if ((body as Record<string, unknown>).linkedProgression !== undefined) data.linkedProgression = (body as Record<string, unknown>).linkedProgression
+  if (body.slotRequiredCount !== undefined) data.slotRequiredCount = body.slotRequiredCount ?? null
 
   const item = await db.phaseItemDefinition.update({ where: { id: body.id }, data })
   return NextResponse.json(item)

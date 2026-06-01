@@ -540,6 +540,9 @@ model PhaseItemDefinition {
   postToActivity        Boolean  @default(true)  @map("post_to_activity")
   pingAdmin             Boolean  @default(false) @map("ping_admin")
   postToAnnouncements   Boolean  @default(false) @map("post_to_announcements")
+  // How many slots must be filled for the item to auto-complete.
+  // null = all slots required (AND logic). Set to N for "any N of M" (OR logic).
+  slotRequiredCount     Int?     @map("slot_required_count")
   slots       PhaseItemSlotDef[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
