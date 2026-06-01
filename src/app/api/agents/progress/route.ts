@@ -57,11 +57,11 @@ export async function PUT(req: NextRequest) {
   })
   if (!agentProfile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
 
-  // Agents can toggle items across any phase — onboarding progresses
-  // asynchronously (e.g. you can schedule FTAs in Phase 2 while still waiting
-  // on your license from Phase 1). Just validate the item exists in that phase.
+  // Validate the item exists — check database definitions first (source of
+  // truth when the checklist editor is in use), fall back to bundled constants.
+  const dbDef = await db.phaseItemDefinition.findUnique({ where: { itemKey }, select: { phase: true } })
   const validKeys = PHASE_ITEMS[phase]?.map(i => i.key) ?? []
-  if (!validKeys.includes(itemKey)) {
+  if (!dbDef && !validKeys.includes(itemKey)) {
     return NextResponse.json({ error: 'Invalid item key for this phase' }, { status: 400 })
   }
 

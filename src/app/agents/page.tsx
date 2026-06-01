@@ -1631,8 +1631,8 @@ function AgentDashboardInner() {
                     >
                       {/* Checkbox — click stops propagation so it only toggles completion */}
                       <button
-                        onClick={e => { e.stopPropagation(); const hasSlots = !!(item as typeof item & SlotItemMeta).slots?.length; if (!item.adminOnly && !hasSlots) toggleItem(item.key, activeChecklistPhase, done) }}
-                        disabled={isToggling || item.adminOnly || !!(item as typeof item & SlotItemMeta).slots?.length}
+                        onClick={e => { e.stopPropagation(); if (!item.adminOnly) toggleItem(item.key, activeChecklistPhase, done) }}
+                        disabled={isToggling || item.adminOnly}
                         title={item.adminOnly ? 'This item is approved by leadership' : undefined}
                         style={{
                           background: 'none', border: 'none', padding: 0,
