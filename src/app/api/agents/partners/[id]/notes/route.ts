@@ -62,12 +62,12 @@ async function canAccessPartner(author: { role: string; profileId: string | null
 
 export async function GET(
   req: NextRequest,
-  ctx: { params: Promise<{ partnerId: string }> },
+  ctx: { params: Promise<{ id: string }> },
 ) {
   const author = await resolveAuthor(req)
   if (!author) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { partnerId } = await ctx.params
+  const { id: partnerId } = await ctx.params
   if (!(await canAccessPartner(author, partnerId))) {
     return NextResponse.json({ error: 'Access denied' }, { status: 403 })
   }
@@ -90,12 +90,12 @@ export async function GET(
 
 export async function POST(
   req: NextRequest,
-  ctx: { params: Promise<{ partnerId: string }> },
+  ctx: { params: Promise<{ id: string }> },
 ) {
   const author = await resolveAuthor(req)
   if (!author) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { partnerId } = await ctx.params
+  const { id: partnerId } = await ctx.params
   if (!(await canAccessPartner(author, partnerId))) {
     return NextResponse.json({ error: 'Access denied' }, { status: 403 })
   }
@@ -122,12 +122,12 @@ export async function POST(
 
 export async function PATCH(
   req: NextRequest,
-  ctx: { params: Promise<{ partnerId: string }> },
+  ctx: { params: Promise<{ id: string }> },
 ) {
   const author = await resolveAuthor(req)
   if (!author) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { partnerId } = await ctx.params
+  const { id: partnerId } = await ctx.params
   void partnerId
 
   const { noteId, message } = await req.json() as { noteId: string; message: string }

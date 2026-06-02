@@ -42,6 +42,7 @@ export default function ContactNotesThread({ partnerId, previewToken }: { partne
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState('')
   const [editSaving, setEditSaving] = useState(false)
+  const [error, setError] = useState('')
 
   const withPT = (url: string) => previewToken ? `${url}${url.includes('?') ? '&' : '?'}preview=${encodeURIComponent(previewToken)}` : url
 
@@ -58,15 +59,23 @@ export default function ContactNotesThread({ partnerId, previewToken }: { partne
   const postNote = async () => {
     if (!draft.trim()) return
     setSending(true)
-    const res = await fetch(withPT(`/api/agents/partners/${partnerId}/notes`), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: draft.trim() }),
-    })
-    if (res.ok) {
-      const d = await res.json() as { note: Note }
-      setNotes(prev => [...(prev ?? []), d.note])
-      setDraft('')
+    setError('')
+    try {
+      const res = await fetch(withPT(`/api/agents/partners/${partnerId}/notes`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: draft.trim() }),
+      })
+      if (res.ok) {
+        const d = await res.json() as { note: Note }
+        setNotes(prev => [...(prev ?? []), d.note])
+        setDraft('')
+      } else {
+        const d = await res.json().catch(() => ({})) as { error?: string }
+        setError(d.error ?? `Failed (${res.status})`)
+      }
+    } catch {
+      setError('Network error')
     }
     setSending(false)
   }
@@ -126,6 +135,7 @@ export default function ContactNotesThread({ partnerId, previewToken }: { partne
           </button>
         </div>
       </div>
+      {error && <div style={{ fontSize: 11, color: '#f87171', padding: '4px 0 8px' }}>{error}</div>}
 
       {/* Timeline */}
       {notes === null ? (
