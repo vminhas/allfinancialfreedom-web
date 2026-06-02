@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { getSetting } from '@/lib/settings'
+import { authorizeTeamMemberAccess } from '@/lib/trainer-trainees'
 
 const EDIT_WINDOW_MS = 5 * 60 * 1000
 
@@ -51,11 +52,20 @@ async function resolveAuthor(req: NextRequest) {
 }
 
 async function canAccessPartner(author: { role: string; profileId: string | null; id: string }, partnerId: string) {
-  const partner = await db.businessPartner.findUnique({ where: { id: partnerId }, select: { agentProfileId: true } })
+  const partner = await db.businessPartner.findUnique({
+    where: { id: partnerId },
+    select: { agentProfileId: true, agentProfile: { select: { agentCode: true } } },
+  })
   if (!partner) return false
 
-  if (author.role === 'agent') return partner.agentProfileId === author.profileId
   if (author.role === 'admin' || author.role === 'licensing_coordinator') return true
+  if (author.role === 'agent' && author.profileId) {
+    if (partner.agentProfileId === author.profileId) return true
+    if (partner.agentProfile?.agentCode) {
+      const access = await authorizeTeamMemberAccess(author.profileId, partner.agentProfile.agentCode)
+      if (access) return true
+    }
+  }
 
   return false
 }
