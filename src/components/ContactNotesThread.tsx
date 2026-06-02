@@ -94,141 +94,102 @@ export default function ContactNotesThread({ partnerId, previewToken }: { partne
       setEditingId(null)
     } else {
       const d = await res.json().catch(() => ({})) as { error?: string }
-      alert(d.error ?? 'Edit failed — the 5-minute window may have expired.')
+      alert(d.error ?? 'Edit failed.')
     }
     setEditSaving(false)
   }
 
   return (
     <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid rgba(201,169,110,0.1)' }}>
-      <div style={{ fontSize: 9, fontWeight: 700, color: '#C9A96E', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 10 }}>
-        Notes & History
+      <div style={{ fontSize: 9, fontWeight: 700, color: '#C9A96E', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 8 }}>
+        Notes
       </div>
 
-      {/* Add note */}
-      <div style={{ marginBottom: 12, padding: 10, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(201,169,110,0.1)', borderRadius: 6 }}>
-        <textarea
+      <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+        <input
           value={draft}
           onChange={e => setDraft(e.target.value)}
-          rows={2}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); postNote() } }}
           placeholder="Add a note..."
           style={{
-            width: '100%', boxSizing: 'border-box', padding: '8px 10px',
+            flex: 1, padding: '6px 10px',
             background: '#0A1628', border: '1px solid rgba(201,169,110,0.15)',
             borderRadius: 4, color: '#d1d9e2', fontSize: 11,
-            fontFamily: 'inherit', resize: 'vertical', minHeight: 48,
+            fontFamily: 'inherit', outline: 'none',
           }}
         />
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
-          <button
-            onClick={postNote}
-            disabled={sending || !draft.trim()}
-            style={{
-              background: draft.trim() ? '#C9A96E' : 'rgba(201,169,110,0.3)',
-              color: '#142D48', border: 'none', borderRadius: 4,
-              padding: '6px 14px', fontSize: 10, fontWeight: 700,
-              letterSpacing: '0.08em', textTransform: 'uppercase',
-              cursor: sending || !draft.trim() ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {sending ? 'Saving...' : '+ Add Note'}
-          </button>
-        </div>
+        <button
+          onClick={postNote}
+          disabled={sending || !draft.trim()}
+          style={{
+            background: draft.trim() ? '#C9A96E' : 'rgba(201,169,110,0.3)',
+            color: '#142D48', border: 'none', borderRadius: 4,
+            padding: '6px 12px', fontSize: 9, fontWeight: 700,
+            letterSpacing: '0.06em', textTransform: 'uppercase',
+            cursor: sending || !draft.trim() ? 'default' : 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {sending ? '...' : 'Add'}
+        </button>
       </div>
-      {error && <div style={{ fontSize: 11, color: '#f87171', padding: '4px 0 8px' }}>{error}</div>}
+      {error && <div style={{ fontSize: 10, color: '#f87171', marginBottom: 6 }}>{error}</div>}
 
-      {/* Timeline */}
       {notes === null ? (
-        <div style={{ fontSize: 11, color: '#6B8299' }}>Loading...</div>
-      ) : notes.length === 0 ? (
-        <div style={{ fontSize: 11, color: '#4B5563', padding: '8px 0' }}>No notes yet.</div>
-      ) : (
-        <div style={{ position: 'relative', paddingLeft: 18, maxHeight: 300, overflowY: 'auto' }}>
-          {/* Vertical timeline line */}
-          <div style={{
-            position: 'absolute', left: 5, top: 4, bottom: 4,
-            width: 2, background: 'linear-gradient(180deg, rgba(201,169,110,0.3), rgba(201,169,110,0.05))',
-            borderRadius: 1,
-          }} />
+        <div style={{ fontSize: 10, color: '#6B8299' }}>Loading...</div>
+      ) : notes.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 200, overflowY: 'auto' }}>
+          {notes.map(n => {
+            const roleColor = ROLE_COLORS[n.authorRole] ?? '#6B8299'
+            const isEditing = editingId === n.id
+            const elapsed = Date.now() - new Date(n.createdAt).getTime()
+            const canStillEdit = n.canEdit && elapsed < EDIT_WINDOW_MS
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {notes.map(n => {
-              const roleColor = ROLE_COLORS[n.authorRole] ?? '#6B8299'
-              const isEditing = editingId === n.id
-              const elapsed = Date.now() - new Date(n.createdAt).getTime()
-              const canStillEdit = n.canEdit && elapsed < EDIT_WINDOW_MS
-
-              return (
-                <div key={n.id} style={{ position: 'relative' }}>
-                  {/* Timeline dot */}
-                  <div style={{
-                    position: 'absolute', left: -15, top: 10,
-                    width: 8, height: 8, borderRadius: '50%',
-                    background: roleColor,
-                    border: '2px solid #132238',
-                    boxShadow: `0 0 0 2px ${roleColor}33`,
-                  }} />
-
-                  <div style={{
-                    background: 'rgba(255,255,255,0.02)',
-                    border: `1px solid ${roleColor}20`,
-                    borderRadius: 6, padding: '8px 10px',
-                  }}>
-                    {/* Header */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, gap: 6, flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: roleColor }}>{n.authorName}</span>
-                        <span style={{
-                          fontSize: 7, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
-                          padding: '1px 5px', borderRadius: 3,
-                          background: `${roleColor}14`, color: roleColor, border: `1px solid ${roleColor}30`,
-                        }}>
-                          {ROLE_LABELS[n.authorRole] ?? n.authorRole}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 9, color: '#4B5563' }}>
-                          {timeAgo(n.createdAt)}
-                          {n.editedAt && ' (edited)'}
-                        </span>
-                        {canStillEdit && !isEditing && (
-                          <button
-                            onClick={() => { setEditingId(n.id); setEditDraft(n.message) }}
-                            style={{ background: 'none', border: 'none', color: '#6B8299', fontSize: 9, cursor: 'pointer', textDecoration: 'underline' }}
-                          >Edit</button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Body */}
-                    {isEditing ? (
-                      <div>
-                        <textarea
-                          value={editDraft}
-                          onChange={e => setEditDraft(e.target.value)}
-                          rows={2}
-                          style={{
-                            width: '100%', boxSizing: 'border-box', padding: '6px 8px',
-                            background: '#0A1628', border: '1px solid rgba(201,169,110,0.2)',
-                            borderRadius: 4, color: '#d1d9e2', fontSize: 11,
-                            fontFamily: 'inherit', resize: 'vertical',
-                          }}
-                        />
-                        <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
-                          <button onClick={saveEdit} disabled={editSaving} style={{ padding: '3px 10px', borderRadius: 3, fontSize: 9, fontWeight: 700, background: '#C9A96E', border: 'none', color: '#142D48', cursor: 'pointer' }}>
-                            {editSaving ? '...' : 'Save'}
-                          </button>
-                          <button onClick={() => setEditingId(null)} style={{ padding: '3px 10px', borderRadius: 3, fontSize: 9, background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#6B8299', cursor: 'pointer' }}>Cancel</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: 11, color: '#9BB0C4', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{n.message}</div>
-                    )}
+            return (
+              <div key={n.id} style={{ padding: '5px 0', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                {isEditing ? (
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <input
+                      value={editDraft}
+                      onChange={e => setEditDraft(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); saveEdit() } }}
+                      style={{
+                        flex: 1, padding: '4px 8px',
+                        background: '#0A1628', border: '1px solid rgba(201,169,110,0.2)',
+                        borderRadius: 3, color: '#d1d9e2', fontSize: 11, fontFamily: 'inherit',
+                      }}
+                    />
+                    <button onClick={saveEdit} disabled={editSaving} style={{ padding: '3px 8px', borderRadius: 3, fontSize: 9, fontWeight: 700, background: '#C9A96E', border: 'none', color: '#142D48', cursor: 'pointer' }}>
+                      {editSaving ? '...' : 'Save'}
+                    </button>
+                    <button onClick={() => setEditingId(null)} style={{ padding: '3px 8px', borderRadius: 3, fontSize: 9, background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#6B8299', cursor: 'pointer' }}>
+                      Cancel
+                    </button>
                   </div>
-                </div>
-              )
-            })}
-          </div>
+                ) : (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+                    <div style={{ fontSize: 11, color: '#9BB0C4', lineHeight: 1.4, flex: 1, minWidth: 0 }}>
+                      <span style={{ fontWeight: 600, color: roleColor, fontSize: 10 }}>{n.authorName}</span>
+                      <span style={{ fontSize: 8, color: roleColor, marginLeft: 4, opacity: 0.7 }}>{ROLE_LABELS[n.authorRole] ?? n.authorRole}</span>
+                      <span style={{ color: '#4B5563', margin: '0 5px' }}>&middot;</span>
+                      <span style={{ whiteSpace: 'pre-wrap' }}>{n.message}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                      <span style={{ fontSize: 9, color: '#4B5563' }}>
+                        {timeAgo(n.createdAt)}{n.editedAt && ' (edited)'}
+                      </span>
+                      {canStillEdit && (
+                        <button
+                          onClick={() => { setEditingId(n.id); setEditDraft(n.message) }}
+                          style={{ background: 'none', border: 'none', color: '#6B8299', fontSize: 9, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                        >Edit</button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
