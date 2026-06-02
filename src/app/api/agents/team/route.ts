@@ -263,7 +263,7 @@ export async function GET(req: NextRequest) {
     // would still render as ACTIVE in the team view, which is wrong.
     let memberStatus: MemberStatus
     if (a.status === 'INACTIVE') memberStatus = 'INACTIVE'
-    else if (a.agentUser?.passwordHash) memberStatus = 'ACTIVE'
+    else if (a.agentUser?.passwordHash || a.agentUser?.lastLoginAt) memberStatus = 'ACTIVE'
     else memberStatus = 'INVITED'
     return {
       id: a.id,
@@ -418,7 +418,7 @@ export async function GET(req: NextRequest) {
           // (INVITED). This is the "on the portal yet" answer.
           let memberStatus: MemberStatus
           if (t.status === 'INACTIVE') memberStatus = 'INACTIVE'
-          else if (t.agentUser?.passwordHash) memberStatus = 'ACTIVE'
+          else if (t.agentUser?.passwordHash || t.agentUser?.lastLoginAt) memberStatus = 'ACTIVE'
           else memberStatus = 'INVITED'
           return {
             id: t.id,
