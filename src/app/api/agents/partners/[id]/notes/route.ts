@@ -153,3 +153,27 @@ export async function PATCH(
     note: { ...updated, createdAt: updated.createdAt.toISOString(), editedAt: updated.editedAt?.toISOString() ?? null, canEdit: true },
   })
 }
+
+export async function DELETE(
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> },
+) {
+  const author = await resolveAuthor(req)
+  if (!author) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { id: partnerId } = await ctx.params
+  if (!(await canAccessPartner(author, partnerId))) {
+    return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+  }
+
+  const noteId = new URL(req.url).searchParams.get('noteId')
+  if (!noteId) return NextResponse.json({ error: 'noteId required' }, { status: 400 })
+
+  const note = await db.contactNote.findUnique({ where: { id: noteId } })
+  if (!note || note.businessPartnerId !== partnerId) {
+    return NextResponse.json({ error: 'Note not found' }, { status: 404 })
+  }
+
+  await db.contactNote.delete({ where: { id: noteId } })
+  return NextResponse.json({ ok: true })
+}

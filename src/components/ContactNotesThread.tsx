@@ -99,6 +99,11 @@ export default function ContactNotesThread({ partnerId, previewToken }: { partne
     setEditSaving(false)
   }
 
+  const deleteNote = async (noteId: string) => {
+    setNotes(prev => (prev ?? []).filter(n => n.id !== noteId))
+    await fetch(withPT(`/api/agents/partners/${partnerId}/notes?noteId=${noteId}`), { method: 'DELETE' })
+  }
+
   return (
     <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid rgba(201,169,110,0.1)' }}>
       <div style={{ fontSize: 9, fontWeight: 700, color: '#C9A96E', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 8 }}>
@@ -184,6 +189,10 @@ export default function ContactNotesThread({ partnerId, previewToken }: { partne
                           style={{ background: 'none', border: 'none', color: '#6B8299', fontSize: 9, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
                         >Edit</button>
                       )}
+                      <button
+                        onClick={() => deleteNote(n.id)}
+                        style={{ background: 'none', border: 'none', color: '#6B8299', fontSize: 9, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                      >Remove</button>
                     </div>
                   </div>
                 )}
