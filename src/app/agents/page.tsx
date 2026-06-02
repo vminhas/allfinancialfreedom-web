@@ -4225,7 +4225,6 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
             </div>
             <div><label style={fieldLabel}>1st Call</label><DatePicker value={form.firstCallDate} onChange={v => setForm(f => ({ ...f, firstCallDate: v }))} /></div>
             <div><label style={fieldLabel}>2nd Call</label><DatePicker value={form.secondCallDate} onChange={v => setForm(f => ({ ...f, secondCallDate: v }))} /></div>
-            <div style={{ gridColumn: isMobile ? undefined : 'span 3' }}><label style={fieldLabel}>Notes</label><input style={inputStyle} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
             {editingId && (() => {
               const linked = partners.find(p => p.id === editingId)?.linkedAgentProfile
               if (!linked?.npn && !linked?.licenseNumber) return null
