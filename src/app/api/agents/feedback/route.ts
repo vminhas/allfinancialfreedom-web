@@ -1,19 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { getAgentProfileIdFromEmail as getProfileId } from '@/lib/agent-identity'
+import { resolveAgentIdentity } from '@/lib/agent-identity'
 
 // GET /api/agents/feedback - the calling agent's own feedback history
 // with status + response. Drives the "Your feedback" panel on the
 // tracker so agents can see what they've submitted and where it landed.
-export async function GET() {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-  const profileId = await getProfileId(session.user!.email!)
-  if (!profileId) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+export async function GET(req: NextRequest) {
+  const id = await resolveAgentIdentity(req)
+  if ('error' in id) return id.error
+  const profileId = id.profileId
 
   const feedback = await db.agentFeedback.findMany({
     where: { agentProfileId: profileId },
@@ -35,13 +30,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const profileId = await getProfileId(session.user!.email!)
-  if (!profileId) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+  const id = await resolveAgentIdentity(req)
+  if ('error' in id) return id.error
+  const profileId = id.profileId
 
   const { message, category, screenshotUrls } = await req.json() as {
     message: string

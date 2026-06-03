@@ -268,7 +268,7 @@ export default function NewBusinessTab({ isMobile, phase, initialSubmissionId, p
         </div>
       )}
 
-      {showForm && <NewBusinessForm isMobile={isMobile} onSaved={() => { refresh(); setShowForm(false) }} />}
+      {showForm && <NewBusinessForm isMobile={isMobile} onSaved={() => { refresh(); setShowForm(false) }} previewToken={previewToken} />}
 
       {loading ? <div style={{ color: '#6B8299', fontSize: 13 }}>Loading...</div> :
         sorted.length === 0 ? <div style={{ color: '#4B5563', fontSize: 13 }}>No submissions match this filter.</div> :
@@ -367,7 +367,7 @@ export default function NewBusinessTab({ isMobile, phase, initialSubmissionId, p
         </>
       )}
 
-      {opened && <SubmissionDrawer submission={opened} onClose={() => setOpenId(null)} onChanged={refresh} />}
+      {opened && <SubmissionDrawer submission={opened} onClose={() => setOpenId(null)} onChanged={refresh} previewToken={previewToken} />}
     </div>
   )
 }
@@ -391,7 +391,8 @@ interface SplitAgentCandidate {
   avatarUrl: string | null
 }
 
-function NewBusinessForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: () => void }) {
+function NewBusinessForm({ isMobile, onSaved, previewToken }: { isMobile: boolean; onSaved: () => void; previewToken?: string | null }) {
+  const ptQs = previewToken ? `?preview=${encodeURIComponent(previewToken)}` : ''
   const [form, setForm] = useState({
     applicationDate: '', carrier: '', policyType: 'TERM', points: '',
     splitWithAgentId: '',
@@ -451,7 +452,7 @@ function NewBusinessForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: ()
       const fd = new FormData()
       for (const [k, v] of Object.entries(form)) fd.append(k, v)
       for (const f of files) fd.append('illustrations', f)
-      const res = await fetch('/api/agents/new-business', { method: 'POST', body: fd })
+      const res = await fetch(`/api/agents/new-business${ptQs}`, { method: 'POST', body: fd })
       if (!res.ok) {
         const d = await res.json().catch(() => ({})) as { error?: string }
         setError(d.error ?? 'Submission failed')
@@ -709,7 +710,8 @@ function NewBusinessForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: ()
   )
 }
 
-function SubmissionDrawer({ submission, onClose, onChanged }: { submission: Submission; onClose: () => void; onChanged: () => void }) {
+function SubmissionDrawer({ submission, onClose, onChanged, previewToken }: { submission: Submission; onClose: () => void; onChanged: () => void; previewToken?: string | null }) {
+  const ptQs = previewToken ? `?preview=${encodeURIComponent(previewToken)}` : ''
   // Live updates: when the unified notifications stream pushes a
   // policy.comment event whose subjectId matches THIS submission,
   // refetch so the new note appears in the thread without the agent
@@ -783,7 +785,7 @@ function SubmissionDrawer({ submission, onClose, onChanged }: { submission: Subm
     if (!noteText.trim()) return
     setPosting(true)
     try {
-      const res = await fetch(`/api/agents/new-business/${submission.id}/notes`, {
+      const res = await fetch(`/api/agents/new-business/${submission.id}/notes${ptQs}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ body: noteText.trim() }),
@@ -809,7 +811,7 @@ function SubmissionDrawer({ submission, onClose, onChanged }: { submission: Subm
         ownerFirstName: edit.ownerFirstName.trim() || null,
         ownerLastName: edit.ownerLastName.trim() || null,
       }
-      const res = await fetch(`/api/agents/new-business/${submission.id}`, {
+      const res = await fetch(`/api/agents/new-business/${submission.id}${ptQs}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -830,7 +832,7 @@ function SubmissionDrawer({ submission, onClose, onChanged }: { submission: Subm
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h2 style={{ color: '#fff', fontSize: 16, fontWeight: 600, margin: 0 }}>{submission.clientFirstName} {submission.clientLastName}</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <MuteToggle submission={submission} onChanged={onChanged} />
+            <MuteToggle submission={submission} onChanged={onChanged} previewToken={previewToken} />
             <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#9BB0C4', fontSize: 18, cursor: 'pointer' }}>✕</button>
           </div>
         </div>
@@ -1062,7 +1064,8 @@ function DetailRow({ k, v }: { k: string; v: string }) {
 // onChanged() so the parent submission list reflects the new
 // state (used by the icon's filled vs hollow rendering on next
 // drawer open).
-function MuteToggle({ submission, onChanged }: { submission: Submission & { muted?: boolean }; onChanged: () => void }) {
+function MuteToggle({ submission, onChanged, previewToken }: { submission: Submission & { muted?: boolean }; onChanged: () => void; previewToken?: string | null }) {
+  const ptQs = previewToken ? `?preview=${encodeURIComponent(previewToken)}` : ''
   const [muted, setMuted] = useState(!!submission.muted)
   const [pending, setPending] = useState(false)
 
@@ -1072,7 +1075,7 @@ function MuteToggle({ submission, onChanged }: { submission: Submission & { mute
     const next = !muted
     setMuted(next)  // optimistic
     try {
-      const res = await fetch(`/api/agents/new-business/${submission.id}/mute`, {
+      const res = await fetch(`/api/agents/new-business/${submission.id}/mute${ptQs}`, {
         method: next ? 'POST' : 'DELETE',
       })
       if (!res.ok) throw new Error(`${res.status}`)

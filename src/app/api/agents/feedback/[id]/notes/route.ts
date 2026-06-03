@@ -1,19 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { getAgentProfileIdFromEmail as getProfileId } from '@/lib/agent-identity'
+import { resolveAgentIdentity } from '@/lib/agent-identity'
 
 // GET /api/agents/feedback/[id]/notes
 // Agent-only, scoped to the caller's own feedback rows. Internal notes
 // are filtered out (admin-only context).
-export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-  const profileId = await getProfileId(session.user!.email!)
-  if (!profileId) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const identity = await resolveAgentIdentity(req)
+  if ('error' in identity) return identity.error
+  const profileId = identity.profileId
   const { id } = await ctx.params
 
   const feedback = await db.agentFeedback.findUnique({
@@ -43,12 +38,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 // (agents have no "internal" mode). Pings the admin activity Discord
 // channel so the team sees the reply without opening /vault/feedback.
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-  const profileId = await getProfileId(session.user!.email!)
-  if (!profileId) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+  const identity = await resolveAgentIdentity(req)
+  if ('error' in identity) return identity.error
+  const profileId = identity.profileId
   const { id } = await ctx.params
 
   const body = await req.json() as { body?: unknown }

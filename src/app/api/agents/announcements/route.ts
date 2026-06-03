@@ -1,27 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { resolveAgentIdentity } from '@/lib/agent-identity'
 
-// Local profile-with-phase lookup. Uses the same case-insensitive +
-// validated-email pattern as the shared findAgentUserByEmail helper so
-// we don't regress the empty-email and email-casing bugs here.
-async function getProfileId(email: string | null | undefined) {
-  if (typeof email !== 'string' || email.trim().length === 0) return null
-  const u = await db.agentUser.findFirst({
-    where: { email: { equals: email, mode: 'insensitive' } },
-    include: { profile: { select: { id: true, phase: true } } },
+export async function GET(req: NextRequest) {
+  const id = await resolveAgentIdentity(req)
+  if ('error' in id) return id.error
+
+  // We still need the agent's phase for the targetPhase filter.
+  const profile = await db.agentProfile.findUnique({
+    where: { id: id.profileId },
+    select: { id: true, phase: true },
   })
-  return u?.profile ?? null
-}
-
-export async function GET() {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const profile = await getProfileId(session.user!.email!)
   if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
 
   // Three time gates rolled into one query:
@@ -47,20 +36,15 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const profile = await getProfileId(session.user!.email!)
-  if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+  const id = await resolveAgentIdentity(req)
+  if ('error' in id) return id.error
 
   const { announcementId } = await req.json() as { announcementId: string }
   if (!announcementId) return NextResponse.json({ error: 'announcementId required' }, { status: 400 })
 
   await db.announcementRead.upsert({
-    where: { announcementId_agentProfileId: { announcementId, agentProfileId: profile.id } },
-    create: { announcementId, agentProfileId: profile.id },
+    where: { announcementId_agentProfileId: { announcementId, agentProfileId: id.profileId } },
+    create: { announcementId, agentProfileId: id.profileId },
     update: {},
   })
 

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { resolveAgentIdentity } from '@/lib/agent-identity'
 import type { FtaCategory, FtaStatus } from '@/generated/prisma/client'
 
 const VALID_CATEGORIES: FtaCategory[] = [
@@ -27,26 +26,15 @@ const EDITABLE = [
   'status', 'outcomeNotes', 'businessPartnerId',
 ] as const
 
-async function getAgentProfileId() {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string }).role !== 'agent') return null
-  const email = session.user!.email
-  if (typeof email !== 'string' || email.trim().length === 0) return null
-  const p = await db.agentProfile.findFirst({
-    where: { agentUser: { email: { equals: email, mode: 'insensitive' } } },
-    select: { id: true },
-  })
-  return p?.id ?? null
-}
-
 async function ownsFta(profileId: string, ftaId: string): Promise<boolean> {
   const f = await db.fieldTrainingAppointment.findUnique({ where: { id: ftaId }, select: { agentProfileId: true } })
   return !!f && f.agentProfileId === profileId
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const profileId = await getAgentProfileId()
-  if (!profileId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const identity = await resolveAgentIdentity(req)
+  if ('error' in identity) return identity.error
+  const profileId = identity.profileId
   const { id } = await ctx.params
 
   const existing = await db.fieldTrainingAppointment.findUnique({
@@ -155,9 +143,10 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   return NextResponse.json({ fta: updated })
 }
 
-export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const profileId = await getAgentProfileId()
-  if (!profileId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const identity = await resolveAgentIdentity(req)
+  if ('error' in identity) return identity.error
+  const profileId = identity.profileId
   const { id } = await ctx.params
   if (!(await ownsFta(profileId, id))) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   await db.fieldTrainingAppointment.delete({ where: { id } })

@@ -76,7 +76,8 @@ export default function FtaTab({ isMobile, previewToken }: { isMobile: boolean; 
   const setStatus = async (id: string, status: FtaStatus) => {
     setBusyId(id)
     try {
-      const res = await fetch(`/api/agents/fta/${id}`, {
+      const qs = previewToken ? `?preview=${encodeURIComponent(previewToken)}` : ''
+      const res = await fetch(`/api/agents/fta/${id}${qs}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
@@ -90,7 +91,8 @@ export default function FtaTab({ isMobile, previewToken }: { isMobile: boolean; 
     if (!next) return
     setBusyId(id)
     try {
-      const res = await fetch(`/api/agents/fta/${id}`, {
+      const qs = previewToken ? `?preview=${encodeURIComponent(previewToken)}` : ''
+      const res = await fetch(`/api/agents/fta/${id}${qs}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'RESCHEDULED', appointmentDate: next }),
@@ -101,7 +103,8 @@ export default function FtaTab({ isMobile, previewToken }: { isMobile: boolean; 
 
   const remove = async (id: string) => {
     if (!confirm('Delete this appointment record entirely? Use Cancel/No-show if you just want to mark it as didn\'t happen.')) return
-    const res = await fetch(`/api/agents/fta/${id}`, { method: 'DELETE' })
+    const qs = previewToken ? `?preview=${encodeURIComponent(previewToken)}` : ''
+    const res = await fetch(`/api/agents/fta/${id}${qs}`, { method: 'DELETE' })
     if (res.ok) refresh()
   }
 

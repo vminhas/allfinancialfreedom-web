@@ -2317,7 +2317,7 @@ function AgentDashboardInner() {
                 disabled={promotionRequesting}
                 onClick={async () => {
                   setPromotionRequesting(true)
-                  const res = await fetch('/api/agents/coordinator-requests', {
+                  const res = await fetch(`/api/agents/coordinator-requests${previewToken ? `?preview=${encodeURIComponent(previewToken)}` : ''}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -3696,13 +3696,13 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
       const autoStatus = view === 'queue' ? 'PENDING' : 'NEW'
       const payload = { ...form, category: autoCategory, status: autoStatus }
       if (editingId) {
-        const res = await fetch('/api/agents/partners', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editingId, ...payload }) })
+        const res = await fetch(withPreview('/api/agents/partners'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editingId, ...payload }) })
         const updated = await res.json() as Partner
         setPartners(prev => prev.map(p => p.id === editingId ? updated : p))
         // Edits close the form — that's the standard "I'm done with this row" flow.
         resetForm()
       } else {
-        const res = await fetch('/api/agents/partners', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+        const res = await fetch(withPreview('/api/agents/partners'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
         const p = await res.json() as Partner
         setPartners(prev => [...prev, p])
         // Rapid-entry: clear the fields but KEEP the form open so adding 5
@@ -3737,7 +3737,7 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
     setImportBusy(true)
     try {
       const csv = await file.text()
-      const res = await fetch('/api/agents/partners/import', {
+      const res = await fetch(withPreview('/api/agents/partners/import'), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: 'preview', csv }),
       })
@@ -3761,7 +3761,7 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
     setImportBusy(true)
     setImportError(null)
     try {
-      const res = await fetch('/api/agents/partners/import', {
+      const res = await fetch(withPreview('/api/agents/partners/import'), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           mode: 'commit',
@@ -3924,7 +3924,7 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
     setScheduleFtaSaving(true)
     setScheduleFtaError(null)
     try {
-      const ftaRes = await fetch('/api/agents/fta', {
+      const ftaRes = await fetch(withPreview('/api/agents/fta'), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: scheduleFtaPartner.name,
@@ -4906,7 +4906,8 @@ function CallLogsTab({ hasCft, previewToken }: { hasCft: boolean; previewToken?:
     setSubmitting(true)
     setError('')
     try {
-      const res = await fetch('/api/agents/calls', {
+      const callsQs = previewToken ? `?preview=${encodeURIComponent(previewToken)}` : ''
+      const res = await fetch(`/api/agents/calls${callsQs}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
