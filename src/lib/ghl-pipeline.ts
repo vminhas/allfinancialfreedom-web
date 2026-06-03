@@ -82,11 +82,15 @@ export async function advanceContactStage(contactId: string, stageName: string):
 
   // Advance the existing opportunity
   if (opportunityId) {
-    await fetch(`https://services.leadconnectorhq.com/opportunities/${opportunityId}`, {
+    const putRes = await fetch(`https://services.leadconnectorhq.com/opportunities/${opportunityId}`, {
       method: 'PUT',
       headers,
       body: JSON.stringify({ pipelineStageId: stage.id }),
     })
+    if (!putRes.ok) {
+      console.error(`GHL stage advance failed: ${putRes.status} for opportunity ${opportunityId}`)
+      return { ok: false, error: `GHL update failed (${putRes.status})` }
+    }
   }
 
   // Update local DB

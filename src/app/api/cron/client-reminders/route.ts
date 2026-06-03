@@ -216,7 +216,7 @@ function todayInEt(): Date {
   const y = parts.find(p => p.type === 'year')!.value
   const m = parts.find(p => p.type === 'month')!.value
   const d = parts.find(p => p.type === 'day')!.value
-  return new Date(`${y}-${m}-${d}T00:00:00-05:00`)
+  return new Date(Number(y), Number(m) - 1, Number(d))
 }
 
 function sameYMD(a: Date, b: Date): boolean {

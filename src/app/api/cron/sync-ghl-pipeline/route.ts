@@ -79,8 +79,16 @@ export async function GET(req: NextRequest) {
       const contact = await db.contact.findUnique({ where: { ghlContactId: contactGhlId } })
       if (!contact) continue
 
+      const STAGE_ORDER: Record<string, number> = {
+        'New Lead': 1, 'Contacted': 2, 'Engaged': 3,
+        'Ready to Onboard': 4, 'Active Agent': 5,
+      }
+      const currentOrder = STAGE_ORDER[contact.ghlPipelineStage ?? ''] ?? 0
+      const newOrder = STAGE_ORDER[stageName] ?? 0
+      const isRegression = newOrder > 0 && currentOrder > 0 && newOrder < currentOrder
+
       const isConversion = (stageName === 'Ready to Onboard' || stageName === 'Active Agent') && !contact.convertedAt
-      const stageChanged = contact.ghlPipelineStage !== stageName
+      const stageChanged = contact.ghlPipelineStage !== stageName && !isRegression
 
       if (stageChanged || !contact.ghlOpportunityId) {
         await db.contact.update({

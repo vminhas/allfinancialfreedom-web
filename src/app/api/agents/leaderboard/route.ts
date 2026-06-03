@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
 
   const [agents, items, completions] = await Promise.all([
     db.agentProfile.findMany({
-      where: { status: 'ACTIVE', isTest: false },
+      where: { status: 'ACTIVE', isTest: false, isReferralPartner: false },
       select: {
         id: true, agentCode: true, firstName: true, lastName: true, preferredName: true,
         phase: true, avatarUrl: true,

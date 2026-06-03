@@ -232,7 +232,7 @@ export async function syncAgents() {
 
   // Load all AFF profiles for matching.
   const existingProfiles = await db.agentProfile.findMany({
-    select: { id: true, agentCode: true, agentUserId: true, phone: true, recruiterId: true },
+    select: { id: true, agentCode: true, agentUserId: true, phone: true, recruiterId: true, npn: true, dateOfBirth: true, state: true, addressLine1: true, zip: true },
     where: { status: { not: 'INACTIVE' } },
   })
   const existingByCode  = new Map(existingProfiles.map(p => [p.agentCode.toUpperCase(), p]))
@@ -240,7 +240,7 @@ export async function syncAgents() {
 
   // Load AgentUsers for email-based matching.
   const existingUsers = await db.agentUser.findMany({
-    select: { id: true, email: true, profile: { select: { id: true, agentCode: true, recruiterId: true } } },
+    select: { id: true, email: true, profile: { select: { id: true, agentCode: true, recruiterId: true, npn: true, dateOfBirth: true, state: true, addressLine1: true, zip: true, phone: true } } },
   })
   const existingUserByEmail = new Map(existingUsers.map(u => [u.email.toLowerCase(), u]))
 
@@ -268,7 +268,7 @@ export async function syncAgents() {
       if (!existing && email) {
         const userMatch = existingUserByEmail.get(email)
         if (userMatch?.profile) {
-          existing = { id: userMatch.profile.id, agentCode: userMatch.profile.agentCode, agentUserId: userMatch.id, phone: null, recruiterId: userMatch.profile.recruiterId }
+          existing = { id: userMatch.profile.id, agentCode: userMatch.profile.agentCode, agentUserId: userMatch.id, phone: userMatch.profile.phone, recruiterId: userMatch.profile.recruiterId, npn: userMatch.profile.npn, dateOfBirth: userMatch.profile.dateOfBirth, state: userMatch.profile.state, addressLine1: userMatch.profile.addressLine1, zip: userMatch.profile.zip }
         }
       }
       if (!existing && phone) {
@@ -282,14 +282,14 @@ export async function syncAgents() {
             // If the agentCode in AFF differs from Tevah (matched by email/phone), sync it.
             ...(existing.agentCode !== code ? { agentCode: code } : {}),
             tevahAgentId: agent.id,
-            ...(agent.npn           ? { npn:         agent.npn }            : {}),
-            ...(agent.phone         ? { phone:       agent.phone }          : {}),
-            ...(agent.dob           ? { dateOfBirth: new Date(agent.dob) }  : {}),
-            ...(agent.reference && !existing.recruiterId ? { recruiterId: agent.reference.toUpperCase() } : {}),
-            ...(agent.stateId && TEVAH_STATE_MAP[agent.stateId]
+            ...(agent.npn           && !existing.npn         ? { npn:         agent.npn }            : {}),
+            ...(agent.phone         && !existing.phone       ? { phone:       agent.phone }          : {}),
+            ...(agent.dob           && !existing.dateOfBirth ? { dateOfBirth: new Date(agent.dob) }  : {}),
+            ...(agent.reference     && !existing.recruiterId ? { recruiterId: agent.reference.toUpperCase() } : {}),
+            ...(agent.stateId && TEVAH_STATE_MAP[agent.stateId] && !existing.state
                                     ? { state: TEVAH_STATE_MAP[agent.stateId] } : {}),
-            ...(agent.address       ? { addressLine1: agent.address }       : {}),
-            ...(agent.zipCode       ? { zip: agent.zipCode }                : {}),
+            ...(agent.address       && !existing.addressLine1 ? { addressLine1: agent.address }       : {}),
+            ...(agent.zipCode       && !existing.zip         ? { zip: agent.zipCode }                : {}),
             // DO NOT sync phase here. AFF `phase` is the agent's
             // onboarding focus area, owned by the vault tracker
             // (the "Advance to Phase X" button + promotion items).

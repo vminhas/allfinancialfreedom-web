@@ -251,7 +251,7 @@ interface RosterAgent {
 
 async function rosterAll(): Promise<RosterAgent[]> {
   const rows = await db.agentProfile.findMany({
-    where: { status: 'ACTIVE', isTest: false },
+    where: { status: 'ACTIVE', isTest: false, isReferralPartner: false },
     select: { id: true, agentCode: true, firstName: true, lastName: true, preferredName: true, avatarUrl: true, phase: true, recruiterId: true, badges: true },
   })
   return rows.map(r => ({ ...r, badges: r.badges ?? [] }))
@@ -308,6 +308,7 @@ async function submissionsValues(agentIds: string[], start: Date | null, end: Da
   const subs = await db.newBusinessSubmission.findMany({
     where: {
       applicationDate: start ? { gte: start, lte: end } : { lte: end },
+      status: { notIn: ['DECLINED', 'LAPSED', 'NOT_TAKEN'] },
       OR: [
         { agentProfileId: { in: agentIds } },
         { splitWithAgentId: { in: agentIds } },
@@ -382,6 +383,8 @@ async function recruitsValues(roster: RosterAgent[], agentIds: string[], start: 
   const recruits = await db.agentProfile.findMany({
     where: {
       isTest: false,
+      isReferralPartner: false,
+      status: 'ACTIVE',
       recruiterId: { in: codesOfInterest },
       OR: [
         { icaDate: start ? { gte: start, lte: end } : { lte: end } },

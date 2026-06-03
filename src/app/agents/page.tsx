@@ -151,17 +151,20 @@ function ItemSlots({ slots, requiredCount, fulfillments, onFulfillmentChange, pr
   const qs = previewQs || ''
 
   const toggle = async (slot: SlotDef, currentlyDone: boolean) => {
+    if (toggling) return
+    setToggling(slot.id)
     setOptimistic(prev => ({ ...prev, [slot.id]: !currentlyDone }))
-    if (currentlyDone) {
-      await fetch(`/api/agents/slot-fulfillment?slotDefId=${slot.id}${qs ? '&' + qs.slice(1) : ''}`, { method: 'DELETE' })
-    } else {
-      await fetch(`/api/agents/slot-fulfillment${qs}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slotDefId: slot.id }),
-      })
+    try {
+      const res = currentlyDone
+        ? await fetch(`/api/agents/slot-fulfillment?slotDefId=${slot.id}${qs ? '&' + qs.slice(1) : ''}`, { method: 'DELETE' })
+        : await fetch(`/api/agents/slot-fulfillment${qs}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slotDefId: slot.id }) })
+      if (!res.ok) setOptimistic(prev => ({ ...prev, [slot.id]: currentlyDone }))
+      onFulfillmentChange()
+    } catch {
+      setOptimistic(prev => ({ ...prev, [slot.id]: currentlyDone }))
+    } finally {
+      setToggling(null)
     }
-    onFulfillmentChange()
   }
 
   const isDone = (slotId: string) =>
@@ -436,7 +439,7 @@ function AgentDashboardInner() {
     if (!res.ok) { setLoading(false); return }
     setData(await res.json() as AgentData)
     setLoading(false)
-  }, [router])
+  }, [router, previewToken])
 
   useEffect(() => { fetchData() }, [fetchData])
 
@@ -603,13 +606,16 @@ function AgentDashboardInner() {
       })
     }
     const progressQs = previewToken ? `?preview=${encodeURIComponent(previewToken)}` : ''
-    setTogglingKey(null)
-    await fetch(`/api/agents/progress${progressQs}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ itemKey, phase, completed: newCompleted }),
-    })
-    fetchData()
+    try {
+      await fetch(`/api/agents/progress${progressQs}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemKey, phase, completed: newCompleted }),
+      })
+      fetchData()
+    } finally {
+      setTogglingKey(null)
+    }
   }
 
   if (loading) {

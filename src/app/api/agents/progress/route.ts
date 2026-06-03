@@ -64,6 +64,9 @@ export async function PUT(req: NextRequest) {
   if (!dbDef && !validKeys.includes(itemKey)) {
     return NextResponse.json({ error: 'Invalid item key for this phase' }, { status: 400 })
   }
+  if (dbDef && dbDef.phase !== phase) {
+    return NextResponse.json({ error: 'Item belongs to a different phase' }, { status: 400 })
+  }
 
   // Read the prior state so we can decide whether the upsert is a real
   // transition (not-complete -> complete) or a no-op re-check. Without
@@ -227,7 +230,8 @@ export async function PUT(req: NextRequest) {
   }
 
   if (isRealTransition && phase === agentProfile.phase && process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_ADMIN_CHANNEL_ID) {
-    const totalItems = PHASE_ITEMS[phase]?.length ?? 0
+    const dbTotal = await db.phaseItemDefinition.count({ where: { phase } })
+    const totalItems = dbTotal > 0 ? dbTotal : (PHASE_ITEMS[phase]?.length ?? 0)
     const completedItems = await db.phaseItem.count({
       where: { agentProfileId: agentProfile.id, phase, completed: true },
     })
