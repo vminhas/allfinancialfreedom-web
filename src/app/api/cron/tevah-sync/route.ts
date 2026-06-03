@@ -232,7 +232,7 @@ export async function syncAgents() {
 
   // Load all AFF profiles for matching.
   const existingProfiles = await db.agentProfile.findMany({
-    select: { id: true, agentCode: true, agentUserId: true, phone: true },
+    select: { id: true, agentCode: true, agentUserId: true, phone: true, recruiterId: true },
     where: { status: { not: 'INACTIVE' } },
   })
   const existingByCode  = new Map(existingProfiles.map(p => [p.agentCode.toUpperCase(), p]))
@@ -240,7 +240,7 @@ export async function syncAgents() {
 
   // Load AgentUsers for email-based matching.
   const existingUsers = await db.agentUser.findMany({
-    select: { id: true, email: true, profile: { select: { id: true, agentCode: true } } },
+    select: { id: true, email: true, profile: { select: { id: true, agentCode: true, recruiterId: true } } },
   })
   const existingUserByEmail = new Map(existingUsers.map(u => [u.email.toLowerCase(), u]))
 
@@ -268,7 +268,7 @@ export async function syncAgents() {
       if (!existing && email) {
         const userMatch = existingUserByEmail.get(email)
         if (userMatch?.profile) {
-          existing = { id: userMatch.profile.id, agentCode: userMatch.profile.agentCode, agentUserId: userMatch.id, phone: null }
+          existing = { id: userMatch.profile.id, agentCode: userMatch.profile.agentCode, agentUserId: userMatch.id, phone: null, recruiterId: userMatch.profile.recruiterId }
         }
       }
       if (!existing && phone) {
@@ -285,7 +285,7 @@ export async function syncAgents() {
             ...(agent.npn           ? { npn:         agent.npn }            : {}),
             ...(agent.phone         ? { phone:       agent.phone }          : {}),
             ...(agent.dob           ? { dateOfBirth: new Date(agent.dob) }  : {}),
-            ...(agent.reference     ? { recruiterId: agent.reference.toUpperCase() } : {}),
+            ...(agent.reference && !existing.recruiterId ? { recruiterId: agent.reference.toUpperCase() } : {}),
             ...(agent.stateId && TEVAH_STATE_MAP[agent.stateId]
                                     ? { state: TEVAH_STATE_MAP[agent.stateId] } : {}),
             ...(agent.address       ? { addressLine1: agent.address }       : {}),

@@ -23,7 +23,7 @@ const FTA_PHASE_KEYS = [
   'fta_6', 'fta_7', 'fta_8', 'fta_9', 'fta_10',
 ] as const
 
-async function tickNextFtaPhaseItem(profileId: string) {
+async function tickNextFtaPhaseItem(profileId: string, ftaId?: string) {
   const currentItems = await db.phaseItem.findMany({
     where: { agentProfileId: profileId, phase: 2, itemKey: { in: FTA_PHASE_KEYS as unknown as string[] } },
     select: { itemKey: true, completed: true },
@@ -33,8 +33,8 @@ async function tickNextFtaPhaseItem(profileId: string) {
   if (!next) return
   await db.phaseItem.upsert({
     where: { agentProfileId_phase_itemKey: { agentProfileId: profileId, phase: 2, itemKey: next } },
-    update: { completed: true, completedAt: new Date() },
-    create: { agentProfileId: profileId, phase: 2, itemKey: next, completed: true, completedAt: new Date() },
+    update: { completed: true, completedAt: new Date(), ...(ftaId ? { linkedFtaId: ftaId } : {}) },
+    create: { agentProfileId: profileId, phase: 2, itemKey: next, completed: true, completedAt: new Date(), ...(ftaId ? { linkedFtaId: ftaId } : {}) },
   })
 }
 
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
   })
 
   if (status === 'COMPLETED') {
-    await tickNextFtaPhaseItem(profileId)
+    await tickNextFtaPhaseItem(profileId, fta.id)
   }
 
   return NextResponse.json({ fta })
