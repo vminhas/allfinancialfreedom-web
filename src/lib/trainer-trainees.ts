@@ -134,10 +134,19 @@ export async function authorizeTeamMemberAccess(
   ])
   if (!caller || !target) return null
 
-  // Recruiter path: AgentProfile.recruiterId stores the recruiter's
-  // agentCode (per CLAUDE.md). Direct upline.
-  if (target.recruiterId && target.recruiterId.toUpperCase() === caller.agentCode.toUpperCase()) {
-    return target
+  // Recruiter path: walk the recruiter chain (not just direct recruiter)
+  // so the full downline is accessible.
+  let currentRecruiterId = target.recruiterId
+  const visited = new Set<string>()
+  while (currentRecruiterId) {
+    if (currentRecruiterId.toUpperCase() === caller.agentCode.toUpperCase()) return target
+    if (visited.has(currentRecruiterId)) break
+    visited.add(currentRecruiterId)
+    const up = await db.agentProfile.findUnique({
+      where: { agentCode: currentRecruiterId },
+      select: { recruiterId: true },
+    })
+    currentRecruiterId = up?.recruiterId ?? null
   }
 
   // Trainer path: cft normalization match (same logic as the trainee
