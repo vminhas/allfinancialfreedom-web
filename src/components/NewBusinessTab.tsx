@@ -422,7 +422,7 @@ function NewBusinessForm({ isMobile, onSaved, previewToken }: { isMobile: boolea
     const q = splitQuery.trim()
     if (q.length < 2) { setSplitResults([]); return }
     const t = setTimeout(() => {
-      fetch(`/api/agents/new-business/agent-search?q=${encodeURIComponent(q)}`)
+      fetch(`/api/agents/new-business/agent-search?q=${encodeURIComponent(q)}${ptQs ? '&' + ptQs.slice(1) : ''}`)
         .then(r => r.ok ? r.json() : null)
         .then((d: { agents: SplitAgentCandidate[] } | null) => {
           if (d?.agents) setSplitResults(d.agents)

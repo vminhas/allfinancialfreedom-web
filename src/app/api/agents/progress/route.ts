@@ -1,45 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { PHASE_ITEMS } from '@/lib/agent-constants'
-import { getSetting } from '@/lib/settings'
+import { resolveAgentIdentity } from '@/lib/agent-identity'
 
 // PUT /api/agents/progress — toggle a phase item checkbox
 export async function PUT(req: NextRequest) {
-  const url = new URL(req.url)
-  let profileId: string | null = null
-
-  const previewToken = url.searchParams.get('preview')
-  if (previewToken) {
-    const raw = await getSetting(`PREVIEW_TOKEN_${previewToken}`)
-    if (raw) {
-      const data = JSON.parse(raw) as { agentProfileId: string; expires: string }
-      if (new Date(data.expires) >= new Date()) profileId = data.agentProfileId
-    }
-  }
-
-  const session = await getServerSession(authOptions)
-
-  if (!profileId && session && (session.user as { role?: string }).role === 'admin') {
-    profileId = url.searchParams.get('agentProfileId')
-  }
-
-  if (!profileId) {
-    if (!session || (session.user as { role?: string }).role !== 'agent') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-    const email = session.user!.email
-    if (typeof email !== 'string' || email.trim().length === 0) {
-      return NextResponse.json({ error: 'Session has no email' }, { status: 401 })
-    }
-    const agentUser = await db.agentUser.findFirst({
-      where: { email: { equals: email, mode: 'insensitive' } },
-      include: { profile: { select: { id: true } } },
-    })
-    if (!agentUser?.profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
-    profileId = agentUser.profile.id
-  }
+  const id = await resolveAgentIdentity(req)
+  if ('error' in id) return id.error
+  const profileId = id.profileId
 
   const { itemKey, phase, completed } = await req.json() as {
     itemKey: string

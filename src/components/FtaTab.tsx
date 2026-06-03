@@ -129,7 +129,7 @@ export default function FtaTab({ isMobile, previewToken }: { isMobile: boolean; 
         Track every booked appointment. Only <strong style={{ color: '#4ade80' }}>Completed</strong> ones count toward your Phase 2 Field Training checklist, so mark them as soon as they happen, and use Reschedule or Cancel if plans change.
       </p>
 
-      {showForm && <FtaForm isMobile={isMobile} onSaved={() => { refresh(); setShowForm(false) }} />}
+      {showForm && <FtaForm isMobile={isMobile} previewToken={previewToken} onSaved={() => { refresh(); setShowForm(false) }} />}
 
       {loading ? <div style={{ color: '#6B8299', fontSize: 13 }}>Loading...</div> : (
         <>
@@ -268,7 +268,8 @@ function ActionButton({ children, color, disabled, onClick }: { children: React.
   )
 }
 
-function FtaForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: () => void }) {
+function FtaForm({ isMobile, onSaved, previewToken }: { isMobile: boolean; onSaved: () => void; previewToken?: string | null }) {
+  const ftaQs = previewToken ? `?preview=${encodeURIComponent(previewToken)}` : ''
   const [form, setForm] = useState({
     businessPartnerId: '',
     name: '', phone: '', timeZone: '', age: '', married: '', children: '', homeowner: '',
@@ -283,7 +284,7 @@ function FtaForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: () => void
   // as the first thing to pick. Falls back to manual entry if they
   // haven't classified anyone yet (or want a one-off).
   useEffect(() => {
-    fetch('/api/agents/partners?category=fta_contact')
+    fetch(`/api/agents/partners?category=fta_contact${previewToken ? `&preview=${encodeURIComponent(previewToken)}` : ''}`)
       .then(r => r.ok ? r.json() : { partners: [] })
       .then((d: { partners?: FtaContactOption[] }) => setContacts(d.partners ?? []))
       .catch(() => setContacts([]))
@@ -336,7 +337,7 @@ function FtaForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: () => void
         body[k] = form[k as keyof typeof form] === '' ? null : Number(form[k as keyof typeof form])
       }
       if (!body.category) body.category = null
-      const res = await fetch('/api/agents/fta', {
+      const res = await fetch(`/api/agents/fta${ftaQs}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
