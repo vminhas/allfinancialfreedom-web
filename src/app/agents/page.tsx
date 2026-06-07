@@ -592,6 +592,7 @@ function AgentDashboardInner() {
     if (!data || togglingKey) return
     const newCompleted = !current
     setTogglingKey(itemKey)
+    const snapshot = data
     setData(prev => {
       if (!prev) return prev
       const existing = prev.phaseItems.find(i => i.itemKey === itemKey && i.phase === phase)
@@ -607,12 +608,21 @@ function AgentDashboardInner() {
     }
     const progressQs = previewToken ? `?preview=${encodeURIComponent(previewToken)}` : ''
     try {
-      await fetch(`/api/agents/progress${progressQs}`, {
+      const res = await fetch(`/api/agents/progress${progressQs}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ itemKey, phase, completed: newCompleted }),
       })
+      if (!res.ok) {
+        setData(snapshot)
+        if (res.status === 401 && previewToken) {
+          alert('Your admin preview session has expired. Please close this tab and re-open the portal from the Vault.')
+        }
+        return
+      }
       fetchData()
+    } catch {
+      setData(snapshot)
     } finally {
       setTogglingKey(null)
     }
@@ -1642,13 +1652,13 @@ function AgentDashboardInner() {
                     >
                       {/* Checkbox — click stops propagation so it only toggles completion */}
                       <button
-                        onClick={e => { e.stopPropagation(); if (!item.adminOnly) toggleItem(item.key, activeChecklistPhase, done) }}
-                        disabled={isToggling || item.adminOnly}
-                        title={item.adminOnly ? 'This item is approved by leadership' : undefined}
+                        onClick={e => { e.stopPropagation(); if (!item.adminOnly || previewToken) toggleItem(item.key, activeChecklistPhase, done) }}
+                        disabled={isToggling || (item.adminOnly && !previewToken)}
+                        title={item.adminOnly && !previewToken ? 'This item is approved by leadership' : undefined}
                         style={{
                           background: 'none', border: 'none', padding: 0,
-                          cursor: item.adminOnly ? 'default' : isToggling ? 'not-allowed' : 'pointer',
-                          opacity: item.adminOnly ? 0.5 : isToggling ? 0.6 : 1, flexShrink: 0,
+                          cursor: (item.adminOnly && !previewToken) ? 'default' : isToggling ? 'not-allowed' : 'pointer',
+                          opacity: (item.adminOnly && !previewToken) ? 0.5 : isToggling ? 0.6 : 1, flexShrink: 0,
                         }}
                       >
                         <div style={{
@@ -3882,6 +3892,7 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
     // list. If the call fails, revert.
     const prev = partners
     setPartners(ps => ps.map(p => p.id === id ? { ...p, category, status: 'NEW' } : p))
+    if (editingId === id) setForm(f => ({ ...f, category }))
     const res = await fetch(withPreview(`/api/agents/partners/${id}/classify`), {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'classify', category }),
@@ -3962,6 +3973,7 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
     if (ids.length === 0) return
     const prev = partners
     setPartners(ps => ps.map(p => ids.includes(p.id) ? { ...p, category, status: 'NEW' } : p))
+    if (editingId && ids.includes(editingId)) setForm(f => ({ ...f, category }))
     clearSelection()
     const res = await fetch(withPreview('/api/agents/partners/bulk'), {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
