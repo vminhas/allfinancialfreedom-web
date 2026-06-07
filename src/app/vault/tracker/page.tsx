@@ -1402,7 +1402,7 @@ function AgentDrawer({
 
   const toggleAgentItem = async (itemKey: string, phase: number, completed: boolean) => {
     setTogglingKey(itemKey)
-    // Optimistic update
+    const snapshot = localPhaseItems
     setLocalPhaseItems(prev => {
       const idx = prev.findIndex(p => p.phase === phase && p.itemKey === itemKey)
       const updated = {
@@ -1419,11 +1419,14 @@ function AgentDrawer({
       return [...prev, updated]
     })
     try {
-      await fetch(`/api/admin/agents/${agent.id}/progress`, {
+      const res = await fetch(`/api/admin/agents/${agent.id}/progress`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ itemKey, phase, completed }),
       })
+      if (!res.ok) setLocalPhaseItems(snapshot)
+    } catch {
+      setLocalPhaseItems(snapshot)
     } finally {
       setTogglingKey(null)
     }

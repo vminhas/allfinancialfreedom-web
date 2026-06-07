@@ -27,9 +27,13 @@ export async function PUT(
     return NextResponse.json({ error: 'itemKey and phase required' }, { status: 400 })
   }
 
+  const dbDef = await db.phaseItemDefinition.findUnique({ where: { itemKey }, select: { phase: true } })
   const validKeys = PHASE_ITEMS[phase]?.map(i => i.key) ?? []
-  if (!validKeys.includes(itemKey)) {
+  if (!dbDef && !validKeys.includes(itemKey)) {
     return NextResponse.json({ error: 'Invalid item key for this phase' }, { status: 400 })
+  }
+  if (dbDef && dbDef.phase !== phase) {
+    return NextResponse.json({ error: 'Item belongs to a different phase' }, { status: 400 })
   }
 
   // Verify agent exists
