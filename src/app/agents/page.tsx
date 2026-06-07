@@ -2283,6 +2283,7 @@ function AgentDashboardInner() {
             ftaLabel={item.label}
             trainerName={data.cft}
             defaultName={item.key === 'fta_1' ? '' : undefined}
+            previewToken={previewToken}
             onClose={() => setFtaModalKey(null)}
             onSaved={fetchData}
           />

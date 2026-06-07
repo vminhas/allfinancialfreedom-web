@@ -11,6 +11,7 @@ interface Props {
   ftaLabel: string
   trainerName?: string | null
   defaultName?: string
+  previewToken?: string | null
   onClose: () => void
   onSaved: () => void
 }
@@ -28,7 +29,10 @@ interface FtaContactOption {
 // final write is a FieldTrainingAppointment in COMPLETED status,
 // which auto-ticks the next fta_N item in the agent's Phase 2
 // checklist via the existing PATCH side-effect.
-export default function FTALogModal({ ftaLabel, trainerName, defaultName, onClose, onSaved }: Props) {
+export default function FTALogModal({ ftaLabel, trainerName, defaultName, previewToken, onClose, onSaved }: Props) {
+  const withPreview = (url: string) => previewToken
+    ? `${url}${url.includes('?') ? '&' : '?'}preview=${encodeURIComponent(previewToken)}`
+    : url
   const [contacts, setContacts] = useState<FtaContactOption[]>([])
   const [contactsLoaded, setContactsLoaded] = useState(false)
   const [mode, setMode] = useState<'pick' | 'new'>('pick')
@@ -54,7 +58,7 @@ export default function FTALogModal({ ftaLabel, trainerName, defaultName, onClos
   // If none exist yet we flip the form into "new contact" mode by
   // default so the agent isn't stuck staring at an empty dropdown.
   useEffect(() => {
-    fetch('/api/agents/partners?category=fta_contact')
+    fetch(withPreview('/api/agents/partners?category=fta_contact'))
       .then(r => r.ok ? r.json() : { partners: [] })
       .then((d: { partners?: FtaContactOption[] }) => {
         const list = d.partners ?? []
@@ -81,7 +85,7 @@ export default function FTALogModal({ ftaLabel, trainerName, defaultName, onClos
       // contact. Stamp it as fta_contact so it shows up in the picker
       // for next time.
       if (mode === 'new') {
-        const bpRes = await fetch('/api/agents/partners', {
+        const bpRes = await fetch(withPreview('/api/agents/partners'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -106,7 +110,7 @@ export default function FTALogModal({ ftaLabel, trainerName, defaultName, onClos
       }
 
       // Create the FTA itself (initially SCHEDULED).
-      const ftaRes = await fetch('/api/agents/fta', {
+      const ftaRes = await fetch(withPreview('/api/agents/fta'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -125,7 +129,7 @@ export default function FTALogModal({ ftaLabel, trainerName, defaultName, onClos
       // Flip to COMPLETED. PATCH triggers the auto-tick that fills the
       // lowest unchecked fta_N Phase 2 item, so the agent's checklist
       // reflects this appointment without a second manual click.
-      await fetch(`/api/agents/fta/${fta.id}`, {
+      await fetch(withPreview(`/api/agents/fta/${fta.id}`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'COMPLETED' }),
