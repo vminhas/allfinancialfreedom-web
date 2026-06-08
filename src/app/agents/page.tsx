@@ -4010,9 +4010,13 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
       <div style={{ ...card, padding: '20px 24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showReferForm || referrals.length > 0 ? 14 : 0, gap: 12, flexWrap: 'wrap' }}>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={sectionLabel}>Build My Team</div>
-            <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2 }}>
-              Refer someone new to join your team, or claim an existing AFF agent you recruited.
+            <div style={sectionLabel}>Build My Team &middot; Onboard a New Agent</div>
+            <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2, lineHeight: 1.5 }}>
+              Use this ONLY to invite someone to join AFF as a licensed agent. We will email them a portal account and start their onboarding.
+              <br />
+              <span style={{ color: '#F59E0B', fontWeight: 600 }}>
+                Just tracking a prospect or warm market contact? Add them in the Contacts section below, not here.
+              </span>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
@@ -4023,7 +4027,7 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
             >
               Claim existing
             </button>
-            <button onClick={() => setShowReferForm(!showReferForm)} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>+ Refer</button>
+            <button onClick={() => setShowReferForm(!showReferForm)} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>+ Invite New Agent</button>
           </div>
         </div>
         {claimToast && (
@@ -4058,6 +4062,23 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
         )}
         {showReferForm && (
           <form onSubmit={handleRefer} style={{ marginBottom: 12, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10, padding: 16, background: 'rgba(201,169,110,0.03)', borderRadius: 6, border: '1px solid rgba(201,169,110,0.12)' }}>
+            <div style={{ gridColumn: isMobile ? undefined : 'span 2', padding: '10px 12px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 4, fontSize: 11, color: '#FDE68A', lineHeight: 1.5 }}>
+              <strong style={{ color: '#F59E0B' }}>Heads up:</strong> submitting this form emails the person a portal invite and starts their AFF agent onboarding. Only use it for people who have already agreed to join the team.
+              {' '}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowReferForm(false)
+                  setForm({ ...emptyForm, name: `${referForm.firstName} ${referForm.lastName}`.trim(), email: referForm.email, phone: referForm.phone, category: 'business_partner' })
+                  setShowForm(true)
+                  setView('business_partners')
+                  if (typeof window !== 'undefined') window.scrollBy({ top: 200, behavior: 'smooth' })
+                }}
+                style={{ background: 'transparent', border: 'none', color: '#C9A96E', textDecoration: 'underline', fontSize: 11, cursor: 'pointer', padding: 0, fontWeight: 600 }}
+              >
+                Add as Business Partner instead &rarr;
+              </button>
+            </div>
             <div><label style={fieldLabel}>First Name *</label><input required style={inputStyle} value={referForm.firstName} onChange={e => setReferForm(f => ({ ...f, firstName: e.target.value }))} /></div>
             <div><label style={fieldLabel}>Last Name *</label><input required style={inputStyle} value={referForm.lastName} onChange={e => setReferForm(f => ({ ...f, lastName: e.target.value }))} /></div>
             <div><label style={fieldLabel}>Email *</label><input required type="email" style={inputStyle} value={referForm.email} onChange={e => setReferForm(f => ({ ...f, email: e.target.value }))} /></div>
@@ -4098,9 +4119,9 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
       <div style={{ ...card, padding: '20px 24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 200 }}>
-            <div style={sectionLabel}>Contacts</div>
+            <div style={sectionLabel}>Contacts &middot; Business Partners &amp; FTA Prospects</div>
             <div style={{ fontSize: 11, color: '#6B8299', marginTop: 2, lineHeight: 1.5 }}>
-              Import contacts from your phone, classify each as a Business Partner prospect or FTA contact, and reach out from there.
+              This is where your warm market lives. Add Business Partner prospects and FTA contacts here. Nothing in this section sends anyone an email or invite.
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -4121,6 +4142,13 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
               </button>
             )}
             <button onClick={() => { setImportOpen(true); setImportPreview(null); setImportError(null) }} style={{ background: 'transparent', color: '#C9A96E', border: '1px solid rgba(201,169,110,0.4)', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>&uarr; Import CSV</button>
+            <button
+              onClick={() => { setForm({ ...emptyForm, category: 'business_partner' }); setRecentlyAddedCount(0); setView('business_partners'); setShowForm(true) }}
+              style={{ background: 'rgba(155,109,255,0.15)', color: '#9B6DFF', border: '1px solid rgba(155,109,255,0.4)', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+              title="Add a new Business Partner prospect to your contacts"
+            >
+              + Add Business Partner
+            </button>
             <button onClick={() => { resetForm(); setRecentlyAddedCount(0); setShowForm(!showForm) }} style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>+ Add</button>
           </div>
         </div>

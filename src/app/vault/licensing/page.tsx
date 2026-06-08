@@ -1937,6 +1937,31 @@ function ReferralsTab() {
     } finally { setProcessingId(null) }
   }
 
+  // Purge pending queue without blocking. Used after a "wrong form"
+  // training incident (Mel mis-trained an upline who bulk-loaded their
+  // BP list as referrals) where the queue needs to be cleared but the
+  // referrer is legitimate and should stay able to submit.
+  const handlePurgePending = async (referringAgentId: string, agentName: string) => {
+    if (!confirm(`Delete every PENDING referral submitted by ${agentName}? This does NOT block them, so they can still submit new referrals after the cleanup.`)) return
+    setProcessingId(referringAgentId)
+    try {
+      const res = await fetch('/api/vault/referrals/block', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ referringAgentId, blocked: false, purgePending: true }),
+      })
+      const d = await res.json() as { ok?: boolean; purgedPending?: number; error?: string }
+      if (!res.ok) { alert(d.error ?? 'Purge failed'); return }
+      // Also clear any existing block flag from view since the API just set blocked=false.
+      setReferrals(prev => prev
+        .filter(r => !(r.referringAgentId === referringAgentId && r.status === 'PENDING'))
+        .map(r => r.referringAgentId === referringAgentId
+          ? { ...r, referringAgent: { ...r.referringAgent, referralsBlockedAt: null } }
+          : r))
+      alert(`Deleted ${d.purgedPending ?? 0} pending referral(s) from ${agentName}.`)
+    } finally { setProcessingId(null) }
+  }
+
   const sLabel: React.CSSProperties = {
     fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#C9A96E',
   }
@@ -2060,13 +2085,23 @@ function ReferralsTab() {
                       color: '#f87171', cursor: processingId === r.id ? 'wait' : 'pointer',
                     }}
                   >Reject</button>
+                  <button
+                    onClick={() => handlePurgePending(r.referringAgentId, `${r.referringAgent.firstName} ${r.referringAgent.lastName}`)}
+                    disabled={processingId === r.referringAgentId}
+                    title="Delete every PENDING referral this agent has queued, without blocking them. Use after a wrong-form training incident."
+                    style={{
+                      marginLeft: 'auto', padding: '6px 12px', borderRadius: 4, fontSize: 11, fontWeight: 700,
+                      background: 'transparent', border: '1px solid rgba(245,158,11,0.50)',
+                      color: '#F59E0B', cursor: 'pointer',
+                    }}
+                  >Purge their pending queue</button>
                   {r.referringAgent.referralsBlockedAt ? (
                     <button
                       onClick={() => handleUnblock(r.referringAgentId, `${r.referringAgent.firstName} ${r.referringAgent.lastName}`)}
                       disabled={processingId === r.referringAgentId}
                       title="This referrer is currently blocked. Click to allow them to submit again."
                       style={{
-                        marginLeft: 'auto', padding: '6px 12px', borderRadius: 4, fontSize: 11, fontWeight: 700,
+                        padding: '6px 12px', borderRadius: 4, fontSize: 11, fontWeight: 700,
                         background: 'rgba(248,113,113,0.10)', border: '1px solid rgba(248,113,113,0.40)',
                         color: '#F87171', cursor: 'pointer',
                       }}
@@ -2077,11 +2112,11 @@ function ReferralsTab() {
                       disabled={processingId === r.referringAgentId}
                       title="Block this referrer from submitting future referrals AND delete every pending referral they currently have queued."
                       style={{
-                        marginLeft: 'auto', padding: '6px 12px', borderRadius: 4, fontSize: 11, fontWeight: 700,
+                        padding: '6px 12px', borderRadius: 4, fontSize: 11, fontWeight: 700,
                         background: 'transparent', border: '1px solid rgba(248,113,113,0.50)',
                         color: '#F87171', cursor: 'pointer',
                       }}
-                    >🚫 Block referrer + purge queue</button>
+                    >Block referrer + purge queue</button>
                   )}
                 </div>
               )}
