@@ -16,6 +16,7 @@ interface Agent {
   npn: string | null
   dateSubmittedToGfi: string | null
   email: string | null
+  subscribedToTevah: boolean
   carriers: { total: number; appointed: number; pending: number; carriers: { carrier: string; status: string }[] }
 }
 
@@ -26,22 +27,24 @@ interface Payload {
 }
 
 const ITEM_LABELS: Record<string, string> = {
-  licensing_class: 'Schedule Exam',
+  licensing_class: 'Licensing Class / Schedule Exam',
   pass_license_test: 'Pass License Exam',
   fingerprints_apply: 'Fingerprints + Apply',
   submit_to_aff: 'Submit to GFI',
   ce_courses: 'CE Courses',
+  subscribed_tevah: 'Subscribed to Tevah',
   errors_and_omissions: 'E&O Insurance',
   fully_appointed: 'Carrier Appointed',
   direct_deposit: 'Direct Deposit',
 }
 
 const SHORT_LABELS: Record<string, string> = {
-  licensing_class: 'Schedule',
+  licensing_class: 'License/Exam',
   pass_license_test: 'Pass Exam',
   fingerprints_apply: 'Fingerprints',
   submit_to_aff: 'GFI',
   ce_courses: 'CE',
+  subscribed_tevah: 'Tevah',
   errors_and_omissions: 'E&O',
   fully_appointed: 'Appointed',
   direct_deposit: 'Direct Dep.',
@@ -69,33 +72,48 @@ export default function LicensingProgressTab() {
       .finally(() => setLoading(false))
   }, [])
 
+  const columns = useMemo(() => {
+    if (!data) return []
+    const cols: string[] = []
+    for (const k of data.items) {
+      cols.push(k)
+      if (k === 'ce_courses') cols.push('subscribed_tevah')
+    }
+    return cols
+  }, [data])
+
+  const isCompleted = (agentId: string, col: string, agent: Agent) => {
+    if (col === 'subscribed_tevah') return agent.subscribedToTevah
+    return !!data?.completedMap[`${agentId}:${col}`]
+  }
+
   const agentStats = useMemo(() => {
     if (!data) return new Map<string, { done: number; total: number; ratio: number }>()
     const m = new Map<string, { done: number; total: number; ratio: number }>()
-    const total = data.items.length
+    const total = columns.length
     for (const a of data.agents) {
       let done = 0
-      for (const k of data.items) {
-        if (data.completedMap[`${a.id}:${k}`]) done++
+      for (const k of columns) {
+        if (isCompleted(a.id, k, a)) done++
       }
       m.set(a.id, { done, total, ratio: total > 0 ? done / total : 0 })
     }
     return m
-  }, [data])
+  }, [data, columns])
 
   const itemCompletionRate = useMemo(() => {
     if (!data) return new Map<string, number>()
     const m = new Map<string, number>()
     const agentCount = data.agents.length
-    for (const k of data.items) {
+    for (const k of columns) {
       let done = 0
       for (const a of data.agents) {
-        if (data.completedMap[`${a.id}:${k}`]) done++
+        if (isCompleted(a.id, k, a)) done++
       }
       m.set(k, agentCount > 0 ? done / agentCount : 0)
     }
     return m
-  }, [data])
+  }, [data, columns])
 
   const filteredAgents = useMemo(() => {
     if (!data) return []
@@ -229,7 +247,7 @@ export default function LicensingProgressTab() {
       {/* Item completion bar */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: `200px repeat(${data.items.length}, 1fr) 80px`,
+        gridTemplateColumns: `200px repeat(${columns.length}, 1fr) 80px`,
         gap: 0, marginBottom: 2,
         padding: '8px 0',
         background: 'rgba(201,169,110,0.04)',
@@ -240,7 +258,7 @@ export default function LicensingProgressTab() {
         <div style={{ padding: '0 12px', fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#C9A96E', display: 'flex', alignItems: 'center' }}>
           Roster Rate
         </div>
-        {data.items.map(k => {
+        {columns.map(k => {
           const rate = itemCompletionRate.get(k) ?? 0
           const pct = Math.round(rate * 100)
           return (
@@ -258,7 +276,7 @@ export default function LicensingProgressTab() {
       {/* Column headers */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: `200px repeat(${data.items.length}, 1fr) 80px`,
+        gridTemplateColumns: `200px repeat(${columns.length}, 1fr) 80px`,
         gap: 0,
         background: '#142D48',
         border: '1px solid rgba(201,169,110,0.1)',
@@ -268,7 +286,7 @@ export default function LicensingProgressTab() {
         <div style={{ padding: '10px 12px', fontSize: 10, fontWeight: 700, color: '#9BB0C4', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
           Agent
         </div>
-        {data.items.map(k => (
+        {columns.map(k => (
           <div key={k} style={{
             padding: '10px 4px', textAlign: 'center',
             fontSize: 9, fontWeight: 600, color: '#9BB0C4',
@@ -312,7 +330,7 @@ export default function LicensingProgressTab() {
             key={a.id}
             style={{
               display: 'grid',
-              gridTemplateColumns: `200px repeat(${data.items.length}, 1fr) 80px`,
+              gridTemplateColumns: `200px repeat(${columns.length}, 1fr) 80px`,
               gap: 0,
               background: rowIdx % 2 === 0 ? '#132238' : '#0F1E33',
               border: '1px solid rgba(201,169,110,0.06)',
@@ -340,8 +358,8 @@ export default function LicensingProgressTab() {
             </div>
 
             {/* Item cells */}
-            {data.items.map(k => {
-              const completed = !!data.completedMap[`${a.id}:${k}`]
+            {columns.map(k => {
+              const completed = isCompleted(a.id, k, a)
               const isHovered = hover?.agentId === a.id && hover?.itemKey === k
               return (
                 <div

@@ -35,6 +35,7 @@ export async function GET() {
         licenseNumber: true,
         npn: true,
         dateSubmittedToGfi: true,
+        tevahAgentId: true,
         agentUser: { select: { email: true } },
       },
       orderBy: [{ createdAt: 'desc' }],
@@ -79,6 +80,7 @@ export async function GET() {
     licenseNumber: a.licenseNumber,
     npn: a.npn,
     dateSubmittedToGfi: a.dateSubmittedToGfi?.toISOString() ?? null,
+    subscribedToTevah: a.tevahAgentId != null,
     email: a.agentUser?.email ?? null,
     carriers: carriersByAgent[a.id] ?? { total: 0, appointed: 0, pending: 0, carriers: [] },
   }))
