@@ -26,7 +26,7 @@ interface Payload {
 }
 
 const ITEM_LABELS: Record<string, string> = {
-  licensing_class: 'Pre-licensing Course',
+  licensing_class: 'Schedule Exam',
   pass_license_test: 'Pass License Exam',
   fingerprints_apply: 'Fingerprints + Apply',
   submit_to_aff: 'Submit to GFI',
@@ -37,7 +37,7 @@ const ITEM_LABELS: Record<string, string> = {
 }
 
 const SHORT_LABELS: Record<string, string> = {
-  licensing_class: 'Pre-License',
+  licensing_class: 'Schedule',
   pass_license_test: 'Pass Exam',
   fingerprints_apply: 'Fingerprints',
   submit_to_aff: 'GFI',
