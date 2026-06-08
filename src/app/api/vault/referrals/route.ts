@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
       take: limit,
       include: {
         referringAgent: {
-          select: { firstName: true, lastName: true, agentCode: true },
+          select: { id: true, firstName: true, lastName: true, agentCode: true, referralsBlockedAt: true },
         },
       },
     }),
@@ -125,4 +125,55 @@ export async function PATCH(req: NextRequest) {
     emailSent: result.emailSent,
     linkedExisting: result.linkedExisting ?? false,
   })
+}
+
+// DELETE /api/vault/referrals
+//
+// Bulk-removes referrals for spam cleanup. Two shapes:
+//
+//   ?referringAgentId=...&status=PENDING   nuke every PENDING referral
+//                                          from this agent (default
+//                                          status PENDING; pass ALL to
+//                                          purge across statuses).
+//   { ids: [...] } in the body              explicit list of referral
+//                                          IDs to delete.
+//
+// Admin-only (not LC) since this is destructive and only used for
+// abuse cleanup. APPROVED referrals are never bulk-deleted by the
+// status path — only PENDING or REJECTED. To remove an APPROVED one
+// (and its created agent), do it by explicit id.
+export async function DELETE(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  const denied = requireRole(session, 'admin')
+  if (denied) return denied
+
+  const { searchParams } = new URL(req.url)
+  const referringAgentId = searchParams.get('referringAgentId')
+  const status = searchParams.get('status') ?? 'PENDING'
+
+  let body: { ids?: string[] } = {}
+  try { body = await req.json() } catch { /* body is optional */ }
+
+  if (!referringAgentId && !body.ids?.length) {
+    return NextResponse.json(
+      { error: 'Either referringAgentId query param OR ids[] in body required' },
+      { status: 400 },
+    )
+  }
+
+  let deleted = 0
+  if (body.ids?.length) {
+    const r = await db.agentReferral.deleteMany({
+      where: { id: { in: body.ids } },
+    })
+    deleted = r.count
+  } else if (referringAgentId) {
+    const where = status === 'ALL'
+      ? { referringAgentId, status: { in: ['PENDING', 'REJECTED'] as ('PENDING' | 'REJECTED')[] } }
+      : { referringAgentId, status: status as 'PENDING' | 'REJECTED' }
+    const r = await db.agentReferral.deleteMany({ where })
+    deleted = r.count
+  }
+
+  return NextResponse.json({ ok: true, deleted })
 }

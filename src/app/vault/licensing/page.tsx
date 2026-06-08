@@ -1798,7 +1798,8 @@ interface ReferralItem {
   createdAt: string
   approvedAt: string | null
   createdAgentId: string | null
-  referringAgent: { firstName: string; lastName: string; agentCode: string }
+  referringAgentId: string
+  referringAgent: { firstName: string; lastName: string; agentCode: string; referralsBlockedAt: string | null }
 }
 
 const REF_STATUS_COLORS: Record<string, string> = {
@@ -1890,6 +1891,52 @@ function ReferralsTab() {
     }
   }
 
+  // Block a referrer + purge their pending queue in one shot. Used when
+  // an agent has been spamming the referrals queue (fake placeholder
+  // emails, sequential names, etc.). The block is permanent until an
+  // admin clears it from this same row.
+  const handleBlock = async (referringAgentId: string, agentName: string) => {
+    const reason = window.prompt(
+      `Block ${agentName} from submitting new referrals?\n\nThis will (1) flag them as blocked and (2) immediately delete every PENDING referral they have on the queue. Enter a short reason for the audit trail:`,
+      'Submitted multiple referrals with fake placeholder emails',
+    )
+    if (reason === null) return
+    setProcessingId(referringAgentId)
+    try {
+      const res = await fetch('/api/vault/referrals/block', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ referringAgentId, blocked: true, reason: reason.trim(), purgePending: true }),
+      })
+      const d = await res.json() as { ok?: boolean; purgedPending?: number; error?: string }
+      if (!res.ok) { alert(d.error ?? 'Block failed'); return }
+      // Refresh: remove the agent's pending referrals from view and mark
+      // any of their remaining (approved/rejected) rows as BLOCKED.
+      setReferrals(prev => prev
+        .filter(r => !(r.referringAgentId === referringAgentId && r.status === 'PENDING'))
+        .map(r => r.referringAgentId === referringAgentId
+          ? { ...r, referringAgent: { ...r.referringAgent, referralsBlockedAt: new Date().toISOString() } }
+          : r))
+      alert(`Blocked ${agentName}. ${d.purgedPending ?? 0} pending referral(s) deleted.`)
+    } finally { setProcessingId(null) }
+  }
+
+  const handleUnblock = async (referringAgentId: string, agentName: string) => {
+    if (!confirm(`Unblock ${agentName}? They will be able to submit new referrals again.`)) return
+    setProcessingId(referringAgentId)
+    try {
+      const res = await fetch('/api/vault/referrals/block', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ referringAgentId, blocked: false }),
+      })
+      if (!res.ok) { alert('Unblock failed'); return }
+      setReferrals(prev => prev.map(r => r.referringAgentId === referringAgentId
+        ? { ...r, referringAgent: { ...r.referringAgent, referralsBlockedAt: null } }
+        : r))
+    } finally { setProcessingId(null) }
+  }
+
   const sLabel: React.CSSProperties = {
     fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#C9A96E',
   }
@@ -1974,6 +2021,9 @@ function ReferralsTab() {
               </div>
               <div style={{ fontSize: 11, color: '#6B8299', marginBottom: 8 }}>
                 Referred by <span style={{ color: '#C9A96E' }}>{r.referringAgent.firstName} {r.referringAgent.lastName}</span> ({r.referringAgent.agentCode}) · {new Date(r.createdAt).toLocaleDateString()}
+                {r.referringAgent.referralsBlockedAt && (
+                  <span title="This referrer is blocked from submitting new referrals" style={{ marginLeft: 8, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#F87171', padding: '2px 6px', background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.35)', borderRadius: 3 }}>BLOCKED</span>
+                )}
               </div>
               {r.notes && <div style={{ fontSize: 11, color: '#9BB0C4', fontStyle: 'italic', marginBottom: 8 }}>&ldquo;{r.notes}&rdquo;</div>}
 
@@ -2010,6 +2060,29 @@ function ReferralsTab() {
                       color: '#f87171', cursor: processingId === r.id ? 'wait' : 'pointer',
                     }}
                   >Reject</button>
+                  {r.referringAgent.referralsBlockedAt ? (
+                    <button
+                      onClick={() => handleUnblock(r.referringAgentId, `${r.referringAgent.firstName} ${r.referringAgent.lastName}`)}
+                      disabled={processingId === r.referringAgentId}
+                      title="This referrer is currently blocked. Click to allow them to submit again."
+                      style={{
+                        marginLeft: 'auto', padding: '6px 12px', borderRadius: 4, fontSize: 11, fontWeight: 700,
+                        background: 'rgba(248,113,113,0.10)', border: '1px solid rgba(248,113,113,0.40)',
+                        color: '#F87171', cursor: 'pointer',
+                      }}
+                    >Unblock referrer</button>
+                  ) : (
+                    <button
+                      onClick={() => handleBlock(r.referringAgentId, `${r.referringAgent.firstName} ${r.referringAgent.lastName}`)}
+                      disabled={processingId === r.referringAgentId}
+                      title="Block this referrer from submitting future referrals AND delete every pending referral they currently have queued."
+                      style={{
+                        marginLeft: 'auto', padding: '6px 12px', borderRadius: 4, fontSize: 11, fontWeight: 700,
+                        background: 'transparent', border: '1px solid rgba(248,113,113,0.50)',
+                        color: '#F87171', cursor: 'pointer',
+                      }}
+                    >🚫 Block referrer + purge queue</button>
+                  )}
                 </div>
               )}
             </div>
