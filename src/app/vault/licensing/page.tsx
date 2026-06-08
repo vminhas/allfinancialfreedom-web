@@ -8,6 +8,7 @@ import { useIsMobile } from '@/lib/useIsMobile'
 import { CARRIERS } from '@/lib/agent-constants'
 import DatePicker from '@/components/DatePicker'
 import AgentTypeahead from '@/components/AgentTypeahead'
+import LicensingProgressTab from './LicensingProgressTab'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -227,7 +228,7 @@ export default function LicensingWorkspacePage() {
   const viewerRole = (session?.user as { role?: string } | undefined)?.role ?? null
   const isLC = viewerRole === 'licensing_coordinator'
 
-  const [tab, setTab] = useState<'inbox' | 'agents' | 'referrals' | 'profile'>('inbox')
+  const [tab, setTab] = useState<'inbox' | 'agents' | 'progress' | 'referrals' | 'profile'>('inbox')
   const [showAddAgentModal, setShowAddAgentModal] = useState(false)
   const [showNewBusinessModal, setShowNewBusinessModal] = useState(false)
   const [agentsRefreshNonce, setAgentsRefreshNonce] = useState(0)
@@ -333,14 +334,16 @@ export default function LicensingWorkspacePage() {
         borderBottom: '1px solid rgba(255,255,255,0.06)',
         overflowX: 'auto', WebkitOverflowScrolling: 'touch',
       }}>
-        {(['inbox', 'agents', 'referrals', 'profile'] as const).map(t => {
+        {(['inbox', 'agents', 'progress', 'referrals', 'profile'] as const).map(t => {
           const count = t === 'inbox' ? tabCounts.inbox
             : t === 'agents' ? tabCounts.agents
             : t === 'referrals' ? tabCounts.referrals
             : 0
+          const label = t === 'inbox' ? 'Inbox' : t === 'agents' ? 'Agents' : t === 'progress' ? 'Progress' : t === 'referrals' ? 'Referrals' : 'Profile'
           const tooltip = t === 'inbox' ? `${count} open coordinator request${count === 1 ? '' : 's'} waiting for action`
             : t === 'agents' ? `${count} agent${count === 1 ? '' : 's'} flagged with open requests`
             : t === 'referrals' ? `${count} pending referral${count === 1 ? '' : 's'} waiting for approval`
+            : t === 'progress' ? 'Licensing checklist completion across all agents'
             : undefined
           return (
             <button
@@ -357,7 +360,7 @@ export default function LicensingWorkspacePage() {
                 display: 'inline-flex', alignItems: 'center', gap: 6,
               }}
             >
-              <span>{t === 'inbox' ? 'Inbox' : t === 'agents' ? 'Agents' : t === 'referrals' ? 'Referrals' : 'Profile'}</span>
+              <span>{label}</span>
               {count > 0 && (
                 <span style={{
                   background: 'rgba(248,113,113,0.15)', color: '#f87171',
@@ -375,6 +378,7 @@ export default function LicensingWorkspacePage() {
 
       {tab === 'inbox' && <InboxTab viewerId={viewerId} isLC={isLC} />}
       {tab === 'agents' && <AgentsTab refreshNonce={agentsRefreshNonce} />}
+      {tab === 'progress' && <LicensingProgressTab />}
       {tab === 'referrals' && <ReferralsTab />}
       {tab === 'profile' && <ProfileTab />}
     </div>

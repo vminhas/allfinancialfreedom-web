@@ -776,6 +776,22 @@ function SubmissionDrawer({ id, onClose, onChanged }: { id: string; onClose: () 
   const [posting, setPosting] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
+  const [editCarrier, setEditCarrier] = useState('')
+  const [editPolicyType, setEditPolicyType] = useState('')
+  const [editPoints, setEditPoints] = useState('')
+  const [editAppDate, setEditAppDate] = useState('')
+  const [editClientPhone, setEditClientPhone] = useState('')
+  const [editClientEmail, setEditClientEmail] = useState('')
+  const [editClientBirthday, setEditClientBirthday] = useState('')
+  const [editAddressLine1, setEditAddressLine1] = useState('')
+  const [editAddressLine2, setEditAddressLine2] = useState('')
+  const [editCity, setEditCity] = useState('')
+  const [editState, setEditState] = useState('')
+  const [editZip, setEditZip] = useState('')
+  const [savingDetails, setSavingDetails] = useState(false)
+  const [detailsSaved, setDetailsSaved] = useState(false)
+  const [detailsError, setDetailsError] = useState<string | null>(null)
+
   // Hard-delete the submission. Used for accidental duplicate
   // submissions (an agent clicks Submit twice and a dup row lands in
   // the queue). Double-confirms because all attached notes,
@@ -812,6 +828,18 @@ function SubmissionDrawer({ id, onClose, onChanged }: { id: string; onClose: () 
         setIssuedDate(d.submission.issuedDate ? d.submission.issuedDate.slice(0, 10) : '')
         setPolicyNumber(d.submission.policyNumber ?? '')
         setDeclinedReason(d.submission.declinedReason ?? '')
+        setEditCarrier(d.submission.carrier ?? '')
+        setEditPolicyType(d.submission.policyType ?? '')
+        setEditPoints(d.submission.points != null ? String(d.submission.points) : '')
+        setEditAppDate(d.submission.applicationDate ? d.submission.applicationDate.slice(0, 10) : '')
+        setEditClientPhone(d.submission.clientPhone ?? '')
+        setEditClientEmail(d.submission.clientEmail ?? '')
+        setEditClientBirthday(d.submission.clientBirthday ? d.submission.clientBirthday.slice(0, 10) : '')
+        setEditAddressLine1(d.submission.clientAddressLine1 ?? '')
+        setEditAddressLine2(d.submission.clientAddressLine2 ?? '')
+        setEditCity(d.submission.clientCity ?? '')
+        setEditState(d.submission.clientState ?? '')
+        setEditZip(d.submission.clientZip ?? '')
       })
   }, [id])
 
@@ -843,6 +871,86 @@ function SubmissionDrawer({ id, onClose, onChanged }: { id: string; onClose: () 
     } catch {
       setSaveError('Save failed — check your connection')
     } finally { setSaving(false) }
+  }
+
+  const saveDetails = async () => {
+    if (!detail) return
+    setSavingDetails(true)
+    setDetailsError(null)
+
+    const changes: { field: string; from: string; to: string }[] = []
+    const patch: Record<string, unknown> = {}
+
+    const check = (field: string, label: string, oldVal: string | null, newVal: string) => {
+      const o = oldVal ?? ''
+      if (o !== newVal) {
+        changes.push({ field: label, from: o || '(empty)', to: newVal || '(empty)' })
+        patch[field] = newVal || null
+      }
+    }
+
+    check('carrier', 'Carrier', detail.carrier, editCarrier)
+    if (editPolicyType !== detail.policyType) {
+      changes.push({ field: 'Policy Type', from: POLICY_LABEL[detail.policyType] ?? detail.policyType, to: POLICY_LABEL[editPolicyType] ?? editPolicyType })
+      patch.policyType = editPolicyType
+    }
+    const oldPts = detail.points != null ? String(detail.points) : ''
+    if (editPoints !== oldPts) {
+      changes.push({ field: 'Points', from: oldPts || '(empty)', to: editPoints || '(empty)' })
+      patch.points = editPoints ? Number(editPoints) : null
+    }
+    const oldAppDate = detail.applicationDate ? detail.applicationDate.slice(0, 10) : ''
+    if (editAppDate !== oldAppDate) {
+      changes.push({ field: 'Application Date', from: oldAppDate || '(empty)', to: editAppDate || '(empty)' })
+      patch.applicationDate = editAppDate || null
+    }
+    check('clientPhone', 'Client Phone', detail.clientPhone, editClientPhone)
+    check('clientEmail', 'Client Email', detail.clientEmail, editClientEmail)
+    const oldBday = detail.clientBirthday ? detail.clientBirthday.slice(0, 10) : ''
+    if (editClientBirthday !== oldBday) {
+      changes.push({ field: 'Client Birthday', from: oldBday || '(empty)', to: editClientBirthday || '(empty)' })
+      patch.clientBirthday = editClientBirthday || null
+    }
+    check('clientAddressLine1', 'Address Line 1', detail.clientAddressLine1, editAddressLine1)
+    check('clientAddressLine2', 'Address Line 2', detail.clientAddressLine2, editAddressLine2)
+    check('clientCity', 'City', detail.clientCity, editCity)
+    check('clientState', 'State', detail.clientState, editState)
+    check('clientZip', 'Zip', detail.clientZip, editZip)
+
+    if (changes.length === 0) {
+      setSavingDetails(false)
+      return
+    }
+
+    try {
+      const res = await fetch(`/api/vault/new-business/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({})) as { error?: string }
+        setDetailsError(d.error ?? 'Save failed')
+        return
+      }
+
+      const noteLines = changes.map(c => `${c.field}: ${c.from} → ${c.to}`)
+      const noteBody = `Policy details updated:\n${noteLines.join('\n')}`
+      await fetch(`/api/vault/new-business/${id}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: noteBody }),
+      }).catch(() => {})
+
+      load()
+      onChanged()
+      setDetailsSaved(true)
+      setTimeout(() => setDetailsSaved(false), 2000)
+    } catch {
+      setDetailsError('Save failed')
+    } finally {
+      setSavingDetails(false)
+    }
   }
 
   // Structured SOP note. Requires Action Taken or Note (so an empty
@@ -977,21 +1085,65 @@ function SubmissionDrawer({ id, onClose, onChanged }: { id: string; onClose: () 
           </div>
         </div>
 
-        <DetailRow k="Carrier" v={detail.carrier} />
-        <DetailRow k="Policy Type" v={POLICY_LABEL[detail.policyType] ?? detail.policyType} />
-        <DetailRow k="Points" v={
-          detail.points != null
-            ? detail.splitWithAgent
-              ? `${detail.points / 2} (${detail.points} split equally)`
-              : detail.points.toString()
-            : '—'
-        } />
-        <DetailRow k="Application Date" v={new Date(detail.applicationDate).toLocaleDateString()} />
-        {detail.splitWithAgent && <DetailRow k="Split With" v={`${detail.splitWithAgent.firstName} ${detail.splitWithAgent.lastName}`} />}
-        <DetailRow k="Client Phone" v={detail.clientPhone ?? '—'} />
-        <DetailRow k="Client Email" v={detail.clientEmail ?? '—'} />
-        <DetailRow k="Client Birthday" v={detail.clientBirthday ? new Date(detail.clientBirthday).toLocaleDateString() : '—'} />
-        <DetailRow k="Address" v={[detail.clientAddressLine1, detail.clientAddressLine2, detail.clientCity, detail.clientState, detail.clientZip].filter(Boolean).join(', ') || '—'} />
+        <div style={{ ...card, padding: '14px 16px', marginBottom: 16 }}>
+          <div style={{ ...sectionLabel, fontSize: 9 }}>Policy Details</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div><label style={fieldLabel}>Carrier</label><input style={inputStyle} value={editCarrier} onChange={e => setEditCarrier(e.target.value)} /></div>
+            <div><label style={fieldLabel}>Policy Type</label>
+              <select style={inputStyle} value={editPolicyType} onChange={e => setEditPolicyType(e.target.value)}>
+                {Object.entries(POLICY_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+            <div><label style={fieldLabel}>Points</label><input style={inputStyle} type="number" step="any" value={editPoints} onChange={e => setEditPoints(e.target.value)} /></div>
+            <div><label style={fieldLabel}>Application Date</label><DatePicker value={editAppDate} onChange={setEditAppDate} /></div>
+          </div>
+          {detail.splitWithAgent && (
+            <div style={{ display: 'flex', padding: '8px 0 0', fontSize: 12 }}>
+              <div style={{ width: 150, color: '#6B8299' }}>Split With</div>
+              <div style={{ color: '#E5E7EB', flex: 1 }}>{detail.splitWithAgent.firstName} {detail.splitWithAgent.lastName}</div>
+            </div>
+          )}
+
+          <div style={{ ...sectionLabel, fontSize: 9, marginTop: 16 }}>Client Info</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div><label style={fieldLabel}>Phone</label><input style={inputStyle} value={editClientPhone} onChange={e => setEditClientPhone(e.target.value)} placeholder="(555) 555-5555" /></div>
+            <div><label style={fieldLabel}>Email</label><input style={inputStyle} type="email" value={editClientEmail} onChange={e => setEditClientEmail(e.target.value)} /></div>
+            <div><label style={fieldLabel}>Birthday</label><DatePicker value={editClientBirthday} onChange={setEditClientBirthday} /></div>
+          </div>
+
+          <div style={{ ...sectionLabel, fontSize: 9, marginTop: 16 }}>Address</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
+            <div><label style={fieldLabel}>Line 1</label><input style={inputStyle} value={editAddressLine1} onChange={e => setEditAddressLine1(e.target.value)} /></div>
+            <div><label style={fieldLabel}>Line 2</label><input style={inputStyle} value={editAddressLine2} onChange={e => setEditAddressLine2(e.target.value)} /></div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', gap: 10 }}>
+              <div><label style={fieldLabel}>City</label><input style={inputStyle} value={editCity} onChange={e => setEditCity(e.target.value)} /></div>
+              <div><label style={fieldLabel}>State</label><input style={inputStyle} value={editState} onChange={e => setEditState(e.target.value)} maxLength={2} /></div>
+              <div><label style={fieldLabel}>Zip</label><input style={inputStyle} value={editZip} onChange={e => setEditZip(e.target.value)} /></div>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button
+              onClick={saveDetails}
+              disabled={savingDetails}
+              style={{
+                background: detailsSaved ? '#4ADE80' : '#C9A96E',
+                color: '#142D48', border: 'none', borderRadius: 4,
+                padding: '7px 14px', fontSize: 11, fontWeight: 700,
+                cursor: savingDetails ? 'wait' : 'pointer', opacity: savingDetails ? 0.7 : 1,
+                transition: 'background 0.2s',
+              }}
+            >
+              {savingDetails ? 'Saving...' : detailsSaved ? '✓ Saved' : 'Save Details'}
+            </button>
+            {detailsSaved && (
+              <span style={{ fontSize: 11, color: '#4ADE80', fontWeight: 600 }}>Changes saved and logged.</span>
+            )}
+            {detailsError && (
+              <span style={{ fontSize: 11, color: '#EF4444', fontWeight: 600 }}>{detailsError}</span>
+            )}
+          </div>
+        </div>
 
         {detail.illustrationUrls.length > 0 && (
           <div style={{ marginTop: 14 }}>
