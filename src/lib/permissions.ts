@@ -47,6 +47,7 @@ export function requireRole(
 // vault layout for redirect, by API routes when checking authorization.
 export const LC_ALLOWED_PREFIXES = [
   '/vault/licensing',
+  '/vault/progress',
   '/vault/new-business',
   '/vault/renewals',
   '/vault/milestones',
