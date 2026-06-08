@@ -55,6 +55,7 @@ export default function LicensingProgressTab() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'incomplete' | 'complete'>('all')
   const [sort, setSort] = useState<'progress' | 'name' | 'phase'>('progress')
+  const [activeOnly, setActiveOnly] = useState(true)
   const [hover, setHover] = useState<{ agentId: string; itemKey: string } | null>(null)
 
   useEffect(() => {
@@ -101,6 +102,7 @@ export default function LicensingProgressTab() {
     const q = search.trim().toLowerCase()
     return data.agents
       .filter(a => {
+        if (activeOnly && a.status !== 'ACTIVE') return false
         if (q) {
           const hay = `${a.firstName} ${a.lastName} ${a.agentCode}`.toLowerCase()
           if (!hay.includes(q)) return false
@@ -126,7 +128,7 @@ export default function LicensingProgressTab() {
         if (ra !== rb) return ra - rb
         return (a.lastName + a.firstName).localeCompare(b.lastName + b.firstName)
       })
-  }, [data, search, statusFilter, sort, agentStats])
+  }, [data, search, statusFilter, sort, agentStats, activeOnly])
 
   const aggregate = useMemo(() => {
     if (!data) return { agents: 0, fullyLicensed: 0, avgPct: 0, totalCarriersAppointed: 0 }
@@ -204,6 +206,10 @@ export default function LicensingProgressTab() {
           <option value="incomplete">Incomplete only</option>
           <option value="complete">Fully licensed</option>
         </select>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: activeOnly ? '#C9A96E' : '#6B8299', fontSize: 11, cursor: 'pointer' }}>
+          <input type="checkbox" checked={activeOnly} onChange={e => setActiveOnly(e.target.checked)} style={{ accentColor: '#C9A96E' }} />
+          Active only
+        </label>
         <div style={{ flex: 1 }} />
         <select
           value={sort}
