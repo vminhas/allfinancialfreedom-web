@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { resolveAgentIdentity } from '@/lib/agent-identity'
 import { autoAdvanceContactOnAgentCreation } from '@/lib/ghl-pipeline'
+import { validateReferralEmail, checkReferralRateLimit } from '@/lib/referral-spam-guard'
 
 export async function GET(req: NextRequest) {
   const id = await resolveAgentIdentity(req)
@@ -20,11 +21,21 @@ export async function POST(req: NextRequest) {
   if ('error' in id) return id.error
   const profileId = id.profileId
 
-  // Pull the referrer's name for the Discord ping below.
+  // Pull the referrer's name + block status. If an admin has flagged
+  // them as a spam referrer, reject the submit outright with a clear
+  // message naming the reason on file.
   const referrer = await db.agentProfile.findUnique({
     where: { id: profileId },
-    select: { firstName: true, lastName: true, agentCode: true, avatarUrl: true, discordUserId: true },
+    select: {
+      firstName: true, lastName: true, agentCode: true, avatarUrl: true, discordUserId: true,
+      referralsBlockedAt: true, referralsBlockedReason: true,
+    },
   })
+  if (referrer?.referralsBlockedAt) {
+    return NextResponse.json({
+      error: `Your referral submissions have been paused by an admin${referrer.referralsBlockedReason ? `: ${referrer.referralsBlockedReason}` : ''}. Reach out to leadership to discuss.`,
+    }, { status: 403 })
+  }
 
   const body = await req.json() as {
     firstName: string
@@ -37,6 +48,34 @@ export async function POST(req: NextRequest) {
 
   if (!body.firstName || !body.lastName || !body.email) {
     return NextResponse.json({ error: 'firstName, lastName, email required' }, { status: 400 })
+  }
+
+  // Spam defenses. Block obvious fake / placeholder / disposable
+  // emails first, then enforce per-referrer rate limits so a single
+  // agent can't flood the queue.
+  const emailErr = validateReferralEmail(body.email)
+  if (emailErr) return NextResponse.json({ error: emailErr }, { status: 400 })
+
+  const rate = await checkReferralRateLimit(profileId)
+  if (!rate.ok) {
+    // If they pushed up against the daily cap multiple days in a
+    // week, ping the admin channel so leadership sees the pattern.
+    if (rate.trippedAbuseFlag && process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_ADMIN_CHANNEL_ID) {
+      try {
+        const { sendChannelMessage } = await import('@/lib/discord')
+        const refName = referrer ? `${referrer.firstName} ${referrer.lastName} (${referrer.agentCode})` : 'an agent'
+        sendChannelMessage(process.env.DISCORD_ADMIN_CHANNEL_ID, {
+          embeds: [{
+            title: 'Referral abuse alert',
+            description: `**${refName}** has hit the daily referral cap on multiple days this week. Submissions are being throttled. Review their referral list in the vault and confirm these are real recruits.`,
+            color: 0xEF4444,
+            timestamp: new Date().toISOString(),
+            footer: { text: 'AFF Concierge · Spam guard' },
+          }],
+        }).catch(() => { /* non-critical */ })
+      } catch { /* non-critical */ }
+    }
+    return NextResponse.json({ error: rate.reason ?? 'Rate limit hit' }, { status: 429 })
   }
 
   const existing = await db.agentReferral.findFirst({

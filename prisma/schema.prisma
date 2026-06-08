@@ -294,6 +294,12 @@ model AgentProfile {
   isTest                Boolean     @default(false) @map("is_test")
   isLeadership          Boolean     @default(false) @map("is_leadership")
   isReferralPartner     Boolean     @default(false) @map("is_referral_partner")
+  // Admin-set: when non-null, this agent cannot submit new referrals.
+  // Used to stop a referrer who has been spamming the queue with fake
+  // / placeholder emails. The block is permanent until an admin clears
+  // it (sets back to null) from the referrals vault page.
+  referralsBlockedAt    DateTime?   @map("referrals_blocked_at")
+  referralsBlockedReason String?    @map("referrals_blocked_reason")
   // One-off "red carpet" for a single distinguished guest. When true,
   // the tracker shows an "Announce VIP Arrival" button on this profile
   // and a one-time gold welcome modal pops the first time they sign in.
