@@ -79,6 +79,7 @@ const NAV_LC_GROUPS: NavGroup[] = [
     key: 'main', label: '', defaultOpen: true,
     items: [
       { href: '/vault/licensing', label: 'Licensing Inbox', icon: '◎' },
+      { href: '/vault/progress', label: 'Licensing Progress', icon: '⊟' },
       { href: '/vault/new-business', label: 'New Business', icon: '◆' },
       { href: '/vault/renewals', label: 'Renewals', icon: '↻' },
       { href: '/vault/milestones', label: 'Milestones', icon: '🏆' },

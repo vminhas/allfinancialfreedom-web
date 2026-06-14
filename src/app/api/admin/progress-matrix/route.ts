@@ -13,7 +13,10 @@ import { requireRole } from '@/lib/permissions'
 // so we don't ship N+1 round trips for what's effectively one screen.
 export async function GET() {
   const session = await getServerSession(authOptions)
-  const denied = requireRole(session, 'admin')
+  // LC sees this page too (read access to the same matrix, plus write
+  // access to their single column via the tevah-toggle route). Admin
+  // keeps full edit rights elsewhere.
+  const denied = requireRole(session, 'admin', 'licensing_coordinator')
   if (denied) return denied
 
   const [agents, items, completions] = await Promise.all([
@@ -31,6 +34,12 @@ export async function GET() {
         // completion %, which mislabels anyone who just entered a new
         // phase (low % is normal at the start, not a problem).
         phaseStartedAt: true,
+        // examDate drives the LC view's "Schedule Exam" column — that
+        // column doesn't have a phase-item bit of its own; it mirrors
+        // the date the LC scheduled on the licensing record.
+        examDate: true,
+        // LC-owned milestone. Distinct from any phase-item completion.
+        subscribedToTevahAt: true,
         // lastLoginAt lives on AgentUser (auth row), not the profile.
         // Pull it via the relation so the page can sort by recent
         // activity without a second query. Email comes along too so
@@ -71,6 +80,8 @@ export async function GET() {
     state: a.state,
     icaDate: a.icaDate?.toISOString() ?? null,
     phaseStartedAt: a.phaseStartedAt?.toISOString() ?? null,
+    examDate: a.examDate?.toISOString() ?? null,
+    subscribedToTevahAt: a.subscribedToTevahAt?.toISOString() ?? null,
     lastLoginAt: a.agentUser?.lastLoginAt?.toISOString() ?? null,
     email: a.agentUser?.email ?? null,
     badges: a.badges ?? [],

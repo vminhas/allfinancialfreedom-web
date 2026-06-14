@@ -42,8 +42,12 @@ export async function POST(req: NextRequest) {
     },
   })
 
+  // Purge runs independent of the block flag so admins can clean up
+  // an agent's spam queue while leaving them able to submit real
+  // referrals going forward (the common case after Mel-style training
+  // misuse, not a true attack).
   let purged = 0
-  if (blocked && body.purgePending) {
+  if (body.purgePending) {
     const r = await db.agentReferral.deleteMany({
       where: { referringAgentId: agent.id, status: 'PENDING' },
     })

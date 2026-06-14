@@ -312,6 +312,11 @@ model AgentProfile {
   goal                  String?     // "MD", "EMD", etc.
   initialPointOfContact String?
   examDate              DateTime?
+  // LC-only milestone: the agent has been added to Tevah (carrier
+  // platform subscription). Distinct from the phase-checklist items
+  // because it's an operational step the LC owns, not something the
+  // agent does themselves. Null = not yet subscribed.
+  subscribedToTevahAt   DateTime?   @map("subscribed_to_tevah_at")
   ssn                   String?   // AES-256-GCM encrypted; decrypt server-side for admin only
   avatarUrl             String?   // Vercel Blob URL for profile headshot
   addressLine1          String?   // Mailing address for gifts/correspondence

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { getAtRiskStatus, AT_RISK_THRESHOLDS } from '@/lib/agent-constants'
@@ -34,6 +35,10 @@ interface Agent {
   // in a phase past the expected duration with low completion is
   // worth surfacing for a check-in.
   phaseStartedAt: string | null
+  // LC-view-only fields: examDate drives the "Schedule Exam" column,
+  // subscribedToTevahAt is the single LC-writable column on the page.
+  examDate: string | null
+  subscribedToTevahAt: string | null
   lastLoginAt: string | null
   email: string | null
 }
@@ -98,6 +103,9 @@ const PHASE_TITLES: Record<number, string> = {
 
 export default function ProgressMatrixPage() {
   const isMobile = useIsMobile()
+  const { data: session } = useSession()
+  const role = (session?.user as { role?: string } | undefined)?.role
+  const isLc = role === 'licensing_coordinator'
   const [data, setData] = useState<Payload | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -343,6 +351,16 @@ export default function ProgressMatrixPage() {
   if (loading) return <Centered>Loading progression matrix...</Centered>
   if (error) return <Centered tone="error">Couldn&apos;t load matrix: {error}</Centered>
   if (!data) return null
+
+  // LCs get a focused, role-specific table instead of the full
+  // admin matrix. The matrix has 50+ columns of training items the
+  // LC doesn't act on; this view surfaces only the licensing-pipeline
+  // milestones, splits "Licensing Class / Schedule Test" into two
+  // columns (the second backed by examDate), and exposes the single
+  // checkable LC-owned column: Subscribed to Tevah.
+  if (isLc) {
+    return <LcLicensingTable agents={data.agents} completedAt={data.completedAt} isMobile={isMobile} />
+  }
 
   return (
     <div>
@@ -1104,6 +1122,391 @@ function ColumnHeaderHint() {
           letterSpacing: '0.08em', textTransform: 'uppercase',
         }}
       >Got it</button>
+    </div>
+  )
+}
+
+// ─── LC Licensing Table ──────────────────────────────────────────────────────
+//
+// LC-specific view of /vault/progress. One row per active agent, one
+// column per licensing milestone. Two visual languages on the cells:
+//
+//   - Mirror columns (Licensing Class, Schedule Exam, Pass Exam,
+//     Fingerprints, Submit to GFI, CE Courses): show a status dot,
+//     filled when the upstream source is done. Non-interactive. The
+//     borderless dot signals "this data lives somewhere else."
+//
+//   - Tevah column: real checkbox with a visible border and pointer
+//     cursor. Clicking POSTs to the tevah toggle endpoint and updates
+//     the row in place. Distinct accent color (gold) so it reads as
+//     the action this view actually owns.
+//
+// Schedule Exam is backed by AgentProfile.examDate, not a PhaseItem
+// completion bit. That field is already populated by the LC from the
+// licensing agent drawer (Exam Date field on the Details tab), so
+// surfacing it here closes the loop without a schema split.
+
+interface LcColumn {
+  key: string
+  label: string
+  // For mirror columns, returns the completion ISO timestamp or null.
+  // For the Tevah column we render a checkbox instead so this is unused.
+  completedAt: (a: Agent, completedAt: Record<string, string>) => string | null
+}
+
+const LC_MIRROR_COLUMNS: LcColumn[] = [
+  {
+    key: 'licensing_class',
+    label: 'Licensing Class',
+    completedAt: (a, c) => c[`${a.id}:licensing_class`] || null,
+  },
+  {
+    key: 'schedule_exam',
+    label: 'Schedule Exam',
+    // examDate is set when the LC schedules the exam on the agent's
+    // licensing record. Non-null = scheduled.
+    completedAt: a => a.examDate,
+  },
+  {
+    key: 'pass_license_test',
+    label: 'Pass License Exam',
+    completedAt: (a, c) => c[`${a.id}:pass_license_test`] || null,
+  },
+  {
+    key: 'fingerprints_apply',
+    label: 'Fingerprints + Apply',
+    completedAt: (a, c) => c[`${a.id}:fingerprints_apply`] || null,
+  },
+  {
+    key: 'submit_to_aff',
+    label: 'Submit to GFI',
+    completedAt: (a, c) => c[`${a.id}:submit_to_aff`] || null,
+  },
+  {
+    key: 'ce_courses',
+    label: 'CE Courses',
+    completedAt: (a, c) => c[`${a.id}:ce_courses`] || null,
+  },
+]
+
+function LcLicensingTable({
+  agents: initialAgents,
+  completedAt,
+  isMobile,
+}: {
+  agents: Agent[]
+  completedAt: Record<string, string>
+  isMobile: boolean
+}) {
+  const [agents, setAgents] = useState<Agent[]>(initialAgents)
+  const [search, setSearch] = useState('')
+  const [activeOnly, setActiveOnly] = useState(true)
+  const [savingId, setSavingId] = useState<string | null>(null)
+
+  useEffect(() => { setAgents(initialAgents) }, [initialAgents])
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return agents
+      .filter(a => {
+        if (q) {
+          const hay = `${a.firstName} ${a.lastName} ${a.agentCode}`.toLowerCase()
+          if (!hay.includes(q)) return false
+        }
+        if (activeOnly) {
+          // The API already filters to status:ACTIVE; this checkbox
+          // is here for parity with what the LC saw before and is a
+          // no-op for now. Left wired so an admin can expand the API
+          // later to include inactive without breaking the UI.
+        }
+        return true
+      })
+      .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`))
+  }, [agents, search, activeOnly])
+
+  // Master rate per column: pct of filtered agents with that column
+  // marked done. Renders above each column header so the LC can see
+  // pipeline bottlenecks at a glance.
+  const masterRates = useMemo(() => {
+    const out: Record<string, number> = {}
+    for (const col of LC_MIRROR_COLUMNS) {
+      let done = 0
+      for (const a of filtered) {
+        if (col.completedAt(a, completedAt)) done++
+      }
+      out[col.key] = filtered.length > 0 ? done / filtered.length : 0
+    }
+    let tevahDone = 0
+    for (const a of filtered) {
+      if (a.subscribedToTevahAt) tevahDone++
+    }
+    out.tevah = filtered.length > 0 ? tevahDone / filtered.length : 0
+    return out
+  }, [filtered, completedAt])
+
+  const toggleTevah = async (agent: Agent) => {
+    const next = !agent.subscribedToTevahAt
+    setSavingId(agent.id)
+    // Optimistic flip so the click feels instant; revert on error.
+    setAgents(prev => prev.map(p => p.id === agent.id
+      ? { ...p, subscribedToTevahAt: next ? new Date().toISOString() : null }
+      : p))
+    try {
+      const res = await fetch(`/api/vault/licensing-agents/${agent.id}/tevah`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscribed: next }),
+      })
+      if (!res.ok) throw new Error(`${res.status}`)
+      const d = await res.json() as { subscribedToTevahAt: string | null }
+      setAgents(prev => prev.map(p => p.id === agent.id
+        ? { ...p, subscribedToTevahAt: d.subscribedToTevahAt }
+        : p))
+    } catch {
+      // Revert on failure.
+      setAgents(prev => prev.map(p => p.id === agent.id
+        ? { ...p, subscribedToTevahAt: agent.subscribedToTevahAt }
+        : p))
+      alert('Could not update Tevah status. Try again.')
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  const cellSize = 44
+
+  // Status dot for the mirror columns. Filled = done, hollow = not yet.
+  // Deliberately borderless and small so it visually contrasts with the
+  // bordered Tevah checkbox: "this is a status indicator, not a button."
+  const StatusDot = ({ done, title }: { done: boolean; title: string }) => (
+    <div
+      title={title}
+      style={{
+        width: 14, height: 14, borderRadius: '50%',
+        background: done ? '#4ADE80' : 'transparent',
+        border: done ? 'none' : '1.5px dashed rgba(155,176,196,0.25)',
+        margin: '0 auto',
+        cursor: 'default',
+      }}
+    />
+  )
+
+  // The Tevah cell. Real bordered checkbox + gold accent so the LC's
+  // eye lands on this column as the one they can act on.
+  const TevahCheckbox = ({ agent }: { agent: Agent }) => {
+    const checked = !!agent.subscribedToTevahAt
+    const saving = savingId === agent.id
+    return (
+      <button
+        onClick={() => toggleTevah(agent)}
+        disabled={saving}
+        aria-pressed={checked}
+        title={checked
+          ? `Subscribed to Tevah on ${new Date(agent.subscribedToTevahAt as string).toLocaleDateString()}. Click to mark unsubscribed.`
+          : 'Click to mark this agent as subscribed to Tevah.'}
+        style={{
+          width: 20, height: 20, borderRadius: 3,
+          background: checked ? '#C9A96E' : 'transparent',
+          border: `1.5px solid ${checked ? '#C9A96E' : 'rgba(201,169,110,0.55)'}`,
+          color: '#0A1628', fontSize: 14, lineHeight: 1, fontWeight: 800,
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          cursor: saving ? 'wait' : 'pointer',
+          opacity: saving ? 0.6 : 1,
+          transition: 'background 0.12s, border-color 0.12s',
+        }}
+      >
+        {checked ? '✓' : ''}
+      </button>
+    )
+  }
+
+  const thStyle: React.CSSProperties = {
+    padding: '10px 8px', fontSize: 9, fontWeight: 700,
+    letterSpacing: '0.1em', textTransform: 'uppercase',
+    color: '#9BB0C4', textAlign: 'center',
+    borderBottom: '1px solid rgba(201,169,110,0.15)',
+    verticalAlign: 'bottom',
+  }
+  const tdStyle: React.CSSProperties = {
+    padding: '10px 8px', textAlign: 'center', verticalAlign: 'middle',
+    borderBottom: '1px solid rgba(255,255,255,0.04)',
+  }
+
+  return (
+    <div>
+      <div style={{ marginBottom: 16 }}>
+        <p style={{ color: '#C9A96E', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 600, margin: '0 0 6px' }}>
+          Licensing Progress
+        </p>
+        <h1 style={{ color: '#ffffff', fontSize: isMobile ? 22 : 28, fontWeight: 300, margin: 0 }}>
+          Agents &middot; Licensing Pipeline
+        </h1>
+        <p style={{ color: '#6B8299', fontSize: 12, margin: '8px 0 0', lineHeight: 1.5, maxWidth: 720 }}>
+          One row per active agent, one column per licensing milestone. The dotted columns mirror status pulled from the agent&apos;s checklist and licensing record. Only <strong style={{ color: '#C9A96E' }}>Subscribed to Tevah</strong> is yours to check off here.
+        </p>
+      </div>
+
+      <div style={{
+        display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center',
+        marginBottom: 16, padding: '12px 14px',
+        background: '#142D48', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)',
+      }}>
+        <input
+          type="search"
+          placeholder="Search agent..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{
+            background: '#0A1628', color: '#ffffff',
+            border: '1px solid rgba(201,169,110,0.2)',
+            borderRadius: 4, padding: '6px 10px', fontSize: 12,
+            width: isMobile ? '100%' : 240,
+          }}
+        />
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#9BB0C4', fontSize: 11, cursor: 'pointer' }}>
+          <input type="checkbox" checked={activeOnly} onChange={e => setActiveOnly(e.target.checked)} />
+          Active only
+        </label>
+        <div style={{ flex: 1 }} />
+        <span style={{ fontSize: 11, color: '#6B8299' }}>
+          {filtered.length} agent{filtered.length === 1 ? '' : 's'}
+        </span>
+      </div>
+
+      <div style={{
+        background: '#142D48', borderRadius: 6,
+        border: '1px solid rgba(201,169,110,0.1)',
+        overflow: 'auto', maxHeight: 'calc(100vh - 240px)',
+      }}>
+        <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 760 }}>
+          <thead style={{ position: 'sticky', top: 0, background: '#142D48', zIndex: 2 }}>
+            {/* Master rate row */}
+            <tr>
+              <th style={{ ...thStyle, textAlign: 'left' }}>
+                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', color: '#6B8299' }}>MASTER RATE</span>
+              </th>
+              {LC_MIRROR_COLUMNS.map(col => {
+                const pct = Math.round(masterRates[col.key] * 100)
+                return (
+                  <th key={col.key} style={{ ...thStyle, paddingBottom: 4 }}>
+                    <div style={{ fontSize: 13, color: '#9BB0C4', fontWeight: 500 }}>{pct}%</div>
+                    <div style={{
+                      height: 3, width: cellSize, background: 'rgba(155,176,196,0.12)',
+                      borderRadius: 999, margin: '4px auto 0', overflow: 'hidden',
+                    }}>
+                      <div style={{
+                        width: `${pct}%`, height: '100%',
+                        background: '#9BB0C4', borderRadius: 999,
+                      }} />
+                    </div>
+                  </th>
+                )
+              })}
+              <th style={{ ...thStyle, paddingBottom: 4 }}>
+                <div style={{ fontSize: 13, color: '#C9A96E', fontWeight: 600 }}>{Math.round(masterRates.tevah * 100)}%</div>
+                <div style={{
+                  height: 3, width: cellSize, background: 'rgba(201,169,110,0.15)',
+                  borderRadius: 999, margin: '4px auto 0', overflow: 'hidden',
+                }}>
+                  <div style={{
+                    width: `${Math.round(masterRates.tevah * 100)}%`, height: '100%',
+                    background: '#C9A96E', borderRadius: 999,
+                  }} />
+                </div>
+              </th>
+            </tr>
+            {/* Column headers */}
+            <tr>
+              <th style={{ ...thStyle, textAlign: 'left', minWidth: 200, paddingTop: 4 }}>Agent</th>
+              {LC_MIRROR_COLUMNS.map(col => (
+                <th key={col.key} style={{ ...thStyle, paddingTop: 4 }}>
+                  <div title="Mirrored from the agent's checklist / licensing record. Not editable here." style={{ lineHeight: 1.2 }}>
+                    {col.label}
+                  </div>
+                </th>
+              ))}
+              <th style={{
+                ...thStyle, paddingTop: 4, color: '#C9A96E',
+                borderLeft: '1px solid rgba(201,169,110,0.2)',
+              }}>
+                <div title="Owned by you. Click the box to mark this agent subscribed to Tevah." style={{ lineHeight: 1.2 }}>
+                  Subscribed to Tevah
+                </div>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan={LC_MIRROR_COLUMNS.length + 2} style={{ ...tdStyle, color: '#6B8299', padding: '32px 16px' }}>
+                  No agents match this filter.
+                </td>
+              </tr>
+            )}
+            {filtered.map(a => {
+              const phaseColor = PHASE_COLORS[a.phase] ?? '#6B8299'
+              return (
+                <tr key={a.id}>
+                  <td style={{ ...tdStyle, textAlign: 'left' }}>
+                    <Link
+                      href={`/vault/tracker?agent=${a.agentCode}`}
+                      style={{ color: '#ffffff', fontSize: 13, fontWeight: 500, textDecoration: 'none' }}
+                    >
+                      {a.firstName} {a.lastName}
+                    </Link>
+                    <div style={{ fontSize: 10, color: '#6B8299', marginTop: 2 }}>
+                      {a.agentCode} &middot; <span style={{ color: phaseColor, fontWeight: 700 }}>P{a.phase}</span>
+                    </div>
+                  </td>
+                  {LC_MIRROR_COLUMNS.map(col => {
+                    const ts = col.completedAt(a, completedAt)
+                    return (
+                      <td key={col.key} style={tdStyle}>
+                        <StatusDot
+                          done={!!ts}
+                          title={ts
+                            ? `${col.label}: done ${new Date(ts).toLocaleDateString()}`
+                            : `${col.label}: not yet`}
+                        />
+                      </td>
+                    )
+                  })}
+                  <td style={{ ...tdStyle, borderLeft: '1px solid rgba(201,169,110,0.12)' }}>
+                    <TevahCheckbox agent={a} />
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Legend so the visual distinction reads on first load. */}
+      <div style={{
+        display: 'flex', gap: 18, flexWrap: 'wrap',
+        marginTop: 12, padding: '10px 14px',
+        background: 'rgba(20,45,72,0.6)', borderRadius: 6,
+        border: '1px solid rgba(201,169,110,0.08)',
+        fontSize: 11, color: '#9BB0C4',
+      }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#4ADE80', display: 'inline-block' }} />
+          Mirror: done elsewhere
+        </span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ width: 14, height: 14, borderRadius: '50%', border: '1.5px dashed rgba(155,176,196,0.45)', display: 'inline-block' }} />
+          Mirror: not yet (read-only)
+        </span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <span style={{
+            width: 18, height: 18, borderRadius: 3,
+            border: '1.5px solid rgba(201,169,110,0.55)',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            color: '#C9A96E', fontSize: 13, fontWeight: 800,
+          }}>&#10003;</span>
+          Yours to check (Tevah)
+        </span>
+      </div>
     </div>
   )
 }
