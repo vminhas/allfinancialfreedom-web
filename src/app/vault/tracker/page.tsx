@@ -121,6 +121,25 @@ const APPOINTMENT_STATUS_COLORS: Record<string, string> = {
   APPOINTED: '#4ade80', PENDING: '#f59e0b', JIT: '#9B6DFF', NOT_STARTED: '#6B8299',
 }
 
+// Compact relative formatter for the drawer header. Recent logins
+// answer the "is this agent active?" question at a glance, so we
+// emphasize "today" / "yesterday" / "Nd ago" rather than a raw
+// timestamp (which is still surfaced via the title tooltip).
+function formatRelativeLogin(iso: string): string {
+  const t = new Date(iso).getTime()
+  const diffMs = Date.now() - t
+  if (diffMs < 0) return 'just now'
+  const mins = Math.floor(diffMs / 60_000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days === 1) return 'yesterday'
+  if (days < 30) return `${days}d ago`
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 export default function TrackerPage() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [total, setTotal] = useState(0)
@@ -1654,6 +1673,12 @@ function AgentDrawer({
                 {agent.icaDate
                   ? <span style={{ color: '#9BB0C4' }}>{new Date(agent.icaDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                   : <span style={{ color: '#4B5563', fontStyle: 'italic' }}>not set</span>}
+              </span>
+              <span title={agent.agentUser?.lastLoginAt ? new Date(agent.agentUser.lastLoginAt).toLocaleString() : 'Has never signed in to the portal'}>
+                <span style={{ color: '#4B5563' }}>Last login</span>{' '}
+                {agent.agentUser?.lastLoginAt
+                  ? <span style={{ color: '#9BB0C4' }}>{formatRelativeLogin(agent.agentUser.lastLoginAt)}</span>
+                  : <span style={{ color: '#4B5563', fontStyle: 'italic' }}>never</span>}
               </span>
             </div>
           </div>
