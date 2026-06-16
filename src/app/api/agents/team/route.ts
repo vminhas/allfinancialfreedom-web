@@ -46,6 +46,13 @@ interface TeamProgress {
   // state. Lets the upline see exactly where the recruit is stuck so
   // they can DM them with targeted help.
   currentPhaseChecklist: Array<{ key: string; label: string; completed: boolean }>
+  // Same shape as currentPhaseChecklist but for every phase. Uplines
+  // / CFTs need to see Phase 2 progress even when the recruit is
+  // still formally on Phase 1.
+  checklistsByPhase: Array<{
+    phase: number
+    items: Array<{ key: string; label: string; completed: boolean }>
+  }>
   lastActivityAt: string | null   // ISO of most recent checklist completion
 }
 
@@ -233,16 +240,27 @@ export async function GET(req: NextRequest) {
       ? Math.max(0, Math.floor((Date.now() - a.phaseStartedAt.getTime()) / 86_400_000))
       : null
 
-    // Build the current-phase checklist with completion state. Order
-    // follows PHASE_ITEMS so the upline sees the same sequence the
-    // recruit sees in their portal.
-    const completedKeys = entry?.completedKeysByPhase.get(a.phase) ?? new Set<string>()
-    const items = PHASE_ITEMS[a.phase] ?? []
-    const currentPhaseChecklist = items.map(item => ({
-      key: item.key,
-      label: item.label,
-      completed: completedKeys.has(item.key),
-    }))
+    // Full checklist per phase, not just the current one. Uplines
+    // (CFTs especially) need to see what their downline has knocked
+    // off in EVERY phase, not only the phase they're officially in,
+    // because recruits often check items in Phase 2 while still
+    // formally on Phase 1. Order follows PHASE_ITEMS so the upline
+    // sees the same sequence the recruit sees in their portal.
+    const checklistsByPhase = [1, 2, 3, 4, 5, 6].map(p => {
+      const completedKeys = entry?.completedKeysByPhase.get(p) ?? new Set<string>()
+      const items = PHASE_ITEMS[p] ?? []
+      return {
+        phase: p,
+        items: items.map(item => ({
+          key: item.key,
+          label: item.label,
+          completed: completedKeys.has(item.key),
+        })),
+      }
+    })
+    // Back-compat alias: callers that only render the current phase
+    // can keep using currentPhaseChecklist.
+    const currentPhaseChecklist = checklistsByPhase.find(c => c.phase === a.phase)?.items ?? []
 
     return {
       phase: a.phase,
@@ -251,6 +269,7 @@ export async function GET(req: NextRequest) {
       currentPhaseTotal: current.total,
       perPhase,
       currentPhaseChecklist,
+      checklistsByPhase,
       lastActivityAt: entry?.lastActivityAt?.toISOString() ?? null,
     }
   }
