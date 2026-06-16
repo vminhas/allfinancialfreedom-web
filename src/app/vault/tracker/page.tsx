@@ -1718,6 +1718,37 @@ function AgentDrawer({
           >
             Trading Card
           </button>
+          <button
+            onClick={async () => {
+              const name = `${agent.firstName} ${agent.lastName}`
+              const ok = confirm(`Send a password reset link to ${name} at ${agent.agentUser?.email}?\n\nThe agent will receive an email with a button that lets them choose a new password. The link is valid for 72 hours and their current password stays active until they use it.`)
+              if (!ok) return
+              const res = await fetch('/api/admin/agents/send-password-reset', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ agentProfileId: agent.id }),
+              })
+              const d = await res.json().catch(() => ({})) as { emailSent?: boolean; emailError?: string; error?: string }
+              if (!res.ok) {
+                alert(`Couldn't send the reset link: ${d.error ?? `HTTP ${res.status}`}`)
+                return
+              }
+              if (d.emailSent) {
+                alert(`Reset link sent to ${agent.agentUser?.email}.`)
+              } else {
+                alert(`Token generated but email failed to send${d.emailError ? `: ${d.emailError}` : '.'}\nYou can resend in a moment.`)
+              }
+            }}
+            title="Email this agent a link to choose a new password. Their current password stays active until they use the link."
+            style={{
+              background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.35)',
+              color: '#60A5FA', fontSize: 9, fontWeight: 700, letterSpacing: '0.08em',
+              textTransform: 'uppercase', cursor: 'pointer', borderRadius: 4,
+              padding: '6px 10px', whiteSpace: 'nowrap',
+            }}
+          >
+            Reset Password
+          </button>
           <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#9BB0C4', fontSize: 14, cursor: 'pointer', width: 28, height: 28, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             ✕
           </button>

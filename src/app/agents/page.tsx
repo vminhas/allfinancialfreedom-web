@@ -5483,6 +5483,13 @@ interface TeamProgress {
   currentPhaseTotal: number
   perPhase: Array<{ phase: number; completed: number; total: number }>
   currentPhaseChecklist: Array<{ key: string; label: string; completed: boolean }>
+  // Every phase's checklist so the upline can see Phase 2 progress on a
+  // recruit who's still formally on Phase 1. Older API responses may
+  // omit this field; the UI falls back to currentPhaseChecklist when so.
+  checklistsByPhase?: Array<{
+    phase: number
+    items: Array<{ key: string; label: string; completed: boolean }>
+  }>
   lastActivityAt: string | null
 }
 
@@ -5750,6 +5757,77 @@ function ProgressStat({ label, value, color }: { label: string; value: string; c
         {label}
       </div>
       <div style={{ fontSize: 13, fontWeight: 600, color }}>{value}</div>
+    </div>
+  )
+}
+
+// Renders one phase's checklist on the team-member progress card.
+// The recruit's CURRENT phase is expanded by default so the upline's
+// eye lands on the active work first; older or out-of-order phases
+// (e.g. a Phase 2 item the recruit knocked off while still on
+// Phase 1) start collapsed but show their done count, and expand
+// when the upline clicks the header. This is what Mercedes asked
+// for: visibility into items checked off in later phases.
+function TeamPhaseChecklistBlock({
+  phase, items, isCurrentPhase,
+}: {
+  phase: number
+  items: Array<{ key: string; label: string; completed: boolean }>
+  isCurrentPhase: boolean
+}) {
+  const [open, setOpen] = useState(isCurrentPhase)
+  const phaseColor = TEAM_PHASE_COLORS[phase] ?? '#C9A96E'
+  const done = items.filter(i => i.completed).length
+  const total = items.length
+  const pending = total - done
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: 8, padding: '4px 0',
+          background: 'transparent', border: 'none', cursor: 'pointer',
+        }}
+      >
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 10, color: '#6B8299', width: 10 }}>{open ? '▾' : '▸'}</span>
+          <span style={{
+            fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
+            color: isCurrentPhase ? phaseColor : '#9BB0C4',
+          }}>
+            Phase {phase} Checklist{isCurrentPhase ? ' · current' : ''}
+          </span>
+        </span>
+        <span style={{ fontSize: 9, color: '#6B8299' }}>
+          {done}/{total}{pending === 0 ? ' · all done' : ''}
+        </span>
+      </button>
+      {open && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6, paddingLeft: 18 }}>
+          {items.map(item => (
+            <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, lineHeight: 1.4 }}>
+              <span style={{
+                width: 14, height: 14, flexShrink: 0,
+                borderRadius: 3,
+                border: `1px solid ${item.completed ? phaseColor : 'rgba(255,255,255,0.18)'}`,
+                background: item.completed ? phaseColor : 'transparent',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 9, fontWeight: 900, color: '#0A1628',
+              }}>
+                {item.completed ? '✓' : ''}
+              </span>
+              <span style={{
+                color: item.completed ? '#4B5563' : '#9BB0C4',
+                textDecoration: item.completed ? 'line-through' : 'none',
+              }}>
+                {item.label}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -6113,44 +6191,30 @@ function TeamMemberNode({ node, depth, isMobile, onOpenCard, previewToken }: { n
             })}
           </div>
 
-          {/* Per-item checklist for the current phase. Lets the upline */}
-          {/* see exactly which steps are done vs outstanding so they */}
-          {/* can DM with targeted help on the items still pending. */}
-          {node.progress.currentPhaseChecklist.length > 0 && (() => {
-            const phaseColor = TEAM_PHASE_COLORS[node.progress!.phase] ?? '#C9A96E'
-            const pending = node.progress!.currentPhaseChecklist.filter(c => !c.completed)
+          {/* Per-item checklist for EVERY phase, not just the current
+              one. Uplines (CFTs especially) regularly have recruits who
+              are checking Phase 2 items while still formally on Phase 1.
+              Each phase that has either any completion or matches the
+              recruit's current phase renders; the current phase is
+              expanded by default, the others collapse so the card stays
+              readable. */}
+          {(() => {
+            const all = node.progress.checklistsByPhase
+              ?? [{ phase: node.progress.phase, items: node.progress.currentPhaseChecklist }]
+            const visible = all.filter(c =>
+              c.phase === node.progress!.phase || c.items.some(i => i.completed),
+            )
+            if (visible.length === 0) return null
             return (
-              <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#C9A96E' }}>
-                    Phase {node.progress!.phase} Checklist
-                  </span>
-                  <span style={{ fontSize: 9, color: '#6B8299' }}>
-                    {pending.length === 0 ? 'all done' : `${pending.length} remaining`}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {node.progress!.currentPhaseChecklist.map(item => (
-                    <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, lineHeight: 1.4 }}>
-                      <span style={{
-                        width: 14, height: 14, flexShrink: 0,
-                        borderRadius: 3,
-                        border: `1px solid ${item.completed ? phaseColor : 'rgba(255,255,255,0.18)'}`,
-                        background: item.completed ? phaseColor : 'transparent',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 9, fontWeight: 900, color: '#0A1628',
-                      }}>
-                        {item.completed ? '✓' : ''}
-                      </span>
-                      <span style={{
-                        color: item.completed ? '#4B5563' : '#9BB0C4',
-                        textDecoration: item.completed ? 'line-through' : 'none',
-                      }}>
-                        {item.label}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+              <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {visible.map(c => (
+                  <TeamPhaseChecklistBlock
+                    key={c.phase}
+                    phase={c.phase}
+                    items={c.items}
+                    isCurrentPhase={c.phase === node.progress!.phase}
+                  />
+                ))}
               </div>
             )
           })()}
