@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { detectEmbedKind, loomEmbedUrl, driveEmbedUrl } from '@/lib/video-embed'
+import { detectEmbedKind, loomEmbedUrl, driveEmbedUrl, youtubeEmbedUrl } from '@/lib/video-embed'
 
 // Collapsible walkthrough player rendered inside an expanded checklist item.
 // Detects Loom and Google Drive URLs and embeds via iframe; otherwise
@@ -55,6 +55,8 @@ export default function ChecklistItemVideo({ videoUrl, videoTitle, orientation =
             <LoomFrame url={videoUrl} orientation={orientation} />
           ) : kind === 'drive' ? (
             <DriveFrame url={videoUrl} orientation={orientation} />
+          ) : kind === 'youtube' ? (
+            <YouTubeFrame url={videoUrl} orientation={orientation} />
           ) : (
             <NativeVideo url={videoUrl} />
           )}
@@ -116,6 +118,28 @@ function DriveFrame({ url, orientation }: { url: string; orientation: 'landscape
       <iframe
         src={embedUrl}
         allow="autoplay; fullscreen"
+        allowFullScreen
+        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 0 }}
+      />
+    </div>
+  )
+}
+
+function YouTubeFrame({ url, orientation }: { url: string; orientation: 'landscape' | 'portrait' }) {
+  const embedUrl = youtubeEmbedUrl(url)
+  if (!embedUrl) return <FallbackLink url={url} />
+  return (
+    <div style={{
+      position: 'relative',
+      aspectRatio: aspectFor(orientation),
+      maxHeight: '70vh',
+      maxWidth: orientation === 'portrait' ? 400 : '100%',
+      margin: '0 auto',
+      overflow: 'hidden', borderRadius: 6, background: '#000',
+    }}>
+      <iframe
+        src={embedUrl}
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
         allowFullScreen
         style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 0 }}
       />

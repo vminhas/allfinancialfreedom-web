@@ -457,11 +457,11 @@ export default function ChecklistEditorPage() {
                 gap: 8, marginBottom: 8, alignItems: 'start',
               }}>
                 <div>
-                  {idx === 0 && <div style={{ fontSize: 10, color: '#6B8299', marginBottom: 4 }}>Loom / Drive / direct video URL</div>}
+                  {idx === 0 && <div style={{ fontSize: 10, color: '#6B8299', marginBottom: 4 }}>YouTube / Loom / Drive / direct video URL</div>}
                   <input
                     value={v.url}
                     onChange={e => setForm(f => ({ ...f, videos: f.videos.map((vv, i) => i === idx ? { ...vv, url: e.target.value } : vv) }))}
-                    placeholder="https://www.loom.com/share/..."
+                    placeholder="https://youtube.com/watch?v=... or Loom/Drive URL"
                     style={inp}
                   />
                 </div>
@@ -537,7 +537,7 @@ export default function ChecklistEditorPage() {
                 />
               </label>
               <span style={{ fontSize: 10, color: '#6B8299', lineHeight: 1.5 }}>
-                Loom and Google Drive URLs embed inline. <strong style={{ color: '#9BB0C4' }}>Both must be set to &quot;Anyone with the link can view&quot;</strong> in their share settings or the iframe shows a sign-in prompt instead of the player. Uploaded files: <strong style={{ color: '#9BB0C4' }}>MP4 (H.264) or MOV only, max 500MB.</strong> WebM and MKV won&apos;t play on Safari/iOS — convert before uploading.
+                YouTube, Loom, and Google Drive URLs embed inline. <strong style={{ color: '#9BB0C4' }}>Loom and Drive must be set to &quot;Anyone with the link can view&quot;</strong> in their share settings. YouTube videos must be public or unlisted. Uploaded files: <strong style={{ color: '#9BB0C4' }}>MP4 (H.264) or MOV only, max 500MB.</strong> WebM and MKV won&apos;t play on Safari/iOS.
               </span>
             </div>
             {videoUploadError && (
@@ -778,7 +778,7 @@ function GroupsEditor({ groups, onRefresh, isMobile }: { groups: PhaseGroupDef[]
               <input
                 value={form.videoUrl}
                 onChange={e => setForm(f => ({ ...f, videoUrl: e.target.value }))}
-                placeholder="Loom share URL, Google Drive video, or Vercel Blob URL"
+                placeholder="YouTube, Loom, Google Drive, or direct video URL"
                 style={inp}
               />
               <div style={{ fontSize: 10, color: '#6B8299', marginTop: 4, lineHeight: 1.5 }}>
