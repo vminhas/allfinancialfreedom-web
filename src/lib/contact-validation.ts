@@ -29,3 +29,26 @@ export function formatPhoneAsTyped(raw: string): string {
   if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`
   return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`
 }
+
+// Carrier policy numbers normalize to uppercase A-Z / 0-9 only
+// (e.g. JT09083285, AB123456). Pasted strings often pick up
+// non-breaking spaces, dashes, or surrounding quotes; strip and
+// uppercase before validation so dedup matches don't miss because
+// one path stored "AB-123 456" and another stored "AB123456".
+export function normalizePolicyNumber(raw: string | null | undefined): string {
+  if (!raw) return ''
+  return raw.toString().toUpperCase().replace(/[^A-Z0-9]/g, '')
+}
+
+// Returns an error string for an obviously bad policy number,
+// null otherwise. Empty is allowed (the agent may not have the
+// number yet at submit time). Anything 3 chars or longer that is
+// pure alphanumeric is accepted - we don't know every carrier's
+// format and don't want to false-reject.
+export function validatePolicyNumber(raw: string | null | undefined): string | null {
+  const norm = normalizePolicyNumber(raw)
+  if (norm === '') return null
+  if (norm.length < 3) return 'Policy number looks too short. Double-check it from the carrier confirmation.'
+  if (norm.length > 32) return 'Policy number looks too long. Double-check it from the carrier confirmation.'
+  return null
+}

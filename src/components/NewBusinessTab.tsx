@@ -10,6 +10,14 @@ const sectionLabel = { fontSize: 10, fontWeight: 700 as const, letterSpacing: '0
 const inputStyle = { background: '#0A1628', border: '1px solid rgba(201,169,110,0.2)', borderRadius: 4, color: '#9BB0C4', padding: '7px 10px', fontSize: 12, width: '100%', boxSizing: 'border-box' as const }
 const fieldLabel = { fontSize: 10, fontWeight: 700 as const, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: '#C9A96E', display: 'block', marginBottom: 4 }
 
+// Carrier policy numbers are always plain uppercase alphanumeric
+// (e.g. JT09083285, AB123456). Strip everything else and uppercase
+// so paste-from-PDF garbage (spaces, dashes, en-dashes, hidden
+// non-breaking spaces) doesn't break the dedup match downstream.
+function normalizePolicyNumber(input: string): string {
+  return input.toUpperCase().replace(/[^A-Z0-9]/g, '')
+}
+
 const POLICY_TYPES = [
   { value: 'TERM', label: 'Term' },
   { value: 'WHOLE_LIFE', label: 'Whole Life' },
@@ -394,6 +402,7 @@ interface SplitAgentCandidate {
 function NewBusinessForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: () => void }) {
   const [form, setForm] = useState({
     applicationDate: '', carrier: '', policyType: 'TERM', points: '',
+    policyNumber: '',
     splitWithAgentId: '',
     clientFirstName: '', clientLastName: '', clientPhone: '', clientEmail: '', clientBirthday: '',
     clientAddressLine1: '', clientAddressLine2: '', clientCity: '', clientState: '', clientZip: '',
@@ -479,6 +488,21 @@ function NewBusinessForm({ isMobile, onSaved }: { isMobile: boolean; onSaved: ()
           </select>
         </div>
         <div><label style={fieldLabel}>Target Premium</label><input type="number" step="0.01" placeholder="e.g. 1200" style={inputStyle} value={form.points} onChange={e => setForm(f => ({ ...f, points: e.target.value }))} /></div>
+        <div style={{ gridColumn: isMobile ? undefined : 'span 2' }}>
+          <label style={fieldLabel}>Policy Number</label>
+          <input
+            style={inputStyle}
+            placeholder="From the carrier, e.g. JT09083285. Add as soon as you have it so we can match the policy."
+            inputMode="text"
+            autoCapitalize="characters"
+            spellCheck={false}
+            value={form.policyNumber}
+            onChange={e => setForm(f => ({ ...f, policyNumber: normalizePolicyNumber(e.target.value) }))}
+          />
+          <div style={{ fontSize: 10, color: '#6B8299', marginTop: 4, lineHeight: 1.4 }}>
+            Letters and numbers only, no spaces or dashes. Skipping this is the #1 cause of duplicate policy rows. You can fill it in later by editing the submission, but the sooner the better.
+          </div>
+        </div>
       </div>
 
       {/* Split-agent picker. Optional. When set, the chosen agent
@@ -871,7 +895,15 @@ function SubmissionDrawer({ submission, onClose, onChanged }: { submission: Subm
               </div>
               <div>
                 <label style={fieldLabel}>Policy Number</label>
-                <input style={inputStyle} placeholder="From the carrier (e.g. AB123456)" value={edit.policyNumber} onChange={e => setEdit(p => ({ ...p, policyNumber: e.target.value }))} />
+                <input
+                  style={inputStyle}
+                  placeholder="From the carrier, e.g. JT09083285"
+                  inputMode="text"
+                  autoCapitalize="characters"
+                  spellCheck={false}
+                  value={edit.policyNumber}
+                  onChange={e => setEdit(p => ({ ...p, policyNumber: normalizePolicyNumber(e.target.value) }))}
+                />
               </div>
               <div>
                 <label style={fieldLabel}>Application Date</label>

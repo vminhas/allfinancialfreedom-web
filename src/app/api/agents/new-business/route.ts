@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { uploadIllustrationToBlob, validateIllustration } from '@/lib/illustration-upload'
 import { notifySubmitted } from '@/lib/new-business-notifications'
-import { validatePhone, validateEmail } from '@/lib/contact-validation'
+import { validatePhone, validateEmail, normalizePolicyNumber, validatePolicyNumber } from '@/lib/contact-validation'
 import { computeRenewalWindow, todayInEt } from '@/lib/renewals'
 import { createNotification } from '@/lib/notify'
 import { logSubmissionActivity } from '@/lib/submission-activity'
@@ -144,6 +144,12 @@ export async function POST(req: NextRequest) {
   if (emailErr) return NextResponse.json({ error: emailErr }, { status: 400 })
   const phoneStr = (fields.clientPhone as string).trim()
   const emailStr = (fields.clientEmail as string).trim()
+  // Policy number is optional at submit time (the carrier may not
+  // have issued one yet) but if present, normalize + validate it so
+  // dedup matches against later Tevah syncs reliably.
+  const policyNumberNorm = normalizePolicyNumber(fields.policyNumber as string | undefined)
+  const policyNumberErr = validatePolicyNumber(policyNumberNorm)
+  if (policyNumberErr) return NextResponse.json({ error: policyNumberErr }, { status: 400 })
 
   for (const f of files) {
     const err = validateIllustration({ size: f.size, type: f.type })
@@ -159,6 +165,7 @@ export async function POST(req: NextRequest) {
       carrier: String(fields.carrier),
       policyType,
       points: fields.points != null && fields.points !== '' ? Number(fields.points) : null,
+      policyNumber: policyNumberNorm || null,
       splitWithAgentId: (fields.splitWithAgentId as string) || null,
       assignedToId,
       illustrationUrls: [],

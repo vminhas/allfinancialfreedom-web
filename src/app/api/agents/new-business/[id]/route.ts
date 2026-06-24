@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { validatePhone, validateEmail } from '@/lib/contact-validation'
+import { validatePhone, validateEmail, normalizePolicyNumber, validatePolicyNumber } from '@/lib/contact-validation'
 
 async function getAgentProfileId() {
   const session = await getServerSession(authOptions)
@@ -59,6 +59,12 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if ('clientEmail' in body) {
     const err = validateEmail(body.clientEmail)
     if (err) return NextResponse.json({ error: err }, { status: 400 })
+  }
+  if ('policyNumber' in body) {
+    const norm = normalizePolicyNumber(body.policyNumber as string | null | undefined)
+    const err = validatePolicyNumber(norm)
+    if (err) return NextResponse.json({ error: err }, { status: 400 })
+    body.policyNumber = norm
   }
 
   const data: Record<string, unknown> = {}
