@@ -21,35 +21,41 @@ const YT_SHORTS_RE = /^https?:\/\/(?:www\.)?youtube\.com\/shorts\/([a-zA-Z0-9_-]
 
 export type EmbedKind = 'loom' | 'drive' | 'youtube' | 'native' | 'unknown'
 
+function normalize(url: string): string {
+  const trimmed = url.trim()
+  if (trimmed && !/^https?:\/\//i.test(trimmed)) return `https://${trimmed}`
+  return trimmed
+}
+
 export function detectEmbedKind(url: string | null | undefined): EmbedKind {
   if (!url) return 'unknown'
-  if (LOOM_SHARE_RE.test(url) || LOOM_EMBED_RE.test(url)) return 'loom'
-  if (DRIVE_FILE_RE.test(url) || DRIVE_QUERY_RE.test(url)) return 'drive'
-  if (YT_WATCH_RE.test(url) || YT_SHORT_RE.test(url) || YT_EMBED_RE.test(url) || YT_SHORTS_RE.test(url)) return 'youtube'
+  const u = normalize(url)
+  if (LOOM_SHARE_RE.test(u) || LOOM_EMBED_RE.test(u)) return 'loom'
+  if (DRIVE_FILE_RE.test(u) || DRIVE_QUERY_RE.test(u)) return 'drive'
+  if (YT_WATCH_RE.test(u) || YT_SHORT_RE.test(u) || YT_EMBED_RE.test(u) || YT_SHORTS_RE.test(u)) return 'youtube'
   return 'native'
 }
 
 // Convert a Loom share URL to its embeddable iframe URL. If already an embed
 // URL, return as-is. Returns null if the URL isn't a recognizable Loom URL.
 export function loomEmbedUrl(url: string): string | null {
-  const share = url.match(LOOM_SHARE_RE)
+  const u = normalize(url)
+  const share = u.match(LOOM_SHARE_RE)
   if (share) return `https://www.loom.com/embed/${share[1]}`
-  if (LOOM_EMBED_RE.test(url)) return url
+  if (LOOM_EMBED_RE.test(u)) return u
   return null
 }
 
-// Convert any Google Drive video URL to its embeddable /preview URL. The
-// file must be set to "Anyone with the link" in Drive's sharing settings
-// for the iframe to actually render the video; otherwise it shows an
-// access-required page.
 export function driveEmbedUrl(url: string): string | null {
-  const m = url.match(DRIVE_FILE_RE) ?? url.match(DRIVE_QUERY_RE)
+  const u = normalize(url)
+  const m = u.match(DRIVE_FILE_RE) ?? u.match(DRIVE_QUERY_RE)
   if (!m) return null
   return `https://drive.google.com/file/d/${m[1]}/preview`
 }
 
 export function youtubeEmbedUrl(url: string): string | null {
-  const m = url.match(YT_WATCH_RE) ?? url.match(YT_SHORT_RE) ?? url.match(YT_EMBED_RE) ?? url.match(YT_SHORTS_RE)
+  const u = normalize(url)
+  const m = u.match(YT_WATCH_RE) ?? u.match(YT_SHORT_RE) ?? u.match(YT_EMBED_RE) ?? u.match(YT_SHORTS_RE)
   if (!m) return null
   return `https://www.youtube.com/embed/${m[1]}`
 }
