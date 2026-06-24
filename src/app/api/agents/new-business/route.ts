@@ -159,6 +159,7 @@ export async function POST(req: NextRequest) {
       carrier: String(fields.carrier),
       policyType,
       points: fields.points != null && fields.points !== '' ? Number(fields.points) : null,
+      policyNumber: ((fields.policyNumber as string) || '').trim() || null,
       splitWithAgentId: (fields.splitWithAgentId as string) || null,
       assignedToId,
       illustrationUrls: [],

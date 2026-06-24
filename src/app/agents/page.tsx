@@ -5528,6 +5528,7 @@ interface TeamNode {
   memberStatus: MemberStatus
   progress: TeamProgress | null
   pfrStatus: 'not_started' | 'in_progress' | 'completed' | null
+  pfrHasRecord?: boolean
   inviteEmail: string | null
   inviteSentAt: string | null
   inviteExpiresAt: string | null
@@ -6069,7 +6070,10 @@ function TeamMemberNode({ node, depth, isMobile, onOpenCard, previewToken }: { n
         )}
         {/* PFR. When not started there's deliberately no "View" button
             (nothing to show) — just the status above + a one-tap Discord
-            reminder. Once started/done, a read-only drill-in. */}
+            reminder. Once started/done in the in-app tool, a read-only
+            drill-in. If completed outside the tool (checklist box ticked,
+            e.g. logged in GFI) the badge reads done but there's no record
+            to drill into, so no View button either. */}
         {node.memberStatus === 'ACTIVE' && node.agentCode && node.pfrStatus === 'not_started' && (
           <button
             onClick={handleRemindPfr}
@@ -6085,7 +6089,7 @@ function TeamMemberNode({ node, depth, isMobile, onOpenCard, previewToken }: { n
             {reminding ? 'Sending...' : (remindMsg ?? 'Remind: PFR')}
           </button>
         )}
-        {node.memberStatus === 'ACTIVE' && node.agentCode && node.pfrStatus && node.pfrStatus !== 'not_started' && (
+        {node.memberStatus === 'ACTIVE' && node.agentCode && node.pfrStatus && node.pfrStatus !== 'not_started' && node.pfrHasRecord && (
           <button
             onClick={(e) => { e.stopPropagation(); setShowPfr(s => !s) }}
             style={{

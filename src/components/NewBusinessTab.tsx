@@ -395,6 +395,7 @@ function NewBusinessForm({ isMobile, onSaved, previewToken }: { isMobile: boolea
   const ptQs = previewToken ? `?preview=${encodeURIComponent(previewToken)}` : ''
   const [form, setForm] = useState({
     applicationDate: '', carrier: '', policyType: 'TERM', points: '',
+    policyNumber: '',
     splitWithAgentId: '',
     clientFirstName: '', clientLastName: '', clientPhone: '', clientEmail: '', clientBirthday: '',
     clientAddressLine1: '', clientAddressLine2: '', clientCity: '', clientState: '', clientZip: '',
@@ -480,6 +481,7 @@ function NewBusinessForm({ isMobile, onSaved, previewToken }: { isMobile: boolea
           </select>
         </div>
         <div><label style={fieldLabel}>Target Premium</label><input type="number" step="0.01" placeholder="e.g. 1200" style={inputStyle} value={form.points} onChange={e => setForm(f => ({ ...f, points: e.target.value }))} /></div>
+        <div><label style={fieldLabel}>Policy Number</label><input placeholder="From the carrier (e.g. AB123456)" style={inputStyle} value={form.policyNumber} onChange={e => setForm(f => ({ ...f, policyNumber: e.target.value }))} /></div>
       </div>
 
       {/* Split-agent picker. Optional. When set, the chosen agent

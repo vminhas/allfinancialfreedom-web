@@ -58,9 +58,13 @@ interface TeamProgress {
 
 // PFR (Personal Financial Review) completion, surfaced on the team
 // card so the upline can see at a glance who still needs to do it and
-// nudge them. 'not_started' = no PersonalFinancialReview row at all;
-// 'in_progress' = row exists but the agent hasn't filled income yet;
-// 'completed' = row exists with real numbers.
+// nudge them. Status comes from the in-app PFR tool row first, and falls
+// back to the 'pfr' checklist item: some agents complete their PFR outside
+// the tool (e.g. in GFI) and just check the box + attach proof, and the
+// badge must respect that instead of nagging them forever.
+//   'not_started' = no PFR tool row AND the 'pfr' checklist item unchecked
+//   'in_progress' = PFR tool row exists but income isn't filled yet
+//   'completed'   = PFR tool row has real numbers, OR the 'pfr' item is checked
 type PfrStatus = 'not_started' | 'in_progress' | 'completed'
 
 interface TeamNode {
@@ -79,6 +83,9 @@ interface TeamNode {
   progress: TeamProgress | null
   // null for non-ACTIVE members (they haven't logged in to start it).
   pfrStatus: PfrStatus | null
+  // True only when an actual PFR tool row exists (so the detail panel can
+  // offer the read-only drill-in). False for checkbox-only completions.
+  pfrHasRecord: boolean
   // Invite metadata for INVITED rows. Lets the detail panel show "invite
   // sent on X, expires Y" so the upline knows whether to nudge the
   // recruit or just wait for them to activate.
@@ -284,6 +291,12 @@ export async function GET(req: NextRequest) {
     if (a.status === 'INACTIVE') memberStatus = 'INACTIVE'
     else if (a.agentUser?.passwordHash || a.agentUser?.lastLoginAt) memberStatus = 'ACTIVE'
     else memberStatus = 'INVITED'
+    // PFR status: prefer the in-app tool row; otherwise treat a checked
+    // 'pfr' checklist item as completion (done outside the tool, e.g. GFI).
+    const pfrRecordStatus = pfrByAgent.get(a.id)
+    const pfrChecklistDone = Array.from(
+      progressByAgent.get(a.id)?.completedKeysByPhase.values() ?? [],
+    ).some(set => set.has('pfr'))
     return {
       id: a.id,
       agentUserId: a.agentUser?.id ?? null,
@@ -307,8 +320,9 @@ export async function GET(req: NextRequest) {
       // Their detail panel shows the invite status instead.
       progress: memberStatus === 'ACTIVE' ? computeProgress(a) : null,
       pfrStatus: memberStatus === 'ACTIVE'
-        ? (pfrByAgent.get(a.id) ?? 'not_started')
+        ? (pfrRecordStatus ?? (pfrChecklistDone ? 'completed' : 'not_started'))
         : null,
+      pfrHasRecord: pfrRecordStatus !== undefined,
       inviteEmail:    memberStatus === 'INVITED' ? (a.agentUser?.email ?? null) : null,
       inviteSentAt:   memberStatus === 'INVITED' ? (a.agentUser?.createdAt?.toISOString() ?? null) : null,
       inviteExpiresAt: memberStatus === 'INVITED' ? (a.agentUser?.inviteExpires?.toISOString() ?? null) : null,
@@ -345,6 +359,7 @@ export async function GET(req: NextRequest) {
     memberStatus: 'PENDING',
     progress: null,
     pfrStatus: null,
+    pfrHasRecord: false,
     inviteEmail: null,
     inviteSentAt: r.createdAt.toISOString(),
     inviteExpiresAt: null,
