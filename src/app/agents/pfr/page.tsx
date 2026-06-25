@@ -103,15 +103,16 @@ function PFRPageInner() {
       return r.json()
     }).then((d: { pfr?: PFRData & { visionBoardUrl?: string | null } } | null) => {
       if (d?.pfr) {
+        const { visionBoardUrl: vbUrl, ...rest } = d.pfr
         setData({
-          ...defaultPFR, ...d.pfr,
+          ...defaultPFR, ...rest,
           expenses: (d.pfr.expenses && typeof d.pfr.expenses === 'object') ? d.pfr.expenses as Record<string, number> : {},
           assets: (d.pfr.assets && typeof d.pfr.assets === 'object') ? d.pfr.assets as Record<string, number> : {},
           debts: (d.pfr.debts && typeof d.pfr.debts === 'object') ? d.pfr.debts as Record<string, number> : {},
           buckets: (d.pfr.buckets && typeof d.pfr.buckets === 'object') ? d.pfr.buckets as Record<string, number> : defaultPFR.buckets,
           dreamsAndGoals: Array.isArray(d.pfr.dreamsAndGoals) ? d.pfr.dreamsAndGoals as PFRData['dreamsAndGoals'] : [],
         })
-        if (d.pfr.visionBoardUrl) setVisionBoardUrl(d.pfr.visionBoardUrl)
+        if (vbUrl) setVisionBoardUrl(vbUrl)
       }
       setLoading(false)
     })
@@ -119,9 +120,10 @@ function PFRPageInner() {
 
   const save = useCallback(async (updated: PFRData) => {
     setSaving(true)
+    const { visionBoardUrl: _vb, ...payload } = updated as PFRData & { visionBoardUrl?: unknown }
     await fetch(`/api/agents/pfr${qs}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updated),
+      body: JSON.stringify(payload),
     })
     setSaving(false)
     setLastSaved(new Date())
