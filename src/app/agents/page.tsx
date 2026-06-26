@@ -3467,7 +3467,6 @@ const REFERRAL_STATUS_COLORS: Record<string, string> = {
 // (recruit them OR train them) plus a generic "business partner"
 // catch-all. Keeps the dropdown short and the lanes obvious.
 const PARTNER_CATEGORIES = [
-  { key: 'recruit', label: 'Recruit' },
   { key: 'business_partner', label: 'Business Partner' },
   { key: 'fta_contact', label: 'FTA Contact' },
 ] as const
@@ -4499,7 +4498,7 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
                           <div><div style={cardLbl}>Age</div><div style={cardVal}>{p.age || '—'}</div></div>
                           <div><div style={cardLbl}>Occupation</div><div style={cardVal}>{p.occupation || '—'}</div></div>
                           <div><div style={cardLbl}>Time Zone</div><div style={cardVal}>{p.timeZone || '—'}</div></div>
-                          <div><div style={cardLbl}>Category</div><div style={cardVal}>{p.category || '—'}</div></div>
+                          <div><div style={cardLbl}>Category</div><div style={cardVal}>{(p.category === 'recruit' ? 'Business Partner' : p.category?.replace(/_/g, ' ')) || '—'}</div></div>
                           <div><div style={cardLbl}>Married</div><div style={cardVal}>{yn(p.married)}</div></div>
                           <div><div style={cardLbl}>Children</div><div style={cardVal}>{yn(p.children)}</div></div>
                           <div><div style={cardLbl}>Homeowner</div><div style={cardVal}>{yn(p.homeowner)}</div></div>
@@ -6410,29 +6409,29 @@ function ContactsDrilldown({ agentCode, agentFirstName, previewToken }: {
   const CATEGORY_LABELS: Record<string, string> = {
     business_partner: 'Business Partner',
     fta_contact: 'FTA Contact',
-    recruit: 'Recruit',
     skipped: 'Skipped',
     uncategorized: 'Unclassified',
   }
   const CATEGORY_COLORS: Record<string, string> = {
     business_partner: '#C9A96E',
     fta_contact: '#60a5fa',
-    recruit: '#4ade80',
     skipped: '#4B5563',
     uncategorized: '#9BB0C4',
   }
 
   const categoryCounts: Record<string, number> = {}
   for (const p of data.partners) {
-    const key = p.status === 'SKIPPED' ? 'skipped' : (p.category ?? 'uncategorized')
+    const raw = p.status === 'SKIPPED' ? 'skipped' : (p.category ?? 'uncategorized')
+    const key = raw === 'recruit' ? 'business_partner' : raw
     categoryCounts[key] = (categoryCounts[key] || 0) + 1
   }
-  const filterKeys = ['business_partner', 'fta_contact', 'recruit', 'skipped', 'uncategorized'].filter(k => categoryCounts[k])
+  const filterKeys = ['business_partner', 'fta_contact', 'skipped', 'uncategorized'].filter(k => categoryCounts[k])
 
   const filtered = catFilter
     ? data.partners.filter(p => {
         if (catFilter === 'skipped') return p.status === 'SKIPPED'
         if (catFilter === 'uncategorized') return p.status !== 'SKIPPED' && !p.category
+        if (catFilter === 'business_partner') return p.status !== 'SKIPPED' && (p.category === 'business_partner' || p.category === 'recruit')
         return p.status !== 'SKIPPED' && p.category === catFilter
       })
     : data.partners
@@ -6980,7 +6979,7 @@ function PartnerRow({ p, agentCode, previewToken }: { p: TraineePartner; agentCo
             <span style={{ fontSize: 13, color: '#fff', fontWeight: 600 }}>{p.name}</span>
             {p.category && (
               <span style={{ fontSize: 8, fontWeight: 700, color: '#C9A96E', padding: '1px 6px', background: 'rgba(201,169,110,0.08)', borderRadius: 3, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                {p.category.replace(/_/g, ' ')}
+                {(p.category === 'recruit' ? 'business_partner' : p.category).replace(/_/g, ' ')}
               </span>
             )}
             {p.status && (

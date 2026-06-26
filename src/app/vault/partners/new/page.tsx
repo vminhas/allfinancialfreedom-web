@@ -23,12 +23,11 @@ const PHASE_TITLE: Record<number, string> = {
 
 // Categories mirror what the agent-side BP form uses. PARTNER_PROSPECT and
 // FTA_CONTACT are the two most common destinations for a leadership
-// hand-off; recruit_prospect is also valid but rarer (those tend to come
-// from the recruit pipeline directly).
+// hand-off. Business Partner covers both recruit prospects and
+// financial-services leads (same pipeline in practice).
 const CATEGORIES: Array<{ value: string; label: string; help: string }> = [
-  { value: 'business_partner_prospect', label: 'Business Partner Prospect', help: 'Likely fit for the financial-services side.' },
+  { value: 'business_partner_prospect', label: 'Business Partner Prospect', help: 'Potential team or financial-services prospect.' },
   { value: 'fta_contact', label: 'FTA Contact', help: 'Field Training Appointment candidate.' },
-  { value: 'recruit_prospect', label: 'Recruit Prospect', help: 'Could be brought on as an agent.' },
   { value: '', label: 'Leave for agent to classify', help: 'Lands in their queue as PENDING.' },
 ]
 
