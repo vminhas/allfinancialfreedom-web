@@ -6690,10 +6690,39 @@ function PfrReadOnly({ agentCode, agentFirstName, previewToken }: { agentCode: s
         </div>
       </div>
 
-      {/* Asset / Liability breakdown: skipped when both sides are empty
-          so the read-only viewer stays compact for half-finished PFRs.
-          Field labels mirror the editable PFR page (ASSET_LABELS /
-          DEBT_LABELS in /agents/pfr/page.tsx). */}
+      {/* Expense breakdown */}
+      {totalExpenses > 0 && (() => {
+        const EXPENSE_ITEMS: [string, string][] = [
+          ['rent', 'Rent / Mortgage / HOA'], ['utilities', 'Utilities'], ['cable', 'Cable / Wifi'],
+          ['carPayment', 'Car Payment'], ['carGas', 'Car Gas'], ['carInsurance', 'Car Insurance'],
+          ['cellPhones', 'Cell Phones'], ['fitness', 'Fitness'], ['healthInsurance', 'Health Insurance'],
+          ['groceries', 'Groceries'], ['diningOut', 'Dining Out'], ['tithing', 'Tithing / Charity'],
+          ['subscriptions', 'Subscriptions'], ['petCare', 'Pet Care'], ['beauty', 'Beauty / Barber'],
+          ['travel', 'Travel'], ['ccLoans', 'CC & Loans'], ['other', 'Other'],
+          ['miscellaneous', 'Miscellaneous'], ['entertainment', 'Entertainment / Hobbies'],
+        ]
+        return (
+          <div style={{ padding: '8px 10px', background: 'rgba(248,113,113,0.04)', borderRadius: 4, border: '1px solid rgba(248,113,113,0.12)', marginBottom: 12 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>Expenses</div>
+            {EXPENSE_ITEMS.map(([k, label]) => {
+              const v = expenses[k] || 0
+              if (!v) return null
+              return (
+                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#9BB0C4', marginBottom: 2 }}>
+                  <span>{label}</span>
+                  <span style={{ color: '#fff' }}>{fmt(v)}</span>
+                </div>
+              )
+            })}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.06)', fontSize: 11, fontWeight: 700 }}>
+              <span style={{ color: '#6B8299' }}>Total</span>
+              <span style={{ color: '#f87171' }}>{fmt(totalExpenses)}</span>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Asset / Liability breakdown */}
       {(totalAssets > 0 || totalDebts > 0) && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, marginBottom: 12 }}>
           <div style={{ padding: '8px 10px', background: 'rgba(74,222,128,0.04)', borderRadius: 4, border: '1px solid rgba(74,222,128,0.12)' }}>
