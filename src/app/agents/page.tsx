@@ -6412,12 +6412,14 @@ function ContactsDrilldown({ agentCode, agentFirstName, previewToken }: {
     fta_contact: 'FTA Contact',
     recruit: 'Recruit',
     skipped: 'Skipped',
+    uncategorized: 'Unclassified',
   }
   const CATEGORY_COLORS: Record<string, string> = {
     business_partner: '#C9A96E',
     fta_contact: '#60a5fa',
     recruit: '#4ade80',
     skipped: '#4B5563',
+    uncategorized: '#9BB0C4',
   }
 
   const categoryCounts: Record<string, number> = {}
@@ -6425,11 +6427,12 @@ function ContactsDrilldown({ agentCode, agentFirstName, previewToken }: {
     const key = p.status === 'SKIPPED' ? 'skipped' : (p.category ?? 'uncategorized')
     categoryCounts[key] = (categoryCounts[key] || 0) + 1
   }
-  const filterKeys = ['business_partner', 'fta_contact', 'recruit', 'skipped'].filter(k => categoryCounts[k])
+  const filterKeys = ['business_partner', 'fta_contact', 'recruit', 'skipped', 'uncategorized'].filter(k => categoryCounts[k])
 
   const filtered = catFilter
     ? data.partners.filter(p => {
         if (catFilter === 'skipped') return p.status === 'SKIPPED'
+        if (catFilter === 'uncategorized') return p.status !== 'SKIPPED' && !p.category
         return p.status !== 'SKIPPED' && p.category === catFilter
       })
     : data.partners
@@ -6440,35 +6443,33 @@ function ContactsDrilldown({ agentCode, agentFirstName, previewToken }: {
         {data.partners.length === 0
           ? <div style={{ color: '#4B5563', fontSize: 11, padding: 8 }}>No business partners on file yet.</div>
           : <>
-              {filterKeys.length > 1 && (
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-                  <button
-                    onClick={() => setCatFilter(null)}
-                    style={{
-                      fontSize: 10, fontWeight: 600, padding: '3px 10px', borderRadius: 12,
-                      border: `1px solid ${!catFilter ? 'rgba(201,169,110,0.5)' : 'rgba(255,255,255,0.08)'}`,
-                      background: !catFilter ? 'rgba(201,169,110,0.12)' : 'transparent',
-                      color: !catFilter ? '#C9A96E' : '#6B8299', cursor: 'pointer',
-                    }}
-                  >All ({data.partners.length})</button>
-                  {filterKeys.map(key => {
-                    const active = catFilter === key
-                    const color = CATEGORY_COLORS[key] || '#6B8299'
-                    return (
-                      <button
-                        key={key}
-                        onClick={() => setCatFilter(active ? null : key)}
-                        style={{
-                          fontSize: 10, fontWeight: 600, padding: '3px 10px', borderRadius: 12,
-                          border: `1px solid ${active ? color + '80' : 'rgba(255,255,255,0.08)'}`,
-                          background: active ? color + '1A' : 'transparent',
-                          color: active ? color : '#6B8299', cursor: 'pointer',
-                        }}
-                      >{CATEGORY_LABELS[key] || key} ({categoryCounts[key]})</button>
-                    )
-                  })}
-                </div>
-              )}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+                <button
+                  onClick={() => setCatFilter(null)}
+                  style={{
+                    fontSize: 10, fontWeight: 600, padding: '3px 10px', borderRadius: 12,
+                    border: `1px solid ${!catFilter ? 'rgba(201,169,110,0.5)' : 'rgba(255,255,255,0.08)'}`,
+                    background: !catFilter ? 'rgba(201,169,110,0.12)' : 'transparent',
+                    color: !catFilter ? '#C9A96E' : '#6B8299', cursor: 'pointer',
+                  }}
+                >All ({data.partners.length})</button>
+                {filterKeys.map(key => {
+                  const active = catFilter === key
+                  const color = CATEGORY_COLORS[key] || '#6B8299'
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setCatFilter(active ? null : key)}
+                      style={{
+                        fontSize: 10, fontWeight: 600, padding: '3px 10px', borderRadius: 12,
+                        border: `1px solid ${active ? color + '80' : 'rgba(255,255,255,0.08)'}`,
+                        background: active ? color + '1A' : 'transparent',
+                        color: active ? color : '#6B8299', cursor: 'pointer',
+                      }}
+                    >{CATEGORY_LABELS[key] || key} ({categoryCounts[key]})</button>
+                  )
+                })}
+              </div>
               {filtered.length === 0
                 ? <div style={{ color: '#4B5563', fontSize: 11, padding: 8 }}>No contacts match this filter.</div>
                 : filtered.map(p => <PartnerRow key={p.id} p={p} agentCode={agentCode} previewToken={previewToken} />)}
