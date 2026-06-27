@@ -6224,9 +6224,7 @@ function TeamMemberNode({ node, depth, isMobile, onOpenCard, previewToken }: { n
           {(() => {
             const all = node.progress.checklistsByPhase
               ?? [{ phase: node.progress.phase, items: node.progress.currentPhaseChecklist }]
-            const visible = all.filter(c =>
-              c.phase === node.progress!.phase || c.items.some(i => i.completed),
-            )
+            const visible = all
             if (visible.length === 0) return null
             return (
               <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', gap: 10 }}>
