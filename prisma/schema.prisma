@@ -2135,3 +2135,83 @@ model LcDigestRun {
 
   @@map("lc_digest_runs")
 }
+
+// Where a lead sits in the staff follow-up flow. NEW is the landing
+// state; A-leads are called first (see scoreLead), NURTURE = low-intent
+// (under $50k / "just exploring") that go to a drip, not a same-day call.
+enum LeadStatus {
+  NEW
+  CONTACTED
+  BOOKED
+  NURTURE
+  WON
+  DEAD
+}
+
+// Scored intent tier set at capture from the savings + timing qualifiers.
+//   A        = $100k+ AND income needed right away or in 1-3 yrs (call first)
+//   NURTURE  = under $50k OR "just exploring" (drip, not a same-day call)
+//   STANDARD = everyone else
+enum LeadScore {
+  A
+  STANDARD
+  NURTURE
+}
+
+// A lead captured from the Meta retirement-income landing page.
+// This row is the TCPA system of record: it stores the exact consent
+// text the person agreed to, plus when/where/how they submitted (IP,
+// user agent, page URL, ad attribution). The lead is ALSO pushed to
+// GoHighLevel (speed-to-lead SMS + agent routing) and Meta CAPI, but
+// those are best-effort; this row is the durable, auditable copy.
+model AnnuityLead {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Contact
+  firstName String @map("first_name")
+  lastName  String @map("last_name")
+  email     String
+  phone     String
+
+  // Qualifiers (stored as the human-readable option label so the consent
+  // record reads exactly as the lead saw it; validated against a fixed
+  // option set in the API).
+  ageBand      String @map("age_band")
+  savingsBand  String @map("savings_band")
+  incomeTiming String @map("income_timing")
+  priority     String
+
+  score  LeadScore  @default(STANDARD)
+  status LeadStatus @default(NEW)
+
+  // TCPA consent record. consentText is the verbatim disclosure shown
+  // above the submit button at the moment of consent.
+  consentText String   @map("consent_text")
+  consentedAt DateTime @map("consented_at")
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+  pageUrl     String?  @map("page_url")
+
+  // Ad attribution (best-effort; populated from the landing URL + cookies)
+  utmSource   String? @map("utm_source")
+  utmMedium   String? @map("utm_medium")
+  utmCampaign String? @map("utm_campaign")
+  utmContent  String? @map("utm_content")
+  utmTerm     String? @map("utm_term")
+  fbclid      String?
+  referrer    String?
+
+  // Integration bookkeeping
+  ghlContactId String? @map("ghl_contact_id")
+  metaEventId  String? @map("meta_event_id") // dedupe key shared with the client Pixel
+
+  // Staff follow-up
+  notes         String?
+  lastContacted DateTime? @map("last_contacted")
+
+  @@index([status, createdAt])
+  @@index([score, createdAt])
+  @@index([email])
+  @@map("annuity_leads")
+}
