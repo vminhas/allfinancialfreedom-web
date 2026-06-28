@@ -2181,6 +2181,9 @@ model AnnuityLead {
   savingsBand  String @map("savings_band")
   incomeTiming String @map("income_timing")
   priority     String
+  // Multi-select: which retirement account types the lead holds. Stored
+  // as the human-readable option labels (validated against a fixed set).
+  accountTypes String[] @default([]) @map("account_types")
 
   score  LeadScore  @default(STANDARD)
   status LeadStatus @default(NEW)

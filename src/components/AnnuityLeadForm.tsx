@@ -3,8 +3,20 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  QUALIFIER_QUESTIONS, CONSENT_TEXT,
+  QUALIFIER_QUESTIONS, ACCOUNT_TYPE_OPTIONS, CONSENT_TEXT,
 } from '@/lib/annuity-leads'
+
+const chipStyle = (selected: boolean): React.CSSProperties => ({
+  cursor: 'pointer',
+  padding: '9px 14px',
+  fontSize: 14,
+  borderRadius: 6,
+  border: `1.5px solid ${selected ? '#C9A96E' : '#D8DEE6'}`,
+  background: selected ? 'rgba(201,169,110,0.12)' : '#fff',
+  color: selected ? '#1B3A5C' : '#41566B',
+  fontWeight: selected ? 600 : 400,
+  transition: 'all 0.12s',
+})
 
 declare global {
   interface Window {
@@ -53,6 +65,9 @@ export default function AnnuityLeadForm() {
   const [answers, setAnswers] = useState<Record<QualifierKey, string>>({
     ageBand: '', savingsBand: '', incomeTiming: '', priority: '',
   })
+  const [accountTypes, setAccountTypes] = useState<string[]>([])
+  const toggleAccount = (opt: string) =>
+    setAccountTypes(prev => prev.includes(opt) ? prev.filter(x => x !== opt) : [...prev, opt])
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
@@ -66,7 +81,11 @@ export default function AnnuityLeadForm() {
     e.preventDefault()
     setError(null)
     if (!answers.ageBand || !answers.savingsBand || !answers.incomeTiming || !answers.priority) {
-      setError('Please answer all four questions.')
+      setError('Please answer all the questions.')
+      return
+    }
+    if (accountTypes.length === 0) {
+      setError('Please select at least one retirement account type.')
       return
     }
     if (!consent) {
@@ -81,6 +100,7 @@ export default function AnnuityLeadForm() {
         body: JSON.stringify({
           firstName, lastName, email, phone,
           ...answers,
+          accountTypes,
           consent,
           company, // honeypot
           ...readAttribution(),
@@ -121,42 +141,64 @@ export default function AnnuityLeadForm() {
           onChange={e => setCompany(e.target.value)}
         />
       </div>
-      {QUALIFIER_QUESTIONS.map((q, i) => (
-        <fieldset key={q.key} style={{ border: 'none', padding: 0, margin: 0 }}>
-          <legend style={labelStyle}>{i + 1}. {q.label}</legend>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {q.options.map(opt => {
-              const selected = answers[q.key as QualifierKey] === opt
-              return (
-                <label
-                  key={opt}
-                  style={{
-                    cursor: 'pointer',
-                    padding: '9px 14px',
-                    fontSize: 14,
-                    borderRadius: 6,
-                    border: `1.5px solid ${selected ? '#C9A96E' : '#D8DEE6'}`,
-                    background: selected ? 'rgba(201,169,110,0.12)' : '#fff',
-                    color: selected ? '#1B3A5C' : '#41566B',
-                    fontWeight: selected ? 600 : 400,
-                    transition: 'all 0.12s',
-                  }}
-                >
-                  <input
-                    type="radio"
-                    name={q.key}
-                    value={opt}
-                    checked={selected}
-                    onChange={() => setAnswers(a => ({ ...a, [q.key]: opt }))}
-                    style={{ display: 'none' }}
-                  />
-                  {opt}
-                </label>
-              )
-            })}
-          </div>
-        </fieldset>
-      ))}
+      {/* Questions render in order with the multi-select account-types
+          question inserted at #3 (right after savings): age, savings,
+          accounts, timing, priority. */}
+      {[0, 1, 'accounts', 2, 3].map((slot, idx) => {
+        const number = idx + 1
+        if (slot === 'accounts') {
+          return (
+            <fieldset key="accounts" style={{ border: 'none', padding: 0, margin: 0 }}>
+              <legend style={labelStyle}>
+                {number}. What types of retirement savings do you have?{' '}
+                <span style={{ fontWeight: 400, color: '#6B8299' }}>(select all that apply)</span>
+              </legend>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {ACCOUNT_TYPE_OPTIONS.map(opt => {
+                  const selected = accountTypes.includes(opt)
+                  return (
+                    <label key={opt} style={chipStyle(selected)}>
+                      <input
+                        type="checkbox"
+                        name="accountTypes"
+                        value={opt}
+                        checked={selected}
+                        onChange={() => toggleAccount(opt)}
+                        style={{ display: 'none' }}
+                      />
+                      {opt}
+                    </label>
+                  )
+                })}
+              </div>
+            </fieldset>
+          )
+        }
+        const q = QUALIFIER_QUESTIONS[slot as number]
+        return (
+          <fieldset key={q.key} style={{ border: 'none', padding: 0, margin: 0 }}>
+            <legend style={labelStyle}>{number}. {q.label}</legend>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {q.options.map(opt => {
+                const selected = answers[q.key as QualifierKey] === opt
+                return (
+                  <label key={opt} style={chipStyle(selected)}>
+                    <input
+                      type="radio"
+                      name={q.key}
+                      value={opt}
+                      checked={selected}
+                      onChange={() => setAnswers(a => ({ ...a, [q.key]: opt }))}
+                      style={{ display: 'none' }}
+                    />
+                    {opt}
+                  </label>
+                )
+              })}
+            </div>
+          </fieldset>
+        )
+      })}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div>
