@@ -30,6 +30,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/vault/pipeline', label: 'Pipeline', icon: '◫' },
       { href: '/vault/sequence', label: 'Sequences', icon: '⟳' },
       { href: '/vault/contacts', label: 'Contacts', icon: '◉' },
+      { href: '/vault/leads', label: 'Ad Leads', icon: '🎯' },
       { href: '/vault/partners/new', label: 'Hand Off Lead', icon: '⇲' },
     ],
   },

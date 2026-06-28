@@ -1,11 +1,13 @@
 import Navbar from '@/components/Navbar'
 import BookingModal from '@/components/BookingModal'
 import JoinModal from '@/components/JoinModal'
+import MetaPixel from '@/components/MetaPixel'
 import Script from 'next/script'
 
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
+      <MetaPixel />
       <Navbar />
       <BookingModal />
       <JoinModal />
