@@ -50,6 +50,15 @@ export async function ghlPut(path: string, body: unknown, config?: GhlConfig) {
   return res
 }
 
+export async function ghlDelete(path: string, config?: GhlConfig) {
+  const { apiKey } = config ?? await getGhlConfig()
+  const res = await fetch(`${GHL_BASE}${path}`, {
+    method: 'DELETE',
+    headers: ghlHeaders(apiKey),
+  })
+  return res
+}
+
 // Default sender mailboxes. Different flows use different ones:
 //   CEO_MAILBOX (Vick) — cold outreach, CEO recruiting intros
 //   OPS_MAILBOX (Operations / Natalia) — welcome emails, onboarding

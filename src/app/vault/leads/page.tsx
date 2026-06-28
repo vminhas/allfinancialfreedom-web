@@ -88,6 +88,20 @@ export default function VaultLeadsPage() {
     }
   }
 
+  const deleteLead = async (id: string, name: string, withGhl: boolean) => {
+    const msg = withGhl
+      ? `Delete the lead for ${name} from BOTH the Vault and GoHighLevel? This permanently removes our record (including the consent record) and the GHL contact. Cannot be undone.`
+      : `Delete the lead for ${name} from the Vault only? The GoHighLevel contact is kept. This removes our record (including the consent record) and cannot be undone.`
+    if (!confirm(msg)) return
+    const res = await fetch(`/api/vault/leads/${id}${withGhl ? '?ghl=1' : ''}`, { method: 'DELETE' })
+    if (res.ok) {
+      setLeads(prev => prev.filter(l => l.id !== id))
+      setExpanded(null)
+    } else {
+      alert('Could not delete the lead. Please try again.')
+    }
+  }
+
   const fmtTime = (iso: string) => new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 
   return (
@@ -180,6 +194,20 @@ export default function VaultLeadsPage() {
                     </div>
                     <div style={{ ...detailLabel, marginTop: 12 }}>Notes</div>
                     <NotesEditor lead={l} onSave={notes => updateLead(l.id, { notes })} />
+                    <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+                      <button
+                        onClick={() => deleteLead(l.id, `${l.firstName} ${l.lastName}`, false)}
+                        style={{ padding: '5px 12px', fontSize: 11, fontWeight: 600, background: 'rgba(107,130,153,0.12)', color: '#9BB0C4', border: '1px solid rgba(107,130,153,0.4)', borderRadius: 5, cursor: 'pointer' }}
+                      >
+                        Delete (Vault only)
+                      </button>
+                      <button
+                        onClick={() => deleteLead(l.id, `${l.firstName} ${l.lastName}`, true)}
+                        style={{ padding: '5px 12px', fontSize: 11, fontWeight: 600, background: 'rgba(180,69,31,0.12)', color: '#E08A6B', border: '1px solid rgba(180,69,31,0.4)', borderRadius: 5, cursor: 'pointer' }}
+                      >
+                        Delete everywhere (incl. GHL)
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}

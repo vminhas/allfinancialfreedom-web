@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/permissions'
+import { ghlDelete } from '@/lib/ghl'
 import type { LeadStatus } from '@/generated/prisma/client'
 
 const VALID_STATUSES: LeadStatus[] = ['NEW', 'CONTACTED', 'BOOKED', 'NURTURE', 'WON', 'DEAD']
@@ -46,4 +47,28 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (!lead) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   return NextResponse.json({ lead })
+}
+
+// DELETE /api/vault/leads/[id] — permanently remove a lead. Used for test
+// data and deletion requests. Admin + LC. Pass ?ghl=1 to also delete the
+// linked GoHighLevel contact (best-effort; the Postgres row is removed
+// regardless).
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const session = await getServerSession(authOptions)
+  const denied = requireRole(session, 'admin', 'licensing_coordinator')
+  if (denied) return denied
+
+  const { id } = await ctx.params
+  const alsoGhl = new URL(req.url).searchParams.get('ghl') === '1'
+
+  const lead = await db.annuityLead.findUnique({ where: { id }, select: { ghlContactId: true } })
+  if (!lead) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  if (alsoGhl && lead.ghlContactId) {
+    // Best-effort: don't let a GHL failure block removing our record.
+    await ghlDelete(`/contacts/${lead.ghlContactId}`).catch(() => {})
+  }
+
+  await db.annuityLead.delete({ where: { id } }).catch(() => null)
+  return NextResponse.json({ ok: true })
 }
