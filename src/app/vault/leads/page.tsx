@@ -22,6 +22,7 @@ interface Lead {
   incomeTiming: string
   priority: string
   accountTypes: string[]
+  source: string
   score: LeadScore
   status: LeadStatus
   consentText: string
@@ -133,7 +134,12 @@ export default function VaultLeadsPage() {
               >
                 <span style={scoreBadge(l.score)}>{scoreLabel[l.score]}</span>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>{l.firstName} {l.lastName}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>
+                    {l.firstName} {l.lastName}
+                    <span style={{ marginLeft: 8, fontSize: 9, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#6B8299' }}>
+                      {l.source === 'meta_instant_form' ? 'Meta form' : 'Landing'}
+                    </span>
+                  </div>
                   <a href={`tel:${l.phone.replace(/\D/g, '')}`} onClick={e => e.stopPropagation()} style={{ fontSize: 12, color: '#C9A96E', textDecoration: 'none' }}>{l.phone}</a>
                 </div>
                 <div style={{ fontSize: 12, color: '#9BB0C4' }}>

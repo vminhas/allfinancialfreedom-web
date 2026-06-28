@@ -6,14 +6,9 @@ import {
   AGE_OPTIONS, SAVINGS_OPTIONS, TIMING_OPTIONS, PRIORITY_OPTIONS, ACCOUNT_TYPE_OPTIONS,
   CONSENT_TEXT, scoreLead,
 } from '@/lib/annuity-leads'
-import {
-  getGhlConfig, getOrCreateGhlContactId, sendGhlSms, sendGhlEmail, ghlPut, OPS_MAILBOX,
-} from '@/lib/ghl'
-import { sendChannelMessage } from '@/lib/discord'
 import { sendMetaLeadEvent } from '@/lib/meta-capi'
-import {
-  sanitizeName, capStr, escapeHtml, sanitizeOneLine, checkLeadRateLimit,
-} from '@/lib/lead-abuse-guard'
+import { sanitizeName, capStr, checkLeadRateLimit } from '@/lib/lead-abuse-guard'
+import { routeLeadToGhl, notifyLeadDiscord } from '@/lib/lead-pipeline'
 
 // Public, unauthenticated lead capture for the retirement-income landing
 // page. This endpoint is the TCPA system of record (it persists the exact
@@ -144,6 +139,7 @@ export async function POST(req: NextRequest) {
       priority: body.priority,
       accountTypes,
       score,
+      source: 'landing_page',
       consentText: CONSENT_TEXT,
       consentedAt: new Date(),
       ipAddress: ip,
@@ -163,8 +159,8 @@ export async function POST(req: NextRequest) {
   // Fan-out (best-effort). Run concurrently; never let one failure block
   // the response. GHL gives us the contactId we persist back on the lead.
   await Promise.allSettled([
-    routeToGhl({ leadId: lead.id, firstName, lastName, email, phone, score }),
-    notifyDiscord({ firstName, lastName, email, phone, score, lead }),
+    routeLeadToGhl({ leadId: lead.id, firstName, lastName, email, phone, score }),
+    notifyLeadDiscord({ firstName, lastName, email, phone, score, source: 'landing_page', lead }),
     sendMetaLeadEvent({
       eventId: metaEventId,
       eventSourceUrl: str(body.pageUrl) ?? undefined,
@@ -178,119 +174,4 @@ export async function POST(req: NextRequest) {
   // The client uses metaEventId to de-dupe its Pixel "Lead" event with the
   // server CAPI event above.
   return NextResponse.json({ ok: true, score, eventId: metaEventId })
-}
-
-// Create/find the GHL contact, set phone + tags so speed-to-lead
-// automations fire and the SMS has a number to send to, then send the
-// instant text + confirmation email. The score tag lets a GHL workflow
-// branch A-leads (call first) from nurture.
-async function routeToGhl(opts: {
-  leadId: string
-  firstName: string
-  lastName: string
-  email: string
-  phone: string
-  score: 'A' | 'STANDARD' | 'NURTURE'
-}): Promise<void> {
-  try {
-    const config = await getGhlConfig()
-    if (!config.apiKey || !config.locationId) return
-
-    const tags = ['meta-annuity-lead', `lead-score-${opts.score.toLowerCase()}`]
-    const contactId = await getOrCreateGhlContactId({
-      email: opts.email,
-      firstName: opts.firstName,
-      lastName: opts.lastName,
-      tags,
-      config,
-    })
-    if (!contactId) return
-
-    // Ensure phone + tags + source are on the contact (the create path in
-    // getOrCreateGhlContactId does not set phone, which SMS needs).
-    await ghlPut(`/contacts/${contactId}`, {
-      phone: opts.phone,
-      tags,
-      source: 'Meta Annuity Landing Page',
-    }, config).catch(() => {})
-
-    await db.annuityLead.update({
-      where: { id: opts.leadId },
-      data: { ghlContactId: contactId },
-    }).catch(() => {})
-
-    // Names are already sanitized at the API boundary (sanitizeName), but
-    // we re-narrow per channel: a single line for SMS, HTML-escaped for
-    // the email body. Defense in depth so this can never become an
-    // injection vector even if the boundary changes.
-    const smsName = sanitizeOneLine(opts.firstName)
-    const emailName = escapeHtml(opts.firstName)
-
-    // Speed-to-lead: instant text. GHL auto-appends its own "Reply STOP
-    // to unsubscribe." opt-out line on the first message, so we omit ours
-    // to avoid a duplicate STOP. Best-effort so a missing location number
-    // doesn't break things.
-    await sendGhlSms({
-      contactId,
-      message:
-        `Hi ${smsName}, this is All Financial Freedom. Thanks for requesting your free ` +
-        `retirement income estimate. A licensed agent will reach out shortly.`,
-      config,
-    }).catch(() => {})
-
-    await sendGhlEmail({
-      contactId,
-      emailTo: opts.email,
-      subject: 'Your retirement income estimate request',
-      emailFrom: OPS_MAILBOX.email,
-      emailFromName: OPS_MAILBOX.name,
-      html:
-        `<p>Hi ${emailName},</p>` +
-        `<p>Thanks for requesting a free, no-obligation retirement income estimate from ` +
-        `All Financial Freedom. A licensed annuity professional will reach out shortly to ` +
-        `put your personalized estimate together.</p>` +
-        `<p>If you would like to talk sooner, call us at 917-603-5893.</p>` +
-        `<p>All Financial Freedom is a licensed insurance agency. A licensed insurance agent ` +
-        `will contact you.</p>`,
-      config,
-    }).catch(() => {})
-  } catch (err) {
-    console.warn('[leads/annuity] GHL routing failed:', err)
-  }
-}
-
-// Post the lead to the staff-only leads channel. Uses a dedicated
-// DISCORD_LEADS_CHANNEL_ID (create it with the same staff permissions as
-// the activity channels), falling back to the admin channel until that
-// env is set.
-async function notifyDiscord(opts: {
-  firstName: string
-  lastName: string
-  email: string
-  phone: string
-  score: 'A' | 'STANDARD' | 'NURTURE'
-  lead: { ageBand: string; savingsBand: string; incomeTiming: string; priority: string; accountTypes: string[] }
-}): Promise<void> {
-  const channelId = process.env.DISCORD_LEADS_CHANNEL_ID || process.env.DISCORD_ADMIN_CHANNEL_ID
-  if (!channelId || !process.env.DISCORD_BOT_TOKEN) return
-  const heat = opts.score === 'A' ? '🔥 A-LEAD (call first)' : opts.score === 'NURTURE' ? '🌱 Nurture' : '📋 Standard'
-  try {
-    await sendChannelMessage(channelId, {
-      embeds: [{
-        title: `${heat} · ${opts.firstName} ${opts.lastName}`,
-        color: opts.score === 'A' ? 0xC9A96E : 0x6B8299,
-        fields: [
-          { name: 'Phone', value: opts.phone, inline: true },
-          { name: 'Email', value: opts.email, inline: true },
-          { name: 'Age', value: opts.lead.ageBand, inline: true },
-          { name: 'Saved', value: opts.lead.savingsBand, inline: true },
-          { name: 'Income starts', value: opts.lead.incomeTiming, inline: true },
-          { name: 'Priority', value: opts.lead.priority, inline: true },
-          { name: 'Accounts', value: opts.lead.accountTypes.length ? opts.lead.accountTypes.join(', ') : '—', inline: false },
-        ],
-      }],
-    })
-  } catch (err) {
-    console.warn('[leads/annuity] Discord notify failed:', err)
-  }
 }

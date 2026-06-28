@@ -2188,6 +2188,11 @@ model AnnuityLead {
   score  LeadScore  @default(STANDARD)
   status LeadStatus @default(NEW)
 
+  // Where the lead came from: "landing_page" (our form) or
+  // "meta_instant_form" (Meta Lead Ads webhook). Lets staff compare
+  // cost + quality across the two capture paths.
+  source String @default("landing_page")
+
   // TCPA consent record. consentText is the verbatim disclosure shown
   // above the submit button at the moment of consent.
   consentText String   @map("consent_text")
