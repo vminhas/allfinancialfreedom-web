@@ -226,13 +226,15 @@ async function routeToGhl(opts: {
     const smsName = sanitizeOneLine(opts.firstName)
     const emailName = escapeHtml(opts.firstName)
 
-    // Speed-to-lead: instant text. Compliant (identifies us, STOP to opt
-    // out). Best-effort so a missing location number doesn't break things.
+    // Speed-to-lead: instant text. GHL auto-appends its own "Reply STOP
+    // to unsubscribe." opt-out line on the first message, so we omit ours
+    // to avoid a duplicate STOP. Best-effort so a missing location number
+    // doesn't break things.
     await sendGhlSms({
       contactId,
       message:
         `Hi ${smsName}, this is All Financial Freedom. Thanks for requesting your free ` +
-        `retirement income estimate. A licensed agent will reach out shortly. Reply STOP to opt out.`,
+        `retirement income estimate. A licensed agent will reach out shortly.`,
       config,
     }).catch(() => {})
 
