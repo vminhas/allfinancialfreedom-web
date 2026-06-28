@@ -81,11 +81,34 @@ function digitsOnly(s: string): string {
   return d
 }
 
+// Meta returns the option KEY in a lead's field_data, not the display
+// label. For our forms the key is a slug of the label (e.g. "50-59" ->
+// "50_59", "$100k-$250k" -> "100k_250k", "Income I can't outlive" ->
+// "income_i_can_t_outlive"). We build a lookup from BOTH the label and its
+// slug back to the canonical label, so a value maps whether Meta sends the
+// key (API/most forms) or the label (some setups).
+function slugifyOption(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+}
+function buildOptionLookup(options: readonly string[]): Map<string, string> {
+  const m = new Map<string, string>()
+  for (const o of options) { m.set(o, o); m.set(slugifyOption(o), o) }
+  return m
+}
+const AGE_LOOKUP = buildOptionLookup(AGE_OPTIONS)
+const SAVINGS_LOOKUP = buildOptionLookup(SAVINGS_OPTIONS)
+const TIMING_LOOKUP = buildOptionLookup(TIMING_OPTIONS)
+const PRIORITY_LOOKUP = buildOptionLookup(PRIORITY_OPTIONS)
+const ACCOUNT_LOOKUP = buildOptionLookup(ACCOUNT_TYPE_OPTIONS)
+
+function matchOption(lookup: Map<string, string>, v: string): string | undefined {
+  return lookup.get(v) ?? lookup.get(slugifyOption(v))
+}
+
 // Map Meta's field_data onto our schema. Contact fields are matched by
-// Meta's known field names; the qualifier answers are matched by VALUE
-// against our fixed option sets, so this works regardless of how the
-// Instant Form's questions were keyed, as long as the answer labels match
-// our options. Unmatched answers go to `extras`.
+// Meta's known field names; the qualifier answers are matched by value
+// (label OR slug-key) against our fixed option sets, so this works
+// whichever form Meta sends. Unmatched answers go to `extras`.
 export function mapLeadFields(fieldData: FieldDatum[]): MappedLead {
   const byName = new Map<string, string[]>()
   for (const f of fieldData) byName.set(f.name.toLowerCase(), f.values)
@@ -116,11 +139,16 @@ export function mapLeadFields(fieldData: FieldDatum[]): MappedLead {
     for (const raw of f.values) {
       const v = raw.trim()
       if (!v) continue
-      if ((AGE_OPTIONS as readonly string[]).includes(v)) ageBand = v
-      else if ((SAVINGS_OPTIONS as readonly string[]).includes(v)) savingsBand = v
-      else if ((TIMING_OPTIONS as readonly string[]).includes(v)) incomeTiming = v
-      else if ((PRIORITY_OPTIONS as readonly string[]).includes(v)) priority = v
-      else if ((ACCOUNT_TYPE_OPTIONS as readonly string[]).includes(v)) { if (!accountTypes.includes(v)) accountTypes.push(v) }
+      const age = matchOption(AGE_LOOKUP, v)
+      const sav = matchOption(SAVINGS_LOOKUP, v)
+      const tim = matchOption(TIMING_LOOKUP, v)
+      const pri = matchOption(PRIORITY_LOOKUP, v)
+      const acc = matchOption(ACCOUNT_LOOKUP, v)
+      if (age) ageBand = age
+      else if (sav) savingsBand = sav
+      else if (tim) incomeTiming = tim
+      else if (pri) priority = pri
+      else if (acc) { if (!accountTypes.includes(acc)) accountTypes.push(acc) }
       else extras.push(`${f.name}: ${v}`)
     }
   }
