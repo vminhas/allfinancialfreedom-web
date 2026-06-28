@@ -108,9 +108,12 @@ export default function VaultLeadsPage() {
     <div style={{ padding: '24px 28px', maxWidth: 1200, margin: '0 auto', color: '#E6EDF5' }}>
       <div style={sectionLabel}>Ad Leads</div>
       <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 4 }}>Retirement Income Leads</h1>
-      <p style={{ fontSize: 13, color: '#9BB0C4', marginBottom: 22 }}>
+      <p style={{ fontSize: 13, color: '#9BB0C4', marginBottom: 16 }}>
         Leads from the Meta retirement-income landing page. A-leads ($100k+ and near-term) should be called first.
       </p>
+
+      <MessagingEditor />
+
 
       {/* Filters */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 18 }}>
@@ -222,6 +225,81 @@ export default function VaultLeadsPage() {
 const selStyle: React.CSSProperties = { padding: '8px 12px', fontSize: 13, background: '#0E1B2E', border: '1px solid rgba(201,169,110,0.15)', borderRadius: 6, color: '#E6EDF5' }
 const detailLabel: React.CSSProperties = { fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 5 }
 const detailVal: React.CSSProperties = { fontSize: 12.5, color: '#E6EDF5', marginBottom: 2 }
+const msgInput: React.CSSProperties = { width: '100%', padding: '9px 11px', fontSize: 13, lineHeight: 1.5, background: '#0E1B2E', border: '1px solid rgba(201,169,110,0.15)', borderRadius: 6, color: '#E6EDF5', resize: 'vertical' }
+
+// Edit the speed-to-lead SMS + confirmation email sent on every new lead
+// (landing page and Meta form). Collapsed by default; loads on first open.
+function MessagingEditor() {
+  const [open, setOpen] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+  const [sms, setSms] = useState('')
+  const [emailSubject, setEmailSubject] = useState('')
+  const [emailBody, setEmailBody] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [savedMsg, setSavedMsg] = useState('')
+
+  const toggle = async () => {
+    if (!open && !loaded) {
+      const res = await fetch('/api/vault/leads/settings')
+      if (res.ok) {
+        const d = await res.json() as { sms: string; emailSubject: string; emailBody: string }
+        setSms(d.sms); setEmailSubject(d.emailSubject); setEmailBody(d.emailBody); setLoaded(true)
+      }
+    }
+    setOpen(o => !o)
+  }
+  const save = async () => {
+    setSaving(true); setSavedMsg('')
+    const res = await fetch('/api/vault/leads/settings', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sms, emailSubject, emailBody }),
+    })
+    setSaving(false)
+    setSavedMsg(res.ok ? 'Saved' : 'Save failed')
+    setTimeout(() => setSavedMsg(''), 2500)
+  }
+
+  return (
+    <div style={{ ...card, marginBottom: 18, padding: open ? '14px 16px' : '0' }}>
+      <button
+        onClick={toggle}
+        style={{ width: '100%', textAlign: 'left', padding: open ? '0 0 12px' : '12px 16px', background: 'transparent', border: 'none', color: '#C9A96E', fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', cursor: 'pointer' }}
+      >
+        {open ? '▾' : '▸'} Speed-to-lead messaging
+      </button>
+      {open && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <p style={{ fontSize: 12, color: '#9BB0C4', margin: 0, lineHeight: 1.5 }}>
+            Sent automatically on every new lead (landing page + Meta form). Use <code style={{ color: '#E0C088' }}>{'{firstName}'}</code> to insert the lead&apos;s first name. Leave a field blank to reset it to the default. The email body uses blank lines for paragraphs.
+          </p>
+          <div>
+            <div style={detailLabel}>Instant SMS</div>
+            <textarea value={sms} onChange={e => setSms(e.target.value)} rows={3} style={msgInput} />
+            <div style={{ fontSize: 10.5, color: '#6B8299', marginTop: 4 }}>GoHighLevel appends a &ldquo;Reply STOP to unsubscribe.&rdquo; line automatically, no need to add one.</div>
+          </div>
+          <div>
+            <div style={detailLabel}>Email subject</div>
+            <input value={emailSubject} onChange={e => setEmailSubject(e.target.value)} style={{ ...msgInput, resize: 'none' }} />
+          </div>
+          <div>
+            <div style={detailLabel}>Email body</div>
+            <textarea value={emailBody} onChange={e => setEmailBody(e.target.value)} rows={8} style={msgInput} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button
+              onClick={save}
+              disabled={saving}
+              style={{ padding: '7px 16px', fontSize: 12, fontWeight: 600, background: 'rgba(201,169,110,0.18)', color: '#E0C088', border: '1px solid rgba(201,169,110,0.4)', borderRadius: 5, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1 }}
+            >
+              {saving ? 'Saving…' : 'Save messaging'}
+            </button>
+            {savedMsg && <span style={{ fontSize: 12, color: savedMsg === 'Saved' ? '#7FB39B' : '#E08A6B' }}>{savedMsg}</span>}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function NotesEditor({ lead, onSave }: { lead: { notes: string | null }; onSave: (notes: string) => void }) {
   const [val, setVal] = useState(lead.notes ?? '')

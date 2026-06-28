@@ -2,9 +2,22 @@ import { db } from '@/lib/db'
 import {
   getGhlConfig, getOrCreateGhlContactId, sendGhlSms, sendGhlEmail, ghlPut, OPS_MAILBOX,
 } from '@/lib/ghl'
+import { getSettings } from '@/lib/settings'
 import { sendChannelMessage } from '@/lib/discord'
 import { escapeHtml, sanitizeOneLine } from '@/lib/lead-abuse-guard'
+import { LEAD_MESSAGE_SETTING_KEYS, LEAD_MESSAGE_DEFAULTS } from '@/lib/annuity-leads'
 import type { LeadScore } from '@/generated/prisma/client'
+
+// Turn an admin-edited plain-text email body into safe HTML: substitute
+// {firstName}, HTML-escape everything, blank lines -> paragraphs, single
+// newlines -> <br>.
+function emailBodyToHtml(body: string, firstName: string): string {
+  const safeName = escapeHtml(firstName)
+  return body
+    .split(/\n\s*\n/)
+    .map(p => `<p>${escapeHtml(p).replace(/\n/g, '<br>').replace(/\{firstName\}/g, safeName)}</p>`)
+    .join('')
+}
 
 // Shared fan-out for a captured annuity lead, used by BOTH capture paths:
 // the public landing-page form and the Meta Lead Ads webhook. The lead row
@@ -52,36 +65,37 @@ export async function routeLeadToGhl(opts: LeadFanOut): Promise<void> {
       data: { ghlContactId: contactId },
     }).catch(() => {})
 
-    // Names are already sanitized at the capture boundary, but we re-narrow
-    // per channel: a single line for SMS, HTML-escaped for the email body.
+    // Load the admin-editable message templates (Vault -> Ad Leads ->
+    // Messaging); fall back to the defaults when unset. {firstName} is
+    // sanitized per channel (single line for SMS, HTML-escaped for email).
+    const tpl = await getSettings([
+      LEAD_MESSAGE_SETTING_KEYS.sms,
+      LEAD_MESSAGE_SETTING_KEYS.emailSubject,
+      LEAD_MESSAGE_SETTING_KEYS.emailBody,
+    ]).catch(() => ({} as Record<string, string>))
+    const smsTpl = tpl[LEAD_MESSAGE_SETTING_KEYS.sms] || LEAD_MESSAGE_DEFAULTS.sms
+    const subjectTpl = tpl[LEAD_MESSAGE_SETTING_KEYS.emailSubject] || LEAD_MESSAGE_DEFAULTS.emailSubject
+    const bodyTpl = tpl[LEAD_MESSAGE_SETTING_KEYS.emailBody] || LEAD_MESSAGE_DEFAULTS.emailBody
+
     const smsName = sanitizeOneLine(opts.firstName)
-    const emailName = escapeHtml(opts.firstName)
+    const subject = subjectTpl.replace(/\{firstName\}/g, smsName)
 
     // Speed-to-lead: instant text. GHL auto-appends its own "Reply STOP to
     // unsubscribe." opt-out line on the first message, so we omit ours to
     // avoid a duplicate STOP. Best-effort.
     await sendGhlSms({
       contactId,
-      message:
-        `Hi ${smsName}, this is All Financial Freedom. Thanks for requesting your free ` +
-        `retirement income estimate. A licensed agent will reach out shortly.`,
+      message: smsTpl.replace(/\{firstName\}/g, smsName),
       config,
     }).catch(() => {})
 
     await sendGhlEmail({
       contactId,
       emailTo: opts.email,
-      subject: 'Your retirement income estimate request',
+      subject,
       emailFrom: OPS_MAILBOX.email,
       emailFromName: OPS_MAILBOX.name,
-      html:
-        `<p>Hi ${emailName},</p>` +
-        `<p>Thanks for requesting a free, no-obligation retirement income estimate from ` +
-        `All Financial Freedom. A licensed annuity professional will reach out shortly to ` +
-        `put your personalized estimate together.</p>` +
-        `<p>If you would like to talk sooner, call us at 917-603-5893.</p>` +
-        `<p>All Financial Freedom is a licensed insurance agency. A licensed insurance agent ` +
-        `will contact you.</p>`,
+      html: emailBodyToHtml(bodyTpl, opts.firstName),
       config,
     }).catch(() => {})
   } catch (err) {

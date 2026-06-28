@@ -83,6 +83,31 @@ export function scoreLead(input: { savingsBand: string; incomeTiming: string }):
 // this is the working copy from the campaign playbook, rewritten to drop
 // em-dashes per the house style rule. Keep this as the single source so
 // the rendered text and the stored consentText can never drift.
+// Editable speed-to-lead message templates. These are the DEFAULTS; the
+// live values are stored in Settings (keys below) and edited from the
+// Vault Ad Leads page. `{firstName}` is substituted at send time. The
+// email body is plain text: blank lines become paragraphs.
+export const LEAD_MESSAGE_SETTING_KEYS = {
+  sms: 'LEAD_SMS_MESSAGE',
+  emailSubject: 'LEAD_EMAIL_SUBJECT',
+  emailBody: 'LEAD_EMAIL_BODY',
+} as const
+
+export const LEAD_MESSAGE_DEFAULTS = {
+  sms:
+    'Hi {firstName}, this is All Financial Freedom. Thanks for requesting your free ' +
+    'retirement income estimate. A licensed agent will reach out shortly.',
+  emailSubject: 'Your retirement income estimate request',
+  emailBody:
+    'Hi {firstName},\n\n' +
+    'Thanks for requesting a free, no-obligation retirement income estimate from ' +
+    'All Financial Freedom. A licensed financial professional will reach out shortly to ' +
+    'put your personalized estimate together.\n\n' +
+    'If you would like to talk sooner, call us at 917-603-5893.\n\n' +
+    'All Financial Freedom is a licensed insurance agency. A licensed insurance agent ' +
+    'will contact you.',
+} as const
+
 export const CONSENT_TEXT =
   'By submitting, I confirm my information is accurate and I ask that All Financial Freedom ' +
   'and its licensed insurance agents contact me at the phone number and email I provided, ' +
