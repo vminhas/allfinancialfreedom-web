@@ -6,10 +6,22 @@ export const metadata: Metadata = {
   title: 'Free Retirement Income Estimate | All Financial Freedom',
   description:
     'Answer 4 quick questions and a licensed annuity professional will prepare a personalized, ' +
-    'no-obligation retirement income estimate. No cost. No pressure.',
-  // Paid-traffic landing page: keep it out of organic so it does not
-  // compete with the main site or get judged as thin content.
-  robots: { index: false, follow: false },
+    'no-obligation retirement income estimate. Turn retirement savings into reliable income for life. ' +
+    'No cost. No pressure.',
+  keywords:
+    'retirement income, annuity, annuities, retirement income estimate, income for life, ' +
+    'lifetime income annuity, protect retirement savings, retirement planning, annuity quote, ' +
+    'reliable retirement income, 401k rollover, IRA rollover annuity',
+  alternates: { canonical: '/retirement-income' },
+  openGraph: {
+    title: 'Free Retirement Income Estimate | All Financial Freedom',
+    description:
+      'Turn retirement savings into reliable income for life. Get a personalized, no-obligation ' +
+      'estimate from a licensed annuity professional. No cost. No pressure.',
+    url: 'https://allfinancialfreedom.com/retirement-income',
+    siteName: 'All Financial Freedom',
+    type: 'website',
+  },
 }
 
 const VALUE_POINTS = [
@@ -33,9 +45,69 @@ const STEPS = [
   { step: '03', title: 'Decide on your terms', text: 'Review it on a quick call. If it fits, great. If not, there is no pressure and no cost.' },
 ]
 
+// Structured data: describes the offering (a retirement income estimate
+// from a licensed insurance agency) plus a short FAQ. Helps search engines
+// understand the page and can surface rich results. Copy stays compliant
+// (no "guaranteed / never lose money / risk-free"; states a licensed agent
+// will make contact).
+const JSON_LD = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Service',
+      name: 'Retirement Income Estimate',
+      serviceType: 'Annuity and retirement income planning',
+      provider: {
+        '@type': 'FinancialService',
+        name: 'All Financial Freedom',
+        url: 'https://allfinancialfreedom.com',
+        telephone: '+1-917-603-5893',
+        email: 'contact@allfinancialfreedom.com',
+      },
+      areaServed: 'US',
+      description:
+        'A free, no-obligation retirement income estimate prepared by a licensed annuity professional. ' +
+        'A licensed insurance agent will contact you.',
+    },
+    {
+      '@type': 'FAQPage',
+      mainEntity: [
+        {
+          '@type': 'Question',
+          name: 'How much does the retirement income estimate cost?',
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: 'Nothing. The estimate is free and there is no obligation to buy anything.',
+          },
+        },
+        {
+          '@type': 'Question',
+          name: 'What is an annuity?',
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: 'An annuity is an insurance product that can turn a portion of your savings into a stream of retirement income. Product features and any guarantees are subject to the claims-paying ability of the issuing insurer.',
+          },
+        },
+        {
+          '@type': 'Question',
+          name: 'Who will contact me?',
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: 'A licensed insurance agent from All Financial Freedom, a licensed insurance agency, will contact you about annuities and retirement income products.',
+          },
+        },
+      ],
+    },
+  ],
+}
+
 export default function RetirementIncomeLanding() {
   return (
     <main className="pt-20">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
+      />
 
       {/* HERO + FORM */}
       <section className="bg-navy-grad" style={{ paddingTop: 56, paddingBottom: 56 }}>
