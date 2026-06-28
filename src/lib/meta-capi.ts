@@ -82,10 +82,13 @@ export async function sendMetaLeadEvent(input: MetaLeadEventInput): Promise<bool
   if (process.env.META_CAPI_TEST_EVENT_CODE) {
     body.test_event_code = process.env.META_CAPI_TEST_EVENT_CODE
   }
+  // Token goes in the POST body, never the URL: query strings leak into
+  // request logs, proxies, and referrers. Meta's CAPI accepts it here.
+  body.access_token = token
 
   try {
     const res = await fetch(
-      `https://graph.facebook.com/${GRAPH_VERSION}/${pixelId}/events?access_token=${encodeURIComponent(token)}`,
+      `https://graph.facebook.com/${GRAPH_VERSION}/${pixelId}/events`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
