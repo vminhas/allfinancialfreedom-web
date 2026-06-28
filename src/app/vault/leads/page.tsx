@@ -21,6 +21,7 @@ interface Lead {
   savingsBand: string
   incomeTiming: string
   priority: string
+  accountTypes: string[]
   score: LeadScore
   status: LeadStatus
   consentText: string
@@ -157,6 +158,8 @@ export default function VaultLeadsPage() {
                     <div style={detailVal}>{l.email}</div>
                     <div style={detailVal}>{l.phone}</div>
                     {l.ghlContactId && <div style={{ ...detailVal, color: '#6B8299' }}>GHL contact: {l.ghlContactId}</div>}
+                    <div style={{ ...detailLabel, marginTop: 12 }}>Retirement accounts</div>
+                    <div style={detailVal}>{l.accountTypes?.length ? l.accountTypes.join(', ') : '—'}</div>
                     <div style={{ ...detailLabel, marginTop: 12 }}>Attribution</div>
                     <div style={detailVal}>{[l.utmSource, l.utmMedium, l.utmCampaign].filter(Boolean).join(' / ') || 'Direct / unknown'}</div>
                     {l.fbclid && <div style={{ ...detailVal, color: '#6B8299', wordBreak: 'break-all' }}>fbclid: {l.fbclid}</div>}

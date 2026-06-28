@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto'
 import { db } from '@/lib/db'
 import { validatePhone, validateEmail } from '@/lib/contact-validation'
 import {
-  AGE_OPTIONS, SAVINGS_OPTIONS, TIMING_OPTIONS, PRIORITY_OPTIONS,
+  AGE_OPTIONS, SAVINGS_OPTIONS, TIMING_OPTIONS, PRIORITY_OPTIONS, ACCOUNT_TYPE_OPTIONS,
   CONSENT_TEXT, scoreLead,
 } from '@/lib/annuity-leads'
 import {
@@ -42,6 +42,7 @@ interface LeadBody {
   savingsBand?: unknown
   incomeTiming?: unknown
   priority?: unknown
+  accountTypes?: unknown
   consent?: unknown
   pageUrl?: unknown
   referrer?: unknown
@@ -101,6 +102,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Please answer all four questions.' }, { status: 400 })
   }
 
+  // Account types: multi-select, at least one, each from the fixed set,
+  // de-duplicated and capped at the option count.
+  const allowedAccounts = ACCOUNT_TYPE_OPTIONS as readonly string[]
+  const accountTypes = Array.isArray(body.accountTypes)
+    ? [...new Set(body.accountTypes.filter((v): v is string => typeof v === 'string' && allowedAccounts.includes(v)))]
+        .slice(0, allowedAccounts.length)
+    : []
+  if (accountTypes.length === 0) {
+    return NextResponse.json({ error: 'Please select at least one retirement account type.' }, { status: 400 })
+  }
+
   // Consent is required and explicit. We store our own server-side
   // CONSENT_TEXT constant, never client-supplied text, so the record is
   // tamper-proof.
@@ -130,6 +142,7 @@ export async function POST(req: NextRequest) {
       savingsBand: body.savingsBand,
       incomeTiming: body.incomeTiming,
       priority: body.priority,
+      accountTypes,
       score,
       consentText: CONSENT_TEXT,
       consentedAt: new Date(),
@@ -254,7 +267,7 @@ async function notifyDiscord(opts: {
   email: string
   phone: string
   score: 'A' | 'STANDARD' | 'NURTURE'
-  lead: { ageBand: string; savingsBand: string; incomeTiming: string; priority: string }
+  lead: { ageBand: string; savingsBand: string; incomeTiming: string; priority: string; accountTypes: string[] }
 }): Promise<void> {
   const channelId = process.env.DISCORD_LEADS_CHANNEL_ID || process.env.DISCORD_ADMIN_CHANNEL_ID
   if (!channelId || !process.env.DISCORD_BOT_TOKEN) return
@@ -271,6 +284,7 @@ async function notifyDiscord(opts: {
           { name: 'Saved', value: opts.lead.savingsBand, inline: true },
           { name: 'Income starts', value: opts.lead.incomeTiming, inline: true },
           { name: 'Priority', value: opts.lead.priority, inline: true },
+          { name: 'Accounts', value: opts.lead.accountTypes.length ? opts.lead.accountTypes.join(', ') : '—', inline: false },
         ],
       }],
     })

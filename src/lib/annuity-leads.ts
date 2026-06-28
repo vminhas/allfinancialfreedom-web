@@ -31,10 +31,23 @@ export const PRIORITY_OPTIONS = [
   'Leave to family',
 ] as const
 
+// Multi-select. Five consolidated buckets covering the common US
+// retirement account types: employer plans (401k/403b/TSP) together, the
+// two IRAs together, pension, non-qualified savings, and a catch-all.
+// Labels are kept short so the chips wrap cleanly in the selector.
+export const ACCOUNT_TYPE_OPTIONS = [
+  '401(k), 403(b) & TSP',
+  'Traditional or Roth IRA',
+  'Pension',
+  'Savings, CDs, brokerage & cash',
+  'Other',
+] as const
+
 export type AgeBand = (typeof AGE_OPTIONS)[number]
 export type SavingsBand = (typeof SAVINGS_OPTIONS)[number]
 export type IncomeTiming = (typeof TIMING_OPTIONS)[number]
 export type Priority = (typeof PRIORITY_OPTIONS)[number]
+export type AccountType = (typeof ACCOUNT_TYPE_OPTIONS)[number]
 
 export const QUALIFIER_QUESTIONS = [
   { key: 'ageBand', label: 'What is your age?', options: AGE_OPTIONS },
