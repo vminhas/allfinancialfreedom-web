@@ -58,6 +58,7 @@ export default function AnnuityLeadForm() {
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [consent, setConsent] = useState(false)
+  const [company, setCompany] = useState('') // honeypot; real users never see it
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -81,6 +82,7 @@ export default function AnnuityLeadForm() {
           firstName, lastName, email, phone,
           ...answers,
           consent,
+          company, // honeypot
           ...readAttribution(),
         }),
       })
@@ -105,6 +107,20 @@ export default function AnnuityLeadForm() {
 
   return (
     <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+      {/* Honeypot: hidden from real users + assistive tech; bots that fill
+          every field trip it and the server silently drops the lead. */}
+      <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, overflow: 'hidden' }}>
+        <label htmlFor="company">Company</label>
+        <input
+          id="company"
+          name="company"
+          type="text"
+          tabIndex={-1}
+          autoComplete="off"
+          value={company}
+          onChange={e => setCompany(e.target.value)}
+        />
+      </div>
       {QUALIFIER_QUESTIONS.map((q, i) => (
         <fieldset key={q.key} style={{ border: 'none', padding: 0, margin: 0 }}>
           <legend style={labelStyle}>{i + 1}. {q.label}</legend>
