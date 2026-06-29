@@ -260,6 +260,23 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ── FREE RETIREMENT INCOME ESTIMATE (lead landing page) ── */}
+      <section className="bg-navy-grad" style={{ padding: '64px 20px' }}>
+        <div className="max-w-3xl mx-auto text-center">
+          <span className="section-label">Free Estimate</span>
+          <h2 className="section-title-light mb-5">
+            Turn retirement savings into <em>reliable income</em> for life.
+          </h2>
+          <p className="rich-text-light mb-8 mx-auto" style={{ maxWidth: 540 }}>
+            Answer 4 quick questions and a licensed financial professional from All Financial Freedom
+            will prepare a personalized, no-obligation income estimate. No cost. No pressure.
+          </p>
+          <Link href="/retirement-income" className="btn-gold" style={{ display: 'inline-block' }}>
+            Get Your Free Estimate
+          </Link>
+        </div>
+      </section>
+
       {/* ── CARRIER PARTNERS ── */}
       <section className="py-14 px-5 md:px-12 lg:px-20 bg-white-section">
         <div className="max-w-6xl mx-auto">
