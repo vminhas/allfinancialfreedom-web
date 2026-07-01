@@ -503,6 +503,9 @@ model PersonalFinancialReview {
   dreamsAndGoals  Json         @default("[]")
   visionBoardUrl  String?
   whyStatement    String?
+  fears           Json         @default("[]")
+  strengths       Json         @default("[]")
+  weaknesses      Json         @default("[]")
   notes           String?
   updatedAt       DateTime     @updatedAt
   createdAt       DateTime     @default(now())

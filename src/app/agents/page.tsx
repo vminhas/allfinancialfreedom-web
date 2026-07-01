@@ -1752,6 +1752,7 @@ function AgentDashboardInner() {
                           onClick={e => {
                             e.stopPropagation()
                             if (item.action!.tab === 'pfr') { window.location.href = `/agents/pfr${previewToken ? `?preview=${encodeURIComponent(previewToken)}` : ''}`; return }
+                            if (item.action!.tab === 'goals') { window.location.href = `/agents/goals${previewToken ? `?preview=${encodeURIComponent(previewToken)}` : ''}`; return }
                             goToTab(item.action!.tab as typeof activeTab)
                           }}
                           style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 10, cursor: 'pointer', padding: '0 4px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 3 }}
@@ -6708,7 +6709,7 @@ function PfrReadOnly({ agentCode, agentFirstName, previewToken }: { agentCode: s
   if (error) return <div style={{ fontSize: 11, color: '#f87171' }}>{error}</div>
   if (!pfr) return <div style={{ fontSize: 11, color: '#4B5563' }}>{agentFirstName} hasn&apos;t started their PFR yet.</div>
 
-  const p = pfr as { monthlyIncome?: number; expenses?: Record<string, number>; assets?: Record<string, number>; debts?: Record<string, number>; buckets?: Record<string, number>; dreamsAndGoals?: { timeFrame: string; dream: string; why: string }[]; retirementAge?: number; spouseRetAge?: number; desiredMonthlyRetirement?: number; monthlySavingsCommitment?: number; whatWouldThisDo?: string; whatIsStopping?: string; visionBoardUrl?: string | null; whyStatement?: string }
+  const p = pfr as { monthlyIncome?: number; expenses?: Record<string, number>; assets?: Record<string, number>; debts?: Record<string, number>; buckets?: Record<string, number>; dreamsAndGoals?: { timeFrame: string; dream: string; why: string }[]; retirementAge?: number; spouseRetAge?: number; desiredMonthlyRetirement?: number; monthlySavingsCommitment?: number; whatWouldThisDo?: string; whatIsStopping?: string; visionBoardUrl?: string | null; whyStatement?: string; fears?: string[]; strengths?: string[]; weaknesses?: string[] }
   const fmt = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 })
   const expenses = p.expenses ?? {}
   const assets = p.assets ?? {}
@@ -6898,6 +6899,39 @@ function PfrReadOnly({ agentCode, agentFirstName, previewToken }: { agentCode: s
         </div>
       )}
 
+      {/* Self-Assessment */}
+      {(() => {
+        const fears = Array.isArray(p.fears) ? (p.fears as string[]).filter(Boolean) : []
+        const strengths = Array.isArray(p.strengths) ? (p.strengths as string[]).filter(Boolean) : []
+        const weaknesses = Array.isArray(p.weaknesses) ? (p.weaknesses as string[]).filter(Boolean) : []
+        if (!fears.length && !strengths.length && !weaknesses.length) return null
+        return (
+          <div style={{ marginTop: 8 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: '#6B8299', marginBottom: 6 }}>Self-Assessment</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+              {fears.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 8, fontWeight: 700, color: '#f87171', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Fears</div>
+                  {fears.map((f, i) => <div key={i} style={{ fontSize: 11, color: '#9BB0C4', marginBottom: 2 }}>{i + 1}. {f}</div>)}
+                </div>
+              )}
+              {strengths.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 8, fontWeight: 700, color: '#4ade80', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Strengths</div>
+                  {strengths.map((s, i) => <div key={i} style={{ fontSize: 11, color: '#9BB0C4', marginBottom: 2 }}>{i + 1}. {s}</div>)}
+                </div>
+              )}
+              {weaknesses.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 8, fontWeight: 700, color: '#f59e0b', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Weaknesses</div>
+                  {weaknesses.map((w, i) => <div key={i} style={{ fontSize: 11, color: '#9BB0C4', marginBottom: 2 }}>{i + 1}. {w}</div>)}
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Dreams & Goals */}
       {goals.length > 0 && (
         <div style={{ marginTop: 8 }}>
@@ -6906,7 +6940,7 @@ function PfrReadOnly({ agentCode, agentFirstName, previewToken }: { agentCode: s
             <div key={i} style={{ display: 'flex', gap: 8, fontSize: 11, color: '#9BB0C4', marginBottom: 3 }}>
               {g.timeFrame && <span style={{ color: '#C9A96E', fontWeight: 600, flexShrink: 0 }}>{String(g.timeFrame)}</span>}
               <span>{String(g.dream)}</span>
-              {g.why && <span style={{ color: '#4B5563' }}>&mdash; {String(g.why)}</span>}
+              {g.why && <span style={{ color: '#4B5563' }}>({String(g.why)})</span>}
             </div>
           ))}
         </div>
