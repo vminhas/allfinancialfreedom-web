@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ImagePlus, X, RefreshCw, ArrowLeft } from 'lucide-react'
+import { ImagePlus, X, RefreshCw } from 'lucide-react'
 import { useIsMobile } from '@/lib/useIsMobile'
 
 interface GoalsData {
@@ -50,10 +50,20 @@ function GoalsPageInner() {
   const [whySaved, setWhySaved] = useState(false)
   const [whyShowHistory, setWhyShowHistory] = useState(false)
 
+  const [goalSnapshots, setGoalSnapshots] = useState<{ id: string; goals: GoalsData['dreamsAndGoals']; createdAt: string }[]>([])
+  const [goalsDirty, setGoalsDirty] = useState(false)
+  const [goalsSaving, setGoalsSaving] = useState(false)
+  const [goalsSaved, setGoalsSaved] = useState(false)
+  const [goalsShowHistory, setGoalsShowHistory] = useState(false)
+
   useEffect(() => {
     fetch(`/api/agents/why-statements${qs}`).then(r => r.ok ? r.json() : null)
       .then((d: { statements?: { id: string; content: string; createdAt: string }[] } | null) => {
         if (d?.statements) setWhyStatements(d.statements)
+      })
+    fetch(`/api/agents/goal-snapshots${qs}`).then(r => r.ok ? r.json() : null)
+      .then((d: { snapshots?: { id: string; goals: GoalsData['dreamsAndGoals']; createdAt: string }[] } | null) => {
+        if (d?.snapshots) setGoalSnapshots(d.snapshots)
       })
     fetch(`/api/agents/pfr${qs}`).then(r => {
       if (r.status === 401 && !previewToken && !adminAgentId) { router.push('/agents/login'); return null }
@@ -76,12 +86,11 @@ function GoalsPageInner() {
     })
   }, [router, qs, previewToken, adminAgentId])
 
-  const save = useCallback(async (updated: GoalsData) => {
+  const saveAssessment = useCallback(async (updated: GoalsData) => {
     setSaving(true)
     await fetch(`/api/agents/pfr${qs}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        dreamsAndGoals: updated.dreamsAndGoals,
         fears: updated.fears,
         strengths: updated.strengths,
         weaknesses: updated.weaknesses,
@@ -91,8 +100,29 @@ function GoalsPageInner() {
     setLastSaved(new Date())
   }, [qs])
 
-  const updateField = <K extends keyof GoalsData>(key: K, value: GoalsData[K]) => {
-    const updated = { ...data, [key]: value }; setData(updated); save(updated)
+  const saveGoals = async () => {
+    if (goalsSaving) return
+    setGoalsSaving(true)
+    try {
+      const res = await fetch(`/api/agents/goal-snapshots${qs}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ goals: data.dreamsAndGoals }),
+      })
+      if (res.ok) {
+        const d = await res.json() as { snapshot: { id: string; goals: GoalsData['dreamsAndGoals']; createdAt: string } }
+        setGoalSnapshots(prev => [d.snapshot, ...prev])
+        setGoalsDirty(false)
+        setGoalsSaved(true)
+        setTimeout(() => setGoalsSaved(false), 3000)
+      }
+    } finally {
+      setGoalsSaving(false)
+    }
+  }
+
+  const updateAssessment = <K extends 'fears' | 'strengths' | 'weaknesses'>(key: K, value: GoalsData[K]) => {
+    const updated = { ...data, [key]: value }; setData(updated); saveAssessment(updated)
   }
 
   const handleVisionUpload = async (file: File) => {
@@ -100,7 +130,7 @@ function GoalsPageInner() {
     const fd = new FormData()
     fd.append('file', file)
     try {
-      const res = await fetch('/api/agents/vision-board', { method: 'POST', body: fd })
+      const res = await fetch(`/api/agents/vision-board${qs}`, { method: 'POST', body: fd })
       const json = await res.json() as { ok?: boolean; visionBoardUrl?: string; error?: string }
       if (json.ok && json.visionBoardUrl) setVisionBoardUrl(json.visionBoardUrl)
     } finally {
@@ -113,7 +143,7 @@ function GoalsPageInner() {
     if (!confirm('Remove your vision board?')) return
     setUploadingVision(true)
     try {
-      await fetch('/api/agents/vision-board', { method: 'DELETE' })
+      await fetch(`/api/agents/vision-board${qs}`, { method: 'DELETE' })
       setVisionBoardUrl(null)
     } finally {
       setUploadingVision(false)
@@ -151,53 +181,45 @@ function GoalsPageInner() {
   }
 
   const card: React.CSSProperties = {
-    background: '#132238', borderRadius: 10, padding: isMobile ? 16 : 24,
-    border: '1px solid rgba(201,169,110,0.08)', marginBottom: 16,
+    background: '#132238', border: '1px solid rgba(201,169,110,0.1)', borderRadius: 8,
+    padding: isMobile ? '16px 16px' : '20px 24px',
   }
   const lbl: React.CSSProperties = {
-    fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase',
-    color: '#C9A96E', marginBottom: 4,
+    fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase',
+    color: '#C9A96E', marginBottom: 8,
   }
   const inp: React.CSSProperties = {
-    width: '100%', background: 'rgba(255,255,255,0.03)',
-    border: '1px solid rgba(201,169,110,0.15)', borderRadius: 4,
-    color: '#ffffff', fontSize: 13, padding: '8px 10px',
-    outline: 'none',
+    width: '100%', padding: '8px 10px', fontSize: 13,
+    background: '#0A1628', border: '1px solid rgba(201,169,110,0.15)',
+    borderRadius: 4, color: '#ffffff', outline: 'none', textAlign: 'left',
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0A1628', color: '#ffffff' }}>
+    <div style={{ minHeight: '100vh', background: '#0A1628', color: '#ffffff', fontFamily: "'DM Sans', sans-serif" }}>
       <div style={{
-        position: 'sticky', top: 0, zIndex: 50,
-        background: '#0A1628', borderBottom: '1px solid rgba(201,169,110,0.08)',
-        padding: `calc(12px + env(safe-area-inset-top)) 16px 12px`,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: isMobile ? `calc(16px + env(safe-area-inset-top)) 16px 16px` : `calc(20px + env(safe-area-inset-top)) 32px 20px`,
+        borderBottom: '1px solid rgba(201,169,110,0.1)',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>
-        <button
-          onClick={() => router.back()}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            background: 'none', border: 'none', color: '#C9A96E',
-            fontSize: 12, fontWeight: 600, cursor: 'pointer',
-          }}
-        >
-          <ArrowLeft size={14} /> Back to portal
-        </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {saving && <span style={{ fontSize: 10, color: '#6B8299' }}>Saving...</span>}
-          {lastSaved && !saving && (
-            <span style={{ fontSize: 10, color: '#4ade80' }}>
-              Saved {lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
-          )}
+        <div>
+          <button
+            onClick={() => router.back()}
+            style={{
+              background: 'none', border: 'none', color: '#C9A96E',
+              fontSize: 12, cursor: 'pointer', padding: 0, marginBottom: 4,
+            }}
+          >
+            ← Back to Portal
+          </button>
+          <h1 style={{ fontSize: isMobile ? 16 : 20, fontWeight: 700, margin: 0, letterSpacing: '0.03em' }}>Goal Setting</h1>
+          <p style={{ fontSize: 11, color: '#6B8299', margin: '4px 0 0' }}>Define your vision, understand your strengths, and set meaningful goals. Auto-saves as you type.</p>
+        </div>
+        <div style={{ fontSize: 10, color: saving ? '#f59e0b' : '#4ade80' }}>
+          {saving ? 'Saving...' : lastSaved ? `Saved ${lastSaved.toLocaleTimeString()}` : ''}
         </div>
       </div>
 
-      <div style={{ maxWidth: 720, margin: '0 auto', padding: isMobile ? '16px 12px 80px' : '24px 16px 80px' }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: '#C9A96E', marginBottom: 4 }}>Goal Setting</h1>
-        <p style={{ fontSize: 12, color: '#6B8299', marginBottom: 24, lineHeight: 1.6 }}>
-          Define your vision, understand your strengths, and set meaningful goals to guide your journey.
-        </p>
+      <div style={{ padding: isMobile ? '16px' : '24px 32px', maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* Vision Board */}
         <div style={card}>
@@ -356,7 +378,7 @@ function GoalsPageInner() {
               color="#f87171"
               values={data.fears}
               placeholder="Describe a fear..."
-              onChange={vals => updateField('fears', vals)}
+              onChange={vals => updateAssessment('fears', vals)}
             />
             <div style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }} />
             <AssessmentSection
@@ -365,7 +387,7 @@ function GoalsPageInner() {
               color="#4ade80"
               values={data.strengths}
               placeholder="Describe a strength..."
-              onChange={vals => updateField('strengths', vals)}
+              onChange={vals => updateAssessment('strengths', vals)}
             />
             <div style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }} />
             <AssessmentSection
@@ -374,25 +396,41 @@ function GoalsPageInner() {
               color="#f59e0b"
               values={data.weaknesses}
               placeholder="Describe a weakness..."
-              onChange={vals => updateField('weaknesses', vals)}
+              onChange={vals => updateAssessment('weaknesses', vals)}
             />
           </div>
         </div>
 
         {/* Dreams & Goals */}
         <div style={card}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
             <div>
               <div style={lbl}>Dreams & Goals</div>
               <div style={{ fontSize: 11, color: '#6B8299' }}>What financial goals do you want to accomplish?</div>
             </div>
-            <button
-              onClick={() => {
-                const updated = { ...data, dreamsAndGoals: [...data.dreamsAndGoals, { timeFrame: '', dream: '', why: '' }] }
-                setData(updated); save(updated)
-              }}
-              style={{ background: '#C9A96E', color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}
-            >+ Add Goal</button>
+            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+              {goalsSaved && <span style={{ fontSize: 10, color: '#4ade80', fontWeight: 600, alignSelf: 'center' }}>Saved</span>}
+              <button
+                onClick={() => {
+                  setData(prev => ({ ...prev, dreamsAndGoals: [...prev.dreamsAndGoals, { timeFrame: '', dream: '', why: '' }] }))
+                  setGoalsDirty(true)
+                }}
+                style={{ background: 'transparent', border: '1px solid rgba(201,169,110,0.3)', borderRadius: 4, padding: '6px 14px', fontSize: 11, fontWeight: 700, color: '#C9A96E', cursor: 'pointer' }}
+              >+ Add Goal</button>
+              <button
+                onClick={saveGoals}
+                disabled={goalsSaving || !goalsDirty}
+                style={{
+                  background: goalsDirty ? '#C9A96E' : '#4B5563',
+                  color: '#142D48', border: 'none', borderRadius: 4, padding: '6px 14px',
+                  fontSize: 11, fontWeight: 700,
+                  cursor: goalsDirty ? 'pointer' : 'default',
+                  opacity: goalsSaving ? 0.6 : 1,
+                }}
+              >
+                {goalsSaving ? 'Saving...' : 'Save Goals'}
+              </button>
+            </div>
           </div>
 
           {data.dreamsAndGoals.length === 0 ? (
@@ -404,12 +442,12 @@ function GoalsPageInner() {
               {data.dreamsAndGoals.map((goal, i) => (
                 <div key={i} style={{
                   display: 'grid', gridTemplateColumns: isMobile ? '1fr 32px' : '100px 1fr 1fr 32px', gap: 8, alignItems: 'center',
-                  padding: '10px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 4, border: '1px solid rgba(255,255,255,0.04)',
+                  padding: '10px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid rgba(255,255,255,0.04)',
                 }}>
                   <select
                     value={goal.timeFrame}
-                    onChange={e => { const g = [...data.dreamsAndGoals]; g[i] = { ...g[i], timeFrame: e.target.value }; updateField('dreamsAndGoals', g) }}
-                    style={{ ...inp, textAlign: 'left', padding: '6px 8px', fontSize: 11, cursor: 'pointer' }}
+                    onChange={e => { const g = [...data.dreamsAndGoals]; g[i] = { ...g[i], timeFrame: e.target.value }; setData(prev => ({ ...prev, dreamsAndGoals: g })); setGoalsDirty(true) }}
+                    style={{ ...inp, textAlign: 'left', padding: '8px 10px', fontSize: 12, cursor: 'pointer' }}
                   >
                     <option value="">When?</option>
                     <option value="6 months">6 months</option>
@@ -420,19 +458,56 @@ function GoalsPageInner() {
                     <option value="20+ years">20+ years</option>
                   </select>
                   {isMobile && (
-                    <button onClick={() => updateField('dreamsAndGoals', data.dreamsAndGoals.filter((_, j) => j !== i))}
+                    <button onClick={() => { setData(prev => ({ ...prev, dreamsAndGoals: prev.dreamsAndGoals.filter((_, j) => j !== i) })); setGoalsDirty(true) }}
                       style={{ background: 'none', border: 'none', color: '#f87171', fontSize: 14, cursor: 'pointer', padding: 0, gridRow: '1 / 3' }} title="Remove">x</button>
                   )}
-                  <input value={goal.dream} onChange={e => { const g = [...data.dreamsAndGoals]; g[i] = { ...g[i], dream: e.target.value }; updateField('dreamsAndGoals', g) }}
-                    placeholder="Your dream or goal..." style={{ ...inp, textAlign: 'left', padding: '6px 8px', fontSize: 12, gridColumn: isMobile ? '1 / -1' : undefined }} />
-                  <input value={goal.why} onChange={e => { const g = [...data.dreamsAndGoals]; g[i] = { ...g[i], why: e.target.value }; updateField('dreamsAndGoals', g) }}
-                    placeholder="Why does this matter to you?" style={{ ...inp, textAlign: 'left', padding: '6px 8px', fontSize: 12, gridColumn: isMobile ? '1 / -1' : undefined }} />
+                  <input value={goal.dream} onChange={e => { const g = [...data.dreamsAndGoals]; g[i] = { ...g[i], dream: e.target.value }; setData(prev => ({ ...prev, dreamsAndGoals: g })); setGoalsDirty(true) }}
+                    placeholder="Your dream or goal..." style={{ ...inp, textAlign: 'left', padding: '8px 10px', fontSize: 13, gridColumn: isMobile ? '1 / -1' : undefined }} />
+                  <input value={goal.why} onChange={e => { const g = [...data.dreamsAndGoals]; g[i] = { ...g[i], why: e.target.value }; setData(prev => ({ ...prev, dreamsAndGoals: g })); setGoalsDirty(true) }}
+                    placeholder="Why does this matter to you?" style={{ ...inp, textAlign: 'left', padding: '8px 10px', fontSize: 13, gridColumn: isMobile ? '1 / -1' : undefined }} />
                   {!isMobile && (
-                    <button onClick={() => updateField('dreamsAndGoals', data.dreamsAndGoals.filter((_, j) => j !== i))}
+                    <button onClick={() => { setData(prev => ({ ...prev, dreamsAndGoals: prev.dreamsAndGoals.filter((_, j) => j !== i) })); setGoalsDirty(true) }}
                       style={{ background: 'none', border: 'none', color: '#f87171', fontSize: 14, cursor: 'pointer', padding: 0 }} title="Remove">x</button>
                   )}
                 </div>
               ))}
+            </div>
+          )}
+
+          {goalSnapshots.length > 0 && (
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+              <button onClick={() => setGoalsShowHistory(!goalsShowHistory)}
+                style={{ background: 'none', border: 'none', padding: 0, fontSize: 10, color: '#6B8299', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>
+                {goalsShowHistory ? 'Hide History' : `View History (${goalSnapshots.length} saved version${goalSnapshots.length === 1 ? '' : 's'})`}
+              </button>
+              {goalsShowHistory && (
+                <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {goalSnapshots.map(snap => {
+                    const goals = snap.goals as GoalsData['dreamsAndGoals']
+                    return (
+                      <div key={snap.id} style={{ padding: '12px 14px', borderRadius: 6, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderLeft: '3px solid rgba(201,169,110,0.2)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                          <div style={{ fontSize: 10, color: '#4B5563' }}>
+                            {new Date(snap.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at {new Date(snap.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                          <button
+                            onClick={() => { setData(prev => ({ ...prev, dreamsAndGoals: goals })); setGoalsDirty(true) }}
+                            style={{ background: 'none', border: '1px solid rgba(201,169,110,0.3)', borderRadius: 4, padding: '2px 8px', fontSize: 9, color: '#C9A96E', cursor: 'pointer' }}
+                          >Restore</button>
+                        </div>
+                        {goals.map((g, gi) => (
+                          <div key={gi} style={{ display: 'flex', gap: 8, fontSize: 11, color: '#9BB0C4', marginBottom: 2 }}>
+                            {g.timeFrame && <span style={{ color: '#C9A96E', fontWeight: 600, flexShrink: 0 }}>{g.timeFrame}</span>}
+                            <span>{g.dream}</span>
+                            {g.why && <span style={{ color: '#4B5563' }}>({g.why})</span>}
+                          </div>
+                        ))}
+                        {goals.length === 0 && <div style={{ fontSize: 11, color: '#4B5563', fontStyle: 'italic' }}>No goals in this version</div>}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>

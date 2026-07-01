@@ -404,6 +404,7 @@ model AgentProfile {
   agentNotesAbout       AgentNote[]                @relation("AgentNoteSubject")
   authoredAgentNotes    AgentNote[]                @relation("AgentNoteAuthorAgent")
   whyStatements         WhyStatement[]
+  goalSnapshots         GoalSnapshot[]
   slotFulfillments      AgentSlotFulfillment[]
 
   @@index([recruiterId])
@@ -522,6 +523,17 @@ model WhyStatement {
 
   @@index([agentProfileId, createdAt])
   @@map("why_statements")
+}
+
+model GoalSnapshot {
+  id              String       @id @default(cuid())
+  agentProfileId  String
+  agentProfile    AgentProfile @relation(fields: [agentProfileId], references: [id])
+  goals           Json
+  createdAt       DateTime     @default(now())
+
+  @@index([agentProfileId, createdAt])
+  @@map("goal_snapshots")
 }
 
 model PhaseItemDefinition {
