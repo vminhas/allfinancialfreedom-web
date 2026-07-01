@@ -7,17 +7,6 @@ import { PHASE_ITEMS } from '@/lib/agent-constants'
 import { resolveAgentTitle } from '@/lib/agent-title'
 import { loadTrainerContext, findTraineeProfiles } from '@/lib/trainer-trainees'
 
-// Static checklist totals per phase. Used to compute "X / Y complete"
-// for each team member without an extra DB query. If the checklist is
-// later DB-driven we can swap this for a PhaseItemDefinition.count().
-const PHASE_ITEM_TOTALS: Record<number, number> = {
-  1: PHASE_ITEMS[1]?.length ?? 0,
-  2: PHASE_ITEMS[2]?.length ?? 0,
-  3: PHASE_ITEMS[3]?.length ?? 0,
-  4: PHASE_ITEMS[4]?.length ?? 0,
-  5: PHASE_ITEMS[5]?.length ?? 0,
-}
-
 // memberStatus distinguishes lifecycle states a referred agent passes
 // through. The UI sorts ACTIVE → INVITED → PENDING → INACTIVE and renders
 // a status pill on each row.
@@ -190,6 +179,34 @@ export async function GET(req: NextRequest) {
     select: { agentProfileId: true, phase: true, itemKey: true, completedAt: true },
   })
 
+  // The live, editable checklist is the source of truth (admins edit these
+  // in the phase-items editor; the agent's own portal reads the same set —
+  // see me/route.ts). We fall back to the static PHASE_ITEMS only for a
+  // phase that has no definitions yet (fresh DB). Building the item list +
+  // totals from here keeps the trainer view identical to what the recruit
+  // actually sees in their portal.
+  const allDefs = await db.phaseItemDefinition.findMany({
+    select: { phase: true, itemKey: true, label: true },
+    orderBy: [{ phase: 'asc' }, { sortOrder: 'asc' }],
+  })
+  const defsByPhase = new Map<number, Array<{ key: string; label: string }>>()
+  const liveKeysByPhase = new Map<number, Set<string>>()
+  for (const d of allDefs) {
+    let arr = defsByPhase.get(d.phase)
+    if (!arr) { arr = []; defsByPhase.set(d.phase, arr) }
+    arr.push({ key: d.itemKey, label: d.label })
+    let ks = liveKeysByPhase.get(d.phase)
+    if (!ks) { ks = new Set(); liveKeysByPhase.set(d.phase, ks) }
+    ks.add(d.itemKey)
+  }
+  // Canonical item list for a phase: DB definitions when present, else the
+  // static constant (fresh-DB fallback).
+  const phaseItemsFor = (phase: number): Array<{ key: string; label: string }> => {
+    const defs = defsByPhase.get(phase)
+    if (defs && defs.length) return defs
+    return (PHASE_ITEMS[phase] ?? []).map(i => ({ key: i.key, label: i.label }))
+  }
+
   // PFR status per agent. One row per agent (agentProfileId is unique
   // on PersonalFinancialReview), so a single bulk query keyed into a
   // map is enough — no row means the agent never opened the tool.
@@ -237,11 +254,17 @@ export async function GET(req: NextRequest) {
 
   function computeProgress(a: typeof allAgents[0]): TeamProgress {
     const entry = progressByAgent.get(a.id)
-    const perPhase = [1, 2, 3, 4, 5, 6].map(p => ({
-      phase: p,
-      completed: entry?.perPhase.get(p) ?? 0,
-      total: PHASE_ITEM_TOTALS[p] ?? 0,
-    }))
+    const perPhase = [1, 2, 3, 4, 5, 6].map(p => {
+      const items = phaseItemsFor(p)
+      const liveKeys = liveKeysByPhase.get(p) // undefined => fell back to static
+      const completedKeys = entry?.completedKeysByPhase.get(p) ?? new Set<string>()
+      // Count only completions still present in the live checklist, so a
+      // deleted/renamed item can't inflate the count over the real total.
+      const completed = liveKeys
+        ? [...completedKeys].filter(k => liveKeys.has(k)).length
+        : completedKeys.size
+      return { phase: p, completed: Math.min(completed, items.length), total: items.length }
+    })
     const current = perPhase.find(p => p.phase === a.phase) ?? { completed: 0, total: 0 }
     const daysInPhase = a.phaseStartedAt
       ? Math.max(0, Math.floor((Date.now() - a.phaseStartedAt.getTime()) / 86_400_000))
@@ -255,10 +278,9 @@ export async function GET(req: NextRequest) {
     // sees the same sequence the recruit sees in their portal.
     const checklistsByPhase = [1, 2, 3, 4, 5, 6].map(p => {
       const completedKeys = entry?.completedKeysByPhase.get(p) ?? new Set<string>()
-      const items = PHASE_ITEMS[p] ?? []
       return {
         phase: p,
-        items: items.map(item => ({
+        items: phaseItemsFor(p).map(item => ({
           key: item.key,
           label: item.label,
           completed: completedKeys.has(item.key),

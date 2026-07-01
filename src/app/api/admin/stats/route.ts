@@ -10,14 +10,14 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const [profiles, phaseItemCounts, recentLogins] = await Promise.all([
+  const [profiles, phaseItemCounts, recentLogins, phaseDefs] = await Promise.all([
     db.agentProfile.findMany({
       select: {
         phase: true,
         status: true,
         phaseStartedAt: true,
         icaDate: true,
-        phaseItems: { select: { phase: true, completed: true } },
+        phaseItems: { select: { phase: true, completed: true, itemKey: true } },
       },
     }),
     db.phaseItem.groupBy({
@@ -27,7 +27,26 @@ export async function GET() {
     db.agentUser.count({
       where: { lastLoginAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
     }),
+    // Live checklist definitions — the source of truth for phase totals
+    // (mirrors the agent portal + trainer view). Fall back to static only
+    // for a phase with no definitions yet.
+    db.phaseItemDefinition.findMany({ select: { phase: true, itemKey: true } }),
   ])
+
+  const liveKeysByPhase = new Map<number, Set<string>>()
+  for (const d of phaseDefs) {
+    let ks = liveKeysByPhase.get(d.phase)
+    if (!ks) { ks = new Set(); liveKeysByPhase.set(d.phase, ks) }
+    ks.add(d.itemKey)
+  }
+  // Total + completed for an agent's phase, counted against the live
+  // checklist (deleted items can't inflate; static only as fallback).
+  const phaseTotals = (phase: number, items: { phase: number; completed: boolean; itemKey: string }[]) => {
+    const liveKeys = liveKeysByPhase.get(phase)
+    const total = liveKeys ? liveKeys.size : (PHASE_ITEMS[phase]?.length ?? 0)
+    const completed = items.filter(i => i.phase === phase && i.completed && (!liveKeys || liveKeys.has(i.itemKey))).length
+    return { total, completed }
+  }
 
   const totalAgents = profiles.length
   const activeAgents = profiles.filter(p => p.status === 'ACTIVE').length
@@ -50,8 +69,7 @@ export async function GET() {
     if (p.status !== 'ACTIVE' || !p.phaseStartedAt) continue
     const threshold = AT_RISK_THRESHOLDS[p.phase]
     if (!threshold) continue
-    const totalItems = PHASE_ITEMS[p.phase]?.length ?? 0
-    const completedItems = p.phaseItems.filter(i => i.phase === p.phase && i.completed).length
+    const { total: totalItems, completed: completedItems } = phaseTotals(p.phase, p.phaseItems)
     const pct = totalItems > 0 ? completedItems / totalItems : 0
     const daysInPhase = Math.floor((Date.now() - p.phaseStartedAt.getTime()) / 86400000)
     if (daysInPhase > threshold.days * 1.5 && pct < threshold.minPct) atRiskCount++
@@ -65,8 +83,7 @@ export async function GET() {
     // promote to (Phase 6 is the terminal EMD-titled level until
     // higher ranks are added).
     if (p.status !== 'ACTIVE' || p.phase >= 6) continue
-    const totalItems = PHASE_ITEMS[p.phase]?.length ?? 0
-    const completedItems = p.phaseItems.filter(i => i.phase === p.phase && i.completed).length
+    const { total: totalItems, completed: completedItems } = phaseTotals(p.phase, p.phaseItems)
     if (totalItems > 0 && completedItems >= totalItems) readyToPromoteCount++
   }
 

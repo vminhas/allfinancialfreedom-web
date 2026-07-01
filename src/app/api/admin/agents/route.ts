@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
       include: {
         agentUser: { select: { email: true, lastLoginAt: true } },
-        phaseItems: { select: { phase: true, completed: true } },
+        phaseItems: { select: { phase: true, completed: true, itemKey: true } },
         carrierAppointments: { select: { status: true } },
         _count: { select: { milestones: true } },
       },
@@ -124,10 +124,22 @@ export async function GET(req: NextRequest) {
     reviewAggByAgent.set(r.agentProfileId, a)
   }
 
+  // Live checklist definitions are the source of truth for "ready to
+  // promote" (mirrors the agent portal + trainer view). Fall back to the
+  // static count only for a phase that has no definitions yet.
+  const defRows = await db.phaseItemDefinition.findMany({ select: { phase: true, itemKey: true } })
+  const liveKeysByPhase = new Map<number, Set<string>>()
+  for (const d of defRows) {
+    let ks = liveKeysByPhase.get(d.phase)
+    if (!ks) { ks = new Set(); liveKeysByPhase.set(d.phase, ks) }
+    ks.add(d.itemKey)
+  }
+
   const agents = profiles.map(p => {
-    const phaseTotal = PHASE_ITEMS[p.phase]?.length ?? 0
+    const liveKeys = liveKeysByPhase.get(p.phase)
+    const phaseTotal = liveKeys ? liveKeys.size : (PHASE_ITEMS[p.phase]?.length ?? 0)
     const phaseCompleted = p.phaseItems.filter(
-      i => i.phase === p.phase && i.completed
+      i => i.phase === p.phase && i.completed && (!liveKeys || liveKeys.has(i.itemKey))
     ).length
     const appointed = p.carrierAppointments.filter(c => c.status === 'APPOINTED').length
     const agg = reviewAggByAgent.get(p.id)
