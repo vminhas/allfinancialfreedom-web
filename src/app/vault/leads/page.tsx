@@ -22,6 +22,8 @@ interface Lead {
   incomeTiming: string
   priority: string
   accountTypes: string[]
+  referralSource: string | null
+  referrerName: string | null
   source: string
   score: LeadScore
   status: LeadStatus
@@ -183,6 +185,10 @@ export default function VaultLeadsPage() {
                     {l.ghlContactId && <div style={{ ...detailVal, color: '#6B8299' }}>GHL contact: {l.ghlContactId}</div>}
                     <div style={{ ...detailLabel, marginTop: 12 }}>Retirement accounts</div>
                     <div style={detailVal}>{l.accountTypes?.length ? l.accountTypes.join(', ') : '—'}</div>
+                    {l.referralSource && <>
+                      <div style={{ ...detailLabel, marginTop: 12 }}>How they heard about us</div>
+                      <div style={detailVal}>{l.referralSource}{l.referrerName ? ` · referred by ${l.referrerName}` : ''}</div>
+                    </>}
                     <div style={{ ...detailLabel, marginTop: 12 }}>Attribution</div>
                     <div style={detailVal}>{[l.utmSource, l.utmMedium, l.utmCampaign].filter(Boolean).join(' / ') || 'Direct / unknown'}</div>
                     {l.fbclid && <div style={{ ...detailVal, color: '#6B8299', wordBreak: 'break-all' }}>fbclid: {l.fbclid}</div>}

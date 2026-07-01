@@ -43,6 +43,20 @@ export const ACCOUNT_TYPE_OPTIONS = [
   'Other',
 ] as const
 
+// Optional "how did you hear about us?" single-select. The AFF-agent
+// option reveals a referrer-name field on the form.
+export const REFERRAL_SOURCE_OPTIONS = [
+  'An All Financial Freedom agent',
+  'Friend or family',
+  'Facebook or Instagram',
+  'Google or web search',
+  'Other',
+] as const
+// The one option that asks for a referrer name.
+export const REFERRAL_AGENT_OPTION = 'An All Financial Freedom agent'
+
+export type ReferralSource = (typeof REFERRAL_SOURCE_OPTIONS)[number]
+
 export type AgeBand = (typeof AGE_OPTIONS)[number]
 export type SavingsBand = (typeof SAVINGS_OPTIONS)[number]
 export type IncomeTiming = (typeof TIMING_OPTIONS)[number]

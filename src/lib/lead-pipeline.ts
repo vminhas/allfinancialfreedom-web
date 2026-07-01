@@ -110,7 +110,10 @@ export interface LeadDiscordInput {
   phone: string
   score: LeadScore
   source: string
-  lead: { ageBand: string; savingsBand: string; incomeTiming: string; priority: string; accountTypes: string[] }
+  lead: {
+    ageBand: string; savingsBand: string; incomeTiming: string; priority: string; accountTypes: string[]
+    referralSource?: string | null; referrerName?: string | null
+  }
 }
 
 // Post the lead to the staff-only leads channel. Uses a dedicated
@@ -136,6 +139,11 @@ export async function notifyLeadDiscord(opts: LeadDiscordInput): Promise<void> {
           { name: 'Income starts', value: opts.lead.incomeTiming, inline: true },
           { name: 'Priority', value: opts.lead.priority, inline: true },
           { name: 'Accounts', value: opts.lead.accountTypes.length ? opts.lead.accountTypes.join(', ') : '—', inline: false },
+          ...(opts.lead.referralSource ? [{
+            name: 'Referral',
+            value: opts.lead.referralSource + (opts.lead.referrerName ? ` · ${opts.lead.referrerName}` : ''),
+            inline: false,
+          }] : []),
         ],
       }],
     })
