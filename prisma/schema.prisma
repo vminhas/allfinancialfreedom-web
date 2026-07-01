@@ -2185,6 +2185,11 @@ model AnnuityLead {
   // as the human-readable option labels (validated against a fixed set).
   accountTypes String[] @default([]) @map("account_types")
 
+  // Optional "how did you hear about us?" attribution. referrerName is the
+  // agent/employee name when referralSource is the AFF-agent option.
+  referralSource String? @map("referral_source")
+  referrerName   String? @map("referrer_name")
+
   score  LeadScore  @default(STANDARD)
   status LeadStatus @default(NEW)
 

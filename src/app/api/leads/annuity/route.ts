@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { validatePhone, validateEmail } from '@/lib/contact-validation'
 import {
   AGE_OPTIONS, SAVINGS_OPTIONS, TIMING_OPTIONS, PRIORITY_OPTIONS, ACCOUNT_TYPE_OPTIONS,
+  REFERRAL_SOURCE_OPTIONS, REFERRAL_AGENT_OPTION,
   CONSENT_TEXT, scoreLead,
 } from '@/lib/annuity-leads'
 import { sendMetaLeadEvent } from '@/lib/meta-capi'
@@ -38,6 +39,8 @@ interface LeadBody {
   incomeTiming?: unknown
   priority?: unknown
   accountTypes?: unknown
+  referralSource?: unknown
+  referrerName?: unknown
   consent?: unknown
   pageUrl?: unknown
   referrer?: unknown
@@ -108,6 +111,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Please select at least one retirement account type.' }, { status: 400 })
   }
 
+  // Optional referral / attribution. Source must be one of the fixed
+  // options; the referrer name is only kept when the AFF-agent option is
+  // chosen (sanitized like any name).
+  const referralSource = oneOf(REFERRAL_SOURCE_OPTIONS, body.referralSource) ? body.referralSource : null
+  const referrerName = referralSource === REFERRAL_AGENT_OPTION && str(body.referrerName)
+    ? sanitizeName(body.referrerName as string) || null
+    : null
+
   // Consent is required and explicit. We store our own server-side
   // CONSENT_TEXT constant, never client-supplied text, so the record is
   // tamper-proof.
@@ -138,6 +149,8 @@ export async function POST(req: NextRequest) {
       incomeTiming: body.incomeTiming,
       priority: body.priority,
       accountTypes,
+      referralSource,
+      referrerName,
       score,
       source: 'landing_page',
       consentText: CONSENT_TEXT,

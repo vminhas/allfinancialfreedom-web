@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   QUALIFIER_QUESTIONS, ACCOUNT_TYPE_OPTIONS, CONSENT_TEXT,
+  REFERRAL_SOURCE_OPTIONS, REFERRAL_AGENT_OPTION,
 } from '@/lib/annuity-leads'
 
 const chipStyle = (selected: boolean): React.CSSProperties => ({
@@ -72,6 +73,8 @@ export default function AnnuityLeadForm() {
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
+  const [referralSource, setReferralSource] = useState('')
+  const [referrerName, setReferrerName] = useState('')
   const [consent, setConsent] = useState(false)
   const [company, setCompany] = useState('') // honeypot; real users never see it
   const [submitting, setSubmitting] = useState(false)
@@ -101,6 +104,8 @@ export default function AnnuityLeadForm() {
           firstName, lastName, email, phone,
           ...answers,
           accountTypes,
+          referralSource,
+          referrerName: referralSource === REFERRAL_AGENT_OPTION ? referrerName : '',
           consent,
           company, // honeypot
           ...readAttribution(),
@@ -218,6 +223,38 @@ export default function AnnuityLeadForm() {
         <label style={labelStyle} htmlFor="ph">Phone</label>
         <input id="ph" type="tel" style={inputStyle} value={phone} onChange={e => setPhone(e.target.value)} required autoComplete="tel" placeholder="(555) 555-5555" />
       </div>
+
+      {/* Optional referral / attribution. No validation; can be left blank. */}
+      <fieldset style={{ border: 'none', padding: 0, margin: 0 }}>
+        <legend style={labelStyle}>
+          How did you hear about us? <span style={{ fontWeight: 400, color: '#6B8299' }}>(optional)</span>
+        </legend>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {REFERRAL_SOURCE_OPTIONS.map(opt => {
+            const selected = referralSource === opt
+            return (
+              <label key={opt} style={chipStyle(selected)}>
+                <input
+                  type="radio"
+                  name="referralSource"
+                  value={opt}
+                  checked={selected}
+                  onChange={() => setReferralSource(selected ? '' : opt)}
+                  onClick={() => { if (selected) setReferralSource('') }}
+                  style={{ display: 'none' }}
+                />
+                {opt}
+              </label>
+            )
+          })}
+        </div>
+        {referralSource === REFERRAL_AGENT_OPTION && (
+          <div style={{ marginTop: 10 }}>
+            <label style={labelStyle} htmlFor="ref">Who referred you? (agent name)</label>
+            <input id="ref" style={inputStyle} value={referrerName} onChange={e => setReferrerName(e.target.value)} placeholder="First and last name" autoComplete="off" />
+          </div>
+        )}
+      </fieldset>
 
       {/* TCPA consent. Required, unchecked by default, full disclosure
           rendered verbatim above the submit button. */}
