@@ -345,30 +345,35 @@ function GoalsPageInner() {
         {/* Fears, Strengths, Weaknesses */}
         <div style={card}>
           <div style={lbl}>Self-Assessment</div>
-          <div style={{ fontSize: 11, color: '#6B8299', lineHeight: 1.6, marginBottom: 16 }}>
+          <div style={{ fontSize: 12, color: '#6B8299', lineHeight: 1.6, marginBottom: 20 }}>
             Knowing your fears, strengths, and weaknesses helps you grow faster. Be honest with yourself.
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 16 }}>
-            <TripleInput
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <AssessmentSection
               label="3 Fears"
+              description="What holds you back or scares you about this journey?"
               color="#f87171"
               values={data.fears}
-              placeholder="What scares you?"
+              placeholder="Describe a fear..."
               onChange={vals => updateField('fears', vals)}
             />
-            <TripleInput
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }} />
+            <AssessmentSection
               label="3 Strengths"
+              description="What skills and qualities will help you succeed?"
               color="#4ade80"
               values={data.strengths}
-              placeholder="What are you great at?"
+              placeholder="Describe a strength..."
               onChange={vals => updateField('strengths', vals)}
             />
-            <TripleInput
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }} />
+            <AssessmentSection
               label="3 Weaknesses"
+              description="Where do you need the most growth and development?"
               color="#f59e0b"
               values={data.weaknesses}
-              placeholder="Where do you need growth?"
+              placeholder="Describe a weakness..."
               onChange={vals => updateField('weaknesses', vals)}
             />
           </div>
@@ -436,8 +441,8 @@ function GoalsPageInner() {
   )
 }
 
-function TripleInput({ label, color, values, placeholder, onChange }: {
-  label: string; color: string; values: string[]; placeholder: string
+function AssessmentSection({ label, description, color, values, placeholder, onChange }: {
+  label: string; description: string; color: string; values: string[]; placeholder: string
   onChange: (vals: string[]) => void
 }) {
   const update = (idx: number, val: string) => {
@@ -448,22 +453,40 @@ function TripleInput({ label, color, values, placeholder, onChange }: {
 
   return (
     <div>
-      <div style={{ fontSize: 10, fontWeight: 700, color, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>
-        {label}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        <div style={{ width: 4, height: 16, borderRadius: 2, background: color, flexShrink: 0 }} />
+        <div style={{ fontSize: 11, fontWeight: 700, color, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+          {label}
+        </div>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ fontSize: 11, color: '#6B8299', lineHeight: 1.5, marginBottom: 12, paddingLeft: 12 }}>
+        {description}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {[0, 1, 2].map(i => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color, width: 16, textAlign: 'center', flexShrink: 0 }}>{i + 1}</span>
-            <input
+          <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+            <div style={{
+              width: 24, height: 24, borderRadius: '50%', flexShrink: 0, marginTop: 4,
+              background: `${color}15`, border: `1px solid ${color}30`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 11, fontWeight: 700, color,
+            }}>
+              {i + 1}
+            </div>
+            <textarea
               value={values[i] || ''}
               onChange={e => update(i, e.target.value)}
               placeholder={placeholder}
+              rows={2}
               style={{
                 flex: 1, background: 'rgba(255,255,255,0.03)',
-                border: `1px solid ${color}25`, borderRadius: 4,
-                color: '#ffffff', fontSize: 12, padding: '8px 10px', outline: 'none',
+                border: `1px solid ${color}20`, borderRadius: 6,
+                color: '#ffffff', fontSize: 13, padding: '10px 14px',
+                outline: 'none', resize: 'vertical', fontFamily: 'inherit',
+                lineHeight: 1.6, minHeight: 52,
               }}
+              onFocus={e => { e.currentTarget.style.borderColor = `${color}50` }}
+              onBlur={e => { e.currentTarget.style.borderColor = `${color}20` }}
             />
           </div>
         ))}

@@ -5862,6 +5862,7 @@ function TeamMemberNode({ node, depth, isMobile, onOpenCard, previewToken }: { n
   // on either recruiter OR cft-trainer match.
   const [showContacts, setShowContacts] = useState(false)
   const [showPfr, setShowPfr] = useState(false)
+  const [showGoals, setShowGoals] = useState(false)
   const [showNotes, setShowNotes] = useState(false)
   const [reminding, setReminding] = useState(false)
   const [remindMsg, setRemindMsg] = useState<string | null>(null)
@@ -6103,6 +6104,20 @@ function TeamMemberNode({ node, depth, isMobile, onOpenCard, previewToken }: { n
             {showPfr ? 'Hide' : 'View'} PFR
           </button>
         )}
+        {node.memberStatus === 'ACTIVE' && node.agentCode && node.pfrHasRecord && (
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowGoals(s => !s) }}
+            style={{
+              padding: '4px 10px', borderRadius: 4,
+              background: showGoals ? 'rgba(201,169,110,0.18)' : 'transparent',
+              border: '1px solid rgba(201,169,110,0.35)', color: '#C9A96E',
+              fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+              cursor: 'pointer', flexShrink: 0,
+            }}
+          >
+            {showGoals ? 'Hide' : 'View'} goals
+          </button>
+        )}
         {node.memberStatus === 'ACTIVE' && node.agentCode && (
           <button
             onClick={(e) => { e.stopPropagation(); setShowNotes(s => !s) }}
@@ -6279,6 +6294,18 @@ function TeamMemberNode({ node, depth, isMobile, onOpenCard, previewToken }: { n
           borderRadius: 6,
         }}>
           <PfrReadOnly agentCode={node.agentCode} agentFirstName={node.firstName} previewToken={previewToken} />
+        </div>
+      )}
+      {showGoals && node.agentCode && (
+        <div style={{
+          marginLeft: isMobile ? depth * 16 + 14 : depth * 32 + 14,
+          marginTop: 6,
+          padding: '12px 14px',
+          background: 'rgba(201,169,110,0.04)',
+          border: '1px solid rgba(201,169,110,0.15)',
+          borderRadius: 6,
+        }}>
+          <GoalsReadOnly agentCode={node.agentCode} agentFirstName={node.firstName} previewToken={previewToken} />
         </div>
       )}
       {showNotes && node.agentCode && (
@@ -6694,8 +6721,6 @@ function PfrReadOnly({ agentCode, agentFirstName, previewToken }: { agentCode: s
   const [pfr, setPfr] = useState<Record<string, unknown> | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [visionLightbox, setVisionLightbox] = useState(false)
-
   useEffect(() => {
     const url = `/api/agents/trainees/${agentCode}/pfr${previewToken ? `?preview=${encodeURIComponent(previewToken)}` : ''}`
     fetch(url)
@@ -6709,13 +6734,12 @@ function PfrReadOnly({ agentCode, agentFirstName, previewToken }: { agentCode: s
   if (error) return <div style={{ fontSize: 11, color: '#f87171' }}>{error}</div>
   if (!pfr) return <div style={{ fontSize: 11, color: '#4B5563' }}>{agentFirstName} hasn&apos;t started their PFR yet.</div>
 
-  const p = pfr as { monthlyIncome?: number; expenses?: Record<string, number>; assets?: Record<string, number>; debts?: Record<string, number>; buckets?: Record<string, number>; dreamsAndGoals?: { timeFrame: string; dream: string; why: string }[]; retirementAge?: number; spouseRetAge?: number; desiredMonthlyRetirement?: number; monthlySavingsCommitment?: number; whatWouldThisDo?: string; whatIsStopping?: string; visionBoardUrl?: string | null; whyStatement?: string; fears?: string[]; strengths?: string[]; weaknesses?: string[] }
+  const p = pfr as { monthlyIncome?: number; expenses?: Record<string, number>; assets?: Record<string, number>; debts?: Record<string, number>; buckets?: Record<string, number>; retirementAge?: number; spouseRetAge?: number; desiredMonthlyRetirement?: number; monthlySavingsCommitment?: number; whatWouldThisDo?: string; whatIsStopping?: string }
   const fmt = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 })
   const expenses = p.expenses ?? {}
   const assets = p.assets ?? {}
   const debts = p.debts ?? {}
   const buckets = p.buckets ?? {}
-  const goals = p.dreamsAndGoals ?? []
 
   const totalExpenses = Object.values(expenses).reduce((a, b) => a + (b || 0), 0)
   const totalAssets = Object.values(assets).reduce((a, b) => a + (b || 0), 0)
@@ -6877,10 +6901,47 @@ function PfrReadOnly({ agentCode, agentFirstName, previewToken }: { agentCode: s
         </div>
       )}
 
-      {/* Vision Board */}
+    </div>
+  )
+}
+
+function GoalsReadOnly({ agentCode, agentFirstName, previewToken }: { agentCode: string; agentFirstName: string; previewToken?: string | null }) {
+  const [pfr, setPfr] = useState<Record<string, unknown> | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [visionLightbox, setVisionLightbox] = useState(false)
+
+  useEffect(() => {
+    const url = `/api/agents/trainees/${agentCode}/pfr${previewToken ? `?preview=${encodeURIComponent(previewToken)}` : ''}`
+    fetch(url)
+      .then(r => { if (!r.ok) throw new Error('Access denied'); return r.json() })
+      .then((d: { pfr: Record<string, unknown> | null }) => setPfr(d.pfr))
+      .catch(() => setError('Could not load goals'))
+      .finally(() => setLoading(false))
+  }, [agentCode, previewToken])
+
+  if (loading) return <div style={{ fontSize: 11, color: '#6B8299' }}>Loading {agentFirstName}&apos;s goals...</div>
+  if (error) return <div style={{ fontSize: 11, color: '#f87171' }}>{error}</div>
+  if (!pfr) return <div style={{ fontSize: 11, color: '#4B5563' }}>{agentFirstName} hasn&apos;t set any goals yet.</div>
+
+  const p = pfr as { dreamsAndGoals?: { timeFrame: string; dream: string; why: string }[]; visionBoardUrl?: string | null; whyStatement?: string; fears?: string[]; strengths?: string[]; weaknesses?: string[] }
+  const goals = p.dreamsAndGoals ?? []
+  const fears = Array.isArray(p.fears) ? (p.fears as string[]).filter(Boolean) : []
+  const strengths = Array.isArray(p.strengths) ? (p.strengths as string[]).filter(Boolean) : []
+  const weaknesses = Array.isArray(p.weaknesses) ? (p.weaknesses as string[]).filter(Boolean) : []
+  const hasGoalsData = goals.length > 0 || p.visionBoardUrl || p.whyStatement || fears.length > 0 || strengths.length > 0 || weaknesses.length > 0
+
+  if (!hasGoalsData) return <div style={{ fontSize: 11, color: '#4B5563' }}>{agentFirstName} hasn&apos;t set any goals yet.</div>
+
+  return (
+    <div>
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 10 }}>
+        {agentFirstName}&apos;s Goal Setting
+      </div>
+
       {p.visionBoardUrl && (
-        <div style={{ marginTop: 8 }}>
-          <div style={{ fontSize: 9, fontWeight: 700, color: '#6B8299', marginBottom: 4 }}>My Vision Board</div>
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: '#6B8299', marginBottom: 4 }}>Vision Board</div>
           <div
             onClick={() => setVisionLightbox(true)}
             style={{ cursor: 'pointer', borderRadius: 4, overflow: 'hidden', border: '1px solid rgba(201,169,110,0.12)' }}
@@ -6891,50 +6952,41 @@ function PfrReadOnly({ agentCode, agentFirstName, previewToken }: { agentCode: s
         </div>
       )}
 
-      {/* Your Why */}
       {p.whyStatement && (
-        <div style={{ marginTop: 8 }}>
-          <div style={{ fontSize: 9, fontWeight: 700, color: '#6B8299', marginBottom: 4 }}>Your &ldquo;Why&rdquo;</div>
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: '#6B8299', marginBottom: 4 }}>Their &ldquo;Why&rdquo;</div>
           <div style={{ fontSize: 11, color: '#9BB0C4', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{p.whyStatement}</div>
         </div>
       )}
 
-      {/* Self-Assessment */}
-      {(() => {
-        const fears = Array.isArray(p.fears) ? (p.fears as string[]).filter(Boolean) : []
-        const strengths = Array.isArray(p.strengths) ? (p.strengths as string[]).filter(Boolean) : []
-        const weaknesses = Array.isArray(p.weaknesses) ? (p.weaknesses as string[]).filter(Boolean) : []
-        if (!fears.length && !strengths.length && !weaknesses.length) return null
-        return (
-          <div style={{ marginTop: 8 }}>
-            <div style={{ fontSize: 9, fontWeight: 700, color: '#6B8299', marginBottom: 6 }}>Self-Assessment</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-              {fears.length > 0 && (
-                <div>
-                  <div style={{ fontSize: 8, fontWeight: 700, color: '#f87171', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Fears</div>
-                  {fears.map((f, i) => <div key={i} style={{ fontSize: 11, color: '#9BB0C4', marginBottom: 2 }}>{i + 1}. {f}</div>)}
-                </div>
-              )}
-              {strengths.length > 0 && (
-                <div>
-                  <div style={{ fontSize: 8, fontWeight: 700, color: '#4ade80', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Strengths</div>
-                  {strengths.map((s, i) => <div key={i} style={{ fontSize: 11, color: '#9BB0C4', marginBottom: 2 }}>{i + 1}. {s}</div>)}
-                </div>
-              )}
-              {weaknesses.length > 0 && (
-                <div>
-                  <div style={{ fontSize: 8, fontWeight: 700, color: '#f59e0b', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Weaknesses</div>
-                  {weaknesses.map((w, i) => <div key={i} style={{ fontSize: 11, color: '#9BB0C4', marginBottom: 2 }}>{i + 1}. {w}</div>)}
-                </div>
-              )}
-            </div>
+      {(fears.length > 0 || strengths.length > 0 || weaknesses.length > 0) && (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: '#6B8299', marginBottom: 6 }}>Self-Assessment</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+            {fears.length > 0 && (
+              <div>
+                <div style={{ fontSize: 8, fontWeight: 700, color: '#f87171', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Fears</div>
+                {fears.map((f, i) => <div key={i} style={{ fontSize: 11, color: '#9BB0C4', marginBottom: 2 }}>{i + 1}. {f}</div>)}
+              </div>
+            )}
+            {strengths.length > 0 && (
+              <div>
+                <div style={{ fontSize: 8, fontWeight: 700, color: '#4ade80', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Strengths</div>
+                {strengths.map((s, i) => <div key={i} style={{ fontSize: 11, color: '#9BB0C4', marginBottom: 2 }}>{i + 1}. {s}</div>)}
+              </div>
+            )}
+            {weaknesses.length > 0 && (
+              <div>
+                <div style={{ fontSize: 8, fontWeight: 700, color: '#f59e0b', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Weaknesses</div>
+                {weaknesses.map((w, i) => <div key={i} style={{ fontSize: 11, color: '#9BB0C4', marginBottom: 2 }}>{i + 1}. {w}</div>)}
+              </div>
+            )}
           </div>
-        )
-      })()}
+        </div>
+      )}
 
-      {/* Dreams & Goals */}
       {goals.length > 0 && (
-        <div style={{ marginTop: 8 }}>
+        <div style={{ marginBottom: 8 }}>
           <div style={{ fontSize: 9, fontWeight: 700, color: '#6B8299', marginBottom: 4 }}>Dreams & Goals</div>
           {goals.map((g, i) => (
             <div key={i} style={{ display: 'flex', gap: 8, fontSize: 11, color: '#9BB0C4', marginBottom: 3 }}>
@@ -6946,7 +6998,6 @@ function PfrReadOnly({ agentCode, agentFirstName, previewToken }: { agentCode: s
         </div>
       )}
 
-      {/* Vision Board Lightbox */}
       {visionLightbox && p.visionBoardUrl && (
         <div
           onClick={() => setVisionLightbox(false)}
