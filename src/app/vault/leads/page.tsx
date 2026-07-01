@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { REFERRAL_SOURCE_OPTIONS, REFERRAL_AGENT_OPTION } from '@/lib/annuity-leads'
 
 const card: React.CSSProperties = { background: '#132238', border: '1px solid rgba(201,169,110,0.1)', borderRadius: 6 }
 const sectionLabel: React.CSSProperties = { fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C9A96E', marginBottom: 14 }
@@ -58,6 +59,7 @@ export default function VaultLeadsPage() {
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [scoreFilter, setScoreFilter] = useState<string>('')
+  const [referralFilter, setReferralFilter] = useState<string>('')
   const [q, setQ] = useState('')
   const [expanded, setExpanded] = useState<string | null>(null)
 
@@ -66,6 +68,7 @@ export default function VaultLeadsPage() {
     const params = new URLSearchParams()
     if (statusFilter) params.set('status', statusFilter)
     if (scoreFilter) params.set('score', scoreFilter)
+    if (referralFilter) params.set('referral', referralFilter)
     if (q.trim()) params.set('q', q.trim())
     const res = await fetch(`/api/vault/leads?${params.toString()}`)
     if (res.ok) {
@@ -74,7 +77,7 @@ export default function VaultLeadsPage() {
       setCounts(data.counts ?? {})
     }
     setLoading(false)
-  }, [statusFilter, scoreFilter, q])
+  }, [statusFilter, scoreFilter, referralFilter, q])
 
   useEffect(() => { load() }, [load])
 
@@ -135,6 +138,12 @@ export default function VaultLeadsPage() {
           <option value="">All statuses</option>
           {STATUSES.map(s => <option key={s} value={s}>{s}{counts[s] != null ? ` (${counts[s]})` : ''}</option>)}
         </select>
+        <select value={referralFilter} onChange={e => setReferralFilter(e.target.value)} style={selStyle} title="How they heard about us">
+          <option value="">All referrals</option>
+          <option value={REFERRAL_AGENT_OPTION}>Agent-referred (split credit)</option>
+          <option value="__any__">Any source given</option>
+          {REFERRAL_SOURCE_OPTIONS.filter(o => o !== REFERRAL_AGENT_OPTION).map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
       </div>
 
       {loading ? (
@@ -158,6 +167,11 @@ export default function VaultLeadsPage() {
                     <span style={{ marginLeft: 8, fontSize: 9, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#6B8299' }}>
                       {l.source === 'meta_instant_form' ? 'Meta form' : 'Landing'}
                     </span>
+                    {l.referrerName && (
+                      <span title="Referring agent · split credit" style={{ marginLeft: 8, fontSize: 9, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#E0C088' }}>
+                        ↳ ref: {l.referrerName}
+                      </span>
+                    )}
                   </div>
                   <a href={`tel:${l.phone.replace(/\D/g, '')}`} onClick={e => e.stopPropagation()} style={{ fontSize: 12, color: '#C9A96E', textDecoration: 'none' }}>{l.phone}</a>
                 </div>

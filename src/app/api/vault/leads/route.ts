@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/permissions'
+import { REFERRAL_SOURCE_OPTIONS } from '@/lib/annuity-leads'
 import type { LeadStatus, LeadScore, Prisma } from '@/generated/prisma/client'
 
 const VALID_STATUSES: LeadStatus[] = ['NEW', 'CONTACTED', 'BOOKED', 'NURTURE', 'WON', 'DEAD']
@@ -18,6 +19,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const status = searchParams.get('status')
   const score = searchParams.get('score')
+  const referral = searchParams.get('referral')
   const q = searchParams.get('q')?.trim()
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10))
   const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') ?? '50', 10)))
@@ -25,6 +27,9 @@ export async function GET(req: NextRequest) {
   const where: Prisma.AnnuityLeadWhereInput = {}
   if (status && VALID_STATUSES.includes(status as LeadStatus)) where.status = status as LeadStatus
   if (score && VALID_SCORES.includes(score as LeadScore)) where.score = score as LeadScore
+  // referral: "__any__" = any source given; otherwise an exact source.
+  if (referral === '__any__') where.referralSource = { not: null }
+  else if (referral && (REFERRAL_SOURCE_OPTIONS as readonly string[]).includes(referral)) where.referralSource = referral
   if (q) {
     where.OR = [
       { firstName: { contains: q, mode: 'insensitive' } },
