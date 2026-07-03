@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import Footer from '@/components/Footer'
 
 export const metadata: Metadata = {
@@ -27,20 +28,38 @@ export default function RetirementIncomeThankYou() {
           <h1 className="section-title-light mb-5">
             You&apos;re all set. <em>We&apos;ll be in touch shortly.</em>
           </h1>
-          <p className="rich-text-light mb-9 mx-auto" style={{ maxWidth: 460 }}>
+          <p className="rich-text-light mb-8 mx-auto" style={{ maxWidth: 460 }}>
             Thanks for requesting your free retirement income estimate. A licensed annuity professional
             from All Financial Freedom will reach out soon to put your personalized estimate together.
             Keep an eye out for a call or text.
           </p>
 
+          {/* Featured next step: the free guide (the lead magnet). */}
+          <div
+            className="mx-auto mb-5"
+            style={{ maxWidth: 440, background: 'rgba(201,169,110,0.08)', border: '1px solid rgba(201,169,110,0.35)', borderRadius: 12, padding: '26px 24px' }}
+          >
+            <div className="section-label" style={{ marginBottom: 10 }}>Your Free Guide Is Ready</div>
+            <p style={{ color: '#EBF4FF', fontSize: 15, fontWeight: 500, marginBottom: 6 }}>
+              How retirees turn savings into income for life
+            </p>
+            <p style={{ color: '#9BB0C4', fontSize: 13, lineHeight: 1.6, marginBottom: 16 }}>
+              A plain-English walk through fixed and fixed-indexed annuities: what they are, what they can
+              (and cannot) do, and how to tell if one fits your retirement. Read it while you wait.
+            </p>
+            <Link href="/retirement-income/guide" className="btn-gold" style={{ display: 'inline-block' }}>
+              Read the free guide
+            </Link>
+          </div>
+
           <div
             className="mx-auto"
-            style={{ maxWidth: 380, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(201,169,110,0.2)', borderRadius: 10, padding: '24px 22px' }}
+            style={{ maxWidth: 440, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '20px 22px' }}
           >
             <p style={{ color: '#9BB0C4', fontSize: 13, marginBottom: 12 }}>
               Want to talk sooner? Call us now.
             </p>
-            <a href={`tel:${PHONE_TEL}`} className="btn-gold" style={{ display: 'inline-block' }}>
+            <a href={`tel:${PHONE_TEL}`} className="btn-primary" style={{ display: 'inline-block' }}>
               Call {PHONE_DISPLAY}
             </a>
           </div>
