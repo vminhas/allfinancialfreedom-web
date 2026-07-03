@@ -117,6 +117,8 @@ export const LEAD_MESSAGE_DEFAULTS = {
     'Thanks for requesting a free, no-obligation retirement income estimate from ' +
     'All Financial Freedom. A licensed financial professional will reach out shortly to ' +
     'put your personalized estimate together.\n\n' +
+    'While you wait, here is your free guide on how retirees turn savings into income for life:\n' +
+    'https://allfinancialfreedom.com/retirement-income/guide\n\n' +
     'If you would like to talk sooner, call us at 917-603-5893.\n\n' +
     'All Financial Freedom is a licensed insurance agency. A licensed insurance agent ' +
     'will contact you.',

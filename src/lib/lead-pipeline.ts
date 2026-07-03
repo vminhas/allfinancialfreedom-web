@@ -13,9 +13,17 @@ import type { LeadScore } from '@/generated/prisma/client'
 // newlines -> <br>.
 function emailBodyToHtml(body: string, firstName: string): string {
   const safeName = escapeHtml(firstName)
+  // Turn bare http(s) URLs into clickable links. Runs AFTER escaping, so
+  // it only ever matches already-escaped text (no XSS); the regex stops at
+  // whitespace or '<' so it never swallows a <br> tag.
+  const linkify = (s: string) =>
+    s.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#C9A96E">$1</a>')
   return body
     .split(/\n\s*\n/)
-    .map(p => `<p>${escapeHtml(p).replace(/\n/g, '<br>').replace(/\{firstName\}/g, safeName)}</p>`)
+    .map(p => {
+      const html = escapeHtml(p).replace(/\{firstName\}/g, safeName).replace(/\n/g, '<br>')
+      return `<p>${linkify(html)}</p>`
+    })
     .join('')
 }
 
