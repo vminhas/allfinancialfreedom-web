@@ -44,12 +44,18 @@ export default function RetirementIncomeThankYou() {
               How retirees turn savings into income for life
             </p>
             <p style={{ color: '#9BB0C4', fontSize: 13, lineHeight: 1.6, marginBottom: 16 }}>
-              A plain-English walk through fixed and fixed-indexed annuities: what they are, what they can
-              (and cannot) do, and how to tell if one fits your retirement. Read it while you wait.
+              A plain-English walk through fixed and fixed-indexed annuities, with simple charts on
+              protecting your savings and creating income for life. Download it or read it while you wait.
             </p>
-            <Link href="/retirement-income/guide" className="btn-gold" style={{ display: 'inline-block' }}>
-              Read the free guide
-            </Link>
+            <div style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap', alignItems: 'center' }}>
+              <a href="/AFF-Retirement-Income-Guide.pdf" download className="btn-gold" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" /></svg>
+                Download the PDF guide
+              </a>
+              <Link href="/retirement-income/guide" style={{ color: '#C9A96E', fontSize: 13, textDecoration: 'underline' }}>
+                or read it online
+              </Link>
+            </div>
           </div>
 
           <div

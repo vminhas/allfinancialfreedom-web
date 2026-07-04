@@ -43,7 +43,6 @@ const BENEFITS = [
 ]
 
 const TRADEOFFS = [
-  { h: 'Surrender charges', b: 'Annuities are meant to be held for a set number of years. Taking out more than the allowed amount early can trigger a surrender charge.' },
   { h: 'Liquidity', b: 'This is money you should not need all at once. Keep a separate emergency fund outside of it.' },
   { h: 'Taxes', b: 'Withdrawals of growth are taxable as income, and withdrawals before age 59½ may carry a 10% federal penalty.' },
   { h: 'Not for every dollar', b: 'An annuity is one option, not the answer for everything. It tends to fit a portion of your savings, not all of it.' },
@@ -51,7 +50,6 @@ const TRADEOFFS = [
 ]
 
 const FITS = [
-  'You are within about ten years of retirement, or already retired',
   'You want part of your money to be protected and predictable',
   'You worry about a market drop right before or early in retirement',
   'You would value a "personal pension" style income you cannot outlive',
@@ -61,7 +59,7 @@ const FITS = [
 const FAQS = [
   {
     q: 'Is my money safe in an annuity?',
-    a: 'Fixed and fixed-indexed annuities are designed to protect your principal from market loss. Guarantees are backed by the claims-paying ability of the issuing insurer, not by the FDIC. Annuities are not bank deposits and are not FDIC insured.',
+    a: 'Fixed and fixed-indexed annuities are designed to protect your principal from market loss. Guarantees are backed by the claims-paying ability of the issuing insurer.',
   },
   {
     q: 'Can I lose my principal to a market drop?',
@@ -105,11 +103,15 @@ export default function RetirementIncomeGuide() {
             A plain-English guide to fixed and fixed-indexed annuities: what they are, what they can
             (and cannot) do, and how to tell if one fits your retirement.
           </p>
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 26 }}>
             {['Educational guide', 'Written for ages 55+', 'About a 7 minute read'].map(t => (
               <span key={t} style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.04em', color: '#9BB0C4', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(201,169,110,0.2)', borderRadius: 100, padding: '6px 14px' }}>{t}</span>
             ))}
           </div>
+          <a href="/AFF-Retirement-Income-Guide.pdf" download className="btn-gold" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" /></svg>
+            Download the PDF guide
+          </a>
         </div>
       </section>
 
