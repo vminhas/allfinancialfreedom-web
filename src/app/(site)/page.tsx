@@ -274,6 +274,11 @@ export default function Home() {
           <Link href="/retirement-income" className="btn-gold" style={{ display: 'inline-block' }}>
             Get Your Free Estimate
           </Link>
+          <div style={{ marginTop: 18 }}>
+            <Link href="/retirement-income/guide" style={{ fontSize: 13, fontWeight: 600, color: '#C9A96E', textDecoration: 'underline' }}>
+              or read the free retirement income guide
+            </Link>
+          </div>
         </div>
       </section>
 
