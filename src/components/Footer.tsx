@@ -9,6 +9,7 @@ const navLinks = [
   { href: '/about', label: 'About' },
   { href: '/team', label: 'Team' },
   { href: '/services', label: 'Services' },
+  { href: '/retirement-income/guide', label: 'Retirement Income Guide' },
   { href: '/blog', label: 'Insights' },
   { href: '/testimonials', label: 'Testimonials' },
   { href: '/join', label: 'Join the Team' },

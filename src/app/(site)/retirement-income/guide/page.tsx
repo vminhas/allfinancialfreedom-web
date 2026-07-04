@@ -89,6 +89,49 @@ const FAQS = [
   },
 ]
 
+// Structured data: an educational Article, a breadcrumb trail, and a
+// FAQPage built from the (compliance-approved) FAQ copy below. The FAQPage
+// can surface expandable Q&As in search results and is a strong signal for
+// AI answer engines. Copy is unchanged, only marked up.
+const GUIDE_URL = 'https://allfinancialfreedom.com/retirement-income/guide'
+const JSON_LD = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Article',
+      headline: 'The Retirement Income Guide: Fixed and Fixed-Indexed Annuities',
+      description:
+        'A plain-English guide to fixed and fixed-indexed annuities: how they protect savings, how they '
+        + 'can pay income for life, and how to tell if one fits your retirement.',
+      about: [
+        { '@type': 'Thing', name: 'Annuity' },
+        { '@type': 'Thing', name: 'Retirement income' },
+        { '@type': 'Thing', name: 'Fixed-indexed annuity' },
+      ],
+      author: { '@type': 'Organization', name: 'All Financial Freedom', url: 'https://allfinancialfreedom.com' },
+      publisher: { '@type': 'Organization', name: 'All Financial Freedom', url: 'https://allfinancialfreedom.com' },
+      mainEntityOfPage: GUIDE_URL,
+      inLanguage: 'en-US',
+    },
+    {
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://allfinancialfreedom.com' },
+        { '@type': 'ListItem', position: 2, name: 'Retirement Income', item: 'https://allfinancialfreedom.com/retirement-income' },
+        { '@type': 'ListItem', position: 3, name: 'The Retirement Income Guide', item: GUIDE_URL },
+      ],
+    },
+    {
+      '@type': 'FAQPage',
+      mainEntity: FAQS.map(f => ({
+        '@type': 'Question',
+        name: f.q,
+        acceptedAnswer: { '@type': 'Answer', text: f.a },
+      })),
+    },
+  ],
+}
+
 const Num = ({ n }: { n: string }) => (
   <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.15em', color: '#C9A96E', display: 'block', marginBottom: 10 }}>{n}</span>
 )
@@ -102,6 +145,7 @@ const Check = () => (
 export default function RetirementIncomeGuide() {
   return (
     <main className="pt-20">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }} />
       {/* Hero */}
       <section className="bg-navy-grad" style={{ paddingTop: 76, paddingBottom: 64 }}>
         <div className="max-w-3xl mx-auto px-6 text-center">
