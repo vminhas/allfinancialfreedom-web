@@ -119,7 +119,8 @@ export const LEAD_MESSAGE_DEFAULTS = {
     'put your personalized estimate together.\n\n' +
     'While you wait, here is your free guide on how retirees turn savings into income for life:\n' +
     'https://allfinancialfreedom.com/AFF-Retirement-Income-Guide.pdf\n\n' +
-    'If you would like to talk sooner, call us at 917-603-5893.\n\n' +
+    'Prefer to pick a time? Schedule your free assessment here:\n' +
+    'https://allfinancialfreedom.com/schedule\n\n' +
     'All Financial Freedom is a licensed insurance agency. A licensed insurance agent ' +
     'will contact you.',
 } as const
