@@ -147,6 +147,12 @@ export default function RetirementIncomeLanding() {
               Four quick questions, then your contact details. A licensed professional handles the rest.
             </p>
             <AnnuityLeadForm />
+            <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid #EDF1F6', textAlign: 'center' }}>
+              <span style={{ fontSize: 12.5, color: '#6B8299' }}>Prefer to pick a time? </span>
+              <a href="/schedule" style={{ fontSize: 12.5, fontWeight: 700, color: '#C9A96E', textDecoration: 'underline' }}>
+                Schedule your free assessment
+              </a>
+            </div>
           </div>
         </div>
       </section>
