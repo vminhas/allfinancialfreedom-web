@@ -300,10 +300,10 @@ export default function Home() {
               { name: 'Ameritas', logo: null, textStyle: { fontWeight: 500, fontSize: '1rem', fontStyle: 'italic', letterSpacing: '0.02em' } },
               { name: 'Foresters Financial', logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Foresters_Financial_Logo.svg/250px-Foresters_Financial_Logo.svg.png', textStyle: {} },
               { name: 'BMI', logo: null, textStyle: { fontWeight: 800, fontSize: '1.3rem', letterSpacing: '0.08em' } },
-              { name: 'Securian Financial', logo: null, textStyle: { fontWeight: 600, fontSize: '0.82rem', letterSpacing: '0.04em', lineHeight: 1.3 } },
+              { name: 'Securian Financial', logo: '/brand/securian.svg', textStyle: {} },
               { name: 'Nassau', logo: null, textStyle: { fontWeight: 600, fontSize: '0.85rem', letterSpacing: '0.12em' } },
               { name: 'OneAmerica Financial', logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/bf/Oneamericalogo.jpg/250px-Oneamericalogo.jpg', textStyle: {} },
-              { name: 'American National', logo: null, textStyle: { fontWeight: 600, fontSize: '0.82rem', letterSpacing: '0.05em', lineHeight: 1.3 } },
+              { name: 'American National', logo: '/brand/american-national.svg', textStyle: {} },
               { name: 'Allianz', logo: '/brand/allianz.svg', textStyle: {} },
               { name: 'F&G Annuities & Life', logo: '/brand/fg-annuities.svg', textStyle: {} },
             ].map(carrier => (
