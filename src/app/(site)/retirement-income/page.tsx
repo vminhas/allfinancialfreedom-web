@@ -61,7 +61,6 @@ const JSON_LD = {
         '@type': 'FinancialService',
         name: 'All Financial Freedom',
         url: 'https://allfinancialfreedom.com',
-        telephone: '+1-917-603-5893',
         email: 'contact@allfinancialfreedom.com',
       },
       areaServed: 'US',

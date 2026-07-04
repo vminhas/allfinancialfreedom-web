@@ -8,8 +8,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
-const PHONE_DISPLAY = '917-603-5893'
-const PHONE_TEL = '+19176035893'
+const BOOKING_URL = '/schedule'
 
 export default function RetirementIncomeThankYou() {
   return (
@@ -63,10 +62,10 @@ export default function RetirementIncomeThankYou() {
             style={{ maxWidth: 440, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '20px 22px' }}
           >
             <p style={{ color: '#9BB0C4', fontSize: 13, marginBottom: 12 }}>
-              Want to talk sooner? Call us now.
+              Prefer to pick a time? Schedule your free assessment now.
             </p>
-            <a href={`tel:${PHONE_TEL}`} className="btn-primary" style={{ display: 'inline-block' }}>
-              Call {PHONE_DISPLAY}
+            <a href={BOOKING_URL} className="btn-primary" style={{ display: 'inline-block' }}>
+              Schedule your free assessment
             </a>
           </div>
         </div>

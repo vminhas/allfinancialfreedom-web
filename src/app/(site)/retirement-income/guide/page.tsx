@@ -14,8 +14,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
-const PHONE_DISPLAY = '917-603-5893'
-const PHONE_TEL = '+19176035893'
+const BOOKING_URL = '/schedule'
 
 const CONTENTS = [
   'The retirement question no one prepares you for',
@@ -323,12 +322,13 @@ export default function RetirementIncomeGuide() {
             See what this could look like for <em>your</em> retirement
           </h2>
           <p className="rich-text-light mx-auto" style={{ maxWidth: 500, marginBottom: 28 }}>
-            A licensed annuity professional from All Financial Freedom can walk through your options and, if
-            you would like, prepare a personalized income estimate. No cost, and no obligation to buy.
+            Book a free retirement income assessment with a licensed annuity professional from All Financial
+            Freedom. They will walk through your options and, if you would like, prepare a personalized
+            income estimate. No cost, and no obligation to buy.
           </p>
           <div style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <a href={`tel:${PHONE_TEL}`} className="btn-gold" style={{ display: 'inline-block' }}>
-              Call {PHONE_DISPLAY}
+            <a href={BOOKING_URL} className="btn-gold" style={{ display: 'inline-block' }}>
+              Schedule your free assessment
             </a>
             <Link href="/retirement-income" className="btn-primary" style={{ display: 'inline-block' }}>
               Get your free estimate
