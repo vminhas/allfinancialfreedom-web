@@ -2,16 +2,27 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import Footer from '@/components/Footer'
 
-// DRAFT pending IMO / carrier compliance sign-off. Kept out of the index
-// until approved (the link still works for post-form delivery). To publish:
-// flip robots to { index: true, follow: true } and remove this note.
+// Compliance-approved and indexable: pulls organic traffic for annuity
+// education queries.
 export const metadata: Metadata = {
-  title: 'The Retirement Income Guide | All Financial Freedom',
+  title: 'The Retirement Income Guide: Fixed & Fixed-Indexed Annuities | All Financial Freedom',
   description:
     'A plain-English guide to fixed and fixed-indexed annuities: what they are, what they can and '
     + 'cannot do, and how to tell if one fits your retirement. Educational. No cost. No pressure.',
+  keywords:
+    'annuity guide, fixed annuity, fixed-indexed annuity, how do annuities work, '
+    + 'turn 401k into income, lifetime income annuity, retirement income, annuity explained',
   alternates: { canonical: '/retirement-income/guide' },
-  robots: { index: false, follow: false },
+  robots: { index: true, follow: true },
+  openGraph: {
+    title: 'The Retirement Income Guide | All Financial Freedom',
+    description:
+      'How retirees turn savings into income for life. A plain-English guide to fixed and '
+      + 'fixed-indexed annuities. Educational, no cost, no pressure.',
+    url: 'https://allfinancialfreedom.com/retirement-income/guide',
+    siteName: 'All Financial Freedom',
+    type: 'article',
+  },
 }
 
 const BOOKING_URL = '/schedule'
