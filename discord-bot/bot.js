@@ -566,8 +566,15 @@ client.on(Events.MessageCreate, async (message) => {
           const matchedTitle = e.duplicateTitle && e.duplicateTitle !== e.title ? ` [matched: "${e.duplicateTitle}"]` : '';
           status = ` ♻️ Already exists, skipped${reason}${matchedTitle}`;
         }
-        return `• **${e.title}** — ${date}${status}`;
+        // Recurring series (e.g. a Mon-Fri flyer): show that it repeats and
+        // auto-extends, and that the shown date is just the first occurrence.
+        const recur = e.recurrenceLabel
+          ? ` · 🔁 ${e.recurrenceLabel}${e.occurrences ? ` (${e.occurrences} scheduled now)` : ''}`
+          : '';
+        const dateLabel = e.recurrenceLabel ? `starts ${date}` : date;
+        return `• **${e.title}** — ${dateLabel}${recur}${status}`;
       });
+      const recurringCount = data.events.filter(e => e.recurrenceLabel).length;
       // Distinguish "all duplicate" / "some duplicate" / "all new" so Vick
       // gets immediate feedback on whether the second post of a flyer
       // actually did anything.
@@ -578,8 +585,12 @@ client.on(Events.MessageCreate, async (message) => {
         title = `♻️ Already on the calendar (${dupeCount} duplicate${dupeCount > 1 ? 's' : ''} skipped)`;
       } else if (dupeCount > 0) {
         title = `✅ Created ${newCount} · ♻️ ${dupeCount} duplicate${dupeCount > 1 ? 's' : ''} skipped`;
+      } else if (recurringCount > 0 && newCount === recurringCount) {
+        // Every new item is a recurring series.
+        title = `✅ Created ${newCount} recurring training series${newCount > 1 ? 'es' : ''} 🔁`;
       } else {
         title = `✅ Created ${newCount} training event${newCount > 1 ? 's' : ''}`;
+        if (recurringCount > 0) title += ` (${recurringCount} recurring 🔁)`;
       }
       const color = newCount === 0 ? 0x9BB0C4 : COLORS.GOLD;
       const successEmbed = new EmbedBuilder()
