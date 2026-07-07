@@ -1672,7 +1672,9 @@ function AddEventModal({ onClose, onCreated }: { onClose: () => void; onCreated:
     presenterName: '',
     presenterRole: '',
     recurring: false,
+    recurrenceFrequency: 'WEEKLY',
     recurringWeeks: '12',
+    recurringWeekdays: '20',
   })
   const [image, setImage] = useState<File | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -1708,7 +1710,9 @@ function AddEventModal({ onClose, onCreated }: { onClose: () => void; onCreated:
     if (image) fd.append('flyerImage', image)
     if (form.recurring) {
       fd.append('recurring', 'true')
-      fd.append('recurringWeeks', form.recurringWeeks)
+      fd.append('recurrenceFrequency', form.recurrenceFrequency)
+      if (form.recurrenceFrequency === 'WEEKDAYS') fd.append('recurringWeekdays', form.recurringWeekdays)
+      else fd.append('recurringWeeks', form.recurringWeeks)
     }
 
     try {
@@ -1846,7 +1850,7 @@ function AddEventModal({ onClose, onCreated }: { onClose: () => void; onCreated:
             />
           </div>
 
-          {/* Recurring weekly */}
+          {/* Recurring */}
           <div style={{ padding: '12px 14px', background: 'rgba(201,169,110,0.04)', border: '1px solid rgba(201,169,110,0.15)', borderRadius: 4 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
               <input
@@ -1856,24 +1860,58 @@ function AddEventModal({ onClose, onCreated }: { onClose: () => void; onCreated:
                 style={{ width: 16, height: 16, accentColor: '#C9A96E', cursor: 'pointer' }}
               />
               <span style={{ fontSize: 12, color: '#d1d9e2', fontWeight: 600 }}>
-                Repeat weekly
-              </span>
-              <span style={{ fontSize: 10, color: '#6B8299' }}>
-                same time, same day of week
+                Repeat this training
               </span>
             </label>
             {form.recurring && (
-              <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <label style={{ fontSize: 11, color: '#9BB0C4' }}>For</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={52}
-                  value={form.recurringWeeks}
-                  onChange={set('recurringWeeks')}
-                  style={{ ...inputStyle, width: 80, padding: '6px 10px', fontSize: 12 }}
-                />
-                <label style={{ fontSize: 11, color: '#9BB0C4' }}>weeks (cap 52)</label>
+              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {[
+                    { v: 'WEEKLY', label: 'Weekly', hint: 'same day of week' },
+                    { v: 'WEEKDAYS', label: 'Every weekday', hint: 'Mon through Fri' },
+                  ].map(opt => {
+                    const active = form.recurrenceFrequency === opt.v
+                    return (
+                      <button
+                        key={opt.v}
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, recurrenceFrequency: opt.v }))}
+                        style={{
+                          flex: 1, padding: '8px 10px', borderRadius: 4, cursor: 'pointer', textAlign: 'left',
+                          background: active ? 'rgba(201,169,110,0.18)' : 'transparent',
+                          border: `1px solid ${active ? 'rgba(201,169,110,0.5)' : 'rgba(201,169,110,0.15)'}`,
+                          color: active ? '#E0C088' : '#9BB0C4',
+                        }}
+                      >
+                        <div style={{ fontSize: 12, fontWeight: 600 }}>{opt.label}</div>
+                        <div style={{ fontSize: 10, color: '#6B8299' }}>{opt.hint}</div>
+                      </button>
+                    )
+                  })}
+                </div>
+                {form.recurrenceFrequency === 'WEEKDAYS' ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <label style={{ fontSize: 11, color: '#9BB0C4' }}>For the next</label>
+                    <input
+                      type="number" min={1} max={25}
+                      value={form.recurringWeekdays}
+                      onChange={set('recurringWeekdays')}
+                      style={{ ...inputStyle, width: 80, padding: '6px 10px', fontSize: 12 }}
+                    />
+                    <label style={{ fontSize: 11, color: '#9BB0C4' }}>weekdays (cap 25, skips weekends)</label>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <label style={{ fontSize: 11, color: '#9BB0C4' }}>For</label>
+                    <input
+                      type="number" min={1} max={52}
+                      value={form.recurringWeeks}
+                      onChange={set('recurringWeeks')}
+                      style={{ ...inputStyle, width: 80, padding: '6px 10px', fontSize: 12 }}
+                    />
+                    <label style={{ fontSize: 11, color: '#9BB0C4' }}>weeks (cap 52)</label>
+                  </div>
+                )}
               </div>
             )}
           </div>

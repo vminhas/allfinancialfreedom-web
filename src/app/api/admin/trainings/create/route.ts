@@ -6,6 +6,10 @@ import { requireRole } from '@/lib/permissions'
 import { uploadFlyerToBlob } from '@/lib/blob-upload'
 
 const MAX_RECURRING_WEEKS = 52
+// ~5 weeks of Mon-Fri. Kept modest because each occurrence creates its own
+// Discord scheduled event (guilds cap around 100), and there's no auto
+// roll-forward yet, so admins re-run to extend a standing daily series.
+const MAX_RECURRING_WEEKDAYS = 25
 
 // POST /api/admin/trainings/create — manually create a training event.
 // Accepts multipart/form-data (for image upload) or JSON (no image).
@@ -37,6 +41,8 @@ export async function POST(req: NextRequest) {
   let flyerImageUrl: string | null = null
   let recurring = false
   let recurringWeeks = 12
+  let recurrenceFrequency: 'WEEKLY' | 'WEEKDAYS' = 'WEEKLY'
+  let recurringWeekdays = 20
 
   const contentType = req.headers.get('content-type') ?? ''
 
@@ -56,9 +62,14 @@ export async function POST(req: NextRequest) {
     targetRegion = (form.get('targetRegion') as string) || null
     if (form.get('published') === 'false') published = false
     if (form.get('recurring') === 'true') recurring = true
+    if (form.get('recurrenceFrequency') === 'WEEKDAYS') recurrenceFrequency = 'WEEKDAYS'
     if (form.get('recurringWeeks')) {
       const n = parseInt(form.get('recurringWeeks') as string)
       if (!Number.isNaN(n) && n > 0) recurringWeeks = n
+    }
+    if (form.get('recurringWeekdays')) {
+      const n = parseInt(form.get('recurringWeekdays') as string)
+      if (!Number.isNaN(n) && n > 0) recurringWeekdays = n
     }
 
     const presentersJson = form.get('presenters') as string
@@ -89,7 +100,9 @@ export async function POST(req: NextRequest) {
     if (body.published === false) published = false
     if (Array.isArray(body.presenters)) presenters = body.presenters as { name: string; role: string }[]
     if (body.recurring === true) recurring = true
+    if (body.recurrenceFrequency === 'WEEKDAYS') recurrenceFrequency = 'WEEKDAYS'
     if (typeof body.recurringWeeks === 'number' && body.recurringWeeks > 0) recurringWeeks = body.recurringWeeks
+    if (typeof body.recurringWeekdays === 'number' && body.recurringWeekdays > 0) recurringWeekdays = body.recurringWeekdays
   }
 
   if (!title || !startsAt) {
@@ -101,16 +114,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid startsAt date' }, { status: 400 })
   }
 
-  // Cap so a fat-fingered "1200" doesn't create a thousand events.
-  if (recurring) recurringWeeks = Math.min(Math.max(recurringWeeks, 1), MAX_RECURRING_WEEKS)
-  const occurrenceCount = recurring ? recurringWeeks : 1
-
   // Build all the start datetimes up front so we can save them in one loop.
+  // Caps keep a fat-fingered count from creating a thousand events.
+  let occurrenceCount = 1
   const startDates: Date[] = []
-  for (let i = 0; i < occurrenceCount; i++) {
-    const d = new Date(parsedStartsAt)
-    d.setDate(d.getDate() + i * 7)
-    startDates.push(d)
+  if (recurring && recurrenceFrequency === 'WEEKDAYS') {
+    // Mon-Fri series: step one calendar day at a time, skipping Sat/Sun.
+    // Weekday is judged in UTC; our trainings run in US daytime, so the UTC
+    // calendar day matches the US day. If the chosen start lands on a
+    // weekend, roll it forward to the next weekday.
+    occurrenceCount = Math.min(Math.max(recurringWeekdays, 1), MAX_RECURRING_WEEKDAYS)
+    const cur = new Date(parsedStartsAt)
+    while (cur.getUTCDay() === 0 || cur.getUTCDay() === 6) cur.setUTCDate(cur.getUTCDate() + 1)
+    for (let i = 0; i < occurrenceCount; i++) {
+      startDates.push(new Date(cur))
+      do { cur.setUTCDate(cur.getUTCDate() + 1) } while (cur.getUTCDay() === 0 || cur.getUTCDay() === 6)
+    }
+  } else if (recurring) {
+    occurrenceCount = Math.min(Math.max(recurringWeeks, 1), MAX_RECURRING_WEEKS)
+    for (let i = 0; i < occurrenceCount; i++) {
+      const d = new Date(parsedStartsAt)
+      d.setDate(d.getDate() + i * 7)
+      startDates.push(d)
+    }
+  } else {
+    startDates.push(new Date(parsedStartsAt))
   }
 
   // Shared payload for every occurrence.
@@ -140,7 +168,7 @@ export async function POST(req: NextRequest) {
     data: {
       ...sharedData,
       startsAt: startDates[0],
-      recurrenceFrequency: recurring ? 'WEEKLY' : null,
+      recurrenceFrequency: recurring ? recurrenceFrequency : null,
     },
   })
 
@@ -151,7 +179,7 @@ export async function POST(req: NextRequest) {
             ...sharedData,
             startsAt: d,
             recurrenceParentId: parent.id,
-            recurrenceFrequency: 'WEEKLY',
+            recurrenceFrequency,
           },
         })
       ))
