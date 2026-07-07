@@ -34,16 +34,28 @@ export async function createDiscordEventForOccurrence(ev: TrainingEvent): Promis
   try {
     const { createGuildScheduledEvent } = await import('@/lib/discord')
     const endsAt = new Date(ev.startsAt.getTime() + ev.durationMinutes * 60_000)
-    const joinUrl = ev.streamId
-      ? `https://zoom.us/j/${ev.streamId.replace(/[\s-]/g, '')}${ev.passcode ? `?pwd=${encodeURIComponent(ev.passcode)}` : ''}`
+    const digits = ev.streamId ? ev.streamId.replace(/[\s-]/g, '') : ''
+    const joinUrl = /^\d{8,}$/.test(digits)
+      ? `https://zoom.us/j/${digits}${ev.passcode ? `?pwd=${encodeURIComponent(ev.passcode)}` : ''}`
       : null
+    const presenters = Array.isArray(ev.presenters) ? (ev.presenters as { name: string; role: string }[]) : []
+    const presenterLine = presenters.map(p => `${p.name} (${p.role})`).join(' · ')
+    const description = [
+      ev.subtitle,
+      presenterLine && `**Presenters:** ${presenterLine}`,
+      ev.streamRoomName && `**Stream:** ${ev.streamRoomName}`,
+      ev.streamId && `**ID:** \`${ev.streamId}\``,
+      ev.passcode && `**Passcode:** \`${ev.passcode}\``,
+      joinUrl && `**Join:** ${joinUrl}`,
+      ev.audienceRestriction && `🔒 ${ev.audienceRestriction}`,
+    ].filter(Boolean).join('\n')
     const pcStr = ev.passcode ? ` · pw ${ev.passcode}` : ''
     const location = joinUrl
-      ? joinUrl.slice(0, 100)
+      ? `${joinUrl}${pcStr}`.slice(0, 100)
       : (ev.streamRoomName ? `${ev.streamRoomName} · ID ${ev.streamId}${pcStr}`.slice(0, 100) : 'TBD')
     const discordEvent = await createGuildScheduledEvent({
       name: ev.title.slice(0, 100),
-      description: ev.subtitle ?? '',
+      description,
       scheduledStartTime: ev.startsAt.toISOString(),
       scheduledEndTime: endsAt.toISOString(),
       location,

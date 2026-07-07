@@ -73,6 +73,7 @@ CRITICAL RULES:
 1. The time MUST come from the text printed on the flyer (e.g. "08.00 PM EST"), NOT from any metadata or the time the image was sent. If the flyer says "08.00 PM EST", the event is at 8:00 PM Eastern, period.
 2. If the flyer does not show an explicit date (no "MONDAY | APRIL 13, 2026" line), infer the NEXT occurrence of the day of week from the title. For example, "Systems & Mindset Mondays" with no date means the next upcoming Monday from today's date.
 3. Today's date for reference: ${new Date().toISOString().slice(0, 10)}
+4. RECURRENCE: If the flyer clearly states the event repeats every weekday (e.g. "MONDAY - FRIDAY", "MON-FRI", "Monday through Friday", "every weekday", "daily"), set recurrence to "WEEKDAYS". Otherwise set recurrence to null (a one-time event, or a single weekly day, is NOT weekdays). For a WEEKDAYS event, set startsAtET to the next upcoming weekday at the flyer's ET time (today if it is a weekday and the time has not passed yet, otherwise the next weekday).
 
 Extract via the submit_event tool. If a field isn't visible, set it to null. For times, return ISO 8601 with the ET offset (use -04:00 for EDT or -05:00 for EST based on the date).
 
@@ -97,6 +98,10 @@ export interface ParsedTrainingEvent {
   audienceRestriction: string | null
   partnerBrand: string | null
   targetRegion: string | null
+  // 'WEEKDAYS' when the flyer says it repeats Mon-Fri; null/absent otherwise.
+  // Only the Discord-paste parse-image flow acts on this (creates an ongoing
+  // series); the Drive auto-sync ignores it and keeps making one-offs.
+  recurrence?: 'WEEKDAYS' | null
 }
 
 export interface ParseTrainingResult {
@@ -167,6 +172,7 @@ export async function parseTrainingFlyer(params: {
                   audienceRestriction: { type: ['string', 'null'] },
                   partnerBrand:        { type: ['string', 'null'] },
                   targetRegion:        { type: ['string', 'null'] },
+                  recurrence:          { type: ['string', 'null'], enum: ['WEEKDAYS', null], description: 'Set to "WEEKDAYS" ONLY if the flyer says it repeats Monday through Friday / every weekday / daily. Otherwise null.' },
                 },
               },
             },

@@ -6,6 +6,7 @@ import { requireRole } from '@/lib/permissions'
 import { parseTrainingFlyer } from '@/lib/training-parser'
 import { uploadFlyerToBlob } from '@/lib/blob-upload'
 import { createGuildScheduledEvent } from '@/lib/discord'
+import { stepOccurrence, createDiscordEventForOccurrence } from '@/lib/training-recurrence'
 
 function buildJoinUrl(streamId: string | null, passcode?: string | null): string | null {
   if (!streamId) return null
@@ -73,6 +74,8 @@ export async function POST(req: NextRequest) {
     duplicateOfId?: string
     duplicateReason?: string
     duplicateTitle?: string
+    recurrence?: string
+    occurrences?: number
   }> = []
   let duplicates = 0
 
@@ -189,6 +192,68 @@ export async function POST(req: NextRequest) {
         duplicateOfId: dup.id,
         duplicateReason: dupReason,
         duplicateTitle: dup.title,
+      })
+      continue
+    }
+
+    // Recurring weekday series (the flyer says Mon-Fri). Seed a small
+    // initial batch now for a fast Discord reply, and set roll-forward so
+    // the daily cron fills the series out to its full window and keeps it
+    // topped up. Only this parse flow acts on recurrence; Drive auto-sync
+    // ignores it and keeps making one-offs.
+    if (ev.recurrence === 'WEEKDAYS') {
+      const durationMinutes = ev.durationMinutes ?? 60
+      const presenters = ev.presenters ?? []
+      const SEED = 5
+      const occ: Date[] = []
+      const cur = new Date(startsAt)
+      while (cur.getUTCDay() === 0 || cur.getUTCDay() === 6) cur.setUTCDate(cur.getUTCDate() + 1)
+      occ.push(new Date(cur))
+      for (let i = 1; i < SEED; i++) occ.push(stepOccurrence(occ[i - 1], 'WEEKDAYS'))
+
+      const shared = {
+        title: ev.title,
+        subtitle: ev.subtitle,
+        category: ev.category,
+        durationMinutes,
+        presenters: presenters as object,
+        streamType: (ev.streamType === 'ZOOM' ? 'ZOOM' : 'GFI_LIVE') as 'ZOOM' | 'GFI_LIVE',
+        streamRoomName: ev.streamRoomName,
+        streamId: ev.streamId,
+        passcode: ev.passcode,
+        audienceRestriction: ev.audienceRestriction,
+        partnerBrand: ev.partnerBrand,
+        targetRegion: ev.targetRegion,
+        flyerImageUrl,
+        published: true,
+        manuallyEdited: false,
+        parsedAt: new Date(),
+        rawParseJson: parsed.rawJson as object,
+        modelId: parsed.modelId,
+        inputTokens: parsed.inputTokens,
+        outputTokens: parsed.outputTokens,
+      }
+      const parentEvent = await db.trainingEvent.create({
+        data: { ...shared, startsAt: occ[0], recurrenceFrequency: 'WEEKDAYS', recurrenceRollForward: true },
+      })
+      const childEvents = await Promise.all(
+        occ.slice(1).map(d => db.trainingEvent.create({
+          data: { ...shared, startsAt: d, recurrenceParentId: parentEvent.id, recurrenceFrequency: 'WEEKDAYS' },
+        })),
+      )
+      let disc = 0
+      for (const e of [parentEvent, ...childEvents]) {
+        if (await createDiscordEventForOccurrence(e)) disc++
+        await new Promise(r => setTimeout(r, 1500))
+      }
+      created.push({
+        id: parentEvent.id,
+        title: ev.title,
+        startsAt: occ[0].toISOString(),
+        presenters: presenters.map(p => p.name),
+        discordEvent: disc > 0 ? 'created' : false,
+        recurrence: 'Every weekday (Mon-Fri)',
+        occurrences: occ.length,
       })
       continue
     }
