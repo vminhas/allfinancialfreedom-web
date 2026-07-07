@@ -75,6 +75,7 @@ export async function POST(req: NextRequest) {
     duplicateReason?: string
     duplicateTitle?: string
     recurrence?: string
+    recurrenceLabel?: string
     occurrences?: number
   }> = []
   let duplicates = 0
@@ -246,13 +247,18 @@ export async function POST(req: NextRequest) {
         if (await createDiscordEventForOccurrence(e)) disc++
         await new Promise(r => setTimeout(r, 1500))
       }
+      // The Concierge bot renders `title` (and often a count) in its
+      // confirmation. Annotate the title so the message reflects that this
+      // is a recurring Mon-Fri series that auto-extends, not a single event.
+      // The stored event keeps the clean title (ev.title).
       created.push({
         id: parentEvent.id,
-        title: ev.title,
+        title: `${ev.title} (recurring Mon-Fri · auto-extends)`,
         startsAt: occ[0].toISOString(),
         presenters: presenters.map(p => p.name),
         discordEvent: disc > 0 ? 'created' : false,
-        recurrence: 'Every weekday (Mon-Fri)',
+        recurrence: 'WEEKDAYS',
+        recurrenceLabel: 'Every weekday (Mon-Fri), auto-extends',
         occurrences: occ.length,
       })
       continue
