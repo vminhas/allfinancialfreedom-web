@@ -1305,7 +1305,11 @@ model TrainingEvent {
   recurrenceParentId    String?
   recurrenceParent      TrainingEvent?     @relation("TrainingRecurrence", fields: [recurrenceParentId], references: [id], onDelete: SetNull)
   recurrenceChildren    TrainingEvent[]    @relation("TrainingRecurrence")
-  recurrenceFrequency   String?            // 'WEEKLY' for now; future: DAILY / BIWEEKLY / MONTHLY
+  recurrenceFrequency   String?            // 'WEEKLY' | 'WEEKDAYS' (Mon-Fri)
+  // When true (set on the parent), a daily cron keeps a rolling window of
+  // future occurrences scheduled so the series never runs dry. False =
+  // fixed-length series (generate N up front, then stop).
+  recurrenceRollForward Boolean            @default(false)
 
   createdAt             DateTime           @default(now())
   updatedAt             DateTime           @updatedAt

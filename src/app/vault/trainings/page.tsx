@@ -1675,6 +1675,7 @@ function AddEventModal({ onClose, onCreated }: { onClose: () => void; onCreated:
     recurrenceFrequency: 'WEEKLY',
     recurringWeeks: '12',
     recurringWeekdays: '20',
+    recurrenceOngoing: false,
   })
   const [image, setImage] = useState<File | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -1713,6 +1714,7 @@ function AddEventModal({ onClose, onCreated }: { onClose: () => void; onCreated:
       fd.append('recurrenceFrequency', form.recurrenceFrequency)
       if (form.recurrenceFrequency === 'WEEKDAYS') fd.append('recurringWeekdays', form.recurringWeekdays)
       else fd.append('recurringWeeks', form.recurringWeeks)
+      if (form.recurrenceOngoing) fd.append('recurrenceOngoing', 'true')
     }
 
     try {
@@ -1889,7 +1891,22 @@ function AddEventModal({ onClose, onCreated }: { onClose: () => void; onCreated:
                     )
                   })}
                 </div>
-                {form.recurrenceFrequency === 'WEEKDAYS' ? (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={form.recurrenceOngoing}
+                    onChange={e => setForm(f => ({ ...f, recurrenceOngoing: e.target.checked }))}
+                    style={{ width: 15, height: 15, accentColor: '#C9A96E', cursor: 'pointer' }}
+                  />
+                  <span style={{ fontSize: 12, color: '#d1d9e2', fontWeight: 600 }}>Keep scheduling indefinitely</span>
+                  <span style={{ fontSize: 10, color: '#6B8299' }}>auto-extends daily</span>
+                </label>
+                {form.recurrenceOngoing ? (
+                  <div style={{ fontSize: 11, color: '#9BB0C4', lineHeight: 1.5 }}>
+                    We&apos;ll seed the next {form.recurrenceFrequency === 'WEEKDAYS' ? '15 weekdays' : '8 weeks'} and a
+                    daily job tops the series back up automatically, so it never runs dry. No end date.
+                  </div>
+                ) : form.recurrenceFrequency === 'WEEKDAYS' ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <label style={{ fontSize: 11, color: '#9BB0C4' }}>For the next</label>
                     <input

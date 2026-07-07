@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/permissions'
 import { uploadFlyerToBlob } from '@/lib/blob-upload'
+import { RECURRENCE_WINDOW } from '@/lib/training-recurrence'
 
 const MAX_RECURRING_WEEKS = 52
 // ~5 weeks of Mon-Fri. Kept modest because each occurrence creates its own
@@ -43,6 +44,7 @@ export async function POST(req: NextRequest) {
   let recurringWeeks = 12
   let recurrenceFrequency: 'WEEKLY' | 'WEEKDAYS' = 'WEEKLY'
   let recurringWeekdays = 20
+  let recurrenceOngoing = false
 
   const contentType = req.headers.get('content-type') ?? ''
 
@@ -71,6 +73,7 @@ export async function POST(req: NextRequest) {
       const n = parseInt(form.get('recurringWeekdays') as string)
       if (!Number.isNaN(n) && n > 0) recurringWeekdays = n
     }
+    if (form.get('recurrenceOngoing') === 'true') recurrenceOngoing = true
 
     const presentersJson = form.get('presenters') as string
     if (presentersJson) {
@@ -103,6 +106,7 @@ export async function POST(req: NextRequest) {
     if (body.recurrenceFrequency === 'WEEKDAYS') recurrenceFrequency = 'WEEKDAYS'
     if (typeof body.recurringWeeks === 'number' && body.recurringWeeks > 0) recurringWeeks = body.recurringWeeks
     if (typeof body.recurringWeekdays === 'number' && body.recurringWeekdays > 0) recurringWeekdays = body.recurringWeekdays
+    if (body.recurrenceOngoing === true) recurrenceOngoing = true
   }
 
   if (!title || !startsAt) {
@@ -122,8 +126,11 @@ export async function POST(req: NextRequest) {
     // Mon-Fri series: step one calendar day at a time, skipping Sat/Sun.
     // Weekday is judged in UTC; our trainings run in US daytime, so the UTC
     // calendar day matches the US day. If the chosen start lands on a
-    // weekend, roll it forward to the next weekday.
-    occurrenceCount = Math.min(Math.max(recurringWeekdays, 1), MAX_RECURRING_WEEKDAYS)
+    // weekend, roll it forward to the next weekday. Ongoing series seed just
+    // an initial window; the roll-forward cron keeps them topped up.
+    occurrenceCount = recurrenceOngoing
+      ? RECURRENCE_WINDOW.WEEKDAYS.target
+      : Math.min(Math.max(recurringWeekdays, 1), MAX_RECURRING_WEEKDAYS)
     const cur = new Date(parsedStartsAt)
     while (cur.getUTCDay() === 0 || cur.getUTCDay() === 6) cur.setUTCDate(cur.getUTCDate() + 1)
     for (let i = 0; i < occurrenceCount; i++) {
@@ -131,7 +138,9 @@ export async function POST(req: NextRequest) {
       do { cur.setUTCDate(cur.getUTCDate() + 1) } while (cur.getUTCDay() === 0 || cur.getUTCDay() === 6)
     }
   } else if (recurring) {
-    occurrenceCount = Math.min(Math.max(recurringWeeks, 1), MAX_RECURRING_WEEKS)
+    occurrenceCount = recurrenceOngoing
+      ? RECURRENCE_WINDOW.WEEKLY.target
+      : Math.min(Math.max(recurringWeeks, 1), MAX_RECURRING_WEEKS)
     for (let i = 0; i < occurrenceCount; i++) {
       const d = new Date(parsedStartsAt)
       d.setDate(d.getDate() + i * 7)
@@ -169,6 +178,7 @@ export async function POST(req: NextRequest) {
       ...sharedData,
       startsAt: startDates[0],
       recurrenceFrequency: recurring ? recurrenceFrequency : null,
+      recurrenceRollForward: recurring && recurrenceOngoing,
     },
   })
 
