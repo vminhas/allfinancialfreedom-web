@@ -247,13 +247,11 @@ export async function POST(req: NextRequest) {
         if (await createDiscordEventForOccurrence(e)) disc++
         await new Promise(r => setTimeout(r, 1500))
       }
-      // The Concierge bot renders `title` (and often a count) in its
-      // confirmation. Annotate the title so the message reflects that this
-      // is a recurring Mon-Fri series that auto-extends, not a single event.
-      // The stored event keeps the clean title (ev.title).
+      // Structured recurrence fields let the Concierge bot render the
+      // confirmation properly (see discord-bot/bot.js). Title stays clean.
       created.push({
         id: parentEvent.id,
-        title: `${ev.title} (recurring Mon-Fri · auto-extends)`,
+        title: ev.title,
         startsAt: occ[0].toISOString(),
         presenters: presenters.map(p => p.name),
         discordEvent: disc > 0 ? 'created' : false,
