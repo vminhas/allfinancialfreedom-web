@@ -483,6 +483,14 @@ export async function syncClients() {
   const now = Date.now()
   const autoAssignee = await getAutoAssignee()
 
+  // Tevah is authoritative ONLY for terminal outcomes. Everything else maps
+  // to PENDING, and the LC owns the working lifecycle (New/Pending/Hold) in
+  // the vault. Re-applying Tevah's PENDING on every sync was silently
+  // reverting the LC's manual status hourly, so we only let a TERMINAL Tevah
+  // status overwrite an existing submission; a PENDING from Tevah never
+  // clobbers a status the LC has moved.
+  const TERMINAL_TEVAH_STATUSES = new Set<NewBusinessStatus>(['ISSUED', 'DECLINED', 'LAPSED'])
+
   for (const client of clients) {
     try {
       // Skip secondary split records — they're linked via the primary's splitWithAgentId.
@@ -496,11 +504,16 @@ export async function syncClients() {
       const newStatus = tevahStatusToAff(client.policyStatus || client.status) as NewBusinessStatus
 
       if (existing) {
-        if (existing.status !== newStatus || existing.policyNumber !== client.policyNumber) {
+        // Only a terminal Tevah outcome may change the status; a PENDING from
+        // Tevah leaves the LC's current status untouched. Policy number is
+        // factual, so always keep it current.
+        const applyStatus = newStatus !== existing.status && TERMINAL_TEVAH_STATUSES.has(newStatus)
+        const policyChanged = existing.policyNumber !== client.policyNumber
+        if (applyStatus || policyChanged) {
           await db.newBusinessSubmission.update({
             where: { tevahClientId: client.id },
             data: {
-              status: newStatus,
+              ...(applyStatus ? { status: newStatus } : {}),
               policyNumber: client.policyNumber ?? undefined,
               ...(newStatus === 'ISSUED' && client.policyIssueDate
                 ? { issuedDate: new Date(client.policyIssueDate) }
@@ -627,7 +640,9 @@ export async function syncClients() {
           where: { id: matchedExistingId },
           data: {
             tevahClientId: client.id,
-            status: newStatus,
+            // Keep the LC's/agent's existing status unless Tevah reports a
+            // terminal outcome; don't reset a worked submission to PENDING.
+            ...(TERMINAL_TEVAH_STATUSES.has(newStatus) ? { status: newStatus } : {}),
             policyNumber: client.policyNumber ?? undefined,
             points: points ?? undefined,
             splitWithAgentId: splitPartnerProfile?.id ?? undefined,

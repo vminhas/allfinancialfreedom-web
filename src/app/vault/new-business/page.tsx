@@ -45,6 +45,7 @@ interface SubmissionListItem {
   clientLastName: string
   status: string
   createdAt: string
+  applicationDate: string | null
   issuedDate: string | null
   agentProfile: { id: string; firstName: string; lastName: string; agentCode: string }
   splitWithAgent: { id: string; firstName: string; lastName: string } | null
@@ -451,7 +452,7 @@ export default function VaultNewBusinessPage() {
                         <span style={{ color: '#4B5563' }}>&mdash;</span>
                       )}
                     </td>
-                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }}>{new Date(s.createdAt).toLocaleDateString()}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#9BB0C4' }} title={`Logged to vault ${new Date(s.createdAt).toLocaleDateString()}`}>{new Date(s.applicationDate ?? s.createdAt).toLocaleDateString()}</td>
                     <td style={{ padding: '10px 12px', fontSize: 12, color: '#6B8299' }}>{s._count.notes}</td>
                   </tr>
                 )
