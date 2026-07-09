@@ -17,6 +17,7 @@ import {
 import { PHASE_ITEMS, CARRIERS } from '@/lib/agent-constants'
 import { autoLinkBusinessPartnersForAgent } from '@/lib/business-partner-link'
 import { notifySubmitted } from '@/lib/new-business-notifications'
+import { logSubmissionActivity } from '@/lib/submission-activity'
 import { recomputeClimbAchievements } from '@/lib/climb-points'
 import { getAutoAssignee } from '@/lib/auto-assign'
 import { sendChannelMessage } from '@/lib/discord'
@@ -520,6 +521,18 @@ export async function syncClients() {
                 : {}),
             },
           })
+          // Audit trail: any status change the SYNC makes is now visible in
+          // the submission's Activity tab (actor = null = Tevah sync). This
+          // is the safeguard for the invisible-overwrite class of bug — a
+          // mass status change by the sync is one query away, not a mystery.
+          if (applyStatus) {
+            logSubmissionActivity({
+              submissionId: existing.id,
+              kind: 'STATUS_CHANGED',
+              actorAdminId: null,
+              meta: { from: existing.status, to: newStatus, source: 'tevah_sync' },
+            }).catch(() => {})
+          }
           results.updated++
         } else {
           results.skipped++
