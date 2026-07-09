@@ -204,19 +204,39 @@ export default function VaultNewBusinessPage() {
             Submissions from agents. Update status as you work them in Tevah; notes here are visible to the agent.
           </p>
         </div>
-        <button
-          onClick={() => setShowDuplicates(true)}
-          title="Find existing duplicate submissions (same writer + client + product) and merge them"
-          style={{
-            background: 'transparent', color: '#9BB0C4',
-            border: '1px solid rgba(255,255,255,0.12)', borderRadius: 4,
-            padding: '8px 14px', fontSize: 11, fontWeight: 700,
-            letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          Find duplicates
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            onClick={() => setShowDuplicates(true)}
+            title="Find existing duplicate submissions (same writer + client + product) and merge them"
+            style={{
+              background: 'transparent', color: '#9BB0C4',
+              border: '1px solid rgba(255,255,255,0.12)', borderRadius: 4,
+              padding: '8px 14px', fontSize: 11, fontWeight: 700,
+              letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Find duplicates
+          </button>
+          <button
+            onClick={async () => {
+              if (!confirm('Delete the "application submitted" announcement posts from the Discord announcements channel in the last 6 hours? This removes the recent sync spam only, not other announcements.')) return
+              const res = await fetch('/api/admin/new-business/cleanup-announcements?hours=6', { method: 'POST' })
+              const d = await res.json().catch(() => ({})) as { deleted?: number; error?: string }
+              alert(res.ok ? `Cleaned up ${d.deleted ?? 0} submission announcement${d.deleted === 1 ? '' : 's'}.` : `Cleanup failed: ${d.error ?? res.status}`)
+            }}
+            title="Delete recent 'application submitted' spam posts from the Discord announcements channel"
+            style={{
+              background: 'transparent', color: '#9BB0C4',
+              border: '1px solid rgba(255,255,255,0.12)', borderRadius: 4,
+              padding: '8px 14px', fontSize: 11, fontWeight: 700,
+              letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Clean up announcements
+          </button>
+        </div>
       </div>
 
       {showDuplicates && <DuplicatesModal onClose={() => setShowDuplicates(false)} onMerged={refresh} />}
