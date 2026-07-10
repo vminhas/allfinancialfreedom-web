@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   QUALIFIER_QUESTIONS, ACCOUNT_TYPE_OPTIONS, CONSENT_TEXT,
@@ -80,6 +80,14 @@ export default function AnnuityLeadForm() {
   const [company, setCompany] = useState('') // honeypot; real users never see it
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // ?test=1 -> fire the GA4/Pixel conversion events without creating a real
+  // lead or hitting the pipeline. For verifying conversion tracking.
+  const [testMode, setTestMode] = useState(false)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setTestMode(new URLSearchParams(window.location.search).get('test') === '1')
+    }
+  }, [])
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -109,6 +117,7 @@ export default function AnnuityLeadForm() {
           referrerName: referralSource === REFERRAL_AGENT_OPTION ? referrerName : '',
           consent,
           company, // honeypot
+          test: testMode,
           ...readAttribution(),
         }),
       })
@@ -143,6 +152,11 @@ export default function AnnuityLeadForm() {
 
   return (
     <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+      {testMode && (
+        <div style={{ background: 'rgba(201,169,110,0.12)', border: '1px solid rgba(201,169,110,0.4)', borderRadius: 6, padding: '10px 12px', fontSize: 12, color: '#C9A96E', fontWeight: 600 }}>
+          Test mode: this fires conversion tracking (GA4 + Pixel) but does NOT create a lead or contact anyone.
+        </div>
+      )}
       {/* Honeypot: hidden from real users + assistive tech; bots that fill
           every field trip it and the server silently drops the lead. */}
       <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, overflow: 'hidden' }}>
