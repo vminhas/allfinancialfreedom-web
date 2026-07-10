@@ -51,6 +51,7 @@ interface LeadBody {
   utmTerm?: unknown
   fbclid?: unknown
   company?: unknown // honeypot: hidden in the form, only bots fill it
+  test?: unknown    // test-mode submit: fire tracking, skip the pipeline
 }
 
 const str = (v: unknown): string | null =>
@@ -141,6 +142,16 @@ export async function POST(req: NextRequest) {
   const score = scoreLead({ savingsBand: body.savingsBand, incomeTiming: body.incomeTiming })
   const value = leadValueUsd(score)
   const metaEventId = randomUUID()
+
+  // Test-mode submit (from /retirement-income?test=1): the request passed
+  // all real validation, so it verifies the full form path, but we return
+  // success WITHOUT creating a lead or firing any pipeline side effect (no
+  // DB row, GHL, SMS, email, Discord, or server CAPI). The client still
+  // fires the GA4 generate_lead + Pixel Lead so conversion tracking can be
+  // activated/verified without polluting the sales pipeline.
+  if (body.test === true) {
+    return NextResponse.json({ ok: true, test: true, score, value, eventId: metaEventId })
+  }
 
   const lead = await db.annuityLead.create({
     data: {
