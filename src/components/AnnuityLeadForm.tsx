@@ -22,6 +22,7 @@ const chipStyle = (selected: boolean): React.CSSProperties => ({
 declare global {
   interface Window {
     fbq?: (...args: unknown[]) => void
+    gtag?: (...args: unknown[]) => void
   }
 }
 
@@ -111,17 +112,27 @@ export default function AnnuityLeadForm() {
           ...readAttribution(),
         }),
       })
-      const data = await res.json().catch(() => ({})) as { ok?: boolean; error?: string; eventId?: string }
+      const data = await res.json().catch(() => ({})) as { ok?: boolean; error?: string; eventId?: string; value?: number }
       if (!res.ok || !data.ok) {
         setError(data.error ?? 'Something went wrong. Please try again.')
         setSubmitting(false)
         return
       }
       // Fire the Pixel Lead event with the same eventID the server used
-      // for the Conversions API event, so Meta counts it once.
+      // for the Conversions API event, so Meta counts it once. The value
+      // (from the lead score) lets Meta bid for quality, not just volume.
       if (typeof window !== 'undefined' && window.fbq) {
-        window.fbq('track', 'Lead', { content_name: 'Retirement Income Estimate' },
+        window.fbq('track', 'Lead',
+          { content_name: 'Retirement Income Estimate', ...(data.value != null ? { value: data.value, currency: 'USD' } : {}) },
           data.eventId ? { eventID: data.eventId } : undefined)
+      }
+      // GA4 event for the Google Ads campaign. generate_lead is GA4's
+      // standard lead-form-submit event; import it as the primary Google
+      // conversion. Same score-based value for value-based bidding.
+      if (typeof window !== 'undefined' && window.gtag) {
+        window.gtag('event', 'generate_lead', {
+          ...(data.value != null ? { value: data.value, currency: 'USD' } : {}),
+        })
       }
       router.push('/retirement-income/thank-you')
     } catch {

@@ -5,7 +5,7 @@ import { validatePhone, validateEmail } from '@/lib/contact-validation'
 import {
   AGE_OPTIONS, SAVINGS_OPTIONS, TIMING_OPTIONS, PRIORITY_OPTIONS, ACCOUNT_TYPE_OPTIONS,
   REFERRAL_SOURCE_OPTIONS, REFERRAL_AGENT_OPTION,
-  CONSENT_TEXT, scoreLead,
+  CONSENT_TEXT, scoreLead, leadValueUsd,
 } from '@/lib/annuity-leads'
 import { sendMetaLeadEvent } from '@/lib/meta-capi'
 import { sanitizeName, capStr, checkLeadRateLimit } from '@/lib/lead-abuse-guard'
@@ -139,6 +139,7 @@ export async function POST(req: NextRequest) {
   }
 
   const score = scoreLead({ savingsBand: body.savingsBand, incomeTiming: body.incomeTiming })
+  const value = leadValueUsd(score)
   const metaEventId = randomUUID()
 
   const lead = await db.annuityLead.create({
@@ -181,10 +182,12 @@ export async function POST(req: NextRequest) {
       clientIp: ip ?? undefined,
       userAgent: userAgent ?? undefined,
       fbclid: str(body.fbclid) ?? undefined,
+      value, currency: 'USD',
     }),
   ])
 
   // The client uses metaEventId to de-dupe its Pixel "Lead" event with the
-  // server CAPI event above.
-  return NextResponse.json({ ok: true, score, eventId: metaEventId })
+  // server CAPI event above. value drives value-based bidding on the Pixel
+  // Lead + the GA4 generate_lead event (Google Ads).
+  return NextResponse.json({ ok: true, score, value, eventId: metaEventId })
 }

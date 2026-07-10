@@ -82,6 +82,14 @@ const NEAR_TERM: readonly string[] = ['Right away', '1-3 yrs']
 // A is checked before NURTURE so a high-intent lead is never demoted; a
 // "$500k+ / just exploring" lead is not near-term, so it falls through to
 // NURTURE, which is the intended behavior (no same-day call for browsers).
+// Quality-weighted lead value (USD) per score, used for value-based bidding
+// on both Meta (Pixel + CAPI) and Google Ads (generate_lead). Placeholders
+// that rank A > Standard > Nurture; tune to your real economics anytime.
+export const LEAD_VALUE_USD: Record<LeadScore, number> = { A: 50, STANDARD: 20, NURTURE: 5 }
+export function leadValueUsd(score: LeadScore): number {
+  return LEAD_VALUE_USD[score] ?? 20
+}
+
 export function scoreLead(input: { savingsBand: string; incomeTiming: string }): LeadScore {
   if (HIGH_SAVINGS.includes(input.savingsBand) && NEAR_TERM.includes(input.incomeTiming)) {
     return 'A'
