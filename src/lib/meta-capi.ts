@@ -42,8 +42,11 @@ export interface MetaLeadEventInput {
   clientIp?: string
   userAgent?: string
   fbclid?: string
-  // value/currency are optional; a booked annuity is worth far more than
-  // a lead, so we leave value unset and optimize on the Lead event itself.
+  // Quality-weighted value + currency for value-based bidding. When set,
+  // they flow into custom_data so Meta can optimize on lead value, not just
+  // raw lead volume. The dollar figure is derived from the lead score.
+  value?: number
+  currency?: string
 }
 
 export function metaCapiConfigured(): boolean {
@@ -75,6 +78,9 @@ export async function sendMetaLeadEvent(input: MetaLeadEventInput): Promise<bool
         event_id: input.eventId,
         action_source: 'website',
         ...(input.eventSourceUrl ? { event_source_url: input.eventSourceUrl } : {}),
+        ...(typeof input.value === 'number'
+          ? { custom_data: { value: input.value, currency: input.currency ?? 'USD' } }
+          : {}),
         user_data: userData,
       },
     ],
