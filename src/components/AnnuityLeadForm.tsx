@@ -45,6 +45,19 @@ const labelStyle: React.CSSProperties = {
   marginBottom: 8,
 }
 
+// The GA4 client_id, read from the browser _ga cookie
+// ("GA1.1.<cid1>.<cid2>" -> "<cid1>.<cid2>"). Captured with the lead so a
+// down-funnel conversion (qualify/close) can be sent server-side later via the
+// GA4 Measurement Protocol and attributed to the same user. Best-effort: if the
+// cookie is not set yet (gtag loads lazily) this is just omitted.
+function readGaClientId(): string | undefined {
+  if (typeof document === 'undefined') return undefined
+  const m = document.cookie.match(/(?:^|;\s*)_ga=([^;]+)/)
+  if (!m) return undefined
+  const cid = m[1]!.match(/^GA\d+\.\d+\.(\d+\.\d+)$/)
+  return cid ? cid[1] : undefined
+}
+
 // Pull ad attribution off the landing URL + referrer so the lead record
 // can tie back to the campaign/ad set. Cheap and best-effort.
 function readAttribution() {
@@ -59,6 +72,9 @@ function readAttribution() {
     utmContent: p.get('utm_content') || undefined,
     utmTerm: p.get('utm_term') || undefined,
     fbclid: p.get('fbclid') || undefined,
+    // Google Ads click id + GA4 client id, for offline conversion import.
+    gclid: p.get('gclid') || undefined,
+    gaClientId: readGaClientId(),
   }
 }
 

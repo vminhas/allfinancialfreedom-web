@@ -50,6 +50,8 @@ interface LeadBody {
   utmContent?: unknown
   utmTerm?: unknown
   fbclid?: unknown
+  gclid?: unknown      // Google Ads click id, for offline conversion import
+  gaClientId?: unknown // GA4 client_id from the _ga cookie
   company?: unknown // honeypot: hidden in the form, only bots fill it
   test?: unknown    // test-mode submit: fire tracking, skip the pipeline
 }
@@ -177,6 +179,8 @@ export async function POST(req: NextRequest) {
       utmContent: str(body.utmContent) ? capStr(body.utmContent as string, 200) : null,
       utmTerm: str(body.utmTerm) ? capStr(body.utmTerm as string, 200) : null,
       fbclid: str(body.fbclid) ? capStr(body.fbclid as string, 512) : null,
+      gclid: str(body.gclid) ? capStr(body.gclid as string, 512) : null,
+      gaClientId: str(body.gaClientId) ? capStr(body.gaClientId as string, 100) : null,
       metaEventId,
     },
   })
