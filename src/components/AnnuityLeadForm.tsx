@@ -143,6 +143,35 @@ export default function AnnuityLeadForm() {
         setSubmitting(false)
         return
       }
+      // Dual-post to mycadre's CRM during cutover (best-effort; never blocks
+      // the user). Skipped in test mode so verifying conversion tracking never
+      // creates a real lead. keepalive lets it finish despite the redirect
+      // below. mycadre records its own consent text + IP + timestamp
+      // server-side, so we send consent:true (only when the box was checked,
+      // enforced above), never the consent language, and never the honeypot.
+      if (typeof window !== 'undefined' && !testMode) {
+        const attr = readAttribution()
+        void fetch('https://aff.mycadre.ai/api/leads/annuity', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          keepalive: true,
+          body: JSON.stringify({
+            key: 'lk_Tb2aeEz46avApgTCFfM1h1rd6tJPyOKT',
+            firstName, lastName, email, phone,
+            ...answers, // ageBand, savingsBand, incomeTiming, priority
+            accountTypes,
+            referralSource,
+            referrerName: referralSource === REFERRAL_AGENT_OPTION ? referrerName : undefined,
+            consent: true,
+            source: 'landing_page',
+            pageUrl: attr.pageUrl,
+            gclid: attr.gclid, fbclid: attr.fbclid,
+            utmSource: attr.utmSource, utmMedium: attr.utmMedium,
+            utmCampaign: attr.utmCampaign, utmContent: attr.utmContent,
+            utmTerm: attr.utmTerm, gaClientId: attr.gaClientId,
+          }),
+        }).catch(() => {})
+      }
       // Fire the Pixel Lead event with the same eventID the server used
       // for the Conversions API event, so Meta counts it once. The value
       // (from the lead score) lets Meta bid for quality, not just volume.
