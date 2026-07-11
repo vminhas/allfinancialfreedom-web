@@ -36,7 +36,8 @@ export const RISK_LABEL: Record<DiagnosticRisk, string> = {
 
 export const MAX_OVERALL = 800
 
-// Percentage -> class band. Same thresholds for a module % and the overall %.
+// Module % -> class band. Modules stay on our own transparent 0..100 scale
+// (they are not individually calibrated to the source tool).
 export function classForPct(pct: number): DiagnosticClass {
   if (pct >= 85) return 'ELITE'
   if (pct >= 75) return 'ADVANCED'
@@ -45,11 +46,40 @@ export function classForPct(pct: number): DiagnosticClass {
   return 'ENTRY'
 }
 
-// Overall % -> risk tier (the wash-out read; vault-only in the UI).
-export function riskForPct(pct: number): DiagnosticRisk {
-  if (pct >= 80) return 'STRONG'
-  if (pct >= 68) return 'ON_TRACK'
-  if (pct >= 55) return 'MODERATE'
+// --- Calibration to the source (Siebold) scale --------------------------------
+// The source diagnostic scores through an undocumented external engine. To land
+// our overall number on the same 800-point scale, we submitted 11 controlled
+// answer vectors to the real assessment (floor, ceiling, mid, scale-only,
+// frequency-only, keyed high/low, single-module isolation) on 2026-07-11,
+// captured the emailed reports, and least-squares fit our raw composite to
+// their overall score:
+//   siebold ~= 0.710 * ours + 243.5   (R^2 = 0.93, mean abs error ~25 / 800)
+// The source scale is compressed (observed 355..764) relative to our raw
+// composite; this transform matches it. Re-fit these two constants if you gather
+// more data points. Module scores + the limiting factor stay on our own scale.
+const SIEBOLD_CAL_SLOPE = 0.710
+const SIEBOLD_CAL_INTERCEPT = 243.5
+
+export function calibrateToSiebold(rawScore800: number): number {
+  return clamp(Math.round(SIEBOLD_CAL_SLOPE * rawScore800 + SIEBOLD_CAL_INTERCEPT), 0, MAX_OVERALL)
+}
+
+// Overall (calibrated 0..800) -> class band. Thresholds set from the source
+// tool's observed clusters: Entry <575, then Emerging, Developing (~"Middle"),
+// Advanced, Elite (~"World Class", observed at 764).
+export function overallClassForScore(score: number): DiagnosticClass {
+  if (score >= 750) return 'ELITE'
+  if (score >= 700) return 'ADVANCED'
+  if (score >= 650) return 'DEVELOPING'
+  if (score >= 575) return 'EMERGING'
+  return 'ENTRY'
+}
+
+// Overall (calibrated 0..800) -> risk tier (the wash-out read; vault-only).
+export function riskForScore(score: number): DiagnosticRisk {
+  if (score >= 725) return 'STRONG'
+  if (score >= 650) return 'ON_TRACK'
+  if (score >= 575) return 'MODERATE'
   return 'NEEDS_IMPROVEMENT'
 }
 
@@ -162,8 +192,10 @@ export function scoreDiagnostic(answers: Answers): ScoredResult {
   const rawOverall = modules.reduce((a, m) => a + (modulePcts.get(m.key) ?? 0), 0) / modules.length
   const cons = consistency(answers)
   const adjustedPct = clamp(rawOverall * (1 - cons.penaltyPct / 100))
-  const overallScore = Math.round((adjustedPct / 100) * MAX_OVERALL)
-  const overallPct = round1(adjustedPct)
+  // Our raw composite, then calibrated onto the source tool's 800-point scale.
+  const rawScore = (adjustedPct / 100) * MAX_OVERALL
+  const overallScore = calibrateToSiebold(rawScore)
+  const overallPct = round1((overallScore / MAX_OVERALL) * 100)
 
   const probabilities = Object.fromEntries(
     (Object.keys(PROB_WEIGHTS) as (keyof Probabilities)[]).map(k => {
@@ -182,8 +214,8 @@ export function scoreDiagnostic(answers: Answers): ScoredResult {
   return {
     overallScore,
     overallPct,
-    overallClass: classForPct(adjustedPct),
-    risk: riskForPct(adjustedPct),
+    overallClass: overallClassForScore(overallScore),
+    risk: riskForScore(overallScore),
     modules,
     limitingModule,
     recommendedFocus,
