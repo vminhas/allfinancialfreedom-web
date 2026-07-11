@@ -9,7 +9,7 @@ import {
   US_STATES, LC_CALENDAR_URL,
 } from '@/lib/agent-constants'
 import { GROUP_ICONS, PROGRESSION_ICONS, Mail, ChevronDown, ArrowRight, ExternalLink, UserCheck } from '@/lib/checklist-icons'
-import { Trophy, Users, BookOpen, Folder, CalendarDays, LogOut, Menu, X, type LucideIcon } from 'lucide-react'
+import { Trophy, Users, BookOpen, Folder, CalendarDays, Gauge, LogOut, Menu, X, type LucideIcon } from 'lucide-react'
 import { formatPhoneAsTyped } from '@/lib/contact-validation'
 import CallReviewModal, { CallReviewData } from '@/components/CallReviewModal'
 import ClimbTab from '@/components/climb/ClimbTab'
@@ -851,6 +851,7 @@ function AgentDashboardInner() {
             <>
               <NavbarLink href="/agents/leaderboard" Icon={Trophy} label="Leaderboard" />
               <NavbarLink href="/agents/team" Icon={Users} label="Directory" />
+              <NavbarLink href="/agents/diagnostic" Icon={Gauge} label="Diagnostic" />
               <NavbarLink href="/agents/trainings" Icon={CalendarDays} label="Trainings" />
               <NavbarLink href="/agents/guide" Icon={BookOpen} label="Guide" />
               <NavbarLink href="/agents/resources" Icon={Folder} label="Resources" />
@@ -903,6 +904,7 @@ function AgentDashboardInner() {
               {[
                 { href: '/agents/leaderboard', Icon: Trophy, label: 'Leaderboard', desc: 'See top performers' },
                 { href: '/agents/team', Icon: Users, label: 'Team Directory', desc: 'Browse and save headshots' },
+                { href: '/agents/diagnostic', Icon: Gauge, label: 'Diagnostic', desc: 'Your success score + team coaching' },
                 { href: '/agents/trainings', Icon: CalendarDays, label: 'Trainings', desc: 'Upcoming sessions + downloadable flyers' },
                 { href: '/agents/guide', Icon: BookOpen, label: 'Agent Guide', desc: 'Your step-by-step playbook' },
                 { href: '/agents/resources', Icon: Folder, label: 'Resources', desc: 'Tools and materials' },

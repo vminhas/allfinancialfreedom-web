@@ -2247,3 +2247,86 @@ model AnnuityLead {
   @@index([email])
   @@map("annuity_leads")
 }
+
+// --- Success Diagnostic -----------------------------------------------------
+// A behavioral assessment result. The taker answers 120 items across 10
+// modules; scoring (see src/lib/diagnostic/scoring.ts) produces the 800-point
+// overall, class bands, the four probability indicators, and the honesty /
+// consistency check. Access to a row is tiered by viewer (see
+// src/lib/diagnostic/access.ts): the subject sees their own report, an upline
+// recruiter or trainer sees a coaching view, and admin/LC in the vault see
+// everything (risk, probabilities, the consistency check, raw answers).
+
+// Overall + per-module class band.
+enum DiagnosticClass {
+  ENTRY
+  EMERGING
+  DEVELOPING
+  ADVANCED
+  ELITE
+}
+
+// The wash-out read derived from the overall score. Vault-only in the UI.
+enum DiagnosticRisk {
+  NEEDS_IMPROVEMENT
+  MODERATE
+  ON_TRACK
+  STRONG
+}
+
+enum DiagnosticStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
+model DiagnosticResult {
+  id          String           @id @default(cuid())
+  createdAt   DateTime         @default(now()) @map("created_at")
+  submittedAt DateTime?        @map("submitted_at")
+  status      DiagnosticStatus @default(COMPLETED)
+  version     Int              @default(1)
+
+  // Taker identity
+  firstName String  @map("first_name")
+  lastName  String  @map("last_name")
+  email     String
+  phone     String?
+  company   String?
+  state     String?
+
+  // If the taker is an existing AFF agent, their AgentProfile id (loose link,
+  // no FK, matching the recruiterId string-linking convention). recruiterCode
+  // is the agentCode credited with the referral; recruiterName is the free
+  // text "who referred you" answer.
+  subjectProfileId String? @map("subject_profile_id")
+  recruiterCode    String? @map("recruiter_code")
+  recruiterName    String? @map("recruiter_name")
+  source           String  @default("public_link") // public_link | agent_portal
+
+  // Computed scores
+  overallScore     Int             @map("overall_score") // 0..800
+  overallClass     DiagnosticClass @map("overall_class")
+  risk             DiagnosticRisk
+  limitingModule   String          @map("limiting_module")
+  recommendedFocus String          @map("recommended_focus")
+
+  // Detail (JSON): moduleScores = [{key,name,pct,class}], probabilities =
+  // {licensing,retention,network,leadership}, answers = raw {questionKey:value}
+  moduleScores          Json @map("module_scores")
+  probabilities         Json
+  consistencyIndex      Int    @map("consistency_index")
+  consistencyPenaltyPct Int    @map("consistency_penalty_pct")
+  consistencyLabel      String @map("consistency_label")
+  answers               Json
+
+  // Attribution (best-effort)
+  ipAddress String? @map("ip_address")
+  userAgent String? @map("user_agent")
+  pageUrl   String? @map("page_url")
+
+  @@index([subjectProfileId])
+  @@index([recruiterCode])
+  @@index([overallClass, createdAt])
+  @@index([createdAt])
+  @@map("diagnostic_results")
+}
