@@ -2234,6 +2234,20 @@ model AnnuityLead {
   fbclid      String?
   referrer    String?
 
+  // Google Ads / GA4 attribution, captured when the lead first lands from an
+  // ad, so down-funnel conversions can be sent later via the GA4 Measurement
+  // Protocol. gclid is the Ads click id; gaClientId is the GA4 client_id read
+  // from the browser _ga cookie (needed to attribute a server-side MP hit to
+  // the same user). See src/lib/ga4-mp.ts.
+  gclid      String?
+  gaClientId String? @map("ga_client_id")
+
+  // Down-funnel conversion bookkeeping: when we sent qualify_lead (lead became
+  // qualified / BOOKED) and close_convert_lead (lead converted / WON) to GA4.
+  // Non-null = already sent, so a repeated status change never double-fires.
+  qualifyEventAt DateTime? @map("qualify_event_at")
+  convertEventAt DateTime? @map("convert_event_at")
+
   // Integration bookkeeping
   ghlContactId String? @map("ghl_contact_id")
   metaEventId  String? @map("meta_event_id") // dedupe key shared with the client Pixel
