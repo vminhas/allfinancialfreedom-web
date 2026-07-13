@@ -6,6 +6,7 @@ import {
   QUALIFIER_QUESTIONS, ACCOUNT_TYPE_OPTIONS, CONSENT_TEXT,
   REFERRAL_SOURCE_OPTIONS, REFERRAL_AGENT_OPTION,
 } from '@/lib/annuity-leads'
+import { LEADS_PIPELINE_ENABLED } from '@/lib/leads-flags'
 
 const chipStyle = (selected: boolean): React.CSSProperties => ({
   cursor: 'pointer',
@@ -173,9 +174,11 @@ export default function AnnuityLeadForm() {
         }).catch(() => {})
       }
       // Fire the Pixel Lead event with the same eventID the server used
-      // for the Conversions API event, so Meta counts it once. The value
-      // (from the lead score) lets Meta bid for quality, not just volume.
-      if (typeof window !== 'undefined' && window.fbq) {
+      // for the Conversions API event, so Meta counts it once. Gated by
+      // LEADS_PIPELINE_ENABLED: mycadre now fires the Meta Lead on the shared
+      // pixel, so firing it here too would double-count. GA4 generate_lead
+      // below stays on (that top-of-funnel Google Ads event is still ours).
+      if (LEADS_PIPELINE_ENABLED && typeof window !== 'undefined' && window.fbq) {
         window.fbq('track', 'Lead',
           { content_name: 'Retirement Income Estimate', ...(data.value != null ? { value: data.value, currency: 'USD' } : {}) },
           data.eventId ? { eventID: data.eventId } : undefined)

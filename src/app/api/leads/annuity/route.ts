@@ -9,7 +9,7 @@ import {
 } from '@/lib/annuity-leads'
 import { sendMetaLeadEvent } from '@/lib/meta-capi'
 import { sanitizeName, capStr, checkLeadRateLimit } from '@/lib/lead-abuse-guard'
-import { routeLeadToGhl, notifyLeadDiscord } from '@/lib/lead-pipeline'
+import { routeLeadToGhl, notifyLeadDiscord, LEADS_PIPELINE_ENABLED } from '@/lib/lead-pipeline'
 
 // Public, unauthenticated lead capture for the retirement-income landing
 // page. This endpoint is the TCPA system of record (it persists the exact
@@ -186,11 +186,17 @@ export async function POST(req: NextRequest) {
   })
 
   // Fan-out (best-effort). Run concurrently; never let one failure block
-  // the response. GHL gives us the contactId we persist back on the lead.
+  // the response. The outbound pipeline (GHL contact/SMS/email via
+  // routeLeadToGhl, and the Meta CAPI event below) is gated by
+  // LEADS_PIPELINE_ENABLED: mycadre now owns the funnel and fires the Meta
+  // event itself, so we must not double-contact the prospect or double-count
+  // the pixel. routeLeadToGhl self-guards on the flag; the Meta event is gated
+  // here. The staff Discord notify stays on (internal only). Flip the flag in
+  // lead-pipeline.ts to restore everything.
   await Promise.allSettled([
     routeLeadToGhl({ leadId: lead.id, firstName, lastName, email, phone, score }),
     notifyLeadDiscord({ firstName, lastName, email, phone, score, source: 'landing_page', lead }),
-    sendMetaLeadEvent({
+    ...(LEADS_PIPELINE_ENABLED ? [sendMetaLeadEvent({
       eventId: metaEventId,
       eventSourceUrl: str(body.pageUrl) ?? undefined,
       email, phone, firstName, lastName,
@@ -198,7 +204,7 @@ export async function POST(req: NextRequest) {
       userAgent: userAgent ?? undefined,
       fbclid: str(body.fbclid) ?? undefined,
       value, currency: 'USD',
-    }),
+    })] : []),
   ])
 
   // The client uses metaEventId to de-dupe its Pixel "Lead" event with the

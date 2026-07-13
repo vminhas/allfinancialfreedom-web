@@ -8,6 +8,12 @@ import { escapeHtml, sanitizeOneLine } from '@/lib/lead-abuse-guard'
 import { LEAD_MESSAGE_SETTING_KEYS, LEAD_MESSAGE_DEFAULTS } from '@/lib/annuity-leads'
 import type { LeadScore } from '@/generated/prisma/client'
 
+// Master switch for the outbound pipeline. Defined in a dependency-free module
+// (leads-flags.ts) so the browser form can share the exact same flag; imported
+// here for the server guards and re-exported for the lead routes.
+import { LEADS_PIPELINE_ENABLED } from './leads-flags'
+export { LEADS_PIPELINE_ENABLED }
+
 // Turn an admin-edited plain-text email body into safe HTML: substitute
 // {firstName}, HTML-escape everything, blank lines -> paragraphs, single
 // newlines -> <br>.
@@ -46,6 +52,10 @@ export interface LeadFanOut {
 // instant text + confirmation email. The score tag lets a GHL workflow
 // branch A-leads (call first) from nurture.
 export async function routeLeadToGhl(opts: LeadFanOut): Promise<void> {
+  // Disabled during the mycadre cutover (see LEADS_PIPELINE_ENABLED). Guards
+  // both callers (landing form + Meta webhook): no GHL contact/tags, no
+  // speed-to-lead SMS, no confirmation email.
+  if (!LEADS_PIPELINE_ENABLED) return
   try {
     const config = await getGhlConfig()
     if (!config.apiKey || !config.locationId) return
