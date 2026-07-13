@@ -8,19 +8,11 @@ import { escapeHtml, sanitizeOneLine } from '@/lib/lead-abuse-guard'
 import { LEAD_MESSAGE_SETTING_KEYS, LEAD_MESSAGE_DEFAULTS } from '@/lib/annuity-leads'
 import type { LeadScore } from '@/generated/prisma/client'
 
-// Master switch for the OUTBOUND annuity lead pipeline: the GoHighLevel
-// contact create/update + tags, the speed-to-lead SMS to the lead, the
-// confirmation email to the lead, and the Meta CAPI lead event. Turned OFF
-// because mycadre now owns the annuity funnel end to end, and we must not have
-// both systems contacting the same prospect (or double-count the Meta pixel).
-//
-// Flip this to `true` to roll the ENTIRE pipeline back on in one line.
-//
-// This flag intentionally does NOT affect: the local AnnuityLead DB row (kept
-// as a harmless backup), the TCPA consent record, the staff-only Discord lead
-// notification (internal, never contacts the prospect), or the forward of the
-// lead to mycadre (that is now the only path that matters).
-export const LEADS_PIPELINE_ENABLED = false
+// Master switch for the outbound pipeline. Defined in a dependency-free module
+// (leads-flags.ts) so the browser form can share the exact same flag; imported
+// here for the server guards and re-exported for the lead routes.
+import { LEADS_PIPELINE_ENABLED } from './leads-flags'
+export { LEADS_PIPELINE_ENABLED }
 
 // Turn an admin-edited plain-text email body into safe HTML: substitute
 // {firstName}, HTML-escape everything, blank lines -> paragraphs, single
