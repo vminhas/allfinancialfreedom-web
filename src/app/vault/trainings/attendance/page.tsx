@@ -163,6 +163,9 @@ export default function AttendancePage() {
   const [hoveredEventId, setHoveredEventId] = useState<string | null>(null)
   // Clicked column header -> action panel modal.
   const [eventPanelId, setEventPanelId] = useState<string | null>(null)
+  // Multiselect: training columns checked for a bulk "stop tracking" action.
+  const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set())
+  const [bulkUntracking, setBulkUntracking] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [publishMsg, setPublishMsg] = useState<{ ok: boolean; text: string } | null>(null)
   // Clicked agent name -> trading card modal.
@@ -775,6 +778,68 @@ export default function AttendancePage() {
         </div>
       )}
 
+      {/* Multiselect bulk action bar: appears once one or more training
+          columns are checked. Lets the admin stop tracking several trainings
+          at once instead of opening each column's panel. */}
+      {data && data.events.length > 0 && (() => {
+        const selCount = data.events.filter(e => selectedEventIds.has(e.id)).length
+        if (selCount === 0) return null
+        return (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+            marginBottom: 14, padding: '10px 14px',
+            background: 'rgba(201,169,110,0.08)', border: '1px solid rgba(201,169,110,0.30)', borderRadius: 6,
+          }}>
+            <span style={{ fontSize: 12, color: '#fff', fontWeight: 600 }}>
+              {selCount} training{selCount > 1 ? 's' : ''} selected
+            </span>
+            <button
+              onClick={() => setSelectedEventIds(new Set(data.events.map(e => e.id)))}
+              style={{ background: 'transparent', border: 'none', color: '#9BB0C4', fontSize: 11, cursor: 'pointer', textDecoration: 'underline' }}
+            >
+              Select all {data.events.length}
+            </button>
+            <button
+              onClick={() => setSelectedEventIds(new Set())}
+              style={{ background: 'transparent', border: 'none', color: '#9BB0C4', fontSize: 11, cursor: 'pointer', textDecoration: 'underline' }}
+            >
+              Clear
+            </button>
+            <button
+              disabled={bulkUntracking}
+              onClick={async () => {
+                const ids = data.events.filter(e => selectedEventIds.has(e.id)).map(e => e.id)
+                if (ids.length === 0) return
+                if (!confirm(`Stop tracking ${ids.length} training${ids.length > 1 ? 's' : ''}? They will drop off this grid. You can re-enable them anytime from the 'N untracked' panel.`)) return
+                setBulkUntracking(true)
+                try {
+                  const res = await fetch('/api/admin/attendance/bulk-untrack', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ eventIds: ids }),
+                  })
+                  if (res.ok) {
+                    setSelectedEventIds(new Set())
+                    await Promise.all([load(), loadUntracked()])
+                  }
+                } finally {
+                  setBulkUntracking(false)
+                }
+              }}
+              style={{
+                marginLeft: 'auto', padding: '8px 14px',
+                background: 'rgba(248,113,113,0.10)', color: '#f87171',
+                border: '1px solid rgba(248,113,113,0.35)', borderRadius: 4,
+                fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                cursor: bulkUntracking ? 'wait' : 'pointer', whiteSpace: 'nowrap',
+              }}
+            >
+              {bulkUntracking ? 'Stopping...' : `✕ Stop tracking (${selCount})`}
+            </button>
+          </div>
+        )
+      })()}
+
       {loading ? (
         <div style={{ color: '#6B8299', fontSize: 13, padding: 40, textAlign: 'center' }}>Loading attendance...</div>
       ) : !data || data.events.length === 0 ? (
@@ -792,8 +857,22 @@ export default function AttendancePage() {
                 {data.events.map(ev => {
                   const isSorted = sortBy?.eventId === ev.id
                   const sortIcon = isSorted ? (sortBy.direction === 'present' ? '↓✓' : '↑✗') : ''
+                  const isSelected = selectedEventIds.has(ev.id)
                   return (
-                    <th key={ev.id} style={{ ...thStyle, minWidth: 56, padding: '6px 4px', cursor: 'pointer' }}>
+                    <th key={ev.id} style={{ ...thStyle, minWidth: 56, padding: '6px 4px', background: isSelected ? 'rgba(201,169,110,0.12)' : undefined }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={e => setSelectedEventIds(prev => {
+                            const next = new Set(prev)
+                            if (e.target.checked) next.add(ev.id); else next.delete(ev.id)
+                            return next
+                          })}
+                          onClick={e => e.stopPropagation()}
+                          title="Select this training to bulk stop tracking"
+                          style={{ cursor: 'pointer', accentColor: '#C9A96E', width: 14, height: 14, margin: 0 }}
+                        />
                       <div
                         onMouseEnter={() => setHoveredEventId(ev.id)}
                         onMouseLeave={() => setHoveredEventId(prev => prev === ev.id ? null : prev)}
@@ -802,7 +881,7 @@ export default function AttendancePage() {
                         style={{
                           writingMode: 'vertical-rl', transform: 'rotate(180deg)',
                           whiteSpace: 'nowrap', fontSize: 10, color: '#9BB0C4', fontWeight: 600,
-                          paddingTop: 8,
+                          paddingTop: 8, cursor: 'pointer',
                           display: 'inline-flex', flexDirection: 'column', gap: 4,
                           minHeight: 140,
                         }}
@@ -818,6 +897,7 @@ export default function AttendancePage() {
                           <span style={{ color: '#9B6DFF', fontSize: 9, fontWeight: 700 }}>manual</span>
                         )}
                         {ev.streamType === 'ZOOM' && !ev.attendanceSyncedAt && <span style={{ color: '#6B8299', fontSize: 9 }}>pending</span>}
+                      </div>
                       </div>
                     </th>
                   )
