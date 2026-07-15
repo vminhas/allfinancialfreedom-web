@@ -75,6 +75,11 @@ interface Submission {
   ownerFirstName: string | null
   ownerLastName: string | null
   status: 'PENDING' | 'PENDING_CARRIER' | 'HOLD' | 'ISSUED' | 'DECLINED' | 'LAPSED' | 'NOT_TAKEN'
+  // Set when the row is linked to / owned by the hourly Tevah sync. A non-null
+  // value means it's a real carrier-synced policy, so the agent can't delete it.
+  tevahClientId: number | null
+  // 'own' = the agent wrote it; 'shared' = they're only a split partner.
+  lane?: 'own' | 'shared'
   issuedDate: string | null
   policyNumber: string | null
   declinedReason: string | null
@@ -828,6 +833,29 @@ function SubmissionDrawer({ submission, onClose, onChanged, previewToken }: { su
     } finally { setSavingEdit(false) }
   }
 
+  // Self-delete: only the agent's own, still-new (PENDING), non-Tevah rows,
+  // and never in read-only preview. Server enforces the same rule.
+  const [deleting, setDeleting] = useState(false)
+  const canDelete =
+    !previewToken &&
+    submission.lane !== 'shared' &&
+    submission.status === 'PENDING' &&
+    submission.tevahClientId == null
+
+  const deleteSubmission = async () => {
+    if (!confirm(
+      `Delete the submission for ${submission.clientFirstName} ${submission.clientLastName} (${submission.carrier} ${POLICY_TYPES.find(p => p.value === submission.policyType)?.label ?? submission.policyType})? This can't be undone. Only new submissions you entered can be deleted; once a policy is processed, ask your licensing coordinator.`,
+    )) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/agents/new-business/${submission.id}${ptQs}`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      if (!res.ok) { setEditError(data.error ?? 'Delete failed'); return }
+      onChanged()
+      onClose()
+    } finally { setDeleting(false) }
+  }
+
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 50, display: 'flex', justifyContent: 'flex-end' }}>
       <div onClick={e => e.stopPropagation()} style={{ width: 520, maxWidth: '95vw', height: '100vh', background: '#0F1E33', borderLeft: '1px solid rgba(201,169,110,0.2)', overflowY: 'auto', padding: 24 }}>
@@ -852,6 +880,16 @@ function SubmissionDrawer({ submission, onClose, onChanged, previewToken }: { su
             <span style={{ fontSize: 10, color: '#6B8299' }} title="Declined submissions are frozen. Reach out to your licensing coordinator if something needs to change.">
               Locked &middot; declined
             </span>
+          )}
+          {canDelete && !editing && (
+            <button
+              onClick={deleteSubmission}
+              disabled={deleting}
+              title="Delete this submission you entered. Only available while it's new (before it's processed or synced from the carrier)."
+              style={{ background: 'transparent', border: '1px solid rgba(248,113,113,0.35)', color: '#f87171', borderRadius: 4, padding: '4px 10px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: deleting ? 'wait' : 'pointer' }}
+            >
+              {deleting ? 'Deleting...' : 'Delete'}
+            </button>
           )}
         </div>
 
