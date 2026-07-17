@@ -25,6 +25,7 @@ declare global {
   interface Window {
     fbq?: (...args: unknown[]) => void
     gtag?: (...args: unknown[]) => void
+    uetq?: unknown[]
   }
 }
 
@@ -196,6 +197,19 @@ export default function AnnuityLeadForm() {
       if (typeof window !== 'undefined' && window.gtag) {
         window.gtag('event', 'generate_lead', {
           ...(data.value != null ? { value: data.value, currency: 'USD' } : {}),
+        })
+      }
+      // Microsoft Advertising (Bing) UET conversion, fired on the SAME success
+      // trigger as generate_lead above so Bing and Google count identical
+      // leads. Configure the Bing goal as an Event goal: category 'lead',
+      // action 'submit'. No-op until the UET base tag (NEXT_PUBLIC_UET_TAG_ID)
+      // is set; the push just queues on the uetq array.
+      if (typeof window !== 'undefined') {
+        window.uetq = window.uetq || []
+        window.uetq.push('event', 'submit', {
+          event_category: 'lead',
+          event_label: 'retirement_income',
+          ...(data.value != null ? { event_value: data.value } : {}),
         })
       }
       router.push('/retirement-income/thank-you')
