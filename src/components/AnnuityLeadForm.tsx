@@ -29,6 +29,34 @@ declare global {
   }
 }
 
+// SHA-256 hex digest, used for Bing UET enhanced conversions (hash PII in the
+// browser so raw email/phone never hit the network).
+async function sha256Hex(value: string): Promise<string> {
+  const bytes = new TextEncoder().encode(value)
+  const buf = await window.crypto.subtle.digest('SHA-256', bytes)
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+// Normalize an email per Bing's enhanced-conversions rules before hashing:
+// trim/lowercase, strip whitespace + accents, drop a "+tag", remove dots in the
+// local part, and no trailing period.
+function normalizeEmailForHash(email: string): string {
+  let e = email.trim().toLowerCase().replace(/\s+/g, '')
+  e = e.normalize('NFD').replace(/[\u0300-\u036f]/g, '') // strip accents
+  e = e.replace(/\+[^@]*@/, '@')                          // remove +tag
+  const at = e.indexOf('@')
+  if (at > -1) e = e.slice(0, at).replace(/\./g, '') + e.slice(at)
+  return e.replace(/\.$/, '')
+}
+
+// Format a phone number to E.164 (assume US when no country code is present).
+function normalizePhoneE164(phone: string): string {
+  const trimmed = phone.trim()
+  if (trimmed.startsWith('+')) return '+' + trimmed.slice(1).replace(/\D/g, '')
+  const digits = trimmed.replace(/\D/g, '')
+  return '+' + (digits.length === 10 ? '1' + digits : digits)
+}
+
 type QualifierKey = 'ageBand' | 'savingsBand' | 'incomeTiming' | 'priority'
 
 const inputStyle: React.CSSProperties = {
@@ -206,6 +234,21 @@ export default function AnnuityLeadForm() {
       // is set; the push just queues on the uetq array.
       if (typeof window !== 'undefined') {
         window.uetq = window.uetq || []
+        // Enhanced conversions: attach the lead's SHA-256-hashed email/phone
+        // before the conversion event so Bing can match more conversions.
+        // Hashing client-side (per Bing's normalization rules) means raw PII
+        // never leaves the browser. Best-effort: skipped if crypto.subtle is
+        // unavailable, and never blocks the conversion event.
+        try {
+          if (window.crypto?.subtle && (email || phone)) {
+            const pid: Record<string, string> = {}
+            if (email) pid.em = await sha256Hex(normalizeEmailForHash(email))
+            if (phone) pid.ph = await sha256Hex(normalizePhoneE164(phone))
+            if (Object.keys(pid).length) window.uetq.push('set', { pid })
+          }
+        } catch {
+          // ignore; fall through to the conversion event regardless
+        }
         window.uetq.push('event', 'submit', {
           event_category: 'lead',
           event_label: 'retirement_income',
