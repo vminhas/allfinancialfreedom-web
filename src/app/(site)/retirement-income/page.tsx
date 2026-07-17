@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Footer from '@/components/Footer'
 import AnnuityLeadForm from '@/components/AnnuityLeadForm'
+import EstimateCtaButton from '@/components/EstimateCtaButton'
 
 export const metadata: Metadata = {
   title: 'Free Retirement Income Estimate | All Financial Freedom',
@@ -122,6 +123,21 @@ export default function RetirementIncomeLanding() {
               Answer 4 quick questions and a licensed annuity professional from All Financial Freedom
               will prepare a personalized, no-obligation income estimate. No cost. No pressure.
             </p>
+            {/* Creator video (repurposed from a Meta ad). Lives beside the
+                estimate form so its "click below for a free estimate" ask lands
+                right where the form is. On mobile the button jumps to the form. */}
+            <div style={{ marginBottom: 32, maxWidth: 380 }}>
+              <video
+                controls
+                playsInline
+                preload="metadata"
+                poster="/retirement-income-video-poster.jpg"
+                style={{ width: '100%', height: 'auto', borderRadius: 12, border: '1px solid rgba(201,169,110,0.25)', display: 'block', background: '#000' }}
+              >
+                <source src="/retirement-income-video.mp4" type="video/mp4" />
+              </video>
+              <EstimateCtaButton />
+            </div>
             <ul className="space-y-5">
               {VALUE_POINTS.map(v => (
                 <li key={v.title} className="flex items-start gap-3">
@@ -137,8 +153,9 @@ export default function RetirementIncomeLanding() {
 
           {/* Right: the form card */}
           <div
+            id="estimate-form"
             className="card-premium"
-            style={{ background: '#fff', padding: '28px 26px', borderRadius: 10, boxShadow: '0 20px 50px rgba(11,25,44,0.28)' }}
+            style={{ background: '#fff', padding: '28px 26px', borderRadius: 10, boxShadow: '0 20px 50px rgba(11,25,44,0.28)', scrollMarginTop: 90 }}
           >
             <h2 className="font-serif text-navy" style={{ fontSize: '1.55rem', lineHeight: 1.15, marginBottom: 6 }}>
               Get Your Free Retirement Income Estimate

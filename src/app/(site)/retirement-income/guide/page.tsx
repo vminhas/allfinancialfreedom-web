@@ -169,33 +169,6 @@ export default function RetirementIncomeGuide() {
         </div>
       </section>
 
-      {/* Video. Repurposed creator video (originally cut for a Meta ad). Its
-          script says "click the link below for a free estimate," so the estimate
-          CTA sits directly beneath it. Square 1:1 so it reads well on desktop
-          and mobile. Self-hosted (compressed) from /public, served via CDN. */}
-      <section className="bg-sky-2" style={{ padding: '44px 0' }}>
-        <div className="max-w-2xl mx-auto px-6 text-center">
-          <div className="section-label-blue" style={{ marginBottom: 14 }}>Watch: a quick word on retirement income</div>
-          <div style={{ maxWidth: 460, margin: '0 auto 22px' }}>
-            <video
-              controls
-              playsInline
-              preload="metadata"
-              poster="/retirement-income-video-poster.jpg"
-              style={{ width: '100%', height: 'auto', borderRadius: 12, border: '1px solid rgba(59,126,200,0.14)', display: 'block', background: '#000' }}
-            >
-              <source src="/retirement-income-video.mp4" type="video/mp4" />
-              Your browser does not support the video tag.
-            </video>
-          </div>
-          <a href="/retirement-income" className="btn-gold" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            Get your free estimate
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14m0 0l-6-6m6 6l-6 6" /></svg>
-          </a>
-          <p style={{ fontSize: 12, color: '#6B8299', marginTop: 12 }}>No cost, no obligation. A licensed insurance agent will reach out.</p>
-        </div>
-      </section>
-
       {/* Contents */}
       <section className="bg-sky-2" style={{ padding: '40px 0' }}>
         <div className="max-w-3xl mx-auto px-6">
