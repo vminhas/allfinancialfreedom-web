@@ -7,6 +7,7 @@ import {
   REFERRAL_SOURCE_OPTIONS, REFERRAL_AGENT_OPTION,
 } from '@/lib/annuity-leads'
 import { LEADS_PIPELINE_ENABLED } from '@/lib/leads-flags'
+import { readStoredAttribution } from '@/lib/attribution'
 
 const chipStyle = (selected: boolean): React.CSSProperties => ({
   cursor: 'pointer',
@@ -64,17 +65,23 @@ function readGaClientId(): string | undefined {
 function readAttribution() {
   if (typeof window === 'undefined') return {}
   const p = new URLSearchParams(window.location.search)
+  // Current URL wins; fall back to the first-touch values captured on landing
+  // (AttributionCapture) so a lead that arrived via the homepage and navigated
+  // to this form still carries its utm_* / gclid / fbclid.
+  const stored = readStoredAttribution()
+  const pick = (key: 'utm_source' | 'utm_medium' | 'utm_campaign' | 'utm_content' | 'utm_term' | 'gclid' | 'fbclid') =>
+    p.get(key) || stored[key] || undefined
   return {
     pageUrl: window.location.href,
     referrer: document.referrer || undefined,
-    utmSource: p.get('utm_source') || undefined,
-    utmMedium: p.get('utm_medium') || undefined,
-    utmCampaign: p.get('utm_campaign') || undefined,
-    utmContent: p.get('utm_content') || undefined,
-    utmTerm: p.get('utm_term') || undefined,
-    fbclid: p.get('fbclid') || undefined,
+    utmSource: pick('utm_source'),
+    utmMedium: pick('utm_medium'),
+    utmCampaign: pick('utm_campaign'),
+    utmContent: pick('utm_content'),
+    utmTerm: pick('utm_term'),
+    fbclid: pick('fbclid'),
     // Google Ads click id + GA4 client id, for offline conversion import.
-    gclid: p.get('gclid') || undefined,
+    gclid: pick('gclid'),
     gaClientId: readGaClientId(),
   }
 }
