@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
+import type { CSSProperties, ReactNode } from 'react'
 import Footer from '@/components/Footer'
 import AnnuityLeadForm from '@/components/AnnuityLeadForm'
-import EstimateCtaButton from '@/components/EstimateCtaButton'
 
 export const metadata: Metadata = {
   title: 'Free Retirement Income Estimate | All Financial Freedom',
@@ -39,6 +39,52 @@ const VALUE_POINTS = [
     body: 'Your estimate is prepared by a licensed annuity and insurance professional who walks you through the options. No cost, and no obligation to buy.',
   },
 ]
+
+// What the person gets for filling out the form. Stating the payoff plainly
+// lifts conversion; copy stays compliant (no "guaranteed / never lose money").
+const ESTIMATE_INCLUDES: { lead: string; rest: string }[] = [
+  { lead: 'An estimated monthly income figure', rest: ' based on your savings and timeline.' },
+  { lead: 'Options matched to your situation', rest: ', explained in plain language, not a sales pitch.' },
+  { lead: 'Ways to help protect against market loss', rest: ' as you approach retirement.' },
+  { lead: 'A no-pressure review call', rest: ' on your schedule. Decide only if it fits.' },
+]
+
+const TRUST: { title: string; sub: string; icon: ReactNode }[] = [
+  {
+    title: 'Licensed agency',
+    sub: 'A licensed U.S. insurance agency',
+    icon: <path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z" />,
+  },
+  {
+    title: '$0 cost',
+    sub: 'No cost, no obligation',
+    icon: <path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />,
+  },
+  {
+    title: 'Private',
+    sub: 'Your details stay private',
+    icon: <><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 018 0v4" /></>,
+  },
+]
+
+// Short FAQ beside the form. Genuinely useful, compliance-safe, and mirrors
+// the JSON-LD FAQ. Also gives the left column enough height to balance the
+// long form on the right.
+const FAQ: { q: string; a: string }[] = [
+  { q: 'Is the estimate really free?', a: 'Yes. There is no cost and no obligation to buy anything.' },
+  { q: 'Will someone call me?', a: 'A licensed insurance agent from All Financial Freedom will reach out to review your estimate with you. No pressure.' },
+  { q: 'What exactly is an annuity?', a: 'An insurance product that can turn part of your savings into retirement income. Any guarantees are subject to the issuing insurer’s claims-paying ability.' },
+  { q: 'Is my information private?', a: 'Yes. Your details are used only to prepare your estimate and are never sold.' },
+]
+
+const blockLabel: CSSProperties = {
+  color: '#C9A96E',
+  fontSize: 11,
+  fontWeight: 700,
+  letterSpacing: '1.6px',
+  textTransform: 'uppercase',
+  margin: '0 0 14px',
+}
 
 const STEPS = [
   { step: '01', title: 'Answer 4 questions', text: 'Tell us your age, savings range, timing, and what matters most. It takes under a minute.' },
@@ -111,34 +157,30 @@ export default function RetirementIncomeLanding() {
 
       {/* HERO + FORM */}
       <section className="bg-navy-grad" style={{ paddingTop: 56, paddingBottom: 56 }}>
-        <div className="max-w-6xl mx-auto px-6 grid lg:grid-cols-2 gap-12 items-start">
+        {/* Grid areas: on desktop the intro (row 1) and supporting content
+            (row 2) share the left column while the video+form card spans both
+            rows on the right. On mobile the order utilities restack it as
+            intro -> video+form -> supporting, so the form is never buried under
+            the supporting content. */}
+        <div className="max-w-6xl mx-auto px-6 grid gap-12 lg:grid-cols-2 lg:grid-rows-[auto_1fr]">
 
-          {/* Left: education-first pitch */}
-          <div className="max-w-xl">
+          {/* Intro */}
+          <div className="order-1 lg:col-start-1 lg:row-start-1 max-w-xl">
             <span className="section-label">Retirement Income</span>
             <h1 className="section-title-light mb-5">
               Turn retirement savings into <em>reliable income</em> for life.
             </h1>
-            <p className="rich-text-light mb-8 max-w-md">
+            <p className="rich-text-light max-w-md" style={{ marginBottom: 0 }}>
               Answer 4 quick questions and a licensed annuity professional from All Financial Freedom
               will prepare a personalized, no-obligation income estimate. No cost. No pressure.
             </p>
-            {/* Creator video (repurposed from a Meta ad). Lives beside the
-                estimate form so its "click below for a free estimate" ask lands
-                right where the form is. On mobile the button jumps to the form. */}
-            <div style={{ marginBottom: 32, maxWidth: 380 }}>
-              <video
-                controls
-                playsInline
-                preload="metadata"
-                poster="/retirement-income-video-poster.jpg"
-                style={{ width: '100%', height: 'auto', borderRadius: 12, border: '1px solid rgba(201,169,110,0.25)', display: 'block', background: '#000' }}
-              >
-                <source src="/retirement-income-video.mp4" type="video/mp4" />
-              </video>
-              <EstimateCtaButton />
-            </div>
-            <ul className="space-y-5">
+          </div>
+
+          {/* Supporting content. Flex column stretched to the row so the trust
+              strip anchors to the bottom, lining up with the end of the form. */}
+          <div className="order-3 lg:col-start-1 lg:row-start-2 lg:h-full max-w-xl flex flex-col">
+            <p style={blockLabel}>Why request an estimate</p>
+            <ul className="space-y-5" style={{ marginBottom: 30 }}>
               {VALUE_POINTS.map(v => (
                 <li key={v.title} className="flex items-start gap-3">
                   <span style={{ color: '#C9A96E', flexShrink: 0, marginTop: 4, fontSize: '0.7rem' }}>◆</span>
@@ -149,26 +191,80 @@ export default function RetirementIncomeLanding() {
                 </li>
               ))}
             </ul>
+
+            <div style={{ height: 1, background: 'rgba(201,169,110,0.22)', margin: '30px 0' }} />
+
+            <p style={blockLabel}>What your free estimate includes</p>
+            <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 30px', display: 'grid', gap: 12 }}>
+              {ESTIMATE_INCLUDES.map(it => (
+                <li key={it.lead} style={{ display: 'flex', gap: 11, alignItems: 'flex-start', fontSize: 14, color: '#CDD9E5', lineHeight: 1.5 }}>
+                  <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="#C9A96E" strokeWidth="2.2" style={{ flex: '0 0 19px', marginTop: 1 }}><path d="M20 6L9 17l-5-5" /></svg>
+                  <span><b style={{ color: '#fff', fontWeight: 600 }}>{it.lead}</b>{it.rest}</span>
+                </li>
+              ))}
+            </ul>
+
+            <div style={{ height: 1, background: 'rgba(201,169,110,0.22)', margin: '0 0 30px' }} />
+
+            <p style={blockLabel}>Common questions</p>
+            <dl style={{ margin: '0 0 30px' }}>
+              {FAQ.map(f => (
+                <div key={f.q} style={{ marginBottom: 16 }}>
+                  <dt style={{ color: '#fff', fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{f.q}</dt>
+                  <dd style={{ margin: 0, color: '#9BB0C4', fontSize: 13.5, lineHeight: 1.55 }}>{f.a}</dd>
+                </div>
+              ))}
+            </dl>
+
+            {/* Anchored to the bottom of the column so it lines up near the end
+                of the form on the right. */}
+            <div style={{ marginTop: 'auto', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+              {TRUST.map(t => (
+                <div key={t.title} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(201,169,110,0.18)', borderRadius: 10, padding: '14px 12px', textAlign: 'center' }}>
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#C9A96E" strokeWidth="2" style={{ marginBottom: 8 }}>{t.icon}</svg>
+                  <b style={{ display: 'block', fontSize: 12.5, color: '#fff', marginBottom: 2 }}>{t.title}</b>
+                  <span style={{ fontSize: 11, color: '#8BA0B6', lineHeight: 1.35, display: 'block' }}>{t.sub}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* Right: the form card */}
+          {/* Creator video sitting directly on top of the always-visible form,
+              so his "click below for a free estimate" lands literally, no extra
+              click and no lost leads. Spans both rows on the right on desktop;
+              sits second (right after the intro) on mobile. */}
           <div
-            id="estimate-form"
-            className="card-premium"
-            style={{ background: '#fff', padding: '28px 26px', borderRadius: 10, boxShadow: '0 20px 50px rgba(11,25,44,0.28)', scrollMarginTop: 90 }}
+            className="order-2 lg:col-start-2 lg:row-start-1 lg:row-span-2 self-start card-premium"
+            style={{ background: '#fff', borderRadius: 12, overflow: 'hidden', boxShadow: '0 20px 50px rgba(11,25,44,0.28)' }}
           >
-            <h2 className="font-serif text-navy" style={{ fontSize: '1.55rem', lineHeight: 1.15, marginBottom: 6 }}>
-              Get Your Free Retirement Income Estimate
-            </h2>
-            <p style={{ fontSize: 13, color: '#6B8299', marginBottom: 22 }}>
-              Four quick questions, then your contact details. A licensed professional handles the rest.
-            </p>
-            <AnnuityLeadForm />
-            <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid #EDF1F6', textAlign: 'center' }}>
-              <span style={{ fontSize: 12.5, color: '#6B8299' }}>Prefer to pick a time? </span>
-              <a href="/schedule" style={{ fontSize: 12.5, fontWeight: 700, color: '#C9A96E', textDecoration: 'underline' }}>
-                Schedule your free assessment
-              </a>
+            <video
+              controls
+              playsInline
+              preload="metadata"
+              poster="/retirement-income-video-poster.jpg"
+              style={{ display: 'block', width: '100%', height: 300, objectFit: 'cover', background: '#000' }}
+            >
+              <source src="/retirement-income-video.mp4" type="video/mp4" />
+            </video>
+            {/* Connector strip: bridges the video's spoken CTA into the form. */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: '#FAF6EE', color: '#9A7B3F', fontSize: 12.5, fontWeight: 700, letterSpacing: '0.6px', textTransform: 'uppercase', padding: 9, borderBottom: '1px solid #EFE6D3' }}>
+              Your free estimate is right here
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="M12 5v14m0 0l-6-6m6 6l6-6" /></svg>
+            </div>
+            <div style={{ padding: '22px 26px 26px' }}>
+              <h2 className="font-serif text-navy" style={{ fontSize: '1.5rem', lineHeight: 1.15, marginBottom: 6 }}>
+                Get Your Free Retirement Income Estimate
+              </h2>
+              <p style={{ fontSize: 13, color: '#6B8299', marginBottom: 20 }}>
+                Four quick questions, then your contact details. A licensed professional handles the rest.
+              </p>
+              <AnnuityLeadForm />
+              <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid #EDF1F6', textAlign: 'center' }}>
+                <span style={{ fontSize: 12.5, color: '#6B8299' }}>Prefer to pick a time? </span>
+                <a href="/schedule" style={{ fontSize: 12.5, fontWeight: 700, color: '#C9A96E', textDecoration: 'underline' }}>
+                  Schedule your free assessment
+                </a>
+              </div>
             </div>
           </div>
         </div>
