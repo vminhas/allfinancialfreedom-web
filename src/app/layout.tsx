@@ -64,18 +64,15 @@ export default function RootLayout({
           gtag('js', new Date());
           gtag('config', 'G-V681CCKX2T');
         `}</Script>
-        {/* Microsoft Advertising (Bing) UET tag, sitewide. Env-gated: set
-            NEXT_PUBLIC_UET_TAG_ID (from Microsoft Advertising -> Tools ->
-            Conversion tracking -> UET tag) to activate; no-op until then.
+        {/* Microsoft Advertising (Bing) UET tag, sitewide. Tag ID 343260726
+            (override via NEXT_PUBLIC_UET_TAG_ID if it ever rotates).
             enableAutoSpaTracking fires pageLoad on client navigations so a
             Destination-URL goal on the thank-you page works; the actual lead
             conversion is fired as a UET custom event in the lead form's success
             callback (see AnnuityLeadForm) to match Google's generate_lead. */}
-        {process.env.NEXT_PUBLIC_UET_TAG_ID && (
-          <Script id="uet-init" strategy="lazyOnload">{`
-            (function(w,d,t,r,u){var f,n,i;w[u]=w[u]||[],f=function(){var o={ti:"${process.env.NEXT_PUBLIC_UET_TAG_ID}", enableAutoSpaTracking:true};o.q=w[u],w[u]=new UET(o),w[u].push("pageLoad")},n=d.createElement(t),n.src=r,n.async=1,n.onload=n.onreadystatechange=function(){var s=this.readyState;s&&s!=="loaded"&&s!=="complete"||(f(),n.onload=n.onreadystatechange=null)},i=d.getElementsByTagName(t)[0],i.parentNode.insertBefore(n,i)})(window,document,"script","//bat.bing.com/bat.js","uetq");
-          `}</Script>
-        )}
+        <Script id="uet-init" strategy="lazyOnload">{`
+          (function(w,d,t,r,u){var f,n,i;w[u]=w[u]||[],f=function(){var o={ti:"${process.env.NEXT_PUBLIC_UET_TAG_ID || '343260726'}", enableAutoSpaTracking:true};o.q=w[u],w[u]=new UET(o),w[u].push("pageLoad")},n=d.createElement(t),n.src=r,n.async=1,n.onload=n.onreadystatechange=function(){var s=this.readyState;s&&s!=="loaded"&&s!=="complete"||(f(),n.onload=n.onreadystatechange=null)},i=d.getElementsByTagName(t)[0],i.parentNode.insertBefore(n,i)})(window,document,"script","//bat.bing.com/bat.js","uetq");
+        `}</Script>
       </head>
       <body>
         <AttributionCapture />
