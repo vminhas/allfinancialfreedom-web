@@ -18,6 +18,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { getSetting } from '@/lib/settings'
 import { loadArticleCorpus, type CorpusEntry } from '@/lib/article-corpus'
+import { db } from '@/lib/db'
 
 // Opus 4.8 is the most capable Claude model as of this build. Locked
 // here so a single edit upgrades all three calls.
@@ -35,6 +36,16 @@ const COVER_IMAGES = [
   'https://images.unsplash.com/photo-1518458028785-8fbcd101ebb9?w=1200&q=85&fit=crop', // strategy
   'https://images.unsplash.com/photo-1434626881859-194d67b2b86f?w=1200&q=85&fit=crop', // retirement
   'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?w=1200&q=80', // business
+  // Additional known-good IDs already rendering on the live blog, to widen the
+  // pool so random picks collide far less often.
+  'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1200&q=85&fit=crop', // office / planning
+  'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=1200&q=85&fit=crop', // documents / desk
+  'https://images.unsplash.com/photo-1611095973763-414019e72400?w=1200&q=85&fit=crop', // charts / market
+  'https://images.unsplash.com/photo-1638272181967-7d3772a91265?w=1200&q=85&fit=crop', // 401k / investing
+  'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?w=1200&q=85&fit=crop', // athlete / performance
+  'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=1200&q=85&fit=crop', // education / college
+  'https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=1200&q=85&fit=crop', // health / care
+  'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=1200&q=85&fit=crop', // senior / living benefits
 ]
 
 // AFF house style brief. Encoded once here so the writer prompt is a
@@ -242,10 +253,15 @@ export async function writeArticle(
   apiKey: string,
   pick: PickResult,
   corpus: CorpusEntry[],
+  // Cover images used by recent articles, so we don't repeat one. Callers pass
+  // the last dozen or so; we pick from what's left in the pool.
+  excludeCovers: string[] = [],
 ): Promise<DraftResult> {
   const client = clientFor(apiKey)
   const todayIso = new Date().toISOString().slice(0, 10)
-  const cover = COVER_IMAGES[Math.floor(Math.random() * COVER_IMAGES.length)]
+  const available = COVER_IMAGES.filter(c => !excludeCovers.includes(c))
+  const pool = available.length ? available : COVER_IMAGES
+  const cover = pool[Math.floor(Math.random() * pool.length)]
 
   const relatedRefs = pick.relatedSlugs.map(slug => {
     const found = corpus.find(c => c.slug === slug)
@@ -342,5 +358,12 @@ export async function generateWeeklyDraft(): Promise<DraftResult> {
   const corpus = await loadArticleCorpus()
   const candidates = await researchTopics(apiKey)
   const pick = await pickTopic(apiKey, candidates, corpus)
-  return writeArticle(apiKey, pick, corpus)
+
+  // Don't reuse a cover image a recent article already used.
+  const recent = await db.generatedArticle.findMany({
+    orderBy: { createdAt: 'desc' }, take: 15, select: { coverImage: true },
+  }).catch(() => [] as { coverImage: string }[])
+  const excludeCovers = recent.map(r => r.coverImage)
+
+  return writeArticle(apiKey, pick, corpus, excludeCovers)
 }
