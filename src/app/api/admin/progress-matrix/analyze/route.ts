@@ -5,7 +5,7 @@ import { db } from '@/lib/db'
 import { requireRole } from '@/lib/permissions'
 import Anthropic from '@anthropic-ai/sdk'
 import {
-  computeProgress, summarizeForAI, fallbackPlays,
+  computeProgress, summarizeForAI, fallbackPlays, filterByTeam,
   type MatrixPayload, type Play,
 } from '@/lib/progression-cohorts'
 
@@ -16,10 +16,17 @@ export const maxDuration = 60
 // Reads the live roster, computes each agent's cohort + stuck-point, and asks
 // Claude to rank the highest-impact interventions. Falls back to a deterministic
 // ranking if the AI key is missing or the call fails, so the page always works.
-export async function POST() {
+export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
   const denied = requireRole(session, 'admin', 'licensing_coordinator')
   if (denied) return denied
+
+  // Optional team scope: { team: { kind: 'recruiter'|'trainer', value, label } }
+  let team: { kind: 'recruiter' | 'trainer'; value: string; label?: string } | null = null
+  try {
+    const b = await req.json()
+    if (b?.team?.kind && b?.team?.value) team = { kind: b.team.kind, value: String(b.team.value), label: b.team.label ? String(b.team.label) : undefined }
+  } catch { /* no body = whole roster */ }
 
   const [agents, items, completions] = await Promise.all([
     db.agentProfile.findMany({
@@ -27,7 +34,7 @@ export async function POST() {
       select: {
         id: true, agentCode: true, firstName: true, lastName: true, phase: true,
         avatarUrl: true, state: true, phaseStartedAt: true, examDate: true,
-        subscribedToTevahAt: true,
+        subscribedToTevahAt: true, recruiterId: true, cft: true,
         agentUser: { select: { lastLoginAt: true, email: true } },
       },
       orderBy: [{ phase: 'desc' }, { agentCode: 'asc' }],
@@ -55,17 +62,24 @@ export async function POST() {
       subscribedToTevahAt: a.subscribedToTevahAt?.toISOString() ?? null,
       lastLoginAt: a.agentUser?.lastLoginAt?.toISOString() ?? null,
       email: a.agentUser?.email ?? null,
+      recruiterId: a.recruiterId ?? null,
+      cft: a.cft ?? null,
     })),
     items,
     completedAt,
   }
-  const rows = computeProgress(payload)
+  const allRows = computeProgress(payload)
+  const rows = team ? filterByTeam(allRows, team) : allRows
   const summary = summarizeForAI(rows)
 
   const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) {
-    return NextResponse.json({ source: 'fallback', note: 'AI key not configured', plays: fallbackPlays(rows) })
+  if (!apiKey || rows.length === 0) {
+    return NextResponse.json({ source: 'fallback', note: apiKey ? 'no agents in scope' : 'AI key not configured', plays: fallbackPlays(rows) })
   }
+
+  const teamFraming = team
+    ? `\n\nThese agents are all on ${team.kind === 'recruiter' ? "recruiter" : "trainer/CFT"} ${team.label ?? team.value}'s team. Frame every play as a specific action for THIS ${team.kind} to take with THEIR downline this week.`
+    : ''
 
   try {
     const anthropic = new Anthropic({ apiKey })
@@ -73,12 +87,15 @@ export async function POST() {
 
 Below is the current roster. Each agent has: agent code, first name, state, phase, phase title, days in phase, % of phase complete, at-risk status, current cohort, days since last login, days since last progress, and the exact checklist items they are stuck on ("stuckOn").
 
+Key milestone signals in the data: "licenseRedFlag" (in licensing 21+ days without passing the exam, a serious flag), "daysInLicensing", "examScheduled", "nextLicenseStep", "ftaDone" (of 10 field training appointments), "seniorAssociateNeeds" (what's left for the Senior Associate promotion), and "cftSignoffs" (Phase 3 CFT sign-offs).
+
 Identify the 4-6 HIGHEST-IMPACT plays to get the most agents on track and advancing. Prioritize by leverage:
+- anyone flagged licenseRedFlag first: these are stalled in licensing and need a schedule/exam push now,
+- agents one step from a milestone (passing the exam, their 10th FTA, the Senior Associate promotion, a CFT sign-off), protect that momentum,
 - interventions that unblock MULTIPLE agents stuck on the same step at once,
-- agents who are one step from advancing a phase (protect that momentum),
 - agents whose momentum is being lost (quiet/stalled) but were progressing.
 
-Be specific and concrete. Name the agents by code, name the exact blocker, name who should own it (Licensing Coordinator, CFT/Trainer, EMD/upline, or Admin), and give the precise action to take.
+Be specific and concrete. Name the agents by code, name the exact blocker, name who should own it (Licensing Coordinator, CFT/Trainer, EMD/upline, or Admin), and give the precise action to take.${teamFraming}
 
 Return ONLY valid minified JSON, no markdown, no prose, in exactly this shape:
 {"plays":[{"title":"short imperative title","owner":"who owns it","impact":"why this is highest impact, quantified with counts","action":"the specific concrete step","agentCodes":["AFF-1234"]}]}
