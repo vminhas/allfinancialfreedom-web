@@ -37,7 +37,7 @@ function Bar({ pct, color = C.gold, h = 8 }: { pct: number; color?: string; h?: 
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '1.4px', textTransform: 'uppercase', color: C.gold, margin: '20px 0 9px' }}>{children}</div>
+  return <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '1.4px', textTransform: 'uppercase', color: C.gold, margin: '16px 0 8px' }}>{children}</div>
 }
 
 // Long milestone lists live in a fixed-height scroll box so the page stays
@@ -204,45 +204,40 @@ export default function CohortsPage() {
   return (
     <div className={GeistSans.className} style={{ background: C.bg, minHeight: '100dvh', padding: '20px 22px 60px', color: C.ink }}>
       <div style={{ maxWidth: 1160, margin: '0 auto' }}>
-        <style>{`@media (max-width: 860px){.cluster-grid{grid-template-columns:1fr !important}.cohort-cards{grid-template-columns:1fr 1fr !important}}`}</style>
+        <style>{`@media (max-width: 860px){.cluster-grid{grid-template-columns:1fr !important}}`}</style>
 
-        {/* Header */}
+        {/* Top bar: title + team filter + AI, all in one row */}
         <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-          style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
           <div>
-            <h1 style={{ fontFamily: 'Georgia, serif', fontSize: 26, margin: '0 0 4px', color: C.navy }}>Get Everyone On Track</h1>
-            <p style={{ margin: 0, color: C.muted, fontSize: 13.5, maxWidth: 640 }}>
-              Milestone tracks, cohorts, and the exact step each agent is stuck on.{' '}
-              <Link href="/vault/progress" style={{ color: C.gold, fontWeight: 600 }}>Full matrix →</Link>
+            <h1 style={{ fontFamily: 'Georgia, serif', fontSize: 23, margin: '0 0 2px', color: C.navy }}>Get Everyone On Track</h1>
+            <p style={{ margin: 0, color: C.muted, fontSize: 12.5 }}>
+              {rows.length} agent{rows.length === 1 ? '' : 's'} in view{!team && excludedCount > 0 ? ` · ${excludedCount} excluded` : ''} · <Link href="/vault/progress" style={{ color: C.gold, fontWeight: 600 }}>Full matrix →</Link>
             </p>
           </div>
-          <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={runAnalysis} disabled={analyzing}
-            style={{ background: C.navy, color: '#fff', border: 'none', borderRadius: 10, padding: '12px 18px', fontWeight: 700, fontSize: 13.5, cursor: analyzing ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ color: C.gold }}>✦</span>{analyzing ? 'Analyzing…' : team ? `Analyze ${teamLabel}'s team` : 'Highest-impact analysis'}
-          </motion.button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <select value={teamKey} onChange={e => onTeamChange(e.target.value)}
+              style={{ padding: '9px 12px', borderRadius: 8, border: `1px solid ${C.line}`, background: '#fff', color: C.ink, fontSize: 13, fontWeight: 600, minWidth: 190 }}>
+              <option value="">Whole team ({allRows.length})</option>
+              <optgroup label="By recruiter">
+                {teams.filter(t => t.kind === 'recruiter').map(t => <option key={`r-${t.value}`} value={`recruiter::${t.value}`}>{t.label} ({t.count})</option>)}
+              </optgroup>
+              <optgroup label="By trainer / CFT">
+                {teams.filter(t => t.kind === 'trainer').map(t => <option key={`t-${t.value}`} value={`trainer::${t.value}`}>{t.label} ({t.count})</option>)}
+              </optgroup>
+            </select>
+            {team && <button onClick={() => onTeamChange('')} style={{ background: 'none', border: 'none', color: C.gold, fontWeight: 700, cursor: 'pointer', fontSize: 12.5 }}>Clear</button>}
+            <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={runAnalysis} disabled={analyzing}
+              style={{ background: C.navy, color: '#fff', border: 'none', borderRadius: 9, padding: '10px 15px', fontWeight: 700, fontSize: 13, cursor: analyzing ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7, whiteSpace: 'nowrap' }}>
+              <span style={{ color: C.gold }}>✦</span>{analyzing ? 'Analyzing…' : team ? 'Analyze team' : 'AI analysis'}
+            </motion.button>
+          </div>
         </motion.div>
-
-        {/* Team filter */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12.5, color: C.muted, fontWeight: 600 }}>Viewing</span>
-          <select value={teamKey} onChange={e => onTeamChange(e.target.value)}
-            style={{ padding: '8px 12px', borderRadius: 8, border: `1px solid ${C.line}`, background: '#fff', color: C.ink, fontSize: 13, fontWeight: 600, minWidth: 240 }}>
-            <option value="">Whole team ({allRows.length})</option>
-            <optgroup label="By recruiter">
-              {teams.filter(t => t.kind === 'recruiter').map(t => <option key={`r-${t.value}`} value={`recruiter::${t.value}`}>{t.label} ({t.count})</option>)}
-            </optgroup>
-            <optgroup label="By trainer / CFT">
-              {teams.filter(t => t.kind === 'trainer').map(t => <option key={`t-${t.value}`} value={`trainer::${t.value}`}>{t.label} ({t.count})</option>)}
-            </optgroup>
-          </select>
-          {team && <button onClick={() => onTeamChange('')} style={{ background: 'none', border: 'none', color: C.gold, fontWeight: 700, cursor: 'pointer', fontSize: 12.5 }}>Clear</button>}
-          <span style={{ fontSize: 12, color: C.muted }}>{rows.length} agent{rows.length === 1 ? '' : 's'} in view{!team && excludedCount > 0 ? ` · ${excludedCount} leadership / referral partner${excludedCount === 1 ? '' : 's'} excluded` : ''}</span>
-        </div>
 
         {/* KPIs */}
         <motion.div key={teamKey} initial="hidden" animate="show"
           variants={{ hidden: {}, show: { transition: { staggerChildren: 0.06, delayChildren: 0.05 } } }}
-          style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, margin: '18px 0 8px' }}>
+          style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, margin: '14px 0 4px' }}>
           {[
             { n: rows.length, l: 'Agents in view', c: C.navy },
             { n: needAttention, l: 'Need attention', c: C.red },
@@ -250,9 +245,9 @@ export default function CohortsPage() {
             { n: avgPct, l: 'Avg phase completion', c: C.green, suffix: '%' },
           ].map(k => (
             <motion.div key={k.l} variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}
-              style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: '16px 18px' }}>
-              <div style={{ fontSize: 30, fontWeight: 800, color: k.c, lineHeight: 1 }}><AnimatedNumber value={k.n} suffix={k.suffix ?? ''} /></div>
-              <div style={{ fontSize: 11.5, color: C.muted, marginTop: 6, textTransform: 'uppercase', letterSpacing: '.4px' }}>{k.l}</div>
+              style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: '11px 14px' }}>
+              <div style={{ fontSize: 25, fontWeight: 800, color: k.c, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}><AnimatedNumber value={k.n} suffix={k.suffix ?? ''} /></div>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 5, textTransform: 'uppercase', letterSpacing: '.4px' }}>{k.l}</div>
             </motion.div>
           ))}
         </motion.div>

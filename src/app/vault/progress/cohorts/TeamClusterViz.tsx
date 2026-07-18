@@ -12,13 +12,13 @@ export default function TeamClusterViz({ rows, onSelect }: { rows: AgentProgress
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    const W = 900, H = 580, cols = 4
+    const W = 900, H = 430, cols = 4
     const active = BLOCKER_GROUPS.filter(g => rows.some(r => r.blocker === g.key))
     const counts = Object.fromEntries(BLOCKER_GROUPS.map(g => [g.key, rows.filter(r => r.blocker === g.key).length])) as Record<BlockerKey, number>
     const centers = {} as Record<BlockerKey, { x: number; y: number }>
     active.forEach((g, i) => {
       const col = i % cols, row = Math.floor(i / cols)
-      centers[g.key] = { x: 130 + col * (640 / (cols - 1)), y: active.length <= cols ? 260 : 180 + row * 260 }
+      centers[g.key] = { x: 130 + col * (640 / (cols - 1)), y: active.length <= cols ? 200 : 150 + row * 195 }
     })
 
     // Deterministic seeded jitter so the layout is identical every render.
