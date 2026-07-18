@@ -4,10 +4,12 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence, animate } from 'framer-motion'
 import {
-  computeProgress, COHORT_META, teamOptions, filterByTeam, LICENSE_RED_FLAG_DAYS, LICENSE_STEP_TOTAL,
-  type CohortKey, type MatrixPayload, type AgentProgress, type Play,
+  computeProgress, COHORT_META, teamOptions, filterByTeam, trainingPlays,
+  BLOCKER_GROUPS, BLOCKER_META, LICENSE_RED_FLAG_DAYS, LICENSE_STEP_TOTAL,
+  type CohortKey, type MatrixPayload, type AgentProgress, type Play, type BlockerKey, type Effort,
 } from '@/lib/progression-cohorts'
 import { PHASE_LABELS } from '@/lib/agent-constants'
+import TeamClusterViz from './TeamClusterViz'
 
 const C = {
   bg: '#f4f6f9', card: '#fff', ink: '#1b3a5c', navy: '#0b192c',
@@ -54,6 +56,7 @@ export default function CohortsPage() {
   const [playsSource, setPlaysSource] = useState<'ai' | 'fallback' | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [teamKey, setTeamKey] = useState<string>('') // "" = whole team; else "recruiter::X" / "trainer::Y"
+  const [selectedBlocker, setSelectedBlocker] = useState<BlockerKey | null>(null)
 
   useEffect(() => {
     fetch('/api/admin/progress-matrix')
@@ -98,6 +101,14 @@ export default function CohortsPage() {
   }, [rows])
   const maxPhase = Math.max(1, ...[...phaseCounts.values()])
 
+  const trainings = useMemo(() => trainingPlays(rows), [rows])
+  const blockerCounts = useMemo(() => {
+    const m = {} as Record<BlockerKey, number>
+    for (const g of BLOCKER_GROUPS) m[g.key] = 0
+    for (const r of rows) m[r.blocker]++
+    return m
+  }, [rows])
+
   async function runAnalysis() {
     setAnalyzing(true)
     try {
@@ -121,6 +132,7 @@ export default function CohortsPage() {
   return (
     <div style={{ background: C.bg, minHeight: '100dvh', padding: '26px 22px 70px', color: C.ink }}>
       <div style={{ maxWidth: 1160, margin: '0 auto' }}>
+        <style>{`@media (max-width: 860px){.cluster-grid{grid-template-columns:1fr !important}.cohort-cards{grid-template-columns:1fr 1fr !important}}`}</style>
 
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
@@ -172,6 +184,47 @@ export default function CohortsPage() {
             </motion.div>
           ))}
         </motion.div>
+
+        {/* ── 10k view: cluster + training plays ── */}
+        <SectionLabel>The whole team · clustered by blocker</SectionLabel>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.55fr 1fr', gap: 18, alignItems: 'start' }} className="cluster-grid">
+          <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: '14px 16px' }}>
+            <TeamClusterViz rows={rows} onSelect={setSelectedBlocker} />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '1.4px', textTransform: 'uppercase', color: C.gold, marginBottom: 10 }}>Training plays · highest impact</div>
+            {trainings.length === 0 && <div style={{ color: C.muted, fontSize: 13 }}>No blockers in this view.</div>}
+            {trainings.map((p, i) => (
+              <motion.div key={p.blocker} initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
+                onClick={() => setSelectedBlocker(p.blocker)}
+                style={{ border: `1px solid ${C.line}`, borderLeft: `4px solid ${C.gold}`, borderRadius: 10, padding: '12px 14px', marginBottom: 10, cursor: 'pointer' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ background: C.navy, color: C.gold, borderRadius: 6, width: 22, height: 22, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flex: '0 0 22px' }}>{i + 1}</span>
+                  <h4 style={{ margin: 0, fontSize: 14, color: C.navy }}>{p.training}</h4>
+                  <span style={{ marginLeft: 'auto', fontWeight: 800, color: C.navy, fontSize: 15, whiteSpace: 'nowrap' }}>{p.unblocks}<span style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}> unblocked</span></span>
+                </div>
+                <div style={{ marginTop: 8, fontSize: 12.5, color: C.ink, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <EffortBadge effort={p.effort} />
+                  {p.quickWin && <span style={{ fontSize: 10, fontWeight: 800, color: '#8a6d1f', background: '#f6efdb', borderRadius: 20, padding: '2px 8px', textTransform: 'uppercase', letterSpacing: '.5px' }}>Quick win</span>}
+                  <span>Clears: <b>{BLOCKER_META[p.blocker].label}</b></span>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+
+        {/* Cohort breakdown cards */}
+        <SectionLabel>Cohort breakdown · click for names</SectionLabel>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }} className="cohort-cards">
+          {BLOCKER_GROUPS.filter(g => blockerCounts[g.key] > 0).map(g => (
+            <motion.button key={g.key} whileHover={{ y: -2 }} onClick={() => setSelectedBlocker(g.key)}
+              style={{ textAlign: 'left', background: C.card, border: `1px solid ${C.line}`, borderTop: `4px solid ${g.color}`, borderRadius: 12, padding: '14px 15px', cursor: 'pointer' }}>
+              <div style={{ fontSize: 28, fontWeight: 800, color: C.navy, lineHeight: 1 }}>{blockerCounts[g.key]}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginTop: 6 }}>{g.label}</div>
+              <div style={{ fontSize: 11.5, color: C.muted, marginTop: 3 }}>{g.training ? `Training: ${g.training}` : 'Keep the momentum going'}</div>
+            </motion.button>
+          ))}
+        </div>
 
         {/* AI plays */}
         <AnimatePresence>
@@ -360,9 +413,52 @@ export default function CohortsPage() {
           in without a passed exam is flagged red. &ldquo;Highest-impact analysis&rdquo; is Claude ranking the plays; pick a recruiter
           or trainer to scope everything, including the AI, to that team.
         </p>
+
+        {/* Member drawer */}
+        <AnimatePresence>
+          {selectedBlocker && (
+            <>
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedBlocker(null)}
+                style={{ position: 'fixed', inset: 0, background: 'rgba(6,14,26,.35)', zIndex: 40 }} />
+              <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+                style={{ position: 'fixed', top: 0, right: 0, height: '100%', width: 400, maxWidth: '92vw', background: '#fff', boxShadow: '-16px 0 50px rgba(11,25,44,.25)', zIndex: 41, overflowY: 'auto', padding: 22 }}>
+                <button onClick={() => setSelectedBlocker(null)} aria-label="Close" style={{ position: 'absolute', top: 14, right: 14, border: 'none', background: '#f0f3f7', width: 32, height: 32, borderRadius: '50%', cursor: 'pointer', fontSize: 17 }}>×</button>
+                {(() => {
+                  const g = BLOCKER_META[selectedBlocker]
+                  const members = rows.filter(r => r.blocker === selectedBlocker)
+                  return (
+                    <>
+                      <h3 style={{ margin: '0 0 2px', fontSize: 18, color: C.navy }}>{g.label}</h3>
+                      <p style={{ color: C.muted, fontSize: 13, margin: '0 0 8px' }}>{members.length} agent{members.length === 1 ? '' : 's'} · {g.gap}</p>
+                      {g.training && <div style={{ background: '#faf6ee', border: '1px solid #efe6d3', borderRadius: 8, padding: '10px 12px', fontSize: 12.5, margin: '8px 0 6px', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}><span><b>Training:</b> {g.training}</span>{g.effort && <EffortBadge effort={g.effort} />}</div>}
+                      {members.map(r => (
+                        <div key={r.agent.id} style={{ padding: '10px 0', borderTop: '1px solid #eef2f7' }}>
+                          <div><b style={{ color: C.navy }}>{r.agent.firstName} {r.agent.lastName}</b> <span style={{ color: C.muted, fontSize: 11.5 }}>· {r.agent.agentCode} · P{r.phase}{r.daysInPhase != null ? ` · ${r.daysInPhase}d` : ''}</span></div>
+                          <div style={{ fontSize: 12, color: C.ink, marginTop: 2 }}>{r.nextItems[0] ? <>Stuck on: <b>{r.nextItems[0].label}</b></> : 'Ready to advance'}</div>
+                          <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
+                            {r.agent.recruiterId ? `Recruiter ${nameFor(allRows, r.agent.recruiterId)}` : ''}{r.agent.cft ? `${r.agent.recruiterId ? ' · ' : ''}Trainer ${r.agent.cft}` : ''}
+                            {r.agent.email && <> · <a href={`mailto:${r.agent.email}`} style={{ color: C.gold, fontWeight: 700, textDecoration: 'none' }}>Email →</a></>}
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )
+                })()}
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   )
+}
+
+function EffortBadge({ effort }: { effort: Effort }) {
+  const map: Record<Effort, { bg: string; fg: string }> = {
+    Low: { bg: '#e8f5ee', fg: '#2f855a' }, Medium: { bg: '#fdf3e2', fg: '#b7791f' }, High: { bg: '#fdecea', fg: '#c0392b' },
+  }
+  const c = map[effort]
+  return <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 20, textTransform: 'uppercase', letterSpacing: '.4px', background: c.bg, color: c.fg }}>{effort} effort</span>
 }
 
 function nameFor(rows: AgentProgress[], code: string): string {
