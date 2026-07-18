@@ -55,6 +55,7 @@ export default function CohortsPage() {
   const [error, setError] = useState<string | null>(null)
   const [plays, setPlays] = useState<Play[] | null>(null)
   const [playsSource, setPlaysSource] = useState<'ai' | 'fallback' | null>(null)
+  const [lastRunAt, setLastRunAt] = useState<string | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [teamKey, setTeamKey] = useState<string>('') // "" = whole team; else "recruiter::X" / "trainer::Y"
   const [selectedBlocker, setSelectedBlocker] = useState<BlockerKey | null>(null)
@@ -87,6 +88,20 @@ export default function CohortsPage() {
       .then(setData)
       .catch(() => setError('Could not load the roster. Are you signed in as an admin?'))
   }, [])
+
+  // Load the last cached AI analysis for the current scope (so we show its date
+  // and don't re-bill the AI on every visit).
+  useEffect(() => {
+    if (!data) return
+    const scope = teamKey ? teamKey.replace('::', ':') : 'all'
+    fetch(`/api/admin/progress-matrix/analyze?scope=${encodeURIComponent(scope)}`)
+      .then(r => r.json())
+      .then(j => {
+        if (j.cached) { setPlays(j.cached.plays ?? []); setPlaysSource(j.cached.source ?? 'fallback'); setLastRunAt(j.cached.ranAt ?? null) }
+        else { setPlays(null); setPlaysSource(null); setLastRunAt(null) }
+      })
+      .catch(() => {})
+  }, [data, teamKey])
 
   // Exclude leadership + referral partners: they aren't in the onboarding
   // funnel, so counting them made "the team" look far bigger than it is.
@@ -133,6 +148,10 @@ export default function CohortsPage() {
   const trainings = useMemo(() => trainingPlays(rows), [rows])
 
   async function runAnalysis() {
+    if (lastRunAt) {
+      const ageMs = Date.now() - Date.parse(lastRunAt)
+      if (ageMs < 24 * 3600 * 1000 && !window.confirm(`This analysis was last run ${timeAgo(lastRunAt)}. Running it again re-bills the AI. Run anyway?`)) return
+    }
     setAnalyzing(true)
     try {
       const res = await fetch('/api/admin/progress-matrix/analyze', {
@@ -142,12 +161,12 @@ export default function CohortsPage() {
       const json = await res.json()
       setPlays(json.plays ?? [])
       setPlaysSource(json.source ?? 'fallback')
+      setLastRunAt(json.ranAt ?? new Date().toISOString())
     } catch {
       setPlays([]); setPlaysSource('fallback')
     } finally { setAnalyzing(false) }
   }
-  // Re-running analysis when the team changes keeps the plays in sync.
-  function onTeamChange(v: string) { setTeamKey(v); setPlays(null) }
+  function onTeamChange(v: string) { setTeamKey(v) }
 
   // Pair an FTA agent with a trainer/CFT. Optimistic; persists via the agents
   // route (cft is a whitelisted field there).
@@ -229,7 +248,7 @@ export default function CohortsPage() {
             {team && <button onClick={() => onTeamChange('')} style={{ background: 'none', border: 'none', color: C.gold, fontWeight: 700, cursor: 'pointer', fontSize: 12.5 }}>Clear</button>}
             <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={runAnalysis} disabled={analyzing}
               style={{ background: C.navy, color: '#fff', border: 'none', borderRadius: 9, padding: '10px 15px', fontWeight: 700, fontSize: 13, cursor: analyzing ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7, whiteSpace: 'nowrap' }}>
-              <span style={{ color: C.gold }}>✦</span>{analyzing ? 'Analyzing…' : team ? 'Analyze team' : 'AI analysis'}
+              <span style={{ color: C.gold }}>✦</span>{analyzing ? 'Analyzing…' : lastRunAt ? 'Re-run AI' : team ? 'Analyze team' : 'AI analysis'}
             </motion.button>
           </div>
         </motion.div>
@@ -284,7 +303,7 @@ export default function CohortsPage() {
         <AnimatePresence>
           {plays && (
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} style={{ overflow: 'hidden', marginTop: 22 }}>
-              <SectionLabel>Highest-impact plays{team ? ` · ${teamLabel}'s team` : ''}{playsSource === 'fallback' && <span style={{ color: C.muted, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}> · rule-based</span>}</SectionLabel>
+              <SectionLabel>Highest-impact plays{team ? ` · ${teamLabel}'s team` : ''}{lastRunAt && <span style={{ color: C.muted, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}> · last run {timeAgo(lastRunAt)}</span>}{playsSource === 'fallback' && <span style={{ color: C.muted, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}> · rule-based</span>}</SectionLabel>
               <motion.div variants={{ show: { transition: { staggerChildren: 0.07 } } }} initial="hidden" animate="show" style={{ display: 'grid', gap: 12 }}>
                 {plays.length === 0 && <div style={{ color: C.muted, fontSize: 13 }}>Nothing urgent surfaced. This group is in good shape.</div>}
                 {plays.map((p, i) => (
@@ -528,4 +547,12 @@ function EffortBadge({ effort }: { effort: Effort }) {
 function nameFor(rows: AgentProgress[], code: string): string {
   const r = rows.find(x => x.agent.agentCode === code)
   return r ? `${r.agent.firstName} ${r.agent.lastName}` : code
+}
+
+function timeAgo(iso: string): string {
+  const s = Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 1000))
+  if (s < 60) return 'just now'
+  const m = Math.floor(s / 60); if (m < 60) return `${m} min ago`
+  const h = Math.floor(m / 60); if (h < 24) return `${h}h ago`
+  const d = Math.floor(h / 24); return `${d} day${d === 1 ? '' : 's'} ago`
 }
