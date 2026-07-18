@@ -57,6 +57,20 @@ export default function CohortsPage() {
   const [analyzing, setAnalyzing] = useState(false)
   const [teamKey, setTeamKey] = useState<string>('') // "" = whole team; else "recruiter::X" / "trainer::Y"
   const [selectedBlocker, setSelectedBlocker] = useState<BlockerKey | null>(null)
+  const [showCompose, setShowCompose] = useState(false)
+  const [emailSubject, setEmailSubject] = useState('')
+  const [emailBody, setEmailBody] = useState('')
+  const [emailBusy, setEmailBusy] = useState(false)
+  const [emailResult, setEmailResult] = useState<string | null>(null)
+
+  // Prefill a per-cohort email template whenever a group's drawer opens.
+  useEffect(() => {
+    if (!selectedBlocker) { setShowCompose(false); setEmailResult(null); return }
+    const g = BLOCKER_META[selectedBlocker]
+    setEmailSubject("Let's get you to your next milestone")
+    setEmailBody(`Hi {{firstName}},\n\nYou're at the "${g.label}" stage. ${g.training ? `We're running "${g.training}" to help you clear it, and I want you in it. ` : ''}Let's knock out your next step this week. Reply here or reach out to your trainer and we'll get it scheduled.\n\nAll Financial Freedom`)
+    setEmailResult(null); setShowCompose(false)
+  }, [selectedBlocker])
 
   useEffect(() => {
     fetch('/api/admin/progress-matrix')
@@ -129,6 +143,23 @@ export default function CohortsPage() {
   }
   // Re-running analysis when the team changes keeps the plays in sync.
   function onTeamChange(v: string) { setTeamKey(v); setPlays(null) }
+
+  async function sendCohortEmail(blocker: BlockerKey, test: boolean) {
+    const ids = rows.filter(r => r.blocker === blocker && r.agent.email).map(r => r.agent.id)
+    if (!ids.length) { setEmailResult('No agents in this group have an email on file.'); return }
+    setEmailBusy(true); setEmailResult(null)
+    try {
+      const res = await fetch('/api/admin/progress-matrix/cohort-email', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentProfileIds: ids, subject: emailSubject, body: emailBody, cohortLabel: BLOCKER_META[blocker].label, test }),
+      })
+      const j = await res.json()
+      if (!res.ok) setEmailResult(j.error || 'Failed')
+      else if (j.test) setEmailResult(`Preview: would send to ${j.wouldSend} agent${j.wouldSend === 1 ? '' : 's'}${j.noEmail ? `, ${j.noEmail} have no email` : ''}.`)
+      else setEmailResult(`Sent ${j.sent}${j.failed ? `, ${j.failed} failed` : ''}${j.skipped ? `, ${j.skipped} skipped (no email)` : ''}.`)
+    } catch { setEmailResult('Failed to send.') }
+    finally { setEmailBusy(false) }
+  }
 
   if (error) return <div style={{ padding: 40, color: C.ink }}>{error}</div>
   if (!data) return <div style={{ padding: 40, color: C.muted }}>Loading roster…</div>
@@ -445,6 +476,31 @@ export default function CohortsPage() {
                           </div>
                         </div>
                       ))}
+                      {members.some(m => m.agent.email) && (
+                        <div style={{ marginTop: 16, borderTop: '1px solid #eef2f7', paddingTop: 14 }}>
+                          {!showCompose ? (
+                            <button onClick={() => setShowCompose(true)} style={{ background: C.navy, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 14px', fontWeight: 700, fontSize: 13, cursor: 'pointer', width: '100%' }}>
+                              ✉ Email this group ({members.filter(m => m.agent.email).length})
+                            </button>
+                          ) : (
+                            <>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: C.navy, marginBottom: 6 }}>Email {members.filter(m => m.agent.email).length} agent{members.filter(m => m.agent.email).length === 1 ? '' : 's'}</div>
+                              <input value={emailSubject} onChange={e => setEmailSubject(e.target.value)} placeholder="Subject"
+                                style={{ width: '100%', padding: '9px 11px', border: `1px solid ${C.line}`, borderRadius: 8, fontSize: 13, marginBottom: 8 }} />
+                              <textarea value={emailBody} onChange={e => setEmailBody(e.target.value)} rows={8}
+                                style={{ width: '100%', padding: '9px 11px', border: `1px solid ${C.line}`, borderRadius: 8, fontSize: 13, fontFamily: 'inherit', resize: 'vertical' }} />
+                              <div style={{ fontSize: 11, color: C.muted, margin: '4px 0 10px' }}>Personalize with {'{{firstName}}'}, {'{{lastName}}'}, {'{{agentCode}}'}. Sends from operations@allfinancialfreedom.com.</div>
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <button onClick={() => sendCohortEmail(g.key, true)} disabled={emailBusy}
+                                  style={{ flex: 1, background: '#eef2f7', color: C.ink, border: 'none', borderRadius: 8, padding: '10px', fontWeight: 700, fontSize: 12.5, cursor: emailBusy ? 'wait' : 'pointer' }}>Preview</button>
+                                <button onClick={() => { if (window.confirm(`Send this email to ${members.filter(m => m.agent.email).length} agents?`)) sendCohortEmail(g.key, false) }} disabled={emailBusy}
+                                  style={{ flex: 1, background: C.gold, color: '#1a1a1a', border: 'none', borderRadius: 8, padding: '10px', fontWeight: 800, fontSize: 12.5, cursor: emailBusy ? 'wait' : 'pointer' }}>{emailBusy ? 'Sending…' : 'Send'}</button>
+                              </div>
+                              {emailResult && <div style={{ marginTop: 8, fontSize: 12.5, color: C.navy, fontWeight: 600 }}>{emailResult}</div>}
+                            </>
+                          )}
+                        </div>
+                      )}
                     </>
                   )
                 })()}
