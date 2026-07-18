@@ -1,5 +1,6 @@
 import { db } from './db'
 import { randomUUID } from 'crypto'
+import { getSetting } from './settings'
 import { PHASE_ITEMS, CARRIERS } from './agent-constants'
 import { getGhlConfig, sendGhlEmail, ghlPost, OPS_MAILBOX } from './ghl'
 import { buildWelcomeEmailHtml } from './welcome-email'
@@ -253,7 +254,11 @@ export async function approveReferral(input: ApprovalInput): Promise<ApprovalRes
   // don't celebrate a recruit that staff hasn't reviewed yet. Fires from
   // both the Discord approve-button path and the vault UI approve path
   // because both flow through here.
-  if (process.env.DISCORD_BOT_TOKEN && referringAgent) {
+  //
+  // The public welcome-on-join is OFF by default (disabled per request).
+  // Re-enable by setting WELCOME_ANNOUNCE_ON_JOIN = "on" in settings.
+  const welcomeOnJoin = (await getSetting('WELCOME_ANNOUNCE_ON_JOIN')) === 'on'
+  if (process.env.DISCORD_BOT_TOKEN && referringAgent && welcomeOnJoin) {
     try {
       const { sendChannelMessage } = await import('./discord')
       const { buildAchievementEmbed } = await import('./discord-card')

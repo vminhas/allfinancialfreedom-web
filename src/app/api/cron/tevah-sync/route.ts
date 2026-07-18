@@ -23,6 +23,7 @@ import { getAutoAssignee } from '@/lib/auto-assign'
 import { sendChannelMessage } from '@/lib/discord'
 import { sendAgentInviteEmail } from '@/lib/send-agent-invite'
 import { celebrateNewBusinessPartner } from '@/lib/celebrate-new-business-partner'
+import { getSetting } from '@/lib/settings'
 import { autoAdvanceContactOnAgentCreation } from '@/lib/ghl-pipeline'
 import type { PolicyType, NewBusinessStatus } from '@/generated/prisma/client'
 
@@ -363,7 +364,9 @@ export async function syncAgents() {
         // and channel post; we just await it inline so the announced
         // counter on the summary is accurate. Failure here doesn't
         // abort the sync.
-        if (newProfileId) {
+        // Public welcome on Tevah sync is OFF by default (disabled per request).
+        // Re-enable by setting WELCOME_ANNOUNCE_ON_TEVAH = "on" in settings.
+        if (newProfileId && (await getSetting('WELCOME_ANNOUNCE_ON_TEVAH')) === 'on') {
           const announce = await celebrateNewBusinessPartner({
             agentProfileId: newProfileId,
           }).catch(err => {
