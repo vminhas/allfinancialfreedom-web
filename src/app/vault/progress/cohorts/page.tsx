@@ -6,7 +6,7 @@ import { motion, AnimatePresence, animate } from 'framer-motion'
 import { GeistSans } from 'geist/font/sans'
 import {
   computeProgress, teamOptions, filterByTeam, trainingPlays,
-  BLOCKER_META, LICENSE_RED_FLAG_DAYS, LICENSE_STEP_TOTAL,
+  BLOCKER_META, COHORT_CRITERIA, placementReason, LICENSE_RED_FLAG_DAYS, LICENSE_STEP_TOTAL,
   type CohortKey, type MatrixPayload, type AgentProgress, type Play, type BlockerKey, type Effort,
 } from '@/lib/progression-cohorts'
 import TeamClusterViz from './TeamClusterViz'
@@ -355,7 +355,7 @@ export default function CohortsPage() {
                       <span style={{ fontWeight: 400, color: C.muted, fontSize: 11.5 }}> · {r.agent.agentCode}{r.agent.state ? ` · ${r.agent.state}` : ''}</span></div>
                     <div style={{ fontSize: 12.5, color: C.ink, marginTop: 3, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                       {m.passedExam
-                        ? <span style={{ color: C.green, fontWeight: 700 }}>✓ Passed exam</span>
+                        ? <span style={{ color: m.ftaSchedulingFlag ? C.red : C.green, fontWeight: 700 }}>✓ Passed exam{m.ftaSchedulingFlag ? ` · ⚑ no 10 FTAs (${m.daysSincePassedExam}d)` : ''}</span>
                         : <span style={{ color: dc, fontWeight: 700 }}>{days != null ? `${days}d in licensing` : 'in licensing'}{m.licenseFlag ? ' ⚑' : ''}</span>}
                       <span style={{ color: C.muted }}>·</span>
                       <span style={{ color: m.examScheduled ? C.blue : C.muted }}>{m.examScheduled ? 'Exam scheduled' : 'No exam date'}</span>
@@ -462,11 +462,17 @@ export default function CohortsPage() {
                     <>
                       <h3 style={{ margin: '0 0 2px', fontSize: 18, color: C.navy }}>{g.label}</h3>
                       <p style={{ color: C.muted, fontSize: 13, margin: '0 0 8px' }}>{members.length} agent{members.length === 1 ? '' : 's'} · {g.gap}</p>
+                      <div style={{ background: '#f7f9fb', border: `1px solid ${C.line}`, borderRadius: 8, padding: '9px 11px', fontSize: 12, margin: '2px 0 8px' }}>
+                        <div style={{ color: C.navy, fontWeight: 700, marginBottom: 3 }}>How this group is decided</div>
+                        <div style={{ color: C.ink, marginBottom: 5 }}>{COHORT_CRITERIA[g.key].rule}</div>
+                        <div style={{ color: C.muted }}><b style={{ color: C.ink }}>Path:</b> {COHORT_CRITERIA[g.key].path.join(' → ')}</div>
+                      </div>
                       {g.training && <div style={{ background: '#faf6ee', border: '1px solid #efe6d3', borderRadius: 8, padding: '10px 12px', fontSize: 12.5, margin: '8px 0 6px', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}><span><b>Training:</b> {g.training}</span>{g.effort && <EffortBadge effort={g.effort} />}</div>}
                       {members.map(r => (
                         <div key={r.agent.id} style={{ padding: '10px 0', borderTop: '1px solid #eef2f7' }}>
                           <div><b style={{ color: C.navy }}>{r.agent.firstName} {r.agent.lastName}</b> <span style={{ color: C.muted, fontSize: 11.5 }}>· {r.agent.agentCode} · P{r.phase}{r.daysInPhase != null ? ` · ${r.daysInPhase}d` : ''}</span></div>
                           <div style={{ fontSize: 12, color: C.ink, marginTop: 2 }}>{r.nextItems[0] ? <>Stuck on: <b>{r.nextItems[0].label}</b></> : 'Ready to advance'}</div>
+                          <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}><span style={{ color: C.ink }}>Why here:</span> {placementReason(r)}</div>
                           <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
                             {r.agent.recruiterId ? `Recruiter ${nameFor(allRows, r.agent.recruiterId)}` : ''}{r.agent.cft ? `${r.agent.recruiterId ? ' · ' : ''}Trainer ${r.agent.cft}` : ''}
                             {r.agent.email && <> · <a href={`mailto:${r.agent.email}`} style={{ color: C.gold, fontWeight: 700, textDecoration: 'none' }}>Email →</a></>}

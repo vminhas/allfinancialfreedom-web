@@ -92,7 +92,14 @@ export interface Milestones {
   associateNeeds: string[]      // remaining items for Senior Associate
   cftDone: number               // Phase 3 sign-offs of 4
   cftTotal: number
+  // Leading indicator: 10 FTAs are the WORK that produces the 3-client RESULT.
+  // Passing the exam without 10 FTAs scheduled within a week is a red flag.
+  daysSincePassedExam: number | null
+  ftaSchedulingFlag: boolean
 }
+
+// Days after passing the exam without 10 FTAs scheduled before it's a red flag.
+export const FTA_SCHEDULE_FLAG_DAYS = 7
 
 export const LICENSE_STEP_TOTAL = LICENSE_STEP_KEYS.length
 
@@ -153,6 +160,9 @@ export function computeProgress(payload: MatrixPayload, now = Date.now()): Agent
     const inLicensing = a.phase === 1 && !passedExam
     const nextLicenseKey = LICENSE_STEP_KEYS.find(k => !doneKey(k))
     const associateNeedKeys = ASSOCIATE_PATH_KEYS.filter(k => !doneKey(k))
+    const passExamAt = completedAt[`${a.id}:${LICENSE_PASS_KEY}`]
+    const daysSincePassedExam = passExamAt ? Math.floor((now - Date.parse(passExamAt)) / DAY) : null
+    const scheduled10Ftas = doneKey('schedule_10_trainings')
     const milestones: Milestones = {
       inLicensing,
       passedExam,
@@ -167,6 +177,8 @@ export function computeProgress(payload: MatrixPayload, now = Date.now()): Agent
       associateNeeds: associateNeedKeys.map(k => labelByKey.get(k) ?? KEY_LABELS[k] ?? k),
       cftDone: CFT_KEYS.filter(doneKey).length,
       cftTotal: CFT_KEYS.length,
+      daysSincePassedExam,
+      ftaSchedulingFlag: passedExam && !scheduled10Ftas && daysSincePassedExam != null && daysSincePassedExam > FTA_SCHEDULE_FLAG_DAYS,
     }
 
     // Funnel-stage blocker: the earliest milestone not yet cleared.
@@ -247,6 +259,36 @@ export const BLOCKER_GROUPS: { key: BlockerKey; label: string; color: string; ga
 ]
 
 export const BLOCKER_META = Object.fromEntries(BLOCKER_GROUPS.map(g => [g.key, g])) as Record<BlockerKey, typeof BLOCKER_GROUPS[number]>
+
+// Plain-English criteria + the milestone path to clear each group, shown in the
+// UI so membership is never a mystery. Thresholds match the AFF rules: Senior
+// Associate = 3 business partners + 3 clients; Net License = first $1,000;
+// Marketing Director = 45,000 points + 5 net-licensed business partners.
+export const COHORT_CRITERIA: Record<BlockerKey, { rule: string; path: string[] }> = {
+  exam:       { rule: 'Phase 1 and has not passed the life license exam yet.', path: ['Schedule the exam', 'Pass the life license exam'] },
+  appoint:    { rule: 'Passed the exam but not yet appointed with a carrier.', path: ['CE courses (AML, Annuity, Ethics)', 'E&O insurance', 'Submit to GFI', 'Appointed with a carrier'] },
+  onboarding: { rule: 'Licensed and appointed, but Phase 1 onboarding is not finished.', path: ['Onboarding academy classes', 'Master scripts', 'First PFR', 'Schedule 10 FTAs'] },
+  fta:        { rule: 'Phase 2, appointed, fewer than 10 Field Training Appointments done.', path: ['Schedule 10 FTAs (the work)', 'Complete 10 FTAs — this produces your first 3 clients (the result)'] },
+  netlicense: { rule: 'Field training done but not net licensed (no first $1,000 in business).', path: ['Help your first clients', 'Earn your first $1,000 — Net License'] },
+  assoc:      { rule: 'Senior Associate promotion: 3 business partners + 3 clients helped, then sign-off.', path: ['3 business partners', '3 clients helped', 'Senior Associate sign-off'] },
+  cft:        { rule: 'Phase 3, working toward Certified Field Trainer (agents enter after Senior Associate + Net License).', path: ['CFT classes', 'Trainer sign-off', 'CFT Coordinator sign-off', 'EMD sign-off'] },
+  ontrack:    { rule: 'Advanced (Phase 4+) or cleared every item in the current phase. Next focus: Marketing Director.', path: ['45,000 production points (accumulate over time)', '5 business partners at Net License', 'MD promotion'] },
+}
+
+// One-line explanation of why a specific agent landed in their group.
+export function placementReason(r: AgentProgress): string {
+  const m = r.milestones
+  switch (r.blocker) {
+    case 'exam': return `Phase 1 · exam not passed · ${m.examScheduled ? 'exam scheduled' : 'no exam date'}${m.daysInLicensing != null ? ` · ${m.daysInLicensing}d in licensing` : ''}`
+    case 'appoint': return `Phase ${r.phase} · passed exam · not yet appointed`
+    case 'onboarding': return `Phase 1 · licensed + appointed · ${r.done}/${r.total} onboarding items done`
+    case 'fta': return `Phase 2 · appointed · ${m.ftaDone}/10 FTAs${m.ftaSchedulingFlag ? ' · ⚑ no 10 FTAs a week after passing exam' : ''}`
+    case 'netlicense': return `Phase 2 · 10 FTAs done · not yet net licensed ($1,000)`
+    case 'assoc': return `Phase 2 · net licensed · Senior Associate sign-off pending`
+    case 'cft': return `Phase 3 · ${m.cftDone}/${m.cftTotal} CFT sign-offs`
+    case 'ontrack': return r.phase >= 4 ? `Phase ${r.phase} · advanced` : `Cleared all Phase ${r.phase} items`
+  }
+}
 
 export interface TrainingPlay {
   blocker: BlockerKey
