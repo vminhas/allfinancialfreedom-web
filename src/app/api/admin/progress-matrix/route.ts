@@ -29,6 +29,9 @@ export async function GET() {
         id: true, agentCode: true, firstName: true, lastName: true,
         phase: true, avatarUrl: true, state: true,
         icaDate: true, badges: true,
+        // recruiterId (recruiter's agentCode) and cft (trainer name) power the
+        // recruiter/trainer team filter on the cohorts view.
+        recruiterId: true, cft: true,
         // phaseStartedAt powers the time-aware "At Risk" calculation.
         // Without it the only signal would be raw current-phase
         // completion %, which mislabels anyone who just entered a new
@@ -85,6 +88,8 @@ export async function GET() {
     lastLoginAt: a.agentUser?.lastLoginAt?.toISOString() ?? null,
     email: a.agentUser?.email ?? null,
     badges: a.badges ?? [],
+    recruiterId: a.recruiterId ?? null,
+    cft: a.cft ?? null,
   }))
 
   return NextResponse.json({ agents: flatAgents, items, completedAt })
