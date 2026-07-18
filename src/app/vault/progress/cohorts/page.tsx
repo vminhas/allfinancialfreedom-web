@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence, animate } from 'framer-motion'
+import { GeistSans } from 'geist/font/sans'
 import {
-  computeProgress, COHORT_META, teamOptions, filterByTeam, trainingPlays,
-  BLOCKER_GROUPS, BLOCKER_META, LICENSE_RED_FLAG_DAYS, LICENSE_STEP_TOTAL,
+  computeProgress, teamOptions, filterByTeam, trainingPlays,
+  BLOCKER_META, LICENSE_RED_FLAG_DAYS, LICENSE_STEP_TOTAL,
   type CohortKey, type MatrixPayload, type AgentProgress, type Play, type BlockerKey, type Effort,
 } from '@/lib/progression-cohorts'
-import { PHASE_LABELS } from '@/lib/agent-constants'
 import TeamClusterViz from './TeamClusterViz'
 
 const C = {
@@ -37,11 +37,13 @@ function Bar({ pct, color = C.gold, h = 8 }: { pct: number; color?: string; h?: 
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '1.4px', textTransform: 'uppercase', color: C.gold, margin: '30px 0 12px' }}>{children}</div>
+  return <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '1.4px', textTransform: 'uppercase', color: C.gold, margin: '20px 0 9px' }}>{children}</div>
 }
 
-function TrackCard({ children }: { children: React.ReactNode }) {
-  return <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: '6px 4px' }}>{children}</div>
+// Long milestone lists live in a fixed-height scroll box so the page stays
+// tight instead of running for thousands of pixels.
+function TrackCard({ children, cap = 340 }: { children: React.ReactNode; cap?: number }) {
+  return <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: '2px 4px', maxHeight: cap, overflowY: 'auto' }}>{children}</div>
 }
 
 function AgentLine({ children }: { children: React.ReactNode }) {
@@ -51,12 +53,12 @@ function AgentLine({ children }: { children: React.ReactNode }) {
 export default function CohortsPage() {
   const [data, setData] = useState<MatrixPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [expanded, setExpanded] = useState<CohortKey | null>('at-risk')
   const [plays, setPlays] = useState<Play[] | null>(null)
   const [playsSource, setPlaysSource] = useState<'ai' | 'fallback' | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [teamKey, setTeamKey] = useState<string>('') // "" = whole team; else "recruiter::X" / "trainer::Y"
   const [selectedBlocker, setSelectedBlocker] = useState<BlockerKey | null>(null)
+  const [activeTab, setActiveTab] = useState<'licensing' | 'field' | 'cft' | 'attention'>('licensing')
   const [showCompose, setShowCompose] = useState(false)
   const [emailSubject, setEmailSubject] = useState('')
   const [emailBody, setEmailBody] = useState('')
@@ -119,12 +121,7 @@ export default function CohortsPage() {
   const fieldTraining = useMemo(() => rows.filter(r => r.phase === 2).sort((a, b) => b.milestones.ftaDone - a.milestones.ftaDone), [rows])
   const cftTrack = useMemo(() => rows.filter(r => r.phase === 3).sort((a, b) => b.milestones.cftDone - a.milestones.cftDone), [rows])
 
-  const phaseCounts = useMemo(() => {
-    const m = new Map<number, number>()
-    for (const r of rows) m.set(r.phase, (m.get(r.phase) ?? 0) + 1)
-    return m
-  }, [rows])
-  const maxPhase = Math.max(1, ...[...phaseCounts.values()])
+  const needsAttention = useMemo(() => [...byCohort['at-risk'], ...byCohort.behind, ...byCohort.stalled], [byCohort])
 
   // Distinct trainer/CFT names in the system, for FTA pairing assignment.
   const trainerOptions = useMemo(() => {
@@ -134,12 +131,6 @@ export default function CohortsPage() {
   }, [allRowsRaw])
 
   const trainings = useMemo(() => trainingPlays(rows), [rows])
-  const blockerCounts = useMemo(() => {
-    const m = {} as Record<BlockerKey, number>
-    for (const g of BLOCKER_GROUPS) m[g.key] = 0
-    for (const r of rows) m[r.blocker]++
-    return m
-  }, [rows])
 
   async function runAnalysis() {
     setAnalyzing(true)
@@ -211,7 +202,7 @@ export default function CohortsPage() {
   if (!data) return <div style={{ padding: 40, color: C.muted }}>Loading roster…</div>
 
   return (
-    <div style={{ background: C.bg, minHeight: '100dvh', padding: '26px 22px 70px', color: C.ink }}>
+    <div className={GeistSans.className} style={{ background: C.bg, minHeight: '100dvh', padding: '20px 22px 60px', color: C.ink }}>
       <div style={{ maxWidth: 1160, margin: '0 auto' }}>
         <style>{`@media (max-width: 860px){.cluster-grid{grid-template-columns:1fr !important}.cohort-cards{grid-template-columns:1fr 1fr !important}}`}</style>
 
@@ -294,19 +285,6 @@ export default function CohortsPage() {
           </div>
         </div>
 
-        {/* Cohort breakdown cards */}
-        <SectionLabel>Cohort breakdown · click for names</SectionLabel>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }} className="cohort-cards">
-          {BLOCKER_GROUPS.filter(g => blockerCounts[g.key] > 0).map(g => (
-            <motion.button key={g.key} whileHover={{ y: -2 }} onClick={() => setSelectedBlocker(g.key)}
-              style={{ textAlign: 'left', background: C.card, border: `1px solid ${C.line}`, borderTop: `4px solid ${g.color}`, borderRadius: 12, padding: '14px 15px', cursor: 'pointer' }}>
-              <div style={{ fontSize: 28, fontWeight: 800, color: C.navy, lineHeight: 1 }}>{blockerCounts[g.key]}</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginTop: 6 }}>{g.label}</div>
-              <div style={{ fontSize: 11.5, color: C.muted, marginTop: 3 }}>{g.training ? `Training: ${g.training}` : 'Keep the momentum going'}</div>
-            </motion.button>
-          ))}
-        </div>
-
         {/* AI plays */}
         <AnimatePresence>
           {plays && (
@@ -336,11 +314,23 @@ export default function CohortsPage() {
           )}
         </AnimatePresence>
 
-        {/* ── Licensing pipeline ── */}
-        {licensing.length > 0 && <>
-          <SectionLabel>Licensing pipeline · Phase 1 (not yet in field training){licenseFlags > 0 && <span style={{ color: C.red }}> · {licenseFlags} flagged 21+ days</span>}</SectionLabel>
-          <TrackCard>
-            {licensing.map(r => {
+        {/* ── Milestone tracks (tabbed) ── */}
+        <SectionLabel>Milestone tracks</SectionLabel>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', borderBottom: `1px solid ${C.line}`, marginBottom: 10 }}>
+          {([
+            { k: 'licensing' as const, label: 'Licensing', n: licensing.length, flag: licenseFlags > 0 },
+            { k: 'field' as const, label: 'Field training', n: fieldTraining.length, flag: false },
+            { k: 'cft' as const, label: 'CFT track', n: cftTrack.length, flag: false },
+            { k: 'attention' as const, label: 'Needs attention', n: needsAttention.length, flag: needsAttention.length > 0 },
+          ]).map(t => (
+            <button key={t.k} onClick={() => setActiveTab(t.k)}
+              style={{ background: 'none', border: 'none', borderBottom: `2px solid ${activeTab === t.k ? C.gold : 'transparent'}`, color: activeTab === t.k ? C.navy : C.muted, fontWeight: 700, fontSize: 13, padding: '8px 10px', marginBottom: -1, cursor: 'pointer' }}>
+              {t.label} <span style={{ color: t.flag ? C.red : C.muted, fontWeight: 800 }}>{t.n}</span>
+            </button>
+          ))}
+        </div>
+        <TrackCard cap={440}>
+          {activeTab === 'licensing' && licensing.map(r => {
               const m = r.milestones
               const days = m.daysInLicensing ?? r.daysInPhase
               const dc = m.licenseFlag ? C.red : (days != null && days >= 14 ? C.amber : C.muted)
@@ -365,14 +355,7 @@ export default function CohortsPage() {
                 </AgentLine>
               )
             })}
-          </TrackCard>
-        </>}
-
-        {/* ── Field Training → Senior Associate ── */}
-        {fieldTraining.length > 0 && <>
-          <SectionLabel>Field training → Senior Associate · Phase 2</SectionLabel>
-          <TrackCard>
-            {fieldTraining.map(r => {
+          {activeTab === 'field' && fieldTraining.map(r => {
               const m = r.milestones
               return (
                 <AgentLine key={r.agent.id}>
@@ -403,14 +386,7 @@ export default function CohortsPage() {
                 </AgentLine>
               )
             })}
-          </TrackCard>
-        </>}
-
-        {/* ── On track for CFT ── */}
-        {cftTrack.length > 0 && <>
-          <SectionLabel>On track for CFT · Phase 3</SectionLabel>
-          <TrackCard>
-            {cftTrack.map(r => {
+          {activeTab === 'cft' && cftTrack.map(r => {
               const m = r.milestones
               const sc = r.status === 'at-risk' ? C.red : r.status === 'behind' ? C.amber : C.green
               return (
@@ -430,75 +406,25 @@ export default function CohortsPage() {
                 </AgentLine>
               )
             })}
-          </TrackCard>
-        </>}
-
-        {/* Phase distribution */}
-        <SectionLabel>Phase distribution</SectionLabel>
-        <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: '14px 18px' }}>
-          {[1, 2, 3, 4, 5, 6].map(p => {
-            const c = phaseCounts.get(p) ?? 0
-            const info = PHASE_LABELS[p]
-            return (
-              <div key={p} style={{ display: 'grid', gridTemplateColumns: '210px 1fr 40px', alignItems: 'center', gap: 12, padding: '7px 0', borderTop: p > 1 ? '1px solid #f0f3f7' : 'none' }}>
-                <div style={{ fontWeight: 700, color: C.navy, fontSize: 13 }}>Phase {p}: {info?.title}
-                  <span style={{ display: 'block', fontWeight: 400, color: C.muted, fontSize: 11.5 }}>{info?.goal}</span></div>
-                <div style={{ height: 22, background: '#eef2f7', borderRadius: 6, overflow: 'hidden' }}>
-                  <motion.div initial={{ width: 0 }} animate={{ width: `${(c / maxPhase) * 100}%` }} transition={{ duration: 0.7, ease: 'easeOut' }}
-                    style={{ height: '100%', background: `linear-gradient(90deg, #12294a, ${C.gold})`, borderRadius: 6 }} />
+          {activeTab === 'attention' && (needsAttention.length === 0
+            ? <div style={{ padding: '14px 16px', color: C.muted, fontSize: 13 }}>Nobody needs urgent attention in this view.</div>
+            : needsAttention.map(r => (
+              <AgentLine key={r.agent.id}>
+                <div>
+                  <div style={{ fontWeight: 700, color: C.navy, fontSize: 13.5 }}>{r.agent.firstName} {r.agent.lastName}
+                    <span style={{ fontWeight: 400, color: C.muted, fontSize: 11.5 }}> · {r.agent.agentCode} · P{r.phase}</span></div>
+                  <div style={{ fontSize: 12.5, color: C.ink, marginTop: 3 }}>
+                    <span style={{ color: r.cohort === 'at-risk' ? C.red : r.cohort === 'behind' ? C.amber : C.muted, fontWeight: 700, textTransform: 'capitalize' }}>{r.cohort.replace('-', ' ')}</span>
+                    {r.nextItems[0] && <> · Stuck on: <b>{r.nextItems[0].label}</b></>}
+                  </div>
+                  <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
+                    {r.daysInPhase != null && <>{r.daysInPhase}d in phase · </>}{r.daysSinceProgress != null && <>{r.daysSinceProgress}d since progress · </>}last login {r.lastLoginDays == null ? '—' : r.lastLoginDays === 0 ? 'today' : `${r.lastLoginDays}d ago`}
+                  </div>
                 </div>
-                <div style={{ textAlign: 'right', fontWeight: 800, color: C.navy }}>{c}</div>
-              </div>
-            )
-          })}
-        </div>
-
-        {/* Cohorts */}
-        <SectionLabel>Where to focus</SectionLabel>
-        <motion.div key={`cohorts-${teamKey}`} initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.06 } } }} style={{ display: 'grid', gap: 12 }}>
-          {COHORT_ORDER.filter(k => byCohort[k].length).map(k => {
-            const meta = COHORT_META[k]; const list = byCohort[k]; const open = expanded === k
-            return (
-              <motion.div key={k} layout variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}
-                style={{ background: C.card, border: `1px solid ${C.line}`, borderLeft: `5px solid ${meta.color}`, borderRadius: 12, overflow: 'hidden' }}>
-                <motion.button layout onClick={() => setExpanded(open ? null : k)}
-                  style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: meta.color, flex: '0 0 10px' }} />
-                  <span style={{ fontSize: 15, fontWeight: 700, color: C.navy }}>{meta.title}</span>
-                  <span style={{ fontSize: 13, color: C.muted }}>{meta.blurb}</span>
-                  <span style={{ marginLeft: 'auto', fontSize: 20, fontWeight: 800, color: C.navy }}>{list.length}</span>
-                  <motion.span animate={{ rotate: open ? 90 : 0 }} style={{ color: C.muted, fontSize: 16 }}>›</motion.span>
-                </motion.button>
-                <AnimatePresence initial={false}>
-                  {open && (
-                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} style={{ overflow: 'hidden' }}>
-                      <div style={{ padding: '0 16px 14px', display: 'grid', gap: 8 }}>
-                        {list.map(r => (
-                          <div key={r.agent.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center', padding: '10px 12px', background: '#fafcff', border: `1px solid ${C.line}`, borderRadius: 8 }}>
-                            <div>
-                              <div style={{ fontWeight: 700, color: C.navy, fontSize: 13.5 }}>{r.agent.firstName} {r.agent.lastName}
-                                <span style={{ fontWeight: 400, color: C.muted, fontSize: 11.5 }}> · {r.agent.agentCode}{r.agent.state ? ` · ${r.agent.state}` : ''} · Phase {r.phase}</span></div>
-                              <div style={{ fontSize: 12.5, color: C.ink, marginTop: 3 }}>
-                                {r.nextItems[0] ? <><span style={{ color: C.muted }}>Stuck on:</span> <b>{r.nextItems[0].label}</b></> : <span style={{ color: C.green }}>Phase complete, ready to advance</span>}
-                              </div>
-                              <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>
-                                {r.done}/{r.total} done ({Math.round(r.ratio * 100)}%)
-                                {r.daysInPhase != null && <> · {r.daysInPhase}d in phase</>}
-                                {r.daysSinceProgress != null && <> · {r.daysSinceProgress}d since progress</>}
-                                {r.lastLoginDays != null && <> · last login {r.lastLoginDays === 0 ? 'today' : `${r.lastLoginDays}d ago`}</>}
-                              </div>
-                            </div>
-                            {r.agent.email && <a href={`mailto:${r.agent.email}`} style={{ fontSize: 12, fontWeight: 700, color: C.gold, textDecoration: 'none', whiteSpace: 'nowrap' }}>Email →</a>}
-                          </div>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            )
-          })}
-        </motion.div>
+                {r.agent.email && <a href={`mailto:${r.agent.email}`} style={{ fontSize: 12, fontWeight: 700, color: C.gold, textDecoration: 'none', whiteSpace: 'nowrap' }}>Email →</a>}
+              </AgentLine>
+            )))}
+        </TrackCard>
 
         <p style={{ color: C.muted, fontSize: 12, marginTop: 20, lineHeight: 1.6 }}>
           Live data, refreshes on load. Same at-risk math as the rest of the portal. A Phase-1 agent {LICENSE_RED_FLAG_DAYS}+ days
