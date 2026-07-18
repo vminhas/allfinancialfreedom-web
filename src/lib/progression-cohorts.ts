@@ -55,6 +55,7 @@ export interface AgentProgress {
   nextItems: { itemKey: string; label: string }[]
   cohort: CohortKey
   milestones: Milestones
+  blocker: BlockerKey
 }
 
 const DAY = 86_400_000
@@ -166,13 +167,28 @@ export function computeProgress(payload: MatrixPayload, now = Date.now()): Agent
       cftTotal: CFT_KEYS.length,
     }
 
+    // Funnel-stage blocker: the earliest milestone not yet cleared.
+    const appointed = doneKey('fully_appointed')
+    const netLicensed = doneKey('first_1000')
+    const seniorAssoc = doneKey('associate_promotion')
+    const cftCert = doneKey('cft_coordinator_signoff')
+    let blocker: BlockerKey
+    if (a.phase >= 4) blocker = 'ontrack'
+    else if (a.phase === 3) blocker = cftCert ? 'ontrack' : 'cft'
+    else if (a.phase === 1 && !passedExam) blocker = 'exam'
+    else if (!appointed) blocker = 'appoint'
+    else if (a.phase === 2 && milestones.ftaDone < 10) blocker = 'fta'
+    else if (a.phase === 2 && !netLicensed) blocker = 'netlicense'
+    else if (a.phase === 2 && !seniorAssoc) blocker = 'assoc'
+    else blocker = 'ontrack'
+
     return {
       agent: a, phase: a.phase,
       phaseTitle: label?.title ?? `Phase ${a.phase}`,
       phaseGoal: label?.goal ?? '',
       daysInPhase, done, total, ratio, status, lastLoginDays, daysSinceProgress, nextItems,
       cohort: cohortOf({ status, lastLoginDays, ratio, phase: a.phase, daysInPhase }),
-      milestones,
+      milestones, blocker,
     }
   })
 }
@@ -204,6 +220,50 @@ export function filterByTeam(rows: AgentProgress[], team: { kind: 'recruiter' | 
   if (!team) return rows
   if (team.kind === 'recruiter') return rows.filter(r => r.agent.recruiterId === team.value)
   return rows.filter(r => r.agent.cft === team.value)
+}
+
+// ── Blocker groups (funnel-stage clustering for the 10k-ft view) ──────────────
+// Each agent is placed in the EARLIEST milestone they haven't cleared, so the
+// team clusters into "where is everyone stuck." Each group maps to the single
+// training that unblocks it.
+
+export type BlockerKey = 'exam' | 'appoint' | 'fta' | 'netlicense' | 'assoc' | 'cft' | 'ontrack'
+export type Effort = 'Low' | 'Medium' | 'High'
+
+export const BLOCKER_GROUPS: { key: BlockerKey; label: string; color: string; gap: string; training: string | null; effort: Effort | null }[] = [
+  { key: 'exam',       label: 'Needs to pass exam',            color: '#c0392b', gap: 'Has not passed the life license exam',                 training: 'Exam Prep Bootcamp',                       effort: 'Medium' },
+  { key: 'appoint',    label: 'Licensed · needs appointments', color: '#b7791f', gap: 'Passed exam, not yet appointed with a carrier',        training: 'Licensing Paperwork Blitz (CE / E&O / GFI)', effort: 'Low' },
+  { key: 'fta',        label: 'In field training (FTAs left)', color: '#2b6cb0', gap: 'Field Training Appointments still to complete',        training: 'Field Training Ride-Along Push',           effort: 'High' },
+  { key: 'netlicense', label: 'Not net licensed (needs 1st client)', color: '#dd8f2a', gap: 'Field training done, no first client / not net licensed', training: 'First Client Closing Workshop',      effort: 'Medium' },
+  { key: 'assoc',      label: 'Awaiting Senior Associate',     color: '#7c3aed', gap: 'Requirements met, Senior Associate promotion pending', training: 'Senior Associate Sign-Off Day',            effort: 'Low' },
+  { key: 'cft',        label: 'Working toward CFT',            color: '#0f766e', gap: 'Phase 3 CFT sign-offs remaining',                      training: 'CFT Certification Track',                  effort: 'High' },
+  { key: 'ontrack',    label: 'Advanced / on track',          color: '#2f855a', gap: 'No active blocker',                                    training: null,                                       effort: null },
+]
+
+export const BLOCKER_META = Object.fromEntries(BLOCKER_GROUPS.map(g => [g.key, g])) as Record<BlockerKey, typeof BLOCKER_GROUPS[number]>
+
+export interface TrainingPlay {
+  blocker: BlockerKey
+  training: string
+  effort: Effort
+  unblocks: number
+  quickWin: boolean
+}
+
+const EFFORT_WEIGHT: Record<Effort, number> = { Low: 1, Medium: 1.7, High: 2.6 }
+
+// Rank the trainings by how many agents each unblocks, boosting low-effort quick
+// wins. Highest impact first.
+export function trainingPlays(rows: AgentProgress[]): TrainingPlay[] {
+  const counts = new Map<BlockerKey, number>()
+  for (const r of rows) counts.set(r.blocker, (counts.get(r.blocker) ?? 0) + 1)
+  return BLOCKER_GROUPS
+    .filter(g => g.training && (counts.get(g.key) ?? 0) > 0)
+    .map(g => {
+      const unblocks = counts.get(g.key)!
+      return { blocker: g.key, training: g.training!, effort: g.effort!, unblocks, quickWin: unblocks >= 5 && g.effort === 'Low' }
+    })
+    .sort((a, b) => (b.unblocks / EFFORT_WEIGHT[b.effort]) - (a.unblocks / EFFORT_WEIGHT[a.effort]) || b.unblocks - a.unblocks)
 }
 
 // Compact, PII-light roster summary for the AI analysis prompt. First names
