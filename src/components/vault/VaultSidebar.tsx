@@ -44,6 +44,7 @@ const NAV_GROUPS: NavGroup[] = [
     key: 'people', label: 'People', defaultOpen: true,
     items: [
       { href: '/vault/progress', label: 'Progression Matrix', icon: '⊟' },
+      { href: '/vault/progress/cohorts', label: 'On-Track Cohorts', icon: '⊙' },
       { href: '/vault/diagnostic', label: 'Diagnostic', icon: '◍' },
       { href: '/vault/onboarding', label: 'Onboarding Watch', icon: '⏱' },
       { href: '/vault/org', label: 'Team Structure', icon: '⊞' },
