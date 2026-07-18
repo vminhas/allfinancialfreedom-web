@@ -57,6 +57,49 @@ function normalizePhoneE164(phone: string): string {
   return '+' + (digits.length === 10 ? '1' + digits : digits)
 }
 
+// --- Contact field validation + formatting -----------------------------------
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+
+// Format keystrokes into a US phone mask "(555) 555-5555". Strips non-digits,
+// drops a pasted leading country code, and hard-caps at 10 digits so garbage
+// like "55555555553434242" can't be entered.
+function formatUsPhone(input: string): string {
+  let d = input.replace(/\D/g, '')
+  if (d.length === 11 && d[0] === '1') d = d.slice(1)
+  d = d.slice(0, 10)
+  if (d.length < 4) return d
+  if (d.length < 7) return `(${d.slice(0, 3)}) ${d.slice(3)}`
+  return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`
+}
+
+// Keep only letters, spaces, hyphens, apostrophes and periods in a name;
+// collapse repeated spaces; cap the length.
+function sanitizeName(input: string): string {
+  return input.replace(/[^\p{L}\s'.-]/gu, '').replace(/\s{2,}/g, ' ').slice(0, 50)
+}
+
+type ContactField = 'firstName' | 'lastName' | 'email' | 'phone'
+
+// Returns an error message for an invalid field, or '' when valid.
+function validateContact(field: ContactField, value: string): string {
+  const v = value.trim()
+  switch (field) {
+    case 'firstName': return v ? '' : 'Please enter your first name.'
+    case 'lastName': return v ? '' : 'Please enter your last name.'
+    case 'email':
+      return !v ? 'Please enter your email address.'
+        : EMAIL_RE.test(v) ? '' : 'Please enter a valid email address (like name@example.com).'
+    case 'phone': {
+      const d = v.replace(/\D/g, '')
+      return !d ? 'Please enter your phone number.'
+        : d.length === 10 ? '' : 'Please enter a 10-digit US phone number.'
+    }
+  }
+}
+
+const fieldErrorStyle: React.CSSProperties = { color: '#B4451F', fontSize: 12, margin: '6px 0 0' }
+
 type QualifierKey = 'ageBand' | 'savingsBand' | 'incomeTiming' | 'priority'
 
 const inputStyle: React.CSSProperties = {
@@ -133,6 +176,21 @@ export default function AnnuityLeadForm() {
   const [company, setCompany] = useState('') // honeypot; real users never see it
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<ContactField, string>>>({})
+
+  const fieldStyle = (f: ContactField): React.CSSProperties =>
+    fieldErrors[f] ? { ...inputStyle, border: '1px solid #B4451F' } : inputStyle
+  // Update a contact field; once a field has been flagged invalid, re-check it
+  // on every keystroke so the error clears the moment it becomes valid.
+  const onChangeContact = (f: ContactField, value: string) => {
+    if (f === 'firstName') setFirstName(value)
+    else if (f === 'lastName') setLastName(value)
+    else if (f === 'email') setEmail(value)
+    else setPhone(value)
+    setFieldErrors(prev => (prev[f] ? { ...prev, [f]: validateContact(f, value) } : prev))
+  }
+  const blurContact = (f: ContactField, value: string) =>
+    setFieldErrors(prev => ({ ...prev, [f]: validateContact(f, value) }))
   // ?test=1 -> fire the GA4/Pixel conversion events without creating a real
   // lead or hitting the pipeline. For verifying conversion tracking.
   const [testMode, setTestMode] = useState(false)
@@ -157,13 +215,31 @@ export default function AnnuityLeadForm() {
       setError('Please agree to be contacted to continue.')
       return
     }
+    // Validate the contact fields; flag them and focus the first invalid one.
+    const contactErrors: Partial<Record<ContactField, string>> = {
+      firstName: validateContact('firstName', firstName),
+      lastName: validateContact('lastName', lastName),
+      email: validateContact('email', email),
+      phone: validateContact('phone', phone),
+    }
+    const order: ContactField[] = ['firstName', 'lastName', 'email', 'phone']
+    const firstBad = order.find(f => contactErrors[f])
+    if (firstBad) {
+      setFieldErrors(contactErrors)
+      const idMap: Record<ContactField, string> = { firstName: 'fn', lastName: 'ln', email: 'em', phone: 'ph' }
+      document.getElementById(idMap[firstBad])?.focus()
+      return
+    }
     setSubmitting(true)
     try {
       const res = await fetch('/api/leads/annuity', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          firstName, lastName, email, phone,
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          email: email.trim().toLowerCase(),
+          phone: normalizePhoneE164(phone),
           ...answers,
           accountTypes,
           referralSource,
@@ -345,20 +421,70 @@ export default function AnnuityLeadForm() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div>
           <label style={labelStyle} htmlFor="fn">First name</label>
-          <input id="fn" style={inputStyle} value={firstName} onChange={e => setFirstName(e.target.value)} required autoComplete="given-name" />
+          <input
+            id="fn"
+            style={fieldStyle('firstName')}
+            value={firstName}
+            onChange={e => onChangeContact('firstName', sanitizeName(e.target.value))}
+            onBlur={() => blurContact('firstName', firstName)}
+            required
+            maxLength={50}
+            autoComplete="given-name"
+            aria-invalid={!!fieldErrors.firstName}
+          />
+          {fieldErrors.firstName && <p style={fieldErrorStyle}>{fieldErrors.firstName}</p>}
         </div>
         <div>
           <label style={labelStyle} htmlFor="ln">Last name</label>
-          <input id="ln" style={inputStyle} value={lastName} onChange={e => setLastName(e.target.value)} required autoComplete="family-name" />
+          <input
+            id="ln"
+            style={fieldStyle('lastName')}
+            value={lastName}
+            onChange={e => onChangeContact('lastName', sanitizeName(e.target.value))}
+            onBlur={() => blurContact('lastName', lastName)}
+            required
+            maxLength={50}
+            autoComplete="family-name"
+            aria-invalid={!!fieldErrors.lastName}
+          />
+          {fieldErrors.lastName && <p style={fieldErrorStyle}>{fieldErrors.lastName}</p>}
         </div>
       </div>
       <div>
         <label style={labelStyle} htmlFor="em">Email</label>
-        <input id="em" type="email" style={inputStyle} value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" />
+        <input
+          id="em"
+          type="email"
+          inputMode="email"
+          style={fieldStyle('email')}
+          value={email}
+          onChange={e => onChangeContact('email', e.target.value)}
+          onBlur={() => { const v = email.trim().toLowerCase(); setEmail(v); blurContact('email', v) }}
+          required
+          maxLength={100}
+          autoComplete="email"
+          placeholder="name@example.com"
+          aria-invalid={!!fieldErrors.email}
+        />
+        {fieldErrors.email && <p style={fieldErrorStyle}>{fieldErrors.email}</p>}
       </div>
       <div>
         <label style={labelStyle} htmlFor="ph">Phone</label>
-        <input id="ph" type="tel" style={inputStyle} value={phone} onChange={e => setPhone(e.target.value)} required autoComplete="tel" placeholder="(555) 555-5555" />
+        <input
+          id="ph"
+          type="tel"
+          inputMode="tel"
+          style={fieldStyle('phone')}
+          value={phone}
+          onChange={e => onChangeContact('phone', formatUsPhone(e.target.value))}
+          onBlur={() => blurContact('phone', phone)}
+          required
+          maxLength={14}
+          autoComplete="tel"
+          placeholder="(555) 555-5555"
+          aria-invalid={!!fieldErrors.phone}
+        />
+        {fieldErrors.phone && <p style={fieldErrorStyle}>{fieldErrors.phone}</p>}
       </div>
 
       {/* Optional referral / attribution. No validation; can be left blank. */}
@@ -388,7 +514,7 @@ export default function AnnuityLeadForm() {
         {referralSource === REFERRAL_AGENT_OPTION && (
           <div style={{ marginTop: 10 }}>
             <label style={labelStyle} htmlFor="ref">Who referred you? (agent name)</label>
-            <input id="ref" style={inputStyle} value={referrerName} onChange={e => setReferrerName(e.target.value)} placeholder="First and last name" autoComplete="off" />
+            <input id="ref" style={inputStyle} value={referrerName} onChange={e => setReferrerName(sanitizeName(e.target.value))} maxLength={60} placeholder="First and last name" autoComplete="off" />
           </div>
         )}
       </fieldset>
