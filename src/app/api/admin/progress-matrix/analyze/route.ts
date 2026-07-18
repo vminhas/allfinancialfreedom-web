@@ -4,10 +4,14 @@ import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/permissions'
 import Anthropic from '@anthropic-ai/sdk'
+import { getSetting, setSetting } from '@/lib/settings'
 import {
   computeProgress, summarizeForAI, fallbackPlays, filterByTeam,
   type MatrixPayload, type Play,
 } from '@/lib/progression-cohorts'
+
+const CACHE_PREFIX = 'progress_analysis:'
+const scopeKeyFor = (team: { kind: string; value: string } | null) => team ? `${team.kind}:${team.value}` : 'all'
 
 // The Anthropic call can take a few seconds; give the function headroom.
 export const maxDuration = 60
@@ -76,10 +80,18 @@ export async function POST(req: Request) {
   const rows = team ? filterByTeam(allRows, team) : allRows
   const summary = summarizeForAI(rows)
 
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey || rows.length === 0) {
-    return NextResponse.json({ source: 'fallback', note: apiKey ? 'no agents in scope' : 'AI key not configured', plays: fallbackPlays(rows) })
+  // Persist the run so the page can show when it was last generated and avoid
+  // re-billing the AI on every visit.
+  const scopeKey = scopeKeyFor(team)
+  const ranBy = (session?.user as { name?: string })?.name ?? null
+  const persist = async (source: 'ai' | 'fallback', plays: Play[]) => {
+    const ranAt = new Date().toISOString()
+    await setSetting(CACHE_PREFIX + scopeKey, JSON.stringify({ source, plays, ranAt, ranBy })).catch(() => {})
+    return NextResponse.json({ source, plays, ranAt })
   }
+
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey || rows.length === 0) return persist('fallback', fallbackPlays(rows))
 
   const teamFraming = team
     ? `\n\nThese agents are all on ${team.kind === 'recruiter' ? "recruiter" : "trainer/CFT"} ${team.label ?? team.value}'s team. Frame every play as a specific action for THIS ${team.kind} to take with THEIR downline this week.`
@@ -114,12 +126,24 @@ ${JSON.stringify(summary)}`
     })
     const text = msg.content.map(b => (b.type === 'text' ? b.text : '')).join('')
     const parsed = parsePlays(text)
-    if (parsed && parsed.length) {
-      return NextResponse.json({ source: 'ai', plays: parsed })
-    }
-    return NextResponse.json({ source: 'fallback', note: 'AI returned no usable plays', plays: fallbackPlays(rows) })
+    return parsed && parsed.length ? persist('ai', parsed) : persist('fallback', fallbackPlays(rows))
   } catch {
-    return NextResponse.json({ source: 'fallback', note: 'AI call failed', plays: fallbackPlays(rows) })
+    return persist('fallback', fallbackPlays(rows))
+  }
+}
+
+// GET ?scope=all|recruiter:<code>|trainer:<name> -> the last cached run, if any.
+export async function GET(req: Request) {
+  const session = await getServerSession(authOptions)
+  const denied = requireRole(session, 'admin', 'licensing_coordinator')
+  if (denied) return denied
+  const scope = new URL(req.url).searchParams.get('scope') || 'all'
+  const raw = await getSetting(CACHE_PREFIX + scope)
+  if (!raw) return NextResponse.json({ cached: null })
+  try {
+    return NextResponse.json({ cached: JSON.parse(raw) })
+  } catch {
+    return NextResponse.json({ cached: null })
   }
 }
 
