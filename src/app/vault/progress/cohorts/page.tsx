@@ -65,7 +65,11 @@ export default function CohortsPage() {
       .catch(() => setError('Could not load the roster. Are you signed in as an admin?'))
   }, [])
 
-  const allRows = useMemo(() => (data ? computeProgress(data) : []), [data])
+  // Exclude leadership + referral partners: they aren't in the onboarding
+  // funnel, so counting them made "the team" look far bigger than it is.
+  const allRowsRaw = useMemo(() => (data ? computeProgress(data) : []), [data])
+  const allRows = useMemo(() => allRowsRaw.filter(r => !r.agent.isLeadership && !r.agent.isReferralPartner), [allRowsRaw])
+  const excludedCount = allRowsRaw.length - allRows.length
   const teams = useMemo(() => teamOptions(allRows), [allRows])
   const team = useMemo(() => {
     if (!teamKey) return null
@@ -164,7 +168,7 @@ export default function CohortsPage() {
             </optgroup>
           </select>
           {team && <button onClick={() => onTeamChange('')} style={{ background: 'none', border: 'none', color: C.gold, fontWeight: 700, cursor: 'pointer', fontSize: 12.5 }}>Clear</button>}
-          <span style={{ fontSize: 12, color: C.muted }}>{rows.length} agent{rows.length === 1 ? '' : 's'} in view</span>
+          <span style={{ fontSize: 12, color: C.muted }}>{rows.length} agent{rows.length === 1 ? '' : 's'} in view{!team && excludedCount > 0 ? ` · ${excludedCount} leadership / referral partner${excludedCount === 1 ? '' : 's'} excluded` : ''}</span>
         </div>
 
         {/* KPIs */}

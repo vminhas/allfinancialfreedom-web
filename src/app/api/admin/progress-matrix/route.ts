@@ -32,6 +32,9 @@ export async function GET() {
         // recruiterId (recruiter's agentCode) and cft (trainer name) power the
         // recruiter/trainer team filter on the cohorts view.
         recruiterId: true, cft: true,
+        // Let the cohorts view exclude leadership + referral partners, who
+        // aren't in the onboarding funnel, from "the team."
+        isLeadership: true, isReferralPartner: true,
         // phaseStartedAt powers the time-aware "At Risk" calculation.
         // Without it the only signal would be raw current-phase
         // completion %, which mislabels anyone who just entered a new
@@ -90,6 +93,8 @@ export async function GET() {
     badges: a.badges ?? [],
     recruiterId: a.recruiterId ?? null,
     cft: a.cft ?? null,
+    isLeadership: a.isLeadership ?? false,
+    isReferralPartner: a.isReferralPartner ?? false,
   }))
 
   return NextResponse.json({ agents: flatAgents, items, completedAt })

@@ -22,6 +22,8 @@ export interface MatrixAgent {
   email: string | null
   recruiterId: string | null   // recruiter's agentCode
   cft: string | null           // trainer name
+  isLeadership: boolean
+  isReferralPartner: boolean
 }
 
 export interface MatrixItem {
@@ -168,19 +170,22 @@ export function computeProgress(payload: MatrixPayload, now = Date.now()): Agent
     }
 
     // Funnel-stage blocker: the earliest milestone not yet cleared.
+    // "on track" is reserved for agents who have EITHER advanced past onboarding
+    // (phase 4+) or genuinely cleared every item in their current phase. Anyone
+    // phase 1-3 with incomplete work always lands in a real blocker group, so a
+    // Phase-1 agent stalled on onboarding never shows as "on track."
     const appointed = doneKey('fully_appointed')
     const netLicensed = doneKey('first_1000')
-    const seniorAssoc = doneKey('associate_promotion')
-    const cftCert = doneKey('cft_coordinator_signoff')
+    const hasIncomplete = nextItems.length > 0
     let blocker: BlockerKey
     if (a.phase >= 4) blocker = 'ontrack'
-    else if (a.phase === 3) blocker = cftCert ? 'ontrack' : 'cft'
-    else if (a.phase === 1 && !passedExam) blocker = 'exam'
+    else if (!hasIncomplete) blocker = 'ontrack'
+    else if (a.phase === 3) blocker = 'cft'
+    else if (a.phase === 1) blocker = !passedExam ? 'exam' : (!appointed ? 'appoint' : 'onboarding')
     else if (!appointed) blocker = 'appoint'
-    else if (a.phase === 2 && milestones.ftaDone < 10) blocker = 'fta'
-    else if (a.phase === 2 && !netLicensed) blocker = 'netlicense'
-    else if (a.phase === 2 && !seniorAssoc) blocker = 'assoc'
-    else blocker = 'ontrack'
+    else if (milestones.ftaDone < 10) blocker = 'fta'
+    else if (!netLicensed) blocker = 'netlicense'
+    else blocker = 'assoc'
 
     return {
       agent: a, phase: a.phase,
@@ -227,12 +232,13 @@ export function filterByTeam(rows: AgentProgress[], team: { kind: 'recruiter' | 
 // team clusters into "where is everyone stuck." Each group maps to the single
 // training that unblocks it.
 
-export type BlockerKey = 'exam' | 'appoint' | 'fta' | 'netlicense' | 'assoc' | 'cft' | 'ontrack'
+export type BlockerKey = 'exam' | 'appoint' | 'onboarding' | 'fta' | 'netlicense' | 'assoc' | 'cft' | 'ontrack'
 export type Effort = 'Low' | 'Medium' | 'High'
 
 export const BLOCKER_GROUPS: { key: BlockerKey; label: string; color: string; gap: string; training: string | null; effort: Effort | null }[] = [
   { key: 'exam',       label: 'Needs to pass exam',            color: '#c0392b', gap: 'Has not passed the life license exam',                 training: 'Exam Prep Bootcamp',                       effort: 'Medium' },
   { key: 'appoint',    label: 'Licensed · needs appointments', color: '#b7791f', gap: 'Passed exam, not yet appointed with a carrier',        training: 'Licensing Paperwork Blitz (CE / E&O / GFI)', effort: 'Low' },
+  { key: 'onboarding', label: 'Finishing onboarding',          color: '#475569', gap: 'Licensed but Phase 1 onboarding (trainings, scripts, first PFR) is not finished', training: 'Phase 1 Onboarding Catch-Up', effort: 'Low' },
   { key: 'fta',        label: 'In field training (FTAs left)', color: '#2b6cb0', gap: 'Field Training Appointments still to complete',        training: 'Field Training Ride-Along Push',           effort: 'High' },
   { key: 'netlicense', label: 'Not net licensed (needs 1st client)', color: '#dd8f2a', gap: 'Field training done, no first client / not net licensed', training: 'First Client Closing Workshop',      effort: 'Medium' },
   { key: 'assoc',      label: 'Awaiting Senior Associate',     color: '#7c3aed', gap: 'Requirements met, Senior Associate promotion pending', training: 'Senior Associate Sign-Off Day',            effort: 'Low' },
