@@ -35,6 +35,7 @@ export async function POST(req: Request) {
         id: true, agentCode: true, firstName: true, lastName: true, phase: true,
         avatarUrl: true, state: true, phaseStartedAt: true, examDate: true,
         subscribedToTevahAt: true, recruiterId: true, cft: true,
+        isLeadership: true, isReferralPartner: true,
         agentUser: { select: { lastLoginAt: true, email: true } },
       },
       orderBy: [{ phase: 'desc' }, { agentCode: 'asc' }],
@@ -64,11 +65,14 @@ export async function POST(req: Request) {
       email: a.agentUser?.email ?? null,
       recruiterId: a.recruiterId ?? null,
       cft: a.cft ?? null,
+      isLeadership: a.isLeadership ?? false,
+      isReferralPartner: a.isReferralPartner ?? false,
     })),
     items,
     completedAt,
   }
-  const allRows = computeProgress(payload)
+  // Exclude leadership + referral partners: they aren't in the onboarding funnel.
+  const allRows = computeProgress(payload).filter(r => !r.agent.isLeadership && !r.agent.isReferralPartner)
   const rows = team ? filterByTeam(allRows, team) : allRows
   const summary = summarizeForAI(rows)
 
