@@ -119,6 +119,13 @@ export default function CohortsPage() {
   }, [rows])
   const maxPhase = Math.max(1, ...[...phaseCounts.values()])
 
+  // Distinct trainer/CFT names in the system, for FTA pairing assignment.
+  const trainerOptions = useMemo(() => {
+    const s = new Set<string>()
+    for (const r of allRowsRaw) { const c = r.agent.cft?.trim(); if (c) s.add(c) }
+    return [...s].sort((a, b) => a.localeCompare(b))
+  }, [allRowsRaw])
+
   const trainings = useMemo(() => trainingPlays(rows), [rows])
   const blockerCounts = useMemo(() => {
     const m = {} as Record<BlockerKey, number>
@@ -143,6 +150,18 @@ export default function CohortsPage() {
   }
   // Re-running analysis when the team changes keeps the plays in sync.
   function onTeamChange(v: string) { setTeamKey(v); setPlays(null) }
+
+  // Pair an FTA agent with a trainer/CFT. Optimistic; persists via the agents
+  // route (cft is a whitelisted field there).
+  async function assignTrainer(agentId: string, cft: string) {
+    setData(d => d ? { ...d, agents: d.agents.map(a => a.id === agentId ? { ...a, cft: cft || null } : a) } : d)
+    try {
+      await fetch(`/api/admin/agents/${agentId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cft: cft || null }),
+      })
+    } catch { /* optimistic; a reload reflects server truth */ }
+  }
 
   async function sendCohortEmail(blocker: BlockerKey, test: boolean) {
     const ids = rows.filter(r => r.blocker === blocker && r.agent.email).map(r => r.agent.id)
@@ -338,6 +357,17 @@ export default function CohortsPage() {
                         ? <span style={{ color: C.green, fontWeight: 700 }}>All Senior Associate requirements met</span>
                         : <><span style={{ color: C.muted }}>Still needs:</span> {m.associateNeeds.slice(0, 3).join(', ')}{m.associateNeeds.length > 3 ? ` +${m.associateNeeds.length - 3}` : ''}</>}
                     </div>
+                    {m.ftaDone < 10 && (
+                      <div style={{ fontSize: 11.5, marginTop: 5, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <span style={{ color: C.muted }}>FTA trainer:</span>
+                        <select value={r.agent.cft ?? ''} onChange={e => assignTrainer(r.agent.id, e.target.value)}
+                          style={{ fontSize: 11.5, padding: '3px 6px', borderRadius: 6, color: C.ink, border: `1px solid ${r.agent.cft ? C.line : '#f0d9a8'}`, background: r.agent.cft ? '#fff' : '#fff7e6' }}>
+                          <option value="">Unassigned — pick a trainer</option>
+                          {trainerOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                          {r.agent.cft && !trainerOptions.includes(r.agent.cft) && <option value={r.agent.cft}>{r.agent.cft}</option>}
+                        </select>
+                      </div>
+                    )}
                   </div>
                   <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <Bar pct={m.ftaDone / 10} color={m.ftaDone >= 10 ? C.green : C.gold} />
