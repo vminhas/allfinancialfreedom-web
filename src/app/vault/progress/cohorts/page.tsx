@@ -59,7 +59,9 @@ export default function CohortsPage() {
   const [analyzing, setAnalyzing] = useState(false)
   const [teamKey, setTeamKey] = useState<string>('') // "" = whole team; else "recruiter::X" / "trainer::Y"
   const [selectedBlocker, setSelectedBlocker] = useState<BlockerKey | null>(null)
-  const [activeTab, setActiveTab] = useState<'licensing' | 'field' | 'cft' | 'attention'>('licensing')
+  const [activeTab, setActiveTab] = useState<'licensing' | 'field' | 'cft' | 'attention' | 'tracks'>('licensing')
+  const [tracks, setTracks] = useState<{ defs: { key: string; label: string }[]; assignments: Record<string, string[]> }>({ defs: [], assignments: {} })
+  const [newTrack, setNewTrack] = useState('')
   const [showCompose, setShowCompose] = useState(false)
   const [emailSubject, setEmailSubject] = useState('')
   const [emailBody, setEmailBody] = useState('')
@@ -87,7 +89,16 @@ export default function CohortsPage() {
       .then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json() })
       .then(setData)
       .catch(() => setError('Could not load the roster. Are you signed in as an admin?'))
+    fetch('/api/admin/progress-matrix/tracks').then(r => r.json()).then(setTracks).catch(() => {})
   }, [])
+
+  async function tracksApi(payload: Record<string, unknown>) {
+    try {
+      const res = await fetch('/api/admin/progress-matrix/tracks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      const j = await res.json()
+      if (j?.defs) setTracks(j)
+    } catch { /* ignore */ }
+  }
 
   // Load the last cached AI analysis for the current scope (so we show its date
   // and don't re-bill the AI on every visit).
@@ -336,6 +347,7 @@ export default function CohortsPage() {
             { k: 'field' as const, label: 'Field training', n: fieldTraining.length, flag: false },
             { k: 'cft' as const, label: 'CFT track', n: cftTrack.length, flag: false },
             { k: 'attention' as const, label: 'Needs attention', n: needsAttention.length, flag: needsAttention.length > 0 },
+            { k: 'tracks' as const, label: 'Development tracks', n: Object.keys(tracks.assignments).length, flag: false },
           ]).map(t => (
             <button key={t.k} onClick={() => setActiveTab(t.k)}
               style={{ background: 'none', border: 'none', borderBottom: `2px solid ${activeTab === t.k ? C.gold : 'transparent'}`, color: activeTab === t.k ? C.navy : C.muted, fontWeight: 700, fontSize: 13, padding: '8px 10px', marginBottom: -1, cursor: 'pointer' }}>
@@ -438,6 +450,40 @@ export default function CohortsPage() {
                 {r.agent.email && <a href={`mailto:${r.agent.email}`} style={{ fontSize: 12, fontWeight: 700, color: C.gold, textDecoration: 'none', whiteSpace: 'nowrap' }}>Email →</a>}
               </AgentLine>
             )))}
+          {activeTab === 'tracks' && (
+            <div style={{ padding: '10px 14px' }}>
+              <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>Hand-curated parallel tracks (where you&rsquo;re grooming people, separate from their automatic funnel stage). Add members from any agent&rsquo;s drawer.</div>
+              {tracks.defs.map(def => {
+                const members = allRows.filter(r => (tracks.assignments[r.agent.agentCode] ?? []).includes(def.key))
+                return (
+                  <div key={def.key} style={{ marginBottom: 14, borderTop: `1px solid #f0f3f7`, paddingTop: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <b style={{ color: C.navy, fontSize: 13.5 }}>{def.label}</b>
+                      <span style={{ color: C.muted, fontSize: 12 }}>{members.length}</span>
+                      <button onClick={() => { const l = window.prompt('Rename track', def.label); if (l) tracksApi({ action: 'renameTrack', key: def.key, label: l }) }} style={{ background: 'none', border: 'none', color: C.gold, cursor: 'pointer', fontSize: 11.5, fontWeight: 600 }}>rename</button>
+                      <button onClick={() => { if (window.confirm(`Delete "${def.label}"? Removes it from all agents.`)) tracksApi({ action: 'removeTrack', key: def.key }) }} style={{ background: 'none', border: 'none', color: C.red, cursor: 'pointer', fontSize: 11.5, fontWeight: 600 }}>delete</button>
+                    </div>
+                    {members.length === 0
+                      ? <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>No one assigned yet.</div>
+                      : <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                          {members.map(r => (
+                            <span key={r.agent.id} style={{ fontSize: 11.5, background: '#f2f5f9', border: `1px solid ${C.line}`, borderRadius: 20, padding: '3px 4px 3px 10px', display: 'inline-flex', gap: 5, alignItems: 'center' }}>
+                              {r.agent.firstName} {r.agent.lastName} <span style={{ color: C.muted }}>P{r.phase}</span>
+                              <button onClick={() => tracksApi({ action: 'unassign', code: r.agent.agentCode, trackKey: def.key })} style={{ border: 'none', background: 'none', color: C.muted, cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: '0 3px' }}>×</button>
+                            </span>
+                          ))}
+                        </div>}
+                  </div>
+                )
+              })}
+              <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+                <input value={newTrack} onChange={e => setNewTrack(e.target.value)} placeholder="New track name (e.g. Elite Trainer)"
+                  style={{ flex: 1, padding: '7px 10px', border: `1px solid ${C.line}`, borderRadius: 8, fontSize: 12.5 }} />
+                <button onClick={() => { if (newTrack.trim()) { tracksApi({ action: 'addTrack', label: newTrack.trim() }); setNewTrack('') } }}
+                  style={{ background: C.navy, color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', whiteSpace: 'nowrap' }}>＋ Add track</button>
+              </div>
+            </div>
+          )}
         </TrackCard>
 
         <p style={{ color: C.muted, fontSize: 12, marginTop: 20, lineHeight: 1.6 }}>
@@ -476,6 +522,24 @@ export default function CohortsPage() {
                           <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
                             {r.agent.recruiterId ? `Recruiter ${nameFor(allRows, r.agent.recruiterId)}` : ''}{r.agent.cft ? `${r.agent.recruiterId ? ' · ' : ''}Trainer ${r.agent.cft}` : ''}
                             {r.agent.email && <> · <a href={`mailto:${r.agent.email}`} style={{ color: C.gold, fontWeight: 700, textDecoration: 'none' }}>Email →</a></>}
+                          </div>
+                          <div style={{ marginTop: 4, display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                            {(tracks.assignments[r.agent.agentCode] ?? []).map(tk => {
+                              const def = tracks.defs.find(d => d.key === tk)
+                              return def ? (
+                                <span key={tk} style={{ fontSize: 10.5, background: '#eef2f7', color: C.navy, borderRadius: 20, padding: '2px 4px 2px 8px', fontWeight: 600, display: 'inline-flex', gap: 3, alignItems: 'center' }}>
+                                  {def.label}
+                                  <button onClick={() => tracksApi({ action: 'unassign', code: r.agent.agentCode, trackKey: tk })} style={{ border: 'none', background: 'none', color: C.muted, cursor: 'pointer', fontSize: 12, lineHeight: 1 }}>×</button>
+                                </span>
+                              ) : null
+                            })}
+                            {tracks.defs.some(d => !(tracks.assignments[r.agent.agentCode] ?? []).includes(d.key)) && (
+                              <select value="" onChange={e => { if (e.target.value) tracksApi({ action: 'assign', code: r.agent.agentCode, trackKey: e.target.value }) }}
+                                style={{ fontSize: 10.5, padding: '2px 4px', border: `1px solid ${C.line}`, borderRadius: 6, color: C.muted, background: '#fff' }}>
+                                <option value="">＋ track</option>
+                                {tracks.defs.filter(d => !(tracks.assignments[r.agent.agentCode] ?? []).includes(d.key)).map(d => <option key={d.key} value={d.key}>{d.label}</option>)}
+                              </select>
+                            )}
                           </div>
                         </div>
                       ))}
