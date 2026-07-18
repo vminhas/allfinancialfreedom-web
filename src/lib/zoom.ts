@@ -117,6 +117,45 @@ async function zoomFetch(path: string, init: RequestInit = {}): Promise<Response
   return res
 }
 
+export interface CreatedZoomMeeting {
+  id: number
+  joinUrl: string
+  startUrl: string
+  startTime: string
+}
+
+// Create a scheduled Zoom meeting. The server-to-server OAuth app acts as the
+// account, so `me` is the token owner. start_time is interpreted in `timezone`
+// when it has no trailing Z, so the caller can pass a naive local datetime
+// (from a datetime-local input) plus the timezone and skip UTC math.
+export async function createZoomMeeting(opts: {
+  topic: string
+  startTime: string
+  durationMinutes?: number
+  agenda?: string
+  timezone?: string
+}): Promise<CreatedZoomMeeting> {
+  const res = await zoomFetch('/users/me/meetings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      topic: opts.topic.slice(0, 200),
+      type: 2, // scheduled meeting
+      start_time: opts.startTime,
+      duration: opts.durationMinutes ?? 60,
+      timezone: opts.timezone ?? 'America/New_York',
+      agenda: (opts.agenda ?? '').slice(0, 2000),
+      settings: { join_before_host: true, waiting_room: false, approval_type: 2 },
+    }),
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new ZoomApiError(`Zoom create meeting failed (${res.status}): ${text.slice(0, 300)}`, res.status)
+  }
+  const j = JSON.parse(await res.text()) as { id: number; join_url: string; start_url: string; start_time: string }
+  return { id: j.id, joinUrl: j.join_url, startUrl: j.start_url, startTime: j.start_time }
+}
+
 export interface ZoomParticipant {
   id: string | null               // Zoom user ID, null for guests
   user_id: string                 // Per-meeting participant id

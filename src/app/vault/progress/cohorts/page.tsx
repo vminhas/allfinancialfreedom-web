@@ -62,6 +62,12 @@ export default function CohortsPage() {
   const [emailBody, setEmailBody] = useState('')
   const [emailBusy, setEmailBusy] = useState(false)
   const [emailResult, setEmailResult] = useState<string | null>(null)
+  const [showSchedule, setShowSchedule] = useState(false)
+  const [scheduleTime, setScheduleTime] = useState('')
+  const [scheduleDuration, setScheduleDuration] = useState(60)
+  const [scheduleBusy, setScheduleBusy] = useState(false)
+  const [scheduleResult, setScheduleResult] = useState<string | null>(null)
+  const [scheduleLink, setScheduleLink] = useState<string | null>(null)
 
   // Prefill a per-cohort email template whenever a group's drawer opens.
   useEffect(() => {
@@ -70,6 +76,7 @@ export default function CohortsPage() {
     setEmailSubject("Let's get you to your next milestone")
     setEmailBody(`Hi {{firstName}},\n\nYou're at the "${g.label}" stage. ${g.training ? `We're running "${g.training}" to help you clear it, and I want you in it. ` : ''}Let's knock out your next step this week. Reply here or reach out to your trainer and we'll get it scheduled.\n\nAll Financial Freedom`)
     setEmailResult(null); setShowCompose(false)
+    setShowSchedule(false); setScheduleResult(null); setScheduleLink(null)
   }, [selectedBlocker])
 
   useEffect(() => {
@@ -161,6 +168,26 @@ export default function CohortsPage() {
         body: JSON.stringify({ cft: cft || null }),
       })
     } catch { /* optimistic; a reload reflects server truth */ }
+  }
+
+  async function scheduleTraining(blocker: BlockerKey, test: boolean) {
+    const g = BLOCKER_META[blocker]
+    if (!g.training) return
+    if (!test && !scheduleTime) { setScheduleResult('Pick a date and time first.'); return }
+    const ids = rows.filter(r => r.blocker === blocker && r.agent.email).map(r => r.agent.id)
+    if (!ids.length) { setScheduleResult('No agents with an email in this group.'); return }
+    setScheduleBusy(true); setScheduleResult(null); setScheduleLink(null)
+    try {
+      const res = await fetch('/api/admin/progress-matrix/schedule-training', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentProfileIds: ids, cohortLabel: g.label, training: g.training, startTime: scheduleTime, durationMinutes: scheduleDuration, test }),
+      })
+      const j = await res.json()
+      if (!res.ok) setScheduleResult(j.error || 'Failed')
+      else if (j.test) setScheduleResult(`Preview: would create a Zoom and email ${j.wouldSend} agent${j.wouldSend === 1 ? '' : 's'}${j.noEmail ? `, ${j.noEmail} have no email` : ''}.`)
+      else { setScheduleLink(j.joinUrl); setScheduleResult(`Zoom created for ${j.whenLabel}. Emailed ${j.sent}${j.failed ? `, ${j.failed} failed` : ''}.`) }
+    } catch { setScheduleResult('Failed.') }
+    finally { setScheduleBusy(false) }
   }
 
   async function sendCohortEmail(blocker: BlockerKey, test: boolean) {
@@ -527,6 +554,32 @@ export default function CohortsPage() {
                                   style={{ flex: 1, background: C.gold, color: '#1a1a1a', border: 'none', borderRadius: 8, padding: '10px', fontWeight: 800, fontSize: 12.5, cursor: emailBusy ? 'wait' : 'pointer' }}>{emailBusy ? 'Sending…' : 'Send'}</button>
                               </div>
                               {emailResult && <div style={{ marginTop: 8, fontSize: 12.5, color: C.navy, fontWeight: 600 }}>{emailResult}</div>}
+                            </>
+                          )}
+                        </div>
+                      )}
+                      {g.training && members.some(m => m.agent.email) && (
+                        <div style={{ marginTop: 12, borderTop: '1px solid #eef2f7', paddingTop: 12 }}>
+                          {!showSchedule ? (
+                            <button onClick={() => setShowSchedule(true)} style={{ background: '#fff', color: C.navy, border: `1px solid ${C.navy}`, borderRadius: 8, padding: '10px 14px', fontWeight: 700, fontSize: 13, cursor: 'pointer', width: '100%' }}>
+                              ▶ Schedule &ldquo;{g.training}&rdquo; (auto-Zoom)
+                            </button>
+                          ) : (
+                            <>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: C.navy, marginBottom: 6 }}>Schedule {g.training}</div>
+                              <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                                <input type="datetime-local" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} style={{ flex: 1, minWidth: 170, padding: '8px 10px', border: `1px solid ${C.line}`, borderRadius: 8, fontSize: 12.5 }} />
+                                <select value={scheduleDuration} onChange={e => setScheduleDuration(Number(e.target.value))} style={{ padding: '8px 10px', border: `1px solid ${C.line}`, borderRadius: 8, fontSize: 12.5 }}>
+                                  <option value={30}>30 min</option><option value={60}>60 min</option><option value={90}>90 min</option>
+                                </select>
+                              </div>
+                              <div style={{ fontSize: 11, color: C.muted, marginBottom: 10 }}>Creates a Zoom (Eastern) and emails the link to the group.</div>
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <button onClick={() => scheduleTraining(g.key, true)} disabled={scheduleBusy} style={{ flex: 1, background: '#eef2f7', color: C.ink, border: 'none', borderRadius: 8, padding: '10px', fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}>Preview</button>
+                                <button onClick={() => { if (scheduleTime && window.confirm(`Create a Zoom and email ${members.filter(m => m.agent.email).length} agents?`)) scheduleTraining(g.key, false) }} disabled={scheduleBusy || !scheduleTime} style={{ flex: 1, background: C.navy, color: '#fff', border: 'none', borderRadius: 8, padding: '10px', fontWeight: 800, fontSize: 12.5, cursor: scheduleBusy ? 'wait' : 'pointer', opacity: scheduleTime ? 1 : 0.6 }}>{scheduleBusy ? 'Working…' : 'Create & email'}</button>
+                              </div>
+                              {scheduleResult && <div style={{ marginTop: 8, fontSize: 12.5, color: C.navy, fontWeight: 600 }}>{scheduleResult}</div>}
+                              {scheduleLink && <div style={{ marginTop: 4, fontSize: 12 }}><a href={scheduleLink} style={{ color: C.gold, fontWeight: 700, textDecoration: 'none' }}>Zoom link →</a></div>}
                             </>
                           )}
                         </div>
