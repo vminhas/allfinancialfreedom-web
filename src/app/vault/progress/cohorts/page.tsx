@@ -157,6 +157,7 @@ export default function CohortsPage() {
   }, [allRowsRaw])
 
   const trainings = useMemo(() => trainingPlays(rows), [rows])
+  const trackedCodes = useMemo(() => new Set(Object.keys(tracks.assignments)), [tracks])
 
   async function runAnalysis() {
     if (lastRunAt) {
@@ -286,7 +287,8 @@ export default function CohortsPage() {
         <SectionLabel>The whole team · clustered by blocker</SectionLabel>
         <div style={{ display: 'grid', gridTemplateColumns: '1.55fr 1fr', gap: 18, alignItems: 'start' }} className="cluster-grid">
           <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: '14px 16px' }}>
-            <TeamClusterViz rows={rows} onSelect={setSelectedBlocker} />
+            <TeamClusterViz rows={rows} onSelect={setSelectedBlocker} highlightCodes={trackedCodes} />
+            {trackedCodes.size > 0 && <div style={{ fontSize: 11, color: C.muted, marginTop: 4, textAlign: 'center' }}><span style={{ color: C.gold }}>◯</span> gold ring = on a development track (dot stays at their real funnel stage)</div>}
           </div>
           <div>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '1.4px', textTransform: 'uppercase', color: C.gold, marginBottom: 10 }}>Training plays · highest impact</div>
@@ -543,6 +545,22 @@ export default function CohortsPage() {
                           </div>
                         </div>
                       ))}
+                      {(() => {
+                        const trackDef = tracks.defs.find(d => d.key === g.key)
+                        if (!trackDef) return null
+                        const groomed = allRows.filter(r => (tracks.assignments[r.agent.agentCode] ?? []).includes(g.key) && r.blocker !== g.key)
+                        if (!groomed.length) return null
+                        return (
+                          <div style={{ marginTop: 12, borderTop: '1px solid #eef2f7', paddingTop: 10 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: C.navy, marginBottom: 4 }}>Also being groomed for {trackDef.label} ({groomed.length})</div>
+                            {groomed.map(r => (
+                              <div key={r.agent.id} style={{ fontSize: 12, color: C.ink, padding: '5px 0' }}>
+                                <b style={{ color: C.navy }}>{r.agent.firstName} {r.agent.lastName}</b> <span style={{ color: C.muted, fontSize: 11 }}>· currently {BLOCKER_META[r.blocker].label} · {placementReason(r)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      })()}
                       {members.some(m => m.agent.email) && (
                         <div style={{ marginTop: 16, borderTop: '1px solid #eef2f7', paddingTop: 14 }}>
                           {!showCompose ? (
