@@ -148,23 +148,11 @@ client.on(Events.GuildMemberAdd, async (member) => {
     await member.send({ embeds: [buildWelcomeEmbed(member)] });
   } catch {}
 
-  // 2. Public "say hi" card in announcements. Tags the new member
-  //    in the message content so they get pinged into the thread
-  //    and existing teammates see who to greet. Best-effort: if
-  //    the bot lacks send permission in announcements, log and
-  //    move on rather than crash the join handler.
-  try {
-    const announcements = member.guild.channels.cache.get(CHANNELS.ANNOUNCEMENTS);
-    if (announcements) {
-      await announcements.send({
-        content: `<@${member.id}>`,
-        embeds: [buildPublicWelcomeEmbed(member)],
-        allowedMentions: { users: [member.id] },
-      });
-    }
-  } catch (err) {
-    console.warn('[GuildMemberAdd] announcements post failed:', err?.message ?? err);
-  }
+  // 2. Public "say hi" card in #announcements — DISABLED per request.
+  //    The Concierge no longer auto-posts a welcome when a member joins;
+  //    the personal onboarding DM above still goes out. To bring it back,
+  //    restore the announcements.send({ ... buildPublicWelcomeEmbed ... })
+  //    call here.
 });
 
 // Role assigned — send phase onboarding DM
