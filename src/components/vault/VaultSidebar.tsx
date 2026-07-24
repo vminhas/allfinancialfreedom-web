@@ -95,6 +95,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/vault/motivation', label: 'Daily Motivation', icon: '✸' },
       { href: '/vault/team-page', label: 'Team Page', icon: '◐' },
       { href: '/vault/audit', label: 'Auth Audit', icon: '⚠' },
+      { href: '/vault/identity-check', label: 'Identity Check', icon: '⊜' },
       { href: '/vault/guide', label: 'Guide', icon: '?' },
       { href: '/vault/settings', label: 'Settings', icon: '⚙' },
     ],
