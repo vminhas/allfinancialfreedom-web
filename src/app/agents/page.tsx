@@ -3668,11 +3668,28 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
   const [scheduleFtaError, setScheduleFtaError] = useState<string | null>(null)
 
   useEffect(() => {
+    // Load ALL of the agent's contacts, not just the first page. The API
+    // pages at 100 per request ordered createdAt asc (oldest first). Loading
+    // only page 1 meant an agent who imported a big list saw just their
+    // oldest 100; the newest imports (page 2+) were invisible to them, even
+    // though their recruiter's unpaginated downline view showed everything.
+    // Page through to `total` so the agent sees exactly what their upline sees.
+    async function loadAllPartners(): Promise<Partner[]> {
+      const all: Partner[] = []
+      for (let page = 1; page <= 200; page++) {
+        const res = await fetch(withPreview(`/api/agents/partners?page=${page}`))
+        const pd = await res.json() as { partners?: Partner[]; total?: number }
+        const batch = pd.partners ?? []
+        all.push(...batch)
+        if (batch.length < 100 || all.length >= (pd.total ?? all.length)) break
+      }
+      return all
+    }
     Promise.all([
-      fetch(withPreview('/api/agents/partners')).then(r => r.json()),
+      loadAllPartners(),
       fetch(withPreview('/api/agents/referrals')).then(r => r.json()),
-    ]).then(([pd, rd]: [{ partners: Partner[] }, { referrals: Referral[] }]) => {
-      setPartners(pd.partners ?? [])
+    ]).then(([partners, rd]: [Partner[], { referrals: Referral[] }]) => {
+      setPartners(partners)
       setReferrals(rd.referrals ?? [])
       setLoading(false)
     })
