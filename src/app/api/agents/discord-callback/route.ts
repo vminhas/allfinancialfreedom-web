@@ -19,6 +19,15 @@ export async function GET(req: NextRequest) {
   const baseUrl = process.env.NEXTAUTH_URL ?? 'https://allfinancialfreedom.com'
   const portalUrl = `${baseUrl}/agents`
 
+  // Central exit for every failure path so the reason (and any useful
+  // context) lands in the Vercel logs. Without this the callback only ever
+  // emitted a bare redirect, so "Something went wrong connecting Discord"
+  // was impossible to diagnose after the fact.
+  const fail = (reason: string, extra?: Record<string, unknown>) => {
+    console.warn(`[discord-callback] connect failed: reason=${reason}`, extra ?? '')
+    return NextResponse.redirect(`${portalUrl}?discord=error&reason=${reason}`)
+  }
+
   const { searchParams } = new URL(req.url)
   const code  = searchParams.get('code')
   const state = searchParams.get('state')
@@ -39,7 +48,7 @@ export async function GET(req: NextRequest) {
       : oauthError === 'access_denied'
         ? 'cancelled'
         : 'oauth_error'
-    return NextResponse.redirect(`${portalUrl}?discord=error&reason=${reason}`)
+    return fail(reason, { oauthError, oauthErrorDescription })
   }
 
   // Validate CSRF state
@@ -48,7 +57,7 @@ export async function GET(req: NextRequest) {
   cookieStore.delete('discord_oauth_state')
 
   if (!code || !state || state !== savedState) {
-    return NextResponse.redirect(`${portalUrl}?discord=error&reason=invalid_state`)
+    return fail('invalid_state', { hasCode: !!code, hasState: !!state, hasSavedState: !!savedState })
   }
 
   const session = await getServerSession(authOptions)
@@ -74,7 +83,7 @@ export async function GET(req: NextRequest) {
   })
 
   if (!tokenRes.ok) {
-    return NextResponse.redirect(`${portalUrl}?discord=error&reason=token_exchange`)
+    return fail('token_exchange', { status: tokenRes.status })
   }
 
   const tokenData = await tokenRes.json() as { access_token: string }
@@ -85,7 +94,7 @@ export async function GET(req: NextRequest) {
   })
 
   if (!userRes.ok) {
-    return NextResponse.redirect(`${portalUrl}?discord=error&reason=user_fetch`)
+    return fail('user_fetch', { status: userRes.status })
   }
 
   const discordUser = await userRes.json() as { id: string; username: string; global_name?: string }
@@ -93,7 +102,7 @@ export async function GET(req: NextRequest) {
   // Save Discord user ID and assign phase role
   const sessionEmail = session.user!.email
   if (typeof sessionEmail !== 'string' || sessionEmail.trim().length === 0) {
-    return NextResponse.redirect(`${portalUrl}?discord=error&reason=no_email`)
+    return fail('no_email')
   }
   const agentUser = await db.agentUser.findFirst({
     where: { email: { equals: sessionEmail, mode: 'insensitive' } },
@@ -101,7 +110,7 @@ export async function GET(req: NextRequest) {
   })
 
   if (!agentUser?.profile) {
-    return NextResponse.redirect(`${portalUrl}?discord=error&reason=no_profile`)
+    return fail('no_profile', { sessionEmail, foundAgentUser: !!agentUser })
   }
 
   await db.agentProfile.update({
@@ -192,6 +201,7 @@ export async function GET(req: NextRequest) {
   // base roles once they land, and the phase/Representative role PUTs
   // above will have applied too.
   if (!joined) {
+    console.warn('[discord-callback] guild auto-join refused (usually an unverified Discord email/phone); sending to manual invite', { discordUserId: discordUser.id })
     return NextResponse.redirect(DISCORD_INVITE_URL)
   }
 
