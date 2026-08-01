@@ -49,6 +49,20 @@ interface SnapshotResponse {
 }
 
 export async function GET(req: NextRequest) {
+  // Kill switch for the Discord leaderboard, OFF by default. We're migrating
+  // the leaderboard to mycadre, so Concierge should stop posting it to the
+  // #leaderboard channel each morning. The standalone Railway bot builds its
+  // post from THIS endpoint and skips posting entirely when the fetch fails
+  // (see discord-bot/leaderboard.js postLeaderboard), so returning 503 here
+  // stops the daily post without needing to redeploy the bot. To bring it
+  // back, set LEADERBOARD_DISCORD_ENABLED=1 in the web app's environment.
+  if (process.env.LEADERBOARD_DISCORD_ENABLED !== '1') {
+    return NextResponse.json(
+      { error: 'Discord leaderboard disabled (migrating to mycadre)' },
+      { status: 503 },
+    )
+  }
+
   const cronSecret = req.headers.get('x-cron-secret')
   if (!cronSecret || !process.env.CRON_SECRET || cronSecret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
