@@ -134,7 +134,12 @@ export async function addDiscordGuildMember(
         body: JSON.stringify({ access_token: accessToken }),
       }
     )
-    return res.ok || res.status === 204
+    if (res.ok || res.status === 204) return true
+    // Log the status/body so the "unverified email/phone" refusal (a 4xx)
+    // is visible in logs instead of vanishing as a silent soft-failure.
+    const body = await res.text().catch(() => '')
+    console.warn(`[discord-roles] guild join not OK: status=${res.status} body=${body.slice(0, 200)}`)
+    return false
   } catch (err) {
     console.error('[discord-roles] Failed to add guild member:', err)
     return false

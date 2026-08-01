@@ -3318,8 +3318,32 @@ function ProfileTab({ data, onSaved, discordParam, discordReason, discordUsernam
                   <strong style={{ color: '#fff' }}>How to fix it:</strong> open Discord &rarr; User Settings &rarr; My Account, and click <strong style={{ color: '#fff' }}>Verify</strong> next to your email (Discord sends a confirmation link). Or add and verify a phone number. Then come back and click Connect Discord again.
                 </div>
               </>
+            ) : discordReason === 'invalid_state' ? (
+              <>
+                <div style={{ fontWeight: 700, marginBottom: 6, color: '#fca5a5' }}>
+                  Your connect session timed out.
+                </div>
+                <div style={{ color: '#d4d4d4', marginBottom: 8 }}>
+                  This happens when the connect takes too long or finishes in a different browser than it started in (common if you stepped away to check an email, or a link opened inside an app instead of your normal browser).
+                </div>
+                <div style={{ color: '#d4d4d4' }}>
+                  <strong style={{ color: '#fff' }}>How to fix it:</strong> click <strong style={{ color: '#fff' }}>Connect Discord</strong> below and finish it in one go, in the same browser, without switching apps. On a computer it works most reliably.
+                </div>
+              </>
+            ) : discordReason === 'no_profile' || discordReason === 'no_email' ? (
+              <>
+                <div style={{ fontWeight: 700, marginBottom: 6, color: '#fca5a5' }}>
+                  We couldn&apos;t match your portal account.
+                </div>
+                <div style={{ color: '#d4d4d4' }}>
+                  Your login isn&apos;t fully linked to an agent profile yet, so message your trainer and they can get it fixed. <span style={{ opacity: 0.7 }}>(Reference: {discordReason})</span>
+                </div>
+              </>
             ) : (
-              <>Something went wrong connecting Discord. Please try again, and if it keeps failing, message your trainer.</>
+              <>
+                Something went wrong connecting Discord. Please try again, and if it keeps failing, message your trainer.
+                {discordReason && <span style={{ opacity: 0.7 }}> (Reference: {discordReason})</span>}
+              </>
             )}
           </div>
         )}
@@ -3668,11 +3692,28 @@ function BusinessPartnersTab({ isMobile, previewToken }: { isMobile: boolean; pr
   const [scheduleFtaError, setScheduleFtaError] = useState<string | null>(null)
 
   useEffect(() => {
+    // Load ALL of the agent's contacts, not just the first page. The API
+    // pages at 100 per request ordered createdAt asc (oldest first). Loading
+    // only page 1 meant an agent who imported a big list saw just their
+    // oldest 100; the newest imports (page 2+) were invisible to them, even
+    // though their recruiter's unpaginated downline view showed everything.
+    // Page through to `total` so the agent sees exactly what their upline sees.
+    async function loadAllPartners(): Promise<Partner[]> {
+      const all: Partner[] = []
+      for (let page = 1; page <= 200; page++) {
+        const res = await fetch(withPreview(`/api/agents/partners?page=${page}`))
+        const pd = await res.json() as { partners?: Partner[]; total?: number }
+        const batch = pd.partners ?? []
+        all.push(...batch)
+        if (batch.length < 100 || all.length >= (pd.total ?? all.length)) break
+      }
+      return all
+    }
     Promise.all([
-      fetch(withPreview('/api/agents/partners')).then(r => r.json()),
+      loadAllPartners(),
       fetch(withPreview('/api/agents/referrals')).then(r => r.json()),
-    ]).then(([pd, rd]: [{ partners: Partner[] }, { referrals: Referral[] }]) => {
-      setPartners(pd.partners ?? [])
+    ]).then(([partners, rd]: [Partner[], { referrals: Referral[] }]) => {
+      setPartners(partners)
       setReferrals(rd.referrals ?? [])
       setLoading(false)
     })

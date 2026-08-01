@@ -30,7 +30,11 @@ export async function GET() {
     httpOnly: true,
     sameSite: 'lax',
     path: '/',
-    maxAge: 300, // 5 minutes
+    // 30 minutes. The old 5-minute window was too tight: agents routinely
+    // detour mid-flow (checking a Discord verification email, switching
+    // apps), and an expired cookie makes the callback fail CSRF as
+    // `invalid_state` and show the generic "something went wrong" error.
+    maxAge: 1800,
     secure: process.env.NODE_ENV === 'production',
   })
 

@@ -688,9 +688,19 @@ client.once(Events.ClientReady, async (c) => {
 // Fires every day at 9 AM ET. Checked every 15 minutes so we never miss the
 // window by more than a quarter-hour. The "already fired today" guard prevents
 // duplicate posts if the bot restarts mid-morning.
+//
+// Auto-posting is OFF by default: we're migrating the leaderboard to mycadre,
+// so Concierge should stop publishing it to the #leaderboard channel. All the
+// code (rendering, tab buttons, the manual post-leaderboard.js script) is kept
+// intact. To re-enable the daily post, set LEADERBOARD_AUTOPOST=1 in the bot's
+// environment.
 let leaderboardLastFiredDate = null;
 
 function startLeaderboardSchedule(c) {
+  if (process.env.LEADERBOARD_AUTOPOST !== '1') {
+    console.log('[Leaderboard] Daily auto-post disabled (LEADERBOARD_AUTOPOST != 1); skipping. Migrating to mycadre.');
+    return;
+  }
   function check() {
     const etNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
     const isAfter9AM = etNow.getHours() >= 9;
