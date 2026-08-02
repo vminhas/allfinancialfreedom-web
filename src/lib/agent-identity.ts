@@ -54,16 +54,23 @@ export async function resolveAgentIdentity(req: NextRequest): Promise<AgentIdent
   if (previewToken) {
     const raw = await getSetting(`PREVIEW_TOKEN_${previewToken}`)
     if (raw) {
-      const data = JSON.parse(raw) as { agentProfileId: string; expires: string }
-      if (new Date(data.expires) >= new Date()) {
-        const session = await getServerSession(authOptions)
-        const role = (session?.user as { role?: string } | undefined)?.role
-        // Only admins / LCs can use a preview token to act on behalf of
-        // an agent. Don't accept stale tokens from random callers.
-        if (role === 'admin' || role === 'licensing_coordinator') {
-          return { profileId: data.agentProfileId, previewing: true }
+      try {
+        const data = JSON.parse(raw) as { agentProfileId: string; expires: string }
+        if (new Date(data.expires) >= new Date()) {
+          const session = await getServerSession(authOptions)
+          const role = (session?.user as { role?: string } | undefined)?.role
+          // Only admins / LCs can use a preview token to act on behalf of
+          // an agent. Don't accept stale tokens from random callers.
+          if (role === 'admin' || role === 'licensing_coordinator') {
+            return { profileId: data.agentProfileId, previewing: true }
+          }
+        } else {
+          // Token exists but is expired — give a specific error so the UI
+          // can distinguish "session expired, open a fresh View Portal link"
+          // from a generic auth failure.
+          return { error: NextResponse.json({ error: 'Preview session expired. Please open a fresh View Portal link from the Vault.' }, { status: 401 }) }
         }
-      }
+      } catch { /* malformed token value, fall through */ }
     }
   }
 

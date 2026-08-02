@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
   if (!profile) return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
 
   const token = randomUUID()
-  const expires = new Date(Date.now() + 30 * 60 * 1000).toISOString()
+  const expires = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString() // 8 hours
 
   await setSetting(`PREVIEW_TOKEN_${token}`, JSON.stringify({
     agentProfileId,
