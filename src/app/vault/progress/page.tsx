@@ -566,6 +566,7 @@ export default function ProgressMatrixPage() {
         >
           ↓ CSV
         </button>
+        <BackfillTrainerButton onDone={() => fetch('/api/admin/progress-matrix').then(r => r.json() as Promise<Payload>).then(setData)} />
       </div>
 
       {/* Trainer filter panel */}
@@ -1429,6 +1430,55 @@ function Avatar({ firstName, lastName, avatarUrl, size }: { firstName: string; l
     }}>
       {initials}
     </div>
+  )
+}
+
+// Button that calls the backfill-trainer API to populate missing cft
+// fields, then refreshes the page data so the matrix reflects the
+// newly-resolved trainers without a full reload.
+function BackfillTrainerButton({ onDone }: { onDone: () => void }) {
+  const [state, setState] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
+  const [result, setResult] = useState<{ filled: number; skipped: number } | null>(null)
+
+  const run = async () => {
+    setState('running')
+    try {
+      const res = await fetch('/api/admin/agents/backfill-trainer', { method: 'POST' })
+      if (!res.ok) throw new Error(`${res.status}`)
+      const d = await res.json() as { filled: number; skipped: number }
+      setResult(d)
+      setState('done')
+      if (d.filled > 0) onDone()
+    } catch {
+      setState('error')
+    }
+  }
+
+  if (state === 'done' && result) {
+    return (
+      <span style={{ fontSize: 11, color: result.filled > 0 ? '#4ADE80' : '#9BB0C4' }}>
+        {result.filled > 0 ? `Filled ${result.filled} trainer${result.filled !== 1 ? 's' : ''}` : 'No missing trainers'}
+        {result.skipped > 0 ? ` (${result.skipped} couldn't resolve)` : ''}
+      </span>
+    )
+  }
+
+  return (
+    <button
+      onClick={run}
+      disabled={state === 'running'}
+      style={{
+        background: 'transparent', color: state === 'error' ? '#f87171' : '#9BB0C4',
+        border: `1px solid ${state === 'error' ? 'rgba(248,113,113,0.3)' : 'rgba(255,255,255,0.1)'}`,
+        borderRadius: 4, padding: '5px 10px', fontSize: 11, fontWeight: 600,
+        cursor: state === 'running' ? 'wait' : 'pointer',
+        textTransform: 'uppercase', letterSpacing: '0.06em',
+        opacity: state === 'running' ? 0.6 : 1,
+      }}
+      title="Auto-fill missing trainer (CFT) fields by walking each agent's recruiter chain"
+    >
+      {state === 'running' ? 'Filling...' : state === 'error' ? 'Error' : 'Fill missing trainers'}
+    </button>
   )
 }
 
