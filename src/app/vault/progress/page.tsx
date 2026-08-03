@@ -41,6 +41,11 @@ interface Agent {
   subscribedToTevahAt: string | null
   lastLoginAt: string | null
   email: string | null
+  cft: string | null
+  badges: string[]
+  recruiterId: string | null
+  isLeadership: boolean
+  isReferralPartner: boolean
 }
 
 interface ItemDef {
@@ -114,13 +119,27 @@ export default function ProgressMatrixPage() {
   // for that item, plus a "send reminder email" composer.
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null)
   const [phaseFilter, setPhaseFilter] = useState<number | 'all'>('all')
-  const [agentSort, setAgentSort] = useState<'progress' | 'phase' | 'name' | 'joined' | 'active'>('progress')
+  const [agentSort, setAgentSort] = useState<'progress' | 'phase' | 'name' | 'name-za' | 'joined' | 'joined-oldest' | 'trainer' | 'active'>('progress')
   const [hideAdminOnly, setHideAdminOnly] = useState(true)
   const [search, setSearch] = useState('')
   // "Stuck" = agent in their current phase with <50% of that phase's
   // items completed. Quick way to surface who needs a nudge from the
   // leadership team without combing the whole matrix.
   const [stuckOnly, setStuckOnly] = useState(false)
+  // Trainer filter: subset of trainer names to include. Empty = show all.
+  const [trainerFilter, setTrainerFilter] = useState<string[]>([])
+  const [trainerPanelOpen, setTrainerPanelOpen] = useState(false)
+  // ICA date filter
+  type IcaPreset = 'all' | 'last30' | 'last60' | 'last90' | 'custom'
+  const [icaFilter, setIcaFilter] = useState<IcaPreset>('all')
+  const [icaFrom, setIcaFrom] = useState('')
+  const [icaTo, setIcaTo] = useState('')
+  // Task filter: select a phase → item → completion status
+  const [taskFilterPhase, setTaskFilterPhase] = useState<number | ''>('')
+  const [taskFilterItemKey, setTaskFilterItemKey] = useState('')
+  const [taskFilterStatus, setTaskFilterStatus] = useState<'all' | 'done' | 'not-done'>('all')
+  // Applied task filter (only set when Apply is clicked)
+  const [appliedTaskFilter, setAppliedTaskFilter] = useState<{ phase: number; itemKey: string; status: 'done' | 'not-done' } | null>(null)
 
   useEffect(() => {
     fetch('/api/admin/progress-matrix')
@@ -143,6 +162,24 @@ export default function ProgressMatrixPage() {
       return true
     })
   }, [data, phaseFilter, hideAdminOnly])
+
+  // Distinct sorted trainer names from the full agent roster. Used to
+  // populate the trainer filter panel.
+  const trainerList = useMemo(() => {
+    if (!data) return []
+    const names = new Set<string>()
+    for (const a of data.agents) {
+      if (a.cft) names.add(a.cft)
+    }
+    return Array.from(names).sort((a, b) => a.localeCompare(b))
+  }, [data])
+
+  // Items for the currently selected task-filter phase, used by the task
+  // filter selects.
+  const taskFilterItems = useMemo(() => {
+    if (!data || taskFilterPhase === '') return []
+    return data.items.filter(it => it.phase === taskFilterPhase)
+  }, [data, taskFilterPhase])
 
   // Per-agent stats: total possible (in current filter), total completed,
   // ratio. Used both to sort the row order and to render the percentage
@@ -202,20 +239,40 @@ export default function ProgressMatrixPage() {
   const sortedAgents = useMemo(() => {
     if (!data) return []
     const q = search.trim().toLowerCase()
+    // ICA date range for the "custom" preset
+    const icaFromMs = icaFilter === 'custom' && icaFrom ? new Date(icaFrom).getTime() : null
+    const icaToMs = icaFilter === 'custom' && icaTo ? new Date(icaTo + 'T23:59:59').getTime() : null
+    const now = Date.now()
     const arr = data.agents.filter(a => {
       if (q) {
         const hay = `${a.firstName} ${a.lastName} ${a.agentCode}`.toLowerCase()
         if (!hay.includes(q)) return false
       }
       if (stuckOnly) {
-        // "Stuck" filter now means "at risk of not finishing on time"
-        // — i.e. they've been in their phase past the expected
-        // duration AND are below the minimum completion threshold for
-        // that phase. Surfaces both `behind` and `at-risk` statuses
-        // so admins see anyone who needs a check-in, not just the
-        // worst cases.
         const info = atRiskByAgent.get(a.id)
         if (!info || info.status === 'on-track') return false
+      }
+      // Trainer filter
+      if (trainerFilter.length > 0) {
+        if (!a.cft || !trainerFilter.includes(a.cft)) return false
+      }
+      // ICA date filter
+      if (icaFilter !== 'all') {
+        const t = a.icaDate ? new Date(a.icaDate).getTime() : null
+        if (!t) return false
+        if (icaFilter === 'last30' && t < now - 30 * 86_400_000) return false
+        if (icaFilter === 'last60' && t < now - 60 * 86_400_000) return false
+        if (icaFilter === 'last90' && t < now - 90 * 86_400_000) return false
+        if (icaFilter === 'custom') {
+          if (icaFromMs !== null && t < icaFromMs) return false
+          if (icaToMs !== null && t > icaToMs) return false
+        }
+      }
+      // Task filter (applied)
+      if (appliedTaskFilter) {
+        const done = !!data.completedAt[`${a.id}:${appliedTaskFilter.itemKey}`]
+        if (appliedTaskFilter.status === 'done' && !done) return false
+        if (appliedTaskFilter.status === 'not-done' && done) return false
       }
       return true
     })
@@ -223,20 +280,30 @@ export default function ProgressMatrixPage() {
       if (agentSort === 'name') {
         return (a.lastName + a.firstName).localeCompare(b.lastName + b.firstName)
       }
+      if (agentSort === 'name-za') {
+        return (b.lastName + b.firstName).localeCompare(a.lastName + a.firstName)
+      }
+      if (agentSort === 'trainer') {
+        const ta = a.cft ?? '￿'
+        const tb = b.cft ?? '￿'
+        if (ta !== tb) return ta.localeCompare(tb)
+        return (a.lastName + a.firstName).localeCompare(b.lastName + b.firstName)
+      }
       if (agentSort === 'phase') {
         if (a.phase !== b.phase) return b.phase - a.phase
         return (agentStats.get(b.id)?.ratio ?? 0) - (agentStats.get(a.id)?.ratio ?? 0)
       }
       if (agentSort === 'joined') {
-        // Newest first. Nulls (no icaDate set) sort to the bottom so
-        // the top of the list is always interpretable.
         const da = a.icaDate ? new Date(a.icaDate).getTime() : -Infinity
         const db_ = b.icaDate ? new Date(b.icaDate).getTime() : -Infinity
         return db_ - da
       }
+      if (agentSort === 'joined-oldest') {
+        const da = a.icaDate ? new Date(a.icaDate).getTime() : Infinity
+        const db_ = b.icaDate ? new Date(b.icaDate).getTime() : Infinity
+        return da - db_
+      }
       if (agentSort === 'active') {
-        // Most recently active first. Agents who've never logged in
-        // sort to the bottom (lastLoginAt null = -Infinity).
         const la = a.lastLoginAt ? new Date(a.lastLoginAt).getTime() : -Infinity
         const lb = b.lastLoginAt ? new Date(b.lastLoginAt).getTime() : -Infinity
         return lb - la
@@ -248,7 +315,7 @@ export default function ProgressMatrixPage() {
       return b.phase - a.phase
     })
     return arr
-  }, [data, agentSort, agentStats, search, stuckOnly, atRiskByAgent])
+  }, [data, agentSort, agentStats, search, stuckOnly, atRiskByAgent, trainerFilter, icaFilter, icaFrom, icaTo, appliedTaskFilter])
 
   // Items grouped by phase for the column-header rendering. Each phase
   // gets a colored band above its column block.
@@ -269,7 +336,7 @@ export default function ProgressMatrixPage() {
     if (!data) return { agents: 0, items: 0, totalDone: 0, totalPossible: 0, avgPct: 0 }
     let totalDone = 0
     let totalPossible = 0
-    for (const a of data.agents) {
+    for (const a of sortedAgents) {
       const s = agentStats.get(a.id)
       if (s) {
         totalDone += s.done
@@ -277,13 +344,13 @@ export default function ProgressMatrixPage() {
       }
     }
     return {
-      agents: data.agents.length,
+      agents: sortedAgents.length,
       items: items.length,
       totalDone,
       totalPossible,
       avgPct: totalPossible > 0 ? Math.round((totalDone / totalPossible) * 100) : 0,
     }
-  }, [data, agentStats, items])
+  }, [data, agentStats, items, sortedAgents])
 
   // Mark an agent inactive directly from the matrix. Confirms first
   // (destructive-ish: removes them from rosters and reports), then
@@ -318,16 +385,19 @@ export default function ProgressMatrixPage() {
   // 1 / 0 per item. UTF-8 BOM up front so Excel opens it as Unicode.
   const exportCsv = () => {
     if (!data) return
-    const cols = ['Agent', 'Code', 'Phase', 'Done', 'Total', '%']
+    const cols = ['Agent', 'Code', 'Phase', 'Trainer', 'ICA Date', 'Done', 'Total', '%']
     const itemList = Object.values(itemsByPhase).flat()
     for (const it of itemList) cols.push(it.label)
     const rows: string[] = [cols.map(escapeCsv).join(',')]
     for (const a of sortedAgents) {
       const s = agentStats.get(a.id) ?? { done: 0, total: 0, ratio: 0 }
+      const icaShort = a.icaDate ? new Date(a.icaDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
       const r: string[] = [
         `${a.firstName} ${a.lastName}`,
         a.agentCode,
         String(a.phase),
+        a.cft ?? '',
+        icaShort,
         String(s.done),
         String(s.total),
         String(Math.round(s.ratio * 100)),
@@ -347,6 +417,22 @@ export default function ProgressMatrixPage() {
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
   }
+
+  const clearAllFilters = () => {
+    setSearch('')
+    setStuckOnly(false)
+    setPhaseFilter('all')
+    setTrainerFilter([])
+    setIcaFilter('all')
+    setIcaFrom('')
+    setIcaTo('')
+    setAppliedTaskFilter(null)
+    setTaskFilterPhase('')
+    setTaskFilterItemKey('')
+    setTaskFilterStatus('all')
+  }
+
+  const hasActiveFilters = search || stuckOnly || phaseFilter !== 'all' || trainerFilter.length > 0 || icaFilter !== 'all' || !!appliedTaskFilter
 
   if (loading) return <Centered>Loading progression matrix...</Centered>
   if (error) return <Centered tone="error">Couldn&apos;t load matrix: {error}</Centered>
@@ -430,9 +516,12 @@ export default function ProgressMatrixPage() {
         >
           <option value="progress">Sort: Most progress first</option>
           <option value="phase">Sort: Highest phase first</option>
-          <option value="joined">Sort: Newest joined</option>
+          <option value="joined">Sort: Newest ICA first</option>
+          <option value="joined-oldest">Sort: Oldest ICA first</option>
+          <option value="trainer">Sort: Trainer A-Z</option>
           <option value="active">Sort: Most recently active</option>
-          <option value="name">Sort: Name (A-Z)</option>
+          <option value="name">Sort: Name A-Z</option>
+          <option value="name-za">Sort: Name Z-A</option>
         </select>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#9BB0C4', fontSize: 11, cursor: 'pointer' }}>
           <input type="checkbox" checked={hideAdminOnly} onChange={e => setHideAdminOnly(e.target.checked)} />
@@ -479,6 +568,248 @@ export default function ProgressMatrixPage() {
         </button>
       </div>
 
+      {/* Trainer filter panel */}
+      {trainerList.length > 0 && (
+        <div style={{
+          marginBottom: 8, padding: '10px 14px',
+          background: '#142D48', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)',
+        }}>
+          <button
+            onClick={() => setTrainerPanelOpen(o => !o)}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+              display: 'flex', alignItems: 'center', gap: 6,
+              color: trainerFilter.length > 0 ? '#C9A96E' : '#9BB0C4', fontSize: 11, fontWeight: 600,
+              letterSpacing: '0.08em', textTransform: 'uppercase',
+            }}
+          >
+            <span>{trainerPanelOpen ? '▾' : '▸'}</span>
+            Trainer
+            {trainerFilter.length > 0 && (
+              <span style={{
+                background: 'rgba(201,169,110,0.15)', color: '#C9A96E',
+                borderRadius: 999, fontSize: 9, fontWeight: 700,
+                padding: '1px 6px', marginLeft: 2,
+              }}>{trainerFilter.length}</span>
+            )}
+          </button>
+          {trainerPanelOpen && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+              {trainerList.map(name => {
+                const active = trainerFilter.includes(name)
+                return (
+                  <button
+                    key={name}
+                    onClick={() => setTrainerFilter(prev =>
+                      prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
+                    )}
+                    style={{
+                      padding: '4px 10px', borderRadius: 4, fontSize: 11, fontWeight: 500,
+                      background: active ? 'rgba(201,169,110,0.18)' : 'transparent',
+                      border: `1px solid ${active ? '#C9A96E' : 'rgba(255,255,255,0.08)'}`,
+                      color: active ? '#C9A96E' : '#9BB0C4',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {name}
+                  </button>
+                )
+              })}
+              {trainerFilter.length > 0 && (
+                <button
+                  onClick={() => setTrainerFilter([])}
+                  style={{
+                    padding: '4px 10px', borderRadius: 4, fontSize: 11,
+                    background: 'transparent', border: '1px solid rgba(248,113,113,0.3)',
+                    color: '#f87171', cursor: 'pointer',
+                  }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ICA date filter */}
+      <div style={{
+        marginBottom: 8, padding: '10px 14px',
+        background: '#142D48', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)',
+        display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center',
+      }}>
+        <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: icaFilter !== 'all' ? '#C9A96E' : '#9BB0C4' }}>
+          ICA Date:
+        </span>
+        {(['all', 'last30', 'last60', 'last90'] as const).map(preset => (
+          <FilterPill key={preset} active={icaFilter === preset} onClick={() => { setIcaFilter(preset) }}>
+            {preset === 'all' ? 'Any' : preset === 'last30' ? 'Last 30 days' : preset === 'last60' ? 'Last 60 days' : 'Last 90 days'}
+          </FilterPill>
+        ))}
+        <FilterPill active={icaFilter === 'custom'} onClick={() => setIcaFilter('custom')}>Custom range</FilterPill>
+        {icaFilter === 'custom' && (
+          <>
+            <input
+              type="date"
+              value={icaFrom}
+              onChange={e => setIcaFrom(e.target.value)}
+              style={{
+                background: '#0A1628', color: '#ffffff',
+                border: '1px solid rgba(201,169,110,0.2)',
+                borderRadius: 4, padding: '5px 8px', fontSize: 11,
+              }}
+            />
+            <span style={{ color: '#6B8299', fontSize: 11 }}>to</span>
+            <input
+              type="date"
+              value={icaTo}
+              onChange={e => setIcaTo(e.target.value)}
+              style={{
+                background: '#0A1628', color: '#ffffff',
+                border: '1px solid rgba(201,169,110,0.2)',
+                borderRadius: 4, padding: '5px 8px', fontSize: 11,
+              }}
+            />
+          </>
+        )}
+      </div>
+
+      {/* Task filter */}
+      <div style={{
+        marginBottom: 8, padding: '10px 14px',
+        background: '#142D48', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)',
+        display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center',
+      }}>
+        <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: appliedTaskFilter ? '#C9A96E' : '#9BB0C4' }}>
+          Task:
+        </span>
+        <select
+          value={taskFilterPhase}
+          onChange={e => { setTaskFilterPhase(e.target.value === '' ? '' : Number(e.target.value)); setTaskFilterItemKey('') }}
+          style={{
+            background: '#0A1628', color: '#9BB0C4',
+            border: '1px solid rgba(201,169,110,0.2)',
+            borderRadius: 4, padding: '5px 8px', fontSize: 11,
+          }}
+        >
+          <option value="">Phase...</option>
+          {[1, 2, 3, 4, 5, 6].map(ph => (
+            <option key={ph} value={ph}>Phase {ph}</option>
+          ))}
+        </select>
+        <select
+          value={taskFilterItemKey}
+          onChange={e => setTaskFilterItemKey(e.target.value)}
+          disabled={taskFilterItems.length === 0}
+          style={{
+            background: '#0A1628', color: '#9BB0C4',
+            border: '1px solid rgba(201,169,110,0.2)',
+            borderRadius: 4, padding: '5px 8px', fontSize: 11,
+            opacity: taskFilterItems.length === 0 ? 0.4 : 1,
+          }}
+        >
+          <option value="">Task...</option>
+          {taskFilterItems.map(it => (
+            <option key={it.itemKey} value={it.itemKey}>{it.label}</option>
+          ))}
+        </select>
+        <select
+          value={taskFilterStatus}
+          onChange={e => setTaskFilterStatus(e.target.value as 'all' | 'done' | 'not-done')}
+          disabled={!taskFilterItemKey}
+          style={{
+            background: '#0A1628', color: '#9BB0C4',
+            border: '1px solid rgba(201,169,110,0.2)',
+            borderRadius: 4, padding: '5px 8px', fontSize: 11,
+            opacity: !taskFilterItemKey ? 0.4 : 1,
+          }}
+        >
+          <option value="all">Any status</option>
+          <option value="done">Completed</option>
+          <option value="not-done">Not completed</option>
+        </select>
+        <button
+          disabled={!taskFilterItemKey || taskFilterStatus === 'all'}
+          onClick={() => {
+            if (taskFilterPhase !== '' && taskFilterItemKey && taskFilterStatus !== 'all') {
+              setAppliedTaskFilter({ phase: taskFilterPhase as number, itemKey: taskFilterItemKey, status: taskFilterStatus })
+            }
+          }}
+          style={{
+            padding: '5px 12px', borderRadius: 4, fontSize: 11, fontWeight: 600,
+            background: (!taskFilterItemKey || taskFilterStatus === 'all') ? 'transparent' : 'rgba(201,169,110,0.15)',
+            border: '1px solid rgba(201,169,110,0.3)',
+            color: (!taskFilterItemKey || taskFilterStatus === 'all') ? '#6B8299' : '#C9A96E',
+            cursor: (!taskFilterItemKey || taskFilterStatus === 'all') ? 'default' : 'pointer',
+          }}
+        >
+          Apply
+        </button>
+        {appliedTaskFilter && (
+          <button
+            onClick={() => { setAppliedTaskFilter(null); setTaskFilterStatus('all') }}
+            style={{
+              padding: '5px 10px', borderRadius: 4, fontSize: 11,
+              background: 'transparent', border: '1px solid rgba(248,113,113,0.3)',
+              color: '#f87171', cursor: 'pointer',
+            }}
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {/* Active filter chips */}
+      {hasActiveFilters && (
+        <div style={{
+          display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center',
+          marginBottom: 10, padding: '8px 14px',
+          background: 'rgba(201,169,110,0.06)', borderRadius: 6,
+          border: '1px solid rgba(201,169,110,0.15)',
+        }}>
+          <span style={{ fontSize: 10, color: '#9BB0C4', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', marginRight: 2 }}>
+            Filters:
+          </span>
+          {phaseFilter !== 'all' && (
+            <Chip label={`Phase ${phaseFilter}`} onRemove={() => setPhaseFilter('all')} />
+          )}
+          {search && (
+            <Chip label={`"${search}"`} onRemove={() => setSearch('')} />
+          )}
+          {stuckOnly && (
+            <Chip label="At Risk only" onRemove={() => setStuckOnly(false)} />
+          )}
+          {trainerFilter.map(name => (
+            <Chip key={name} label={`Trainer: ${name}`} onRemove={() => setTrainerFilter(prev => prev.filter(n => n !== name))} />
+          ))}
+          {icaFilter !== 'all' && (
+            <Chip
+              label={icaFilter === 'last30' ? 'ICA: last 30 days' : icaFilter === 'last60' ? 'ICA: last 60 days' : icaFilter === 'last90' ? 'ICA: last 90 days' : `ICA: ${icaFrom || '?'} to ${icaTo || '?'}`}
+              onRemove={() => { setIcaFilter('all'); setIcaFrom(''); setIcaTo('') }}
+            />
+          )}
+          {appliedTaskFilter && (
+            <Chip
+              label={`Task: ${appliedTaskFilter.status === 'done' ? 'Completed' : 'Not completed'} ${data?.items.find(i => i.itemKey === appliedTaskFilter.itemKey)?.label ?? appliedTaskFilter.itemKey}`}
+              onRemove={() => { setAppliedTaskFilter(null); setTaskFilterStatus('all') }}
+            />
+          )}
+          <span style={{ fontSize: 10, color: '#6B8299', marginLeft: 4 }}>
+            {sortedAgents.length} agent{sortedAgents.length !== 1 ? 's' : ''}
+          </span>
+          <button
+            onClick={clearAllFilters}
+            style={{
+              marginLeft: 'auto', background: 'none', border: 'none',
+              color: '#C9A96E', fontSize: 10, cursor: 'pointer',
+              textDecoration: 'underline', padding: 0,
+            }}
+          >
+            Clear all
+          </button>
+        </div>
+      )}
+
       {/* Empty state when filters knock everything out, so an admin
           searching for a name that doesn't match doesn't stare at a
           blank matrix wondering if it's broken. */}
@@ -489,7 +820,7 @@ export default function ProgressMatrixPage() {
         }}>
           No agents match the current filters.{' '}
           <button
-            onClick={() => { setSearch(''); setStuckOnly(false); setPhaseFilter('all') }}
+            onClick={clearAllFilters}
             style={{ background: 'none', border: 'none', color: '#C9A96E', fontSize: 13, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
           >
             Clear filters
@@ -790,14 +1121,14 @@ function Matrix({
                   position: 'sticky', left: 0, zIndex: 2,
                   background: isHoveredRow ? '#1a3656' : '#142D48',
                   borderRight: '1px solid rgba(201,169,110,0.15)',
-                  height: cellSize + 4,
+                  height: cellSize + 16,
                 }}
               >
                 <Link
                   href={`/vault/tracker?agentId=${encodeURIComponent(agent.id)}`}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '6px 28px 6px 10px',  // right padding leaves room for the ✕
+                    padding: '5px 28px 5px 10px',
                     height: '100%', boxSizing: 'border-box',
                     textDecoration: 'none', cursor: 'pointer',
                   }}
@@ -835,6 +1166,17 @@ function Matrix({
                         )
                       })()}
                     </div>
+                    {(agent.cft || agent.icaDate) && (
+                      <div style={{ fontSize: 9, color: '#4A6580', marginTop: 1, display: 'flex', gap: 5, alignItems: 'center', overflow: 'hidden' }}>
+                        {agent.cft && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 100 }} title={`Trainer: ${agent.cft}`}>{agent.cft}</span>}
+                        {agent.cft && agent.icaDate && <span style={{ opacity: 0.5 }}>·</span>}
+                        {agent.icaDate && (
+                          <span title={`ICA: ${new Date(agent.icaDate).toLocaleDateString()}`}>
+                            {new Date(agent.icaDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   {s && s.total > 0 && (
                     <span style={{ fontSize: 9, color: '#C9A96E', fontVariantNumeric: 'tabular-nums' }}>
@@ -887,11 +1229,8 @@ function Matrix({
                         onMouseEnter={() => onHover({ agentId: agent.id, itemKey: it.itemKey })}
                         onMouseLeave={() => onHover(null)}
                         style={{
-                          width: cellSize, height: cellSize, flexShrink: 0,
-                          padding: cellInsetPad,
-                          // Container background highlights the cross
-                          // pattern (row + column) on hover; the dot itself
-                          // stays its phase color.
+                          width: cellSize, height: cellSize + 16, flexShrink: 0,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
                           background: isHovered
                             ? `${PHASE_COLORS[it.phase]}30`
                             : isHoveredCol || isHoveredRow
@@ -904,7 +1243,7 @@ function Matrix({
                         title={`${agent.firstName} ${agent.lastName} · ${it.label} · ${done ? 'Completed' : 'Not yet'}${done ? ` (${new Date(completedAt[`${agent.id}:${it.itemKey}`]).toLocaleDateString()})` : ''}`}
                       >
                         <div style={{
-                          width: '100%', height: '100%',
+                          width: cellSize - cellInsetPad * 2, height: cellSize - cellInsetPad * 2,
                           // Done cells: solid phase fill. Not-done cells:
                           // a faint outlined chip in the same phase color
                           // so the grid stays visible across columns
@@ -986,6 +1325,13 @@ function MobileList({
                 <div style={{ marginTop: 4, fontSize: 10, color: '#6B8299', fontVariantNumeric: 'tabular-nums' }}>
                   {s.done} / {s.total} items completed &middot; {Math.round(s.ratio * 100)}%
                 </div>
+                {(a.cft || a.icaDate) && (
+                  <div style={{ marginTop: 3, fontSize: 10, color: '#4A6580' }}>
+                    {a.cft && <span>Trainer: {a.cft}</span>}
+                    {a.cft && a.icaDate && <span> &middot; </span>}
+                    {a.icaDate && <span>ICA: {new Date(a.icaDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>}
+                  </div>
+                )}
               </div>
             </Link>
             {/* Mark-inactive button. Always visible on mobile (no
@@ -1073,6 +1419,30 @@ function Avatar({ firstName, lastName, avatarUrl, size }: { firstName: string; l
     }}>
       {initials}
     </div>
+  )
+}
+
+function Chip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5,
+      background: 'rgba(201,169,110,0.12)', border: '1px solid rgba(201,169,110,0.25)',
+      borderRadius: 999, padding: '2px 8px 2px 10px', fontSize: 10, color: '#C9A96E',
+    }}>
+      {label}
+      <button
+        onClick={onRemove}
+        aria-label={`Remove ${label} filter`}
+        style={{
+          background: 'none', border: 'none', cursor: 'pointer',
+          color: '#C9A96E', fontSize: 11, lineHeight: 1, padding: 0,
+          display: 'inline-flex', alignItems: 'center',
+          opacity: 0.7,
+        }}
+      >
+        ✕
+      </button>
+    </span>
   )
 }
 
