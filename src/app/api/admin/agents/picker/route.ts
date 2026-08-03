@@ -37,7 +37,12 @@ export async function GET(req: NextRequest) {
         {
           status: includeFormer ? { in: ['ACTIVE', 'INACTIVE'] } : 'ACTIVE',
           isTest: false,
-          ...(minPhase > 0 ? { phase: { gte: minPhase } } : {}),
+          ...(minPhase > 0 ? {
+            phase: { gte: minPhase },
+            // Referral partners are phase 3+ but are NOT field trainers.
+            // Exclude them when the caller is looking for CFT-eligible agents.
+            isReferralPartner: false,
+          } : {}),
         },
         { isLeadership: true, isTest: false },
       ],
