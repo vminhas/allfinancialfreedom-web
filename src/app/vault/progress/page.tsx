@@ -138,8 +138,8 @@ export default function ProgressMatrixPage() {
   const [taskFilterPhase, setTaskFilterPhase] = useState<number | ''>('')
   const [taskFilterItemKey, setTaskFilterItemKey] = useState('')
   const [taskFilterStatus, setTaskFilterStatus] = useState<'all' | 'done' | 'not-done'>('all')
-  // Applied task filter (only set when Apply is clicked)
-  const [appliedTaskFilter, setAppliedTaskFilter] = useState<{ phase: number; itemKey: string; status: 'done' | 'not-done' } | null>(null)
+  // Applied task filters (one per Apply click; agent must pass ALL of them)
+  const [appliedTaskFilter, setAppliedTaskFilter] = useState<{ phase: number; itemKey: string; status: 'done' | 'not-done' }[]>([])
 
   useEffect(() => {
     fetch('/api/admin/progress-matrix')
@@ -268,11 +268,11 @@ export default function ProgressMatrixPage() {
           if (icaToMs !== null && t > icaToMs) return false
         }
       }
-      // Task filter (applied)
-      if (appliedTaskFilter) {
-        const done = !!data.completedAt[`${a.id}:${appliedTaskFilter.itemKey}`]
-        if (appliedTaskFilter.status === 'done' && !done) return false
-        if (appliedTaskFilter.status === 'not-done' && done) return false
+      // Task filters (agent must pass ALL applied filters)
+      for (const tf of appliedTaskFilter) {
+        const done = !!data.completedAt[`${a.id}:${tf.itemKey}`]
+        if (tf.status === 'done' && !done) return false
+        if (tf.status === 'not-done' && done) return false
       }
       return true
     })
@@ -426,13 +426,13 @@ export default function ProgressMatrixPage() {
     setIcaFilter('all')
     setIcaFrom('')
     setIcaTo('')
-    setAppliedTaskFilter(null)
+    setAppliedTaskFilter([])
     setTaskFilterPhase('')
     setTaskFilterItemKey('')
     setTaskFilterStatus('all')
   }
 
-  const hasActiveFilters = search || stuckOnly || phaseFilter !== 'all' || trainerFilter.length > 0 || icaFilter !== 'all' || !!appliedTaskFilter
+  const hasActiveFilters = search || stuckOnly || phaseFilter !== 'all' || trainerFilter.length > 0 || icaFilter !== 'all' || appliedTaskFilter.length > 0
 
   if (loading) return <Centered>Loading progression matrix...</Centered>
   if (error) return <Centered tone="error">Couldn&apos;t load matrix: {error}</Centered>
@@ -680,7 +680,7 @@ export default function ProgressMatrixPage() {
         background: '#142D48', borderRadius: 6, border: '1px solid rgba(201,169,110,0.1)',
         display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center',
       }}>
-        <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: appliedTaskFilter ? '#C9A96E' : '#9BB0C4' }}>
+        <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: appliedTaskFilter.length > 0 ? '#C9A96E' : '#9BB0C4' }}>
           Task:
         </span>
         <select
@@ -732,7 +732,13 @@ export default function ProgressMatrixPage() {
           disabled={!taskFilterItemKey || taskFilterStatus === 'all'}
           onClick={() => {
             if (taskFilterPhase !== '' && taskFilterItemKey && taskFilterStatus !== 'all') {
-              setAppliedTaskFilter({ phase: taskFilterPhase as number, itemKey: taskFilterItemKey, status: taskFilterStatus })
+              const next = { phase: taskFilterPhase as number, itemKey: taskFilterItemKey, status: taskFilterStatus }
+              // Prevent exact duplicates
+              setAppliedTaskFilter(prev =>
+                prev.some(f => f.itemKey === next.itemKey && f.status === next.status)
+                  ? prev
+                  : [...prev, next]
+              )
             }
           }}
           style={{
@@ -743,18 +749,18 @@ export default function ProgressMatrixPage() {
             cursor: (!taskFilterItemKey || taskFilterStatus === 'all') ? 'default' : 'pointer',
           }}
         >
-          Apply
+          + Add
         </button>
-        {appliedTaskFilter && (
+        {appliedTaskFilter.length > 0 && (
           <button
-            onClick={() => { setAppliedTaskFilter(null); setTaskFilterStatus('all') }}
+            onClick={() => { setAppliedTaskFilter([]) }}
             style={{
               padding: '5px 10px', borderRadius: 4, fontSize: 11,
               background: 'transparent', border: '1px solid rgba(248,113,113,0.3)',
               color: '#f87171', cursor: 'pointer',
             }}
           >
-            Clear
+            Clear all
           </button>
         )}
       </div>
@@ -788,12 +794,16 @@ export default function ProgressMatrixPage() {
               onRemove={() => { setIcaFilter('all'); setIcaFrom(''); setIcaTo('') }}
             />
           )}
-          {appliedTaskFilter && (
-            <Chip
-              label={`Task: ${appliedTaskFilter.status === 'done' ? 'Completed' : 'Not completed'} ${data?.items.find(i => i.itemKey === appliedTaskFilter.itemKey)?.label ?? appliedTaskFilter.itemKey}`}
-              onRemove={() => { setAppliedTaskFilter(null); setTaskFilterStatus('all') }}
-            />
-          )}
+          {appliedTaskFilter.map(tf => {
+            const label = data?.items.find(i => i.itemKey === tf.itemKey)?.label ?? tf.itemKey
+            return (
+              <Chip
+                key={`${tf.itemKey}:${tf.status}`}
+                label={`Task P${tf.phase}: ${tf.status === 'done' ? 'Completed' : 'Not completed'} ${label}`}
+                onRemove={() => setAppliedTaskFilter(prev => prev.filter(f => !(f.itemKey === tf.itemKey && f.status === tf.status)))}
+              />
+            )
+          })}
           <span style={{ fontSize: 10, color: '#6B8299', marginLeft: 4 }}>
             {sortedAgents.length} agent{sortedAgents.length !== 1 ? 's' : ''}
           </span>
