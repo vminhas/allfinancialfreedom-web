@@ -2565,7 +2565,31 @@ function AgentDrawer({
             {/* CFT + Goal + Recruiter */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
               <div>
-                <label style={lStyle}>Trainer (CFT)</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <label style={{ ...lStyle, marginBottom: 0 }}>Trainer (CFT)</label>
+                  {editForm.recruiterId && (
+                    <button
+                      type="button"
+                      title="Auto-fill trainer from recruiter chain"
+                      onClick={() => {
+                        fetch(`/api/admin/agents/resolve-trainer?recruiterCode=${encodeURIComponent(editForm.recruiterId)}`)
+                          .then(r => r.ok ? r.json() as Promise<{ trainerName: string | null }> : null)
+                          .then(d => {
+                            if (d?.trainerName) setEditForm(f => ({ ...f, cft: d.trainerName! }))
+                          })
+                          .catch(() => {})
+                      }}
+                      style={{
+                        background: 'rgba(201,169,110,0.1)', border: '1px solid rgba(201,169,110,0.3)',
+                        color: '#C9A96E', borderRadius: 4, padding: '1px 7px', fontSize: 9,
+                        fontWeight: 700, cursor: 'pointer', letterSpacing: '0.06em',
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      Auto-fill
+                    </button>
+                  )}
+                </div>
                 <AgentTypeahead
                   value={editForm.cft}
                   valueField="displayName"
@@ -3021,7 +3045,20 @@ function AddAgentModal({ onClose, onCreated, trainers }: { onClose: () => void; 
                 valueField="agentCode"
                 placeholder="Search by name (or leave empty for Vick & Melinee)"
                 includeFormer={trackingOnly}
-                onChange={code => setForm(f => ({ ...f, recruiterId: code }))}
+                onChange={code => {
+                  setForm(f => ({ ...f, recruiterId: code }))
+                  // Auto-fill trainer from the recruiter chain, but only if
+                  // the trainer field is still empty (don't override a
+                  // deliberately-set trainer).
+                  if (code) {
+                    fetch(`/api/admin/agents/resolve-trainer?recruiterCode=${encodeURIComponent(code)}`)
+                      .then(r => r.ok ? r.json() as Promise<{ trainerName: string | null }> : null)
+                      .then(d => {
+                        if (d?.trainerName) setForm(f => ({ ...f, cft: f.cft || d.trainerName! }))
+                      })
+                      .catch(() => {})
+                  }
+                }}
                 helperText={
                   form.recruiterId.trim()
                     ? <>Will be assigned under recruiter <strong style={{ color: '#C9A96E' }}>{form.recruiterId.trim().toUpperCase()}</strong>.</>
@@ -3037,7 +3074,7 @@ function AddAgentModal({ onClose, onCreated, trainers }: { onClose: () => void; 
                 placeholder="Search trainers..."
                 minPhase={3}
                 onChange={name => setForm(f => ({ ...f, cft: name }))}
-                helperText={<>Phase 3+ agents only (CFT, MD, EMD).</>}
+                helperText={<>Phase 3+ agents only (CFT, MD, EMD). Auto-filled from recruiter chain.</>}
               />
             </div>
             <div><label style={fieldLabel}>Goal</label>
