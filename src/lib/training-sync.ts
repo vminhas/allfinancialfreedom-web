@@ -1,6 +1,7 @@
 import { db } from './db'
 import { listPublicFolder, downloadPublicFile, filterTrainingFlyers, type DriveFile } from './google-drive'
 import { parseTrainingFlyer, type ParsedTrainingEvent } from './training-parser'
+import { resolveTrainingStart } from './training-date'
 import { createGuildScheduledEvent, deleteGuildScheduledEvent, listGuildScheduledEvents, sendChannelMessage, editChannelMessage } from './discord'
 import { getSetting, setSetting } from './settings'
 import { uploadFlyerToBlob } from './blob-upload'
@@ -443,13 +444,14 @@ function shapeEventForDb(
   fileModified: Date,
   result: { modelId: string; inputTokens: number; outputTokens: number; rawJson: unknown }
 ) {
-  let startsAt: Date
-  try {
-    startsAt = new Date(ev.startsAtET)
-    if (isNaN(startsAt.getTime())) throw new Error('invalid date')
-  } catch {
-    startsAt = new Date()
-  }
+  // Same deterministic date resolution as the Discord-paste parse flow: for
+  // weekday-only flyers, recompute the weekday's date in ET instead of trusting
+  // the LLM's error-prone arithmetic. (Drive sync makes one-offs; no WEEKDAYS.)
+  const startsAt = resolveTrainingStart({
+    startsAtET: ev.startsAtET,
+    dayOfWeekET: ev.dayOfWeekET,
+    hasExplicitDate: ev.hasExplicitDate,
+  })
 
   return {
     driveFileId: file.id,

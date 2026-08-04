@@ -7,6 +7,7 @@ import { parseTrainingFlyer } from '@/lib/training-parser'
 import { uploadFlyerToBlob } from '@/lib/blob-upload'
 import { createGuildScheduledEvent } from '@/lib/discord'
 import { stepOccurrence, createDiscordEventForOccurrence } from '@/lib/training-recurrence'
+import { resolveTrainingStart } from '@/lib/training-date'
 
 function buildJoinUrl(streamId: string | null, passcode?: string | null): string | null {
   if (!streamId) return null
@@ -90,13 +91,19 @@ export async function POST(req: NextRequest) {
     (s ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
 
   for (const ev of parsed.events) {
-    let startsAt: Date
-    try {
-      startsAt = new Date(ev.startsAtET)
-      if (isNaN(startsAt.getTime())) throw new Error('invalid date')
-    } catch {
-      startsAt = new Date()
-    }
+    // Deterministic date resolution: for weekday-only flyers ("EVERY TUESDAY")
+    // the LLM's date arithmetic is unreliable (it once put a Tuesday session on
+    // a Wednesday), so we recompute the next occurrence of the flyer's weekday
+    // in Eastern time. Explicit printed dates are trusted as-is. WEEKDAYS
+    // (Mon-Fri daily) events keep their own next-weekday semantics below, so we
+    // don't weekday-snap them here.
+    const startsAt = ev.recurrence === 'WEEKDAYS'
+      ? (isNaN(new Date(ev.startsAtET).getTime()) ? new Date() : new Date(ev.startsAtET))
+      : resolveTrainingStart({
+          startsAtET: ev.startsAtET,
+          dayOfWeekET: ev.dayOfWeekET,
+          hasExplicitDate: ev.hasExplicitDate,
+        })
 
     // Look for an existing TrainingEvent in the dedupe window. We compare
     // normalized title in JS (Prisma can't normalize whitespace server-

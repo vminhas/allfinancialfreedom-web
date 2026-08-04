@@ -55,7 +55,13 @@ async function shrinkIfNeeded(
   }
 }
 
-const SYSTEM_PROMPT = `You are an extraction system for GFI / All Financial Freedom training event flyers.
+function buildSystemPrompt(): string {
+  // Evaluated per request in Eastern time (not once at module load in UTC),
+  // so "today" is never stale on a long-lived serverless instance.
+  const todayET = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+  }).format(new Date())
+  return `You are an extraction system for GFI / All Financial Freedom training event flyers.
 
 Each image is a single training event flyer from GFI (Global Financial Impact). Layouts are consistent:
 - Title (large) — sometimes with a smaller subtitle below
@@ -71,13 +77,16 @@ Each image is a single training event flyer from GFI (Global Financial Impact). 
 
 CRITICAL RULES:
 1. The time MUST come from the text printed on the flyer (e.g. "08.00 PM EST"), NOT from any metadata or the time the image was sent. If the flyer says "08.00 PM EST", the event is at 8:00 PM Eastern, period.
-2. If the flyer does not show an explicit date (no "MONDAY | APRIL 13, 2026" line), infer the NEXT occurrence of the day of week from the title. For example, "Systems & Mindset Mondays" with no date means the next upcoming Monday from today's date.
-3. Today's date for reference: ${new Date().toISOString().slice(0, 10)}
+2. DAY OF WEEK: Always set "dayOfWeekET" to the weekday this event occurs on, and set "hasExplicitDate" accordingly:
+   - If the flyer prints an explicit calendar date (e.g. "MONDAY | APRIL 13, 2026"): set hasExplicitDate=true, dayOfWeekET to that day's name, and startsAtET to that exact date/time.
+   - If the flyer does NOT print a date and the day is implied by the title/schedule (e.g. "Systems & Mindset Mondays", "EVERY TUESDAY"): set hasExplicitDate=false and dayOfWeekET to that weekday. Do NOT try to calculate the calendar date yourself — the server computes the exact next-occurrence date from dayOfWeekET. Still put your best-guess date in startsAtET, but getting the WEEKDAY right is what matters.
+3. Today's date for reference (Eastern time): ${todayET}
 4. RECURRENCE: If the flyer clearly states the event repeats every weekday (e.g. "MONDAY - FRIDAY", "MON-FRI", "Monday through Friday", "every weekday", "daily"), set recurrence to "WEEKDAYS". Otherwise set recurrence to null (a one-time event, or a single weekly day, is NOT weekdays). For a WEEKDAYS event, set startsAtET to the next upcoming weekday at the flyer's ET time (today if it is a weekday and the time has not passed yet, otherwise the next weekday).
 
 Extract via the submit_event tool. If a field isn't visible, set it to null. For times, return ISO 8601 with the ET offset (use -04:00 for EDT or -05:00 for EST based on the date).
 
 If the image clearly contains MULTIPLE events on one poster (a weekly schedule), return events as an array. Most flyers will return a single-element array.`
+}
 
 export interface ParsedTrainingPresenter {
   name: string
@@ -89,6 +98,13 @@ export interface ParsedTrainingEvent {
   subtitle: string | null
   category: string | null
   startsAtET: string                 // ISO 8601 with -04:00 / -05:00 offset
+  // Weekday the flyer names for this occurrence ("Tuesday"). The server uses
+  // this (not the model's date arithmetic) to compute the exact date for
+  // weekday-only flyers. Null when not determinable.
+  dayOfWeekET?: string | null
+  // True only when the flyer prints an explicit calendar date. When false,
+  // the server recomputes the date from dayOfWeekET.
+  hasExplicitDate?: boolean
   durationMinutes: number
   presenters: ParsedTrainingPresenter[]
   streamType: 'GFI_LIVE' | 'ZOOM'
@@ -134,7 +150,7 @@ export async function parseTrainingFlyer(params: {
   const message = await client.messages.create({
     model: MODEL_ID,
     max_tokens: 2048,
-    system: SYSTEM_PROMPT,
+    system: buildSystemPrompt(),
     tools: [
       {
         name: 'submit_event',
@@ -152,7 +168,9 @@ export async function parseTrainingFlyer(params: {
                   title:               { type: 'string', description: 'Main event title (uppercase OK)' },
                   subtitle:            { type: ['string', 'null'], description: 'Smaller secondary line under the main title, if any' },
                   category:            { type: ['string', 'null'], description: 'Category banner like "Technology Tuesday"' },
-                  startsAtET:          { type: 'string', description: 'ISO 8601 datetime with -04:00 or -05:00 offset (parsed from the EST/EDT line)' },
+                  startsAtET:          { type: 'string', description: 'ISO 8601 datetime with -04:00 or -05:00 offset (parsed from the EST/EDT line). Use the correct ET time; the server recomputes the exact DATE from dayOfWeekET for weekday-only flyers.' },
+                  dayOfWeekET:         { type: ['string', 'null'], enum: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday', null], description: 'The day of week THIS event occurs on, read from the flyer: from the printed date\'s day name, or implied by the title/schedule (e.g. "EVERY TUESDAY" -> "Tuesday"). Always set when determinable.' },
+                  hasExplicitDate:     { type: 'boolean', description: 'true ONLY if the flyer prints an explicit calendar date (e.g. "MONDAY | APRIL 13, 2026"). false if the day is implied by the title/schedule with no printed date.' },
                   durationMinutes:     { type: 'integer', description: 'Default 60 if not visible' },
                   presenters: {
                     type: 'array',
