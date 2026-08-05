@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { sendChannelMessage } from '@/lib/discord'
+import { trainingAutomationEnabled } from '@/lib/training-automation'
 
 // GET /api/cron/training-reminders
 // Runs every 5 minutes. Finds events starting in ~25–30 minutes that haven't
@@ -17,6 +18,11 @@ export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // Training moved to Cadre: stop posting the T-30 announcements.
+  if (!(await trainingAutomationEnabled())) {
+    return NextResponse.json({ skipped: 'training automation disabled (handled by Cadre)' })
   }
 
   if (!process.env.DISCORD_BOT_TOKEN) {

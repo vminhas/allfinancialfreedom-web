@@ -250,7 +250,9 @@ export default function SettingsPage() {
     ZOOM_CLIENT_SECRET: '',
     ATTENDANCE_PRESENT_THRESHOLD_PCT: '',
     LC_DIGEST_RECIPIENT_EMAIL: '',
+    TRAINING_AUTOMATION_ENABLED: '',
   })
+  const [trainingSaving, setTrainingSaving] = useState(false)
 
   const [zoomTesting, setZoomTesting] = useState(false)
   const [zoomTestResult, setZoomTestResult] = useState<{ ok: boolean; msg: string } | null>(null)
@@ -422,6 +424,19 @@ export default function SettingsPage() {
     setTimeout(() => setSaved(false), 3000)
   }
 
+  // Training automation master toggle. Saves the single key immediately on
+  // flip (optimistic UI) so the change takes effect without the Save button.
+  async function toggleTrainingAutomation() {
+    const next = fields.TRAINING_AUTOMATION_ENABLED === 'true' ? 'false' : 'true'
+    setFields(f => ({ ...f, TRAINING_AUTOMATION_ENABLED: next }))
+    setTrainingSaving(true)
+    await fetch('/api/admin/settings', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ TRAINING_AUTOMATION_ENABLED: next }),
+    }).catch(() => {})
+    setTrainingSaving(false)
+  }
+
   async function handleTest() {
     setTesting(true)
     setTestResult(null)
@@ -587,6 +602,47 @@ export default function SettingsPage() {
                 {testResult.ok ? '✓ ' : '✗ '}{testResult.msg}
               </p>
             )}
+          </div>
+        </>
+      )}
+
+      {/* Training automation master toggle. Concierge's flyer parsing,
+          Discord announcements/reminders, Drive auto-sync, and recurring
+          roll-forward all honor this switch. Off = handed to Cadre. */}
+      {card(
+        <>
+          {cardHeader('Training Announcements & Scheduling')}
+          <div style={{ padding: '28px' }}>
+            <p style={{ color: '#6B8299', fontSize: 12, margin: '0 0 18px', lineHeight: 1.6 }}>
+              Master switch for Concierge&apos;s training automation: parsing training flyers into events, posting the 30-minute Discord reminders, auto-syncing the Google Drive folder, and extending recurring series. Turn this <strong style={{ color: '#9BB0C4' }}>off</strong> to hand training over to Cadre. Nothing is deleted; flip it back on to resume.
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <button
+                onClick={toggleTrainingAutomation}
+                disabled={trainingSaving}
+                aria-pressed={fields.TRAINING_AUTOMATION_ENABLED === 'true'}
+                aria-label="Toggle training announcements and scheduling"
+                style={{
+                  position: 'relative', width: 54, height: 30, borderRadius: 999,
+                  border: 'none', cursor: trainingSaving ? 'wait' : 'pointer', padding: 0, flexShrink: 0,
+                  background: fields.TRAINING_AUTOMATION_ENABLED === 'true' ? '#C9A96E' : 'rgba(155,176,196,0.25)',
+                  transition: 'background 0.15s',
+                }}
+              >
+                <span style={{
+                  position: 'absolute', top: 3, left: fields.TRAINING_AUTOMATION_ENABLED === 'true' ? 27 : 3,
+                  width: 24, height: 24, borderRadius: '50%', background: '#fff', transition: 'left 0.15s',
+                }} />
+              </button>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: fields.TRAINING_AUTOMATION_ENABLED === 'true' ? '#C9A96E' : '#9BB0C4' }}>
+                  {fields.TRAINING_AUTOMATION_ENABLED === 'true' ? 'Enabled' : 'Disabled (handled by Cadre)'}
+                </div>
+                <div style={{ fontSize: 11, color: '#6B8299' }}>
+                  {trainingSaving ? 'Saving…' : 'Changes apply immediately.'}
+                </div>
+              </div>
+            </div>
           </div>
         </>
       )}

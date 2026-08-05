@@ -14,6 +14,10 @@ const ALLOWED_KEYS = [
   'ATTENDANCE_PRESENT_THRESHOLD_PCT',
   // Recipient for the Licensing Coordinator daily digest email.
   'LC_DIGEST_RECIPIENT_EMAIL',
+  // Master toggle for Concierge training automation (flyer parsing, Discord
+  // announcements/reminders, Drive auto-sync, recurring roll-forward). 'true'
+  // to enable; anything else (default) disables it. Handed to Cadre for now.
+  'TRAINING_AUTOMATION_ENABLED',
 ]
 
 // Non-secret keys are returned in full so the settings page can show
@@ -21,7 +25,7 @@ const ALLOWED_KEYS = [
 // stay masked to last-4.
 const PLAINTEXT_KEYS = new Set([
   'GHL_PROPHOG_BOOKING_URL', 'VICK_EMAIL', 'LC_DIGEST_RECIPIENT_EMAIL',
-  'ATTENDANCE_PRESENT_THRESHOLD_PCT',
+  'ATTENDANCE_PRESENT_THRESHOLD_PCT', 'TRAINING_AUTOMATION_ENABLED',
 ])
 
 export async function GET() {
