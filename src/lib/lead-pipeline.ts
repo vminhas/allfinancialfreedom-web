@@ -11,7 +11,7 @@ import type { LeadScore } from '@/generated/prisma/client'
 // Master switch for the outbound pipeline. Defined in a dependency-free module
 // (leads-flags.ts) so the browser form can share the exact same flag; imported
 // here for the server guards and re-exported for the lead routes.
-import { LEADS_PIPELINE_ENABLED } from './leads-flags'
+import { LEADS_PIPELINE_ENABLED, LEAD_DISCORD_NOTIFY_ENABLED } from './leads-flags'
 export { LEADS_PIPELINE_ENABLED }
 
 // Turn an admin-edited plain-text email body into safe HTML: substitute
@@ -139,6 +139,8 @@ export interface LeadDiscordInput {
 // the activity channels), falling back to the admin channel until that
 // env is set.
 export async function notifyLeadDiscord(opts: LeadDiscordInput): Promise<void> {
+  // Concierge no longer posts leads to Discord (mycadre owns lead surfacing).
+  if (!LEAD_DISCORD_NOTIFY_ENABLED) return
   const channelId = process.env.DISCORD_LEADS_CHANNEL_ID || process.env.DISCORD_ADMIN_CHANNEL_ID
   if (!channelId || !process.env.DISCORD_BOT_TOKEN) return
   const heat = opts.score === 'A' ? '🔥 A-LEAD (call first)' : opts.score === 'NURTURE' ? '🌱 Nurture' : '📋 Standard'
