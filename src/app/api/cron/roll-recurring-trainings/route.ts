@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { rollForwardRecurringTrainings } from '@/lib/training-recurrence'
+import { trainingAutomationEnabled } from '@/lib/training-automation'
 
 // GET /api/cron/roll-recurring-trainings
 // Runs daily. Tops up every ongoing (auto-extending) recurring training
@@ -12,6 +13,11 @@ export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // Training moved to Cadre: stop topping up recurring series.
+  if (!(await trainingAutomationEnabled())) {
+    return NextResponse.json({ skipped: 'training automation disabled (handled by Cadre)' })
   }
 
   try {

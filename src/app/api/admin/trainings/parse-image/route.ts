@@ -8,6 +8,7 @@ import { uploadFlyerToBlob } from '@/lib/blob-upload'
 import { createGuildScheduledEvent } from '@/lib/discord'
 import { stepOccurrence, createDiscordEventForOccurrence } from '@/lib/training-recurrence'
 import { resolveTrainingStart } from '@/lib/training-date'
+import { trainingAutomationEnabled } from '@/lib/training-automation'
 
 function buildJoinUrl(streamId: string | null, passcode?: string | null): string | null {
   if (!streamId) return null
@@ -21,6 +22,13 @@ function buildJoinUrl(streamId: string | null, passcode?: string | null): string
 // Accepts a single image file, parses it with Claude vision, creates
 // the training event(s) in the DB, and optionally creates Discord events.
 export async function POST(req: NextRequest) {
+  // Training handling moved to Cadre. When disabled, don't parse flyers or
+  // create events. `parsed: 0` makes the Concierge bot fall through quietly
+  // (it just adds a 👀 reaction) instead of showing an error.
+  if (!(await trainingAutomationEnabled())) {
+    return NextResponse.json({ disabled: true, parsed: 0, events: [], message: 'Training handling moved to Cadre' })
+  }
+
   // Allow auth via admin session OR cron secret (for Discord bot server-to-server calls)
   const cronSecret = req.headers.get('x-cron-secret')
   const isCronAuth = cronSecret && process.env.CRON_SECRET && cronSecret === process.env.CRON_SECRET
