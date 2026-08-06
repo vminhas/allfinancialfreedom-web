@@ -11,7 +11,12 @@
 // line.
 //
 // Deliberately NOT gated by this flag: the local AnnuityLead DB row + TCPA
-// consent record (harmless backup), the staff-only Discord lead notify
-// (internal, never contacts the prospect), the GA4 generate_lead event (Google
+// consent record (harmless backup), the GA4 generate_lead event (Google
 // Ads top-of-funnel, still ours), and the forward of the lead to mycadre.
 export const LEADS_PIPELINE_ENABLED = false
+
+// Whether Concierge posts new leads into the staff-only Discord leads channel.
+// false = off (mycadre now surfaces leads), so Concierge stops posting them.
+// Separate from LEADS_PIPELINE_ENABLED because this is an internal staff
+// notification that never contacts the prospect. Flip to `true` to restore.
+export const LEAD_DISCORD_NOTIFY_ENABLED = false
