@@ -542,6 +542,12 @@ client.on(Events.MessageCreate, async (message) => {
     // Remove the hourglass
     await message.reactions.cache.get('⏳')?.remove().catch(() => {});
 
+    // Training handling moved to Cadre: the parse-image endpoint returns
+    // { disabled: true } when the /vault/settings toggle is off. Stop here so
+    // we don't fall through to the contest parser or leave a 👀 reaction on
+    // every flyer. One toggle (the web setting) controls the whole behavior.
+    if (data && data.disabled) return;
+
     if (apiRes.ok && data.parsed > 0) {
       const lines = data.events.map(e => {
         const date = new Date(e.startsAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
