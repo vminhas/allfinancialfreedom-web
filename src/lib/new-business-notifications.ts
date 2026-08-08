@@ -9,6 +9,14 @@ const ANNOUNCEMENTS_FALLBACK = '1295044213590982724'
 const announcementsChannel = () =>
   process.env.DISCORD_ANNOUNCEMENTS_CHANNEL_ID ?? ANNOUNCEMENTS_FALLBACK
 
+// Public "wins" posts (the announcement-channel "submitted" teaser and the
+// POLICY ISSUED card) are OFF by default: Cadre now posts these to the team,
+// so running both duplicates the celebration. Only the two public posts are
+// gated — the admin-channel notification and the LC / agent DMs still fire.
+// Default off means the deploy silences them with no env change; set
+// PUBLIC_WINS_ENABLED=1 to restore the public posts.
+const publicWinsEnabled = () => process.env.PUBLIC_WINS_ENABLED === '1'
+
 const POLICY_LABEL: Record<PolicyType, string> = {
   TERM: 'Term',
   WHOLE_LIFE: 'Whole Life',
@@ -78,7 +86,9 @@ export async function notifySubmitted(args: SubmittedArgs): Promise<void> {
     timestamp: new Date().toISOString(),
     footer: { text: 'AFF Concierge · Application Submitted' },
   }
-  await sendChannelMessage(announcementsChannel(), { embeds: [teaserEmbed] }).catch(() => {})
+  if (publicWinsEnabled()) {
+    await sendChannelMessage(announcementsChannel(), { embeds: [teaserEmbed] }).catch(() => {})
+  }
 
   // DM every licensing coordinator who linked Discord. The admin
   // channel keeps the team in the loop; the DM makes sure the
@@ -153,9 +163,12 @@ export async function notifyIssued(args: IssuedArgs): Promise<void> {
     fields,
   })
 
-  // POLICY ISSUED is always public hype — goes to announcements
-  // regardless of env config, never the admin channel.
-  await sendChannelMessage(announcementsChannel(), { embeds: [card] }).catch(() => {})
+  // POLICY ISSUED public hype card — goes to announcements, never the admin
+  // channel. Gated off while Cadre owns public wins (the writer/split DMs
+  // below still fire so both agents get their celebration).
+  if (publicWinsEnabled()) {
+    await sendChannelMessage(announcementsChannel(), { embeds: [card] }).catch(() => {})
+  }
 
   // DM the writer + the split partner so both get the celebration in
   // their inbox.
