@@ -80,6 +80,8 @@ export default function ContestsAdminPage() {
   const [participants, setParticipants] = useState<Participant[]>([])
   const [postText, setPostText] = useState<string | null>(null)
   const [postCount, setPostCount] = useState<number>(0)
+  const [seeding, setSeeding] = useState(false)
+  const [seedMsg, setSeedMsg] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -92,6 +94,23 @@ export default function ContestsAdminPage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  // One-click setup for the two flyer competitions (All Out August · 2 tiers,
+  // Summer Sizzler · 2 divisions). Idempotent — safe to click again.
+  const seedFlyers = async () => {
+    setSeeding(true); setSeedMsg(null)
+    const res = await fetch('/api/admin/contests/seed-flyers', { method: 'POST' })
+    const d = await res.json().catch(() => ({})) as { created?: string[]; skipped?: string[]; error?: string }
+    setSeeding(false)
+    if (res.ok) {
+      const c = (d.created ?? []).length
+      const s = (d.skipped ?? []).length
+      setSeedMsg(c > 0 ? `Created ${c} contest${c !== 1 ? 's' : ''}${s ? ` · ${s} already existed` : ''}.` : 'All flyer contests already exist.')
+      await load()
+    } else {
+      setSeedMsg(d.error || 'Setup failed')
+    }
+  }
 
   const startCreate = () => {
     setShowAdd(true); setEditing(null)
@@ -224,9 +243,15 @@ export default function ContestsAdminPage() {
             Time-boxed bonuses with per-agent countdowns. Anchors: ICA date, portal onboarding, phase start, or a fixed window. Most requirements auto-track; MANUAL is checked off per agent.
           </p>
         </div>
-        <button onClick={startCreate} style={{ ...btn, background: '#C9A96E', color: '#142D48', border: 'none' }}>
-          + New contest
-        </button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {seedMsg && <span style={{ fontSize: 11, color: '#9BB0C4', maxWidth: 260, textAlign: 'right' }}>{seedMsg}</span>}
+          <button onClick={seedFlyers} disabled={seeding} title="Create All Out August (2 tiers) + Summer Sizzler (2 divisions)" style={{ ...btn, background: 'transparent', color: '#C9A96E', border: '1px solid rgba(201,169,110,0.4)', cursor: seeding ? 'wait' : 'pointer' }}>
+            {seeding ? 'Setting up…' : 'Set up flyer contests'}
+          </button>
+          <button onClick={startCreate} style={{ ...btn, background: '#C9A96E', color: '#142D48', border: 'none' }}>
+            + New contest
+          </button>
+        </div>
       </div>
 
       {error && (
