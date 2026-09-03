@@ -5981,10 +5981,21 @@ function TeamMemberNode({ node, depth, isMobile, onOpenCard, previewToken }: { n
           border: `1px solid ${isInactive ? statusStyle.border : `${color}25`}`,
           borderRadius: 8,
           marginLeft: isMobile ? depth * 16 : depth * 32,
-          cursor: node.children.length > 0 ? 'pointer' : 'default',
+          cursor: 'pointer',
           opacity: inactiveOpacity,
         }}
-        onClick={() => node.children.length > 0 && setExpanded(!expanded)}
+        onClick={() => {
+          const anyOpen = showProgress || showContacts || showPfr || showGoals || showNotes
+          if (anyOpen) {
+            setShowProgress(false)
+            setShowContacts(false)
+            setShowPfr(false)
+            setShowGoals(false)
+            setShowNotes(false)
+          } else if (node.children.length > 0) {
+            setExpanded(!expanded)
+          }
+        }}
       >
         <div
           onClick={e => { e.stopPropagation(); onOpenCard(node.agentCode) }}
@@ -6133,7 +6144,7 @@ function TeamMemberNode({ node, depth, isMobile, onOpenCard, previewToken }: { n
             {reminding ? 'Sending...' : (remindMsg ?? 'Remind: PFR')}
           </button>
         )}
-        {node.memberStatus === 'ACTIVE' && node.agentCode && node.pfrStatus && node.pfrStatus !== 'not_started' && node.pfrHasRecord && (
+        {node.memberStatus === 'ACTIVE' && node.agentCode && node.pfrStatus && node.pfrStatus !== 'not_started' && (
           <button
             onClick={(e) => { e.stopPropagation(); setShowPfr(s => !s) }}
             style={{
@@ -6147,7 +6158,7 @@ function TeamMemberNode({ node, depth, isMobile, onOpenCard, previewToken }: { n
             {showPfr ? 'Hide' : 'View'} PFR
           </button>
         )}
-        {node.memberStatus === 'ACTIVE' && node.agentCode && node.pfrHasRecord && (
+        {node.memberStatus === 'ACTIVE' && node.agentCode && (
           <button
             onClick={(e) => { e.stopPropagation(); setShowGoals(s => !s) }}
             style={{

@@ -1018,6 +1018,56 @@ export default function TrackerPage() {
             >✕</button>
           )}
           <span style={{ fontSize: 10, color: '#4B5563', flexShrink: 0 }}>{displayedAgents.length} agent{displayedAgents.length !== 1 ? 's' : ''}</span>
+          <button
+            onClick={() => {
+              const headers = ['Agent Code', 'First Name', 'Last Name', 'Email', 'Phone', 'State', 'Phase', 'Progress', 'Days in Phase', 'Carriers Appointed', 'Call Score (30d)', 'Trainer', 'Recruiter', 'Onboarded', 'Status']
+              const rows = displayedAgents.map(a => {
+                const daysInPhase = a.phaseStartedAt ? Math.max(0, Math.floor((Date.now() - new Date(a.phaseStartedAt).getTime()) / 86_400_000)) : ''
+                const pct = a.phaseTotal > 0 ? `${a.phaseCompleted}/${a.phaseTotal} (${Math.round((a.phaseCompleted / a.phaseTotal) * 100)}%)` : '0%'
+                const risk = getAtRiskStatus(a.phase, a.phaseStartedAt ? new Date(a.phaseStartedAt) : null, a.phaseCompleted, a.phaseTotal)
+                return [
+                  a.agentCode,
+                  a.firstName,
+                  a.lastName,
+                  a.email,
+                  a.phone ?? '',
+                  a.state ?? '',
+                  `Phase ${a.phase}`,
+                  pct,
+                  String(daysInPhase),
+                  `${a.carriersAppointed}/${a.carriersTotal}`,
+                  a.callScore30d != null ? String(a.callScore30d) : '',
+                  a.cft ?? '',
+                  a.recruiterName ?? '',
+                  a.icaDate ? new Date(a.icaDate).toLocaleDateString() : '',
+                  risk.replace('-', ' ').toUpperCase(),
+                ]
+              })
+              const escape = (v: string) => v.includes(',') || v.includes('"') || v.includes('\n') ? `"${v.replace(/"/g, '""')}"` : v
+              const csv = [headers.map(escape).join(','), ...rows.map(r => r.map(escape).join(','))].join('\n')
+              const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+              const url = URL.createObjectURL(blob)
+              const link = document.createElement('a')
+              link.href = url
+              link.download = `aff-agents-${new Date().toISOString().slice(0, 10)}.csv`
+              link.click()
+              URL.revokeObjectURL(url)
+            }}
+            disabled={displayedAgents.length === 0}
+            title="Download the current filtered view as a CSV file"
+            style={{
+              padding: '6px 12px', borderRadius: 4,
+              background: 'rgba(201,169,110,0.08)',
+              border: '1px solid rgba(201,169,110,0.25)',
+              color: '#C9A96E', fontSize: 10, fontWeight: 700,
+              letterSpacing: '0.08em', textTransform: 'uppercase',
+              cursor: displayedAgents.length === 0 ? 'not-allowed' : 'pointer',
+              flexShrink: 0, whiteSpace: 'nowrap',
+              opacity: displayedAgents.length === 0 ? 0.5 : 1,
+            }}
+          >
+            Export CSV
+          </button>
         </div>
         <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         <table style={{ width: '100%', minWidth: 1240, borderCollapse: 'collapse' }}>

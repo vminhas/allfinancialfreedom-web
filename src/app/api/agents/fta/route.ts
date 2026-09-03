@@ -89,6 +89,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'name or businessPartnerId is required' }, { status: 400 })
   }
 
+  const apptDate = new Date(body.appointmentDate as string)
+  const existing = await db.fieldTrainingAppointment.findFirst({
+    where: {
+      agentProfileId: profileId,
+      appointmentDate: apptDate,
+      ...(businessPartnerId ? { businessPartnerId } : { name: snapshotName }),
+    },
+    select: { id: true },
+  })
+  if (existing) {
+    return NextResponse.json({ error: 'This appointment has already been logged' }, { status: 409 })
+  }
+
   // Optional status on create lets the form back-log a past FTA in one
   // step (SCHEDULED → COMPLETED would otherwise need a second PATCH and
   // the agent had to remember to click "Mark completed").

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { X, UserCheck, Calendar } from 'lucide-react'
 import DateTimePicker from './DateTimePicker'
 
@@ -52,6 +52,7 @@ export default function FTALogModal({ ftaLabel, trainerName, defaultName, previe
   const [appointmentDate, setAppointmentDate] = useState('')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
+  const savingRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
 
   // Pull the agent's classified FTA contacts so the picker has data.
@@ -72,10 +73,12 @@ export default function FTALogModal({ ftaLabel, trainerName, defaultName, previe
   const set = <K extends keyof typeof form>(k: K, v: typeof form[K]) => setForm(f => ({ ...f, [k]: v }))
 
   const handleSave = async () => {
+    if (savingRef.current) return
     if (!appointmentDate) { setError('Pick an appointment date / time'); return }
     if (mode === 'pick' && !pickedContactId) { setError('Pick an FTA contact'); return }
     if (mode === 'new' && !form.name.trim()) { setError('Name is required'); return }
 
+    savingRef.current = true
     setSaving(true)
     setError(null)
     try {
@@ -140,6 +143,7 @@ export default function FTALogModal({ ftaLabel, trainerName, defaultName, previe
     } catch {
       setError('Network error')
     } finally {
+      savingRef.current = false
       setSaving(false)
     }
   }

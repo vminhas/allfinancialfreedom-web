@@ -40,6 +40,7 @@ function GoalsPageInner() {
 
   const [visionBoardUrl, setVisionBoardUrl] = useState<string | null>(null)
   const [uploadingVision, setUploadingVision] = useState(false)
+  const [visionError, setVisionError] = useState<string | null>(null)
   const [visionLightbox, setVisionLightbox] = useState(false)
   const visionInputRef = useRef<HTMLInputElement>(null)
 
@@ -126,13 +127,29 @@ function GoalsPageInner() {
   }
 
   const handleVisionUpload = async (file: File) => {
+    if (file.size > 4.5 * 1024 * 1024) {
+      setVisionError('Image must be under 4.5 MB. Try compressing or resizing it first.')
+      return
+    }
     setUploadingVision(true)
+    setVisionError(null)
     const fd = new FormData()
     fd.append('file', file)
     try {
       const res = await fetch(`/api/agents/vision-board${qs}`, { method: 'POST', body: fd })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({})) as { error?: string }
+        setVisionError(json.error ?? `Upload failed (${res.status}). Try a smaller image.`)
+        return
+      }
       const json = await res.json() as { ok?: boolean; visionBoardUrl?: string; error?: string }
-      if (json.ok && json.visionBoardUrl) setVisionBoardUrl(json.visionBoardUrl)
+      if (json.ok && json.visionBoardUrl) {
+        setVisionBoardUrl(json.visionBoardUrl)
+      } else {
+        setVisionError(json.error ?? 'Upload failed. Please try again.')
+      }
+    } catch {
+      setVisionError('Network error. Check your connection and try again.')
     } finally {
       setUploadingVision(false)
       if (visionInputRef.current) visionInputRef.current.value = ''
@@ -277,6 +294,11 @@ function GoalsPageInner() {
                   </div>
                 </>
               )}
+            </div>
+          )}
+          {visionError && (
+            <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 6, fontSize: 11, color: '#f87171', lineHeight: 1.5 }}>
+              {visionError}
             </div>
           )}
         </div>

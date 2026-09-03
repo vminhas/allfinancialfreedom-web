@@ -8,12 +8,6 @@ export async function GET(req: NextRequest) {
   if ('error' in id) return id.error
 
   const { searchParams } = new URL(req.url)
-  const page = Math.max(1, parseInt(searchParams.get('page') ?? '1'))
-  const limit = 100
-  const skip = (page - 1) * limit
-  // Optional category filter so callers like the FTA appointment
-  // picker can scope to ?category=fta_contact without paging through
-  // every partner.
   const categoryFilter = searchParams.get('category')
 
   const where = {
@@ -21,25 +15,17 @@ export async function GET(req: NextRequest) {
     ...(categoryFilter ? { category: categoryFilter } : {}),
   }
 
-  const [partners, total] = await Promise.all([
-    db.businessPartner.findMany({
-      where,
-      orderBy: { createdAt: 'asc' },
-      skip,
-      take: limit,
-      // Surface the NPN / license number from the linked AgentProfile when
-      // the BP is a recruit who's already onboarded. Lets the writing
-      // agent pull these for app submissions without DM'ing the recruit.
-      include: {
-        linkedAgentProfile: {
-          select: { id: true, agentCode: true, npn: true, licenseNumber: true },
-        },
+  const partners = await db.businessPartner.findMany({
+    where,
+    orderBy: { createdAt: 'asc' },
+    include: {
+      linkedAgentProfile: {
+        select: { id: true, agentCode: true, npn: true, licenseNumber: true },
       },
-    }),
-    db.businessPartner.count({ where }),
-  ])
+    },
+  })
 
-  return NextResponse.json({ partners, total, page })
+  return NextResponse.json({ partners })
 }
 
 interface PartnerBody {
