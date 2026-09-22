@@ -17,7 +17,10 @@ interface SetupResource {
   updatedAt: string
 }
 
-const CATEGORIES = ['scripts', 'training', 'tools', 'forms', 'general'] as const
+// Keep in sync with RESOURCE_GROUPS in /src/app/agents/resources/page.tsx.
+// A category missing here can't be picked in the dropdown, so editing a
+// resource that has one silently re-categorizes it.
+const CATEGORIES = ['scripts', 'training', 'books', 'tools', 'forms', 'general'] as const
 
 // Phase ranks 1-6 + their canonical name. Drives the "Unlocks at"
 // dropdown on each resource. Order matters: the dropdown lists them
