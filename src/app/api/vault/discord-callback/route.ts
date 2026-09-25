@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { cookies } from 'next/headers'
+import { oauthCookieDomain } from '@/lib/oauth-cookie'
 
 // GET /api/vault/discord-callback
 //
@@ -13,6 +14,14 @@ import { cookies } from 'next/headers'
 export async function GET(req: NextRequest) {
   const baseUrl = process.env.NEXTAUTH_URL ?? 'https://allfinancialfreedom.com'
   const settingsUrl = `${baseUrl}/vault/settings`
+
+  // Central exit for every failure so the reason lands in the logs. Previously
+  // each failure was a bare redirect, so staff reporting "the Connect Discord
+  // button doesn't work" left no server-side trace to diagnose.
+  const fail = (reason: string, extra?: Record<string, unknown>) => {
+    console.warn(`[vault-discord-callback] connect failed: reason=${reason}`, extra ?? '')
+    return NextResponse.redirect(`${settingsUrl}?discord=error&reason=${reason}`)
+  }
 
   const { searchParams } = new URL(req.url)
   const code  = searchParams.get('code')
@@ -29,15 +38,21 @@ export async function GET(req: NextRequest) {
       : oauthError === 'access_denied'
         ? 'cancelled'
         : 'oauth_error'
-    return NextResponse.redirect(`${settingsUrl}?discord=error&reason=${reason}`)
+    return fail(reason, { oauthError, oauthErrorDescription })
   }
 
   const cookieStore = await cookies()
+  const cookieDomain = oauthCookieDomain(req.headers.get('host'))
   const savedState = cookieStore.get('vault_discord_oauth_state')?.value
-  cookieStore.delete('vault_discord_oauth_state')
+  // Delete with the same scope it was set with, otherwise a parent-domain
+  // cookie survives the delete and lingers.
+  cookieStore.delete({ name: 'vault_discord_oauth_state', path: '/', ...(cookieDomain ? { domain: cookieDomain } : {}) })
 
   if (!code || !state || state !== savedState) {
-    return NextResponse.redirect(`${settingsUrl}?discord=error&reason=invalid_state`)
+    return fail('invalid_state', {
+      hasCode: !!code, hasState: !!state, hasSavedState: !!savedState,
+      host: req.headers.get('host'), cookieDomain,
+    })
   }
 
   const session = await getServerSession(authOptions)
@@ -47,7 +62,7 @@ export async function GET(req: NextRequest) {
   }
   const adminUserId = (session.user as { id?: string }).id
   if (!adminUserId) {
-    return NextResponse.redirect(`${settingsUrl}?discord=error&reason=no_user_id`)
+    return fail('no_user_id')
   }
 
   const clientId     = process.env.DISCORD_CLIENT_ID!
@@ -66,7 +81,7 @@ export async function GET(req: NextRequest) {
     }),
   })
   if (!tokenRes.ok) {
-    return NextResponse.redirect(`${settingsUrl}?discord=error&reason=token_exchange`)
+    return fail('token_exchange', { status: tokenRes.status })
   }
   const tokenData = await tokenRes.json() as { access_token: string }
 
@@ -74,7 +89,7 @@ export async function GET(req: NextRequest) {
     headers: { Authorization: `Bearer ${tokenData.access_token}` },
   })
   if (!userRes.ok) {
-    return NextResponse.redirect(`${settingsUrl}?discord=error&reason=user_fetch`)
+    return fail('user_fetch', { status: userRes.status })
   }
   const discordUser = await userRes.json() as { id: string; username: string; global_name?: string }
   const displayName = discordUser.global_name ?? discordUser.username
@@ -102,7 +117,7 @@ export async function GET(req: NextRequest) {
         await sendChannelMessage(dm.id, {
           embeds: [{
             title: 'Vault Discord linked',
-            description: "You'll get DMs from the AFF Concierge bot when something in the vault needs your attention — new business submissions, licensing tickets, agent replies, etc.",
+            description: "You'll get DMs from the AFF Concierge bot when something in the vault needs your attention: new business submissions, licensing tickets, agent replies, and more.",
             color: 0x4ade80,
             footer: { text: 'All Financial Freedom' },
           }],
