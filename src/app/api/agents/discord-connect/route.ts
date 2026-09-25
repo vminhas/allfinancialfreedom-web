@@ -1,15 +1,16 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { randomBytes } from 'crypto'
 import { cookies } from 'next/headers'
+import { oauthCookieDomain } from '@/lib/oauth-cookie'
 
 // GET /api/agents/discord-connect
 // Redirects the agent to Discord OAuth. Stores a CSRF state token in a
 // cookie. We request `guilds.join` (alongside `identify`) so the
 // callback can add the agent straight into the AFF server, not just
 // read their account.
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session || (session.user as { role?: string }).role !== 'agent') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -36,6 +37,10 @@ export async function GET() {
     // `invalid_state` and show the generic "something went wrong" error.
     maxAge: 1800,
     secure: process.env.NODE_ENV === 'production',
+    // Scope to the parent domain: the portal answers on both www and apex, and
+    // a host-only cookie set on one is never sent to the other, which failed
+    // the callback's CSRF check as invalid_state every time (see oauthCookieDomain).
+    ...(oauthCookieDomain(req.headers.get('host')) ? { domain: oauthCookieDomain(req.headers.get('host')) } : {}),
   })
 
   const params = new URLSearchParams({

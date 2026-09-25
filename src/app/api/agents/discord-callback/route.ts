@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { addDiscordGuildMember, assignDiscordPhaseRole, assignDiscordRole, REPRESENTATIVE_ROLE_ID } from '@/lib/discord-roles'
 import { cookies } from 'next/headers'
+import { oauthCookieDomain } from '@/lib/oauth-cookie'
 
 // CEO's permanent invite to the AFF server. Only used as a fallback
 // when the automatic OAuth join can't proceed (Discord refuses to add
@@ -54,7 +55,9 @@ export async function GET(req: NextRequest) {
   // Validate CSRF state
   const cookieStore = await cookies()
   const savedState = cookieStore.get('discord_oauth_state')?.value
-  cookieStore.delete('discord_oauth_state')
+  const cookieDomain = oauthCookieDomain(req.headers.get('host'))
+  // Delete with the same scope it was set with, or a parent-domain cookie lingers.
+  cookieStore.delete({ name: 'discord_oauth_state', path: '/', ...(cookieDomain ? { domain: cookieDomain } : {}) })
 
   if (!code || !state || state !== savedState) {
     return fail('invalid_state', { hasCode: !!code, hasState: !!state, hasSavedState: !!savedState })
