@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { createNotification } from '@/lib/notify'
+import { ISSUED_STATUSES } from '@/lib/new-business-status'
 
 // GET /api/cron/client-reminders
 //
@@ -55,7 +56,7 @@ export async function GET(req: NextRequest) {
   // queries per agent.
   const subs = await db.newBusinessSubmission.findMany({
     where: {
-      status: 'ISSUED',
+      status: { in: ISSUED_STATUSES },
       issuedDate: { not: null },
       agentProfile: { status: 'ACTIVE', isTest: false, isReferralPartner: false },
     },

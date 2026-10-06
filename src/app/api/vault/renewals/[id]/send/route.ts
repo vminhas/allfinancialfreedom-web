@@ -6,6 +6,7 @@ import { requireRole } from '@/lib/permissions'
 import { computeRenewalWindow, todayInEt, STAGE_LABELS } from '@/lib/renewals'
 import { createGhlRenewalTask } from '@/lib/ghl-renewals'
 import type { RenewalStage } from '@/generated/prisma/client'
+import { isIssued } from '@/lib/new-business-status'
 
 const VALID_STAGES: RenewalStage[] = ['SIXTY_DAYS', 'THIRTY_DAYS', 'SEVEN_DAYS']
 
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     where: { id },
     include: { agentProfile: { select: { firstName: true, lastName: true, discordUserId: true } } },
   })
-  if (!submission || submission.status !== 'ISSUED' || !submission.issuedDate) {
+  if (!submission || !isIssued(submission.status) || !submission.issuedDate) {
     return NextResponse.json({ error: 'Not an issued submission' }, { status: 404 })
   }
 

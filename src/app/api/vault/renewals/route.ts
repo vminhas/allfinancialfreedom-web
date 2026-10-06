@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { requireRole } from '@/lib/permissions'
 import { computeRenewalWindow, todayInEt } from '@/lib/renewals'
 import type { RenewalStage } from '@/generated/prisma/client'
+import { ISSUED_STATUSES } from '@/lib/new-business-status'
 
 const VALID_STAGES: RenewalStage[] = ['SIXTY_DAYS', 'THIRTY_DAYS', 'SEVEN_DAYS']
 
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
   // Pulling birthday + city/state too so the All Policies view can surface
   // client context (birthday cards for VIPs, location for territory work).
   const rows = await db.newBusinessSubmission.findMany({
-    where: { status: 'ISSUED', issuedDate: { not: null } },
+    where: { status: { in: ISSUED_STATUSES }, issuedDate: { not: null } },
     include: {
       agentProfile: { select: { id: true, firstName: true, lastName: true, agentCode: true, discordUserId: true } },
       renewalReminders: {

@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { requireRole } from '@/lib/permissions'
 import { parseRangeFromSearch, prismaDateClause } from '@/lib/time-range'
 import type { Prisma } from '@/generated/prisma/client'
+import { ISSUED_STATUSES } from '@/lib/new-business-status'
 
 // KPIs for /vault/new-business. Pending / Assigned-to-me / Unassigned are
 // "right now" snapshots and ignore the date range. Issued / Declined / Points
@@ -37,13 +38,13 @@ export async function GET(req: NextRequest) {
       : Promise.resolve(0),
     db.newBusinessSubmission.count({ where: { assignedToId: null, status: 'PENDING' } }),
     db.newBusinessSubmission.count({
-      where: { status: 'ISSUED', ...assignmentClause, ...(dateClause ? { issuedDate: dateClause } : {}) },
+      where: { status: { in: ISSUED_STATUSES }, ...assignmentClause, ...(dateClause ? { issuedDate: dateClause } : {}) },
     }),
     db.newBusinessSubmission.count({
       where: { status: 'DECLINED', ...assignmentClause, ...(dateClause ? { updatedAt: dateClause } : {}) },
     }),
     db.newBusinessSubmission.aggregate({
-      where: { status: 'ISSUED', ...assignmentClause, ...(dateClause ? { issuedDate: dateClause } : {}) },
+      where: { status: { in: ISSUED_STATUSES }, ...assignmentClause, ...(dateClause ? { issuedDate: dateClause } : {}) },
       _sum: { points: true },
     }),
   ])

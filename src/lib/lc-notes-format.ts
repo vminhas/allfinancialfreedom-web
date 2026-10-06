@@ -19,6 +19,7 @@ const STATUS_LABEL: Record<NewBusinessStatus, string> = {
   HOLD: 'Hold',
   ISSUED: 'Issued',
   CONDITIONALLY_ISSUED: 'Conditionally Issued',
+  PAID: 'Paid',
   DECLINED: 'Declined',
   LAPSED: 'Lapsed',
   NOT_TAKEN: 'Not Taken',

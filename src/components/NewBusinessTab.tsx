@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import DatePicker from './DatePicker'
 import CarrierPicker from './CarrierPicker'
 import { formatPhoneAsTyped } from '@/lib/contact-validation'
+import { isIssued } from '@/lib/new-business-status'
 
 const card = { background: '#132238', border: '1px solid rgba(201,169,110,0.1)', borderRadius: 6 }
 const sectionLabel = { fontSize: 10, fontWeight: 700 as const, letterSpacing: '0.2em', textTransform: 'uppercase' as const, color: '#C9A96E', marginBottom: 14 }
@@ -29,11 +30,12 @@ const STATUS_COLOR: Record<string, { bg: string; fg: string }> = {
   LAPSED: { bg: 'rgba(107,114,128,0.2)', fg: '#9CA3AF' },
   NOT_TAKEN: { bg: 'rgba(107,114,128,0.2)', fg: '#9CA3AF' },
   CONDITIONALLY_ISSUED: { bg: 'rgba(74,222,128,0.10)', fg: '#86EFAC' },
+  PAID: { bg: 'rgba(201,169,110,0.18)', fg: '#C9A96E' },
 }
 // Agent-facing status labels (matches the LC SOP vocabulary).
 const STATUS_LABEL: Record<string, string> = {
   PENDING: 'New', PENDING_CARRIER: 'Pending', HOLD: 'Hold', ISSUED: 'Issued',
-  CONDITIONALLY_ISSUED: 'Conditionally Issued',
+  CONDITIONALLY_ISSUED: 'Conditionally Issued', PAID: 'Paid',
   DECLINED: 'Declined', LAPSED: 'Lapsed', NOT_TAKEN: 'Not Taken',
 }
 
@@ -74,7 +76,7 @@ interface Submission {
   // Null means owner == insured.
   ownerFirstName: string | null
   ownerLastName: string | null
-  status: 'PENDING' | 'PENDING_CARRIER' | 'HOLD' | 'ISSUED' | 'DECLINED' | 'LAPSED' | 'NOT_TAKEN'
+  status: 'PENDING' | 'PENDING_CARRIER' | 'HOLD' | 'ISSUED' | 'CONDITIONALLY_ISSUED' | 'PAID' | 'DECLINED' | 'LAPSED' | 'NOT_TAKEN'
   // Set when the row is linked to / owned by the hourly Tevah sync. A non-null
   // value means it's a real carrier-synced policy, so the agent can't delete it.
   tevahClientId: number | null
@@ -163,7 +165,7 @@ export default function NewBusinessTab({ isMobile, phase, initialSubmissionId, p
   // Filter the table based on the pill selection
   const applyFilter = (list: Submission[]) => list.filter(s => {
     if (filter === 'pending') return s.status === 'PENDING'
-    if (filter === 'clients') return s.status === 'ISSUED'
+    if (filter === 'clients') return isIssued(s.status)
     return true
   })
   const filtered = applyFilter(ownSubmissions)
@@ -179,7 +181,7 @@ export default function NewBusinessTab({ isMobile, phase, initialSubmissionId, p
 
   // Issued submissions in any active stage — feed the Coming-up banner.
   const upcoming = submissions
-    .filter(s => s.status === 'ISSUED' && s.currentStage)
+    .filter(s => isIssued(s.status) && s.currentStage)
     .sort((a, b) => (a.daysUntilAnniversary ?? 999) - (b.daysUntilAnniversary ?? 999))
 
   const showAnniversaryCol = filter !== 'pending'

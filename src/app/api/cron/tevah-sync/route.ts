@@ -511,7 +511,12 @@ export async function syncClients() {
         // Only a terminal Tevah outcome may change the status; a PENDING from
         // Tevah leaves the LC's current status untouched. Policy number is
         // factual, so always keep it current.
-        const applyStatus = newStatus !== existing.status && TERMINAL_TEVAH_STATUSES.has(newStatus)
+        // Tevah maps its own "paid" to ISSUED (see tevahStatusToAff), so an
+        // incoming ISSUED must never downgrade a row the LC has already
+        // marked PAID; that would silently revert the LC every hour. A
+        // genuinely new outcome (DECLINED / LAPSED) still applies.
+        const downgradesPaid = existing.status === 'PAID' && newStatus === 'ISSUED'
+        const applyStatus = newStatus !== existing.status && TERMINAL_TEVAH_STATUSES.has(newStatus) && !downgradesPaid
         const policyChanged = existing.policyNumber !== client.policyNumber
         if (applyStatus || policyChanged) {
           await db.newBusinessSubmission.update({
@@ -587,6 +592,7 @@ export async function syncClients() {
       const clientLastN = normName(clientLast)
 
       let matchedExistingId: string | null = null
+      let matchedExistingStatus: NewBusinessStatus | null = null
       if (client.policyNumber?.trim()) {
         const byNumber = await db.newBusinessSubmission.findFirst({
           where: {
@@ -594,9 +600,10 @@ export async function syncClients() {
             policyNumber: client.policyNumber.trim(),
             agentProfileId: writerProfile.id,
           },
-          select: { id: true },
+          select: { id: true, status: true },
         })
         matchedExistingId = byNumber?.id ?? null
+        matchedExistingStatus = byNumber?.status ?? null
       }
       if (!matchedExistingId) {
         // Pull candidates by writer + ±60d window, then filter by
@@ -614,7 +621,7 @@ export async function syncClients() {
           },
           select: {
             id: true, carrier: true, clientFirstName: true, clientLastName: true,
-            policyType: true, createdAt: true,
+            policyType: true, createdAt: true, status: true,
           },
           orderBy: { createdAt: 'asc' },
         })
@@ -624,6 +631,7 @@ export async function syncClients() {
           normName(c.clientLastName) === clientLastN,
         )
         matchedExistingId = matched?.id ?? null
+        matchedExistingStatus = matched?.status ?? null
       }
 
       // Find split partner: same policyNumber, different writing agent code.
@@ -658,7 +666,9 @@ export async function syncClients() {
             tevahClientId: client.id,
             // Keep the LC's/agent's existing status unless Tevah reports a
             // terminal outcome; don't reset a worked submission to PENDING.
-            ...(TERMINAL_TEVAH_STATUSES.has(newStatus) ? { status: newStatus } : {}),
+            ...(TERMINAL_TEVAH_STATUSES.has(newStatus)
+              && !(matchedExistingStatus === 'PAID' && newStatus === 'ISSUED')
+              ? { status: newStatus } : {}),
             policyNumber: client.policyNumber ?? undefined,
             points: points ?? undefined,
             splitWithAgentId: splitPartnerProfile?.id ?? undefined,

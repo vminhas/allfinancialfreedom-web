@@ -1502,6 +1502,13 @@ enum NewBusinessStatus {
   // the LC; the default stays PENDING so nothing downstream changes.
   PENDING_CARRIER
   CONDITIONALLY_ISSUED
+  // Issued AND the first premium has been paid. Strictly downstream of
+  // ISSUED, so everything that counts an issued policy (leaderboards,
+  // Climb points, renewals, stats, birthdays) counts PAID too; see
+  // isIssued() in src/lib/new-business-status.ts. Set by the LC only:
+  // Tevah maps its own "paid" to ISSUED, so the sync must never
+  // downgrade a PAID row back to ISSUED.
+  PAID
 }
 
 enum PolicyType {

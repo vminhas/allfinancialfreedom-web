@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { resolveAgentTitle, TITLE_OVERRIDE_ITEM_KEYS } from '@/lib/agent-title'
+import { ISSUED_STATUSES } from '@/lib/new-business-status'
 
 // GET /api/agents/leaderboard/production
 //
@@ -328,7 +329,7 @@ async function submissionsValues(agentIds: string[], start: Date | null, end: Da
 async function pointsValues(agentIds: string[], start: Date | null, end: Date) {
   const subs = await db.newBusinessSubmission.findMany({
     where: {
-      status: 'ISSUED',
+      status: { in: ISSUED_STATUSES },
       applicationDate: start ? { gte: start, lte: end } : { lte: end },
       OR: [
         { agentProfileId: { in: agentIds } },

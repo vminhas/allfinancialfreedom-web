@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import DatePicker from '@/components/DatePicker'
 import AgentTypeahead from '@/components/AgentTypeahead'
 import { TIME_RANGE_OPTIONS, rangeForKey, type TimeRangeKey } from '@/lib/time-range'
+import { ISSUED_STATUSES } from '@/lib/new-business-status'
 
 const card = { background: '#132238', border: '1px solid rgba(201,169,110,0.1)', borderRadius: 6 }
 const sectionLabel = { fontSize: 10, fontWeight: 700 as const, letterSpacing: '0.2em', textTransform: 'uppercase' as const, color: '#C9A96E', marginBottom: 14 }
@@ -20,17 +21,28 @@ const STATUS_COLOR: Record<string, { bg: string; fg: string }> = {
   LAPSED: { bg: 'rgba(107,114,128,0.2)', fg: '#9CA3AF' },
   NOT_TAKEN: { bg: 'rgba(107,114,128,0.2)', fg: '#9CA3AF' },
   CONDITIONALLY_ISSUED: { bg: 'rgba(74,222,128,0.10)', fg: '#86EFAC' },
+  PAID: { bg: 'rgba(201,169,110,0.18)', fg: '#C9A96E' },
 }
-const STATUSES = ['PENDING', 'PENDING_CARRIER', 'HOLD', 'ISSUED', 'CONDITIONALLY_ISSUED', 'DECLINED', 'LAPSED', 'NOT_TAKEN'] as const
+const STATUSES = ['PENDING', 'PENDING_CARRIER', 'HOLD', 'ISSUED', 'CONDITIONALLY_ISSUED', 'PAID', 'DECLINED', 'LAPSED', 'NOT_TAKEN'] as const
 // LC SOP labels: the guide calls the initial state "New" (= PENDING,
 // the default the claim/stats flow keys on) and "Pending" the separate
 // at-carrier state (= PENDING_CARRIER). "Hold" is a paused state. These
 // labels drive the note composer + status pills; enum values unchanged.
 const STATUS_LABEL: Record<string, string> = {
   PENDING: 'New', PENDING_CARRIER: 'Pending', HOLD: 'Hold', ISSUED: 'Issued',
-  CONDITIONALLY_ISSUED: 'Conditionally Issued',
+  CONDITIONALLY_ISSUED: 'Conditionally Issued', PAID: 'Paid',
   DECLINED: 'Declined', LAPSED: 'Lapsed', NOT_TAKEN: 'Not Taken',
 }
+// The Issued KPI counts ISSUED + PAID, so clicking it must filter on both
+// or the card's number and the table it opens would disagree. The list API
+// takes a comma-separated status list.
+const ISSUED_FILTER = ISSUED_STATUSES.join(',')
+
+// Renders a (possibly comma-separated) status filter as LC-facing words.
+function statusFilterLabel(filter: string): string {
+  return filter.split(',').map(s => STATUS_LABEL[s] ?? s.replace('_', ' ')).join(' + ')
+}
+
 const POLICY_LABEL: Record<string, string> = {
   TERM: 'Term', WHOLE_LIFE: 'Whole Life', IUL: 'IUL', ANNUITY: 'Annuity',
   DISABILITY: 'Disability', LTC: 'LTC', OTHER: 'Other',
@@ -284,9 +296,9 @@ export default function VaultNewBusinessPage() {
           label={`Issued · ${rangeLabel}`}
           value={stats.issued}
           accent="#4ADE80"
-          hint={`Submissions marked ISSUED in the ${rangeLabel.toLowerCase()}. Reference, no action needed.`}
-          active={statusFilter === 'ISSUED'}
-          onClick={() => setStatusFilter(statusFilter === 'ISSUED' ? '' : 'ISSUED')}
+          hint={`Submissions marked Issued or Paid in the ${rangeLabel.toLowerCase()}. Reference, no action needed.`}
+          active={statusFilter === ISSUED_FILTER}
+          onClick={() => setStatusFilter(statusFilter === ISSUED_FILTER ? '' : ISSUED_FILTER)}
         />
         <KpiCard
           label={`Declined · ${rangeLabel}`}
@@ -300,14 +312,14 @@ export default function VaultNewBusinessPage() {
           label={`Points · ${rangeLabel}`}
           value={stats.points.toLocaleString()}
           accent="#C9A96E"
-          hint="Total target premium across ISSUED submissions in this range."
+          hint="Total target premium across Issued and Paid submissions in this range."
         />
       </div>
 
       {(statusFilter || assignment || agentFilter || search.trim() || carrierFilter.trim() || policyTypeFilter) && (
         <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 11, color: '#6B8299' }}>Active filters:</span>
-          {statusFilter && <FilterPill label={`Status: ${statusFilter.replace('_', ' ')}`} onClear={() => setStatusFilter('')} />}
+          {statusFilter && <FilterPill label={`Status: ${statusFilterLabel(statusFilter)}`} onClear={() => setStatusFilter('')} />}
           {assignment === 'me' && <FilterPill label="Assigned to me" onClear={() => setAssignment('')} />}
           {assignment === 'unassigned' && <FilterPill label="Unassigned" onClear={() => setAssignment('')} />}
           {agentFilter && (() => {
