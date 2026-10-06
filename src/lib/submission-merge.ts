@@ -56,6 +56,7 @@ const STATUS_RANK: Record<NewBusinessStatus, number> = {
   DECLINED: 6,
   CONDITIONALLY_ISSUED: 7,
   ISSUED: 8,
+  PAID: 9,
 }
 
 export function preferStatus(

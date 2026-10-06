@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/permissions'
+import { ISSUED_STATUSES } from '@/lib/new-business-status'
 
 // GET /api/admin/birthdays
 // Returns active agents with a dateOfBirth, sorted by days-until-next-birthday.
@@ -81,7 +82,7 @@ export async function GET() {
   // licensing coordinators / admins can see upcoming client birthdays alongside
   // agent birthdays for gift/card workflows.
   const issuedWithBirthday = await db.newBusinessSubmission.findMany({
-    where: { status: 'ISSUED', clientBirthday: { not: null } },
+    where: { status: { in: ISSUED_STATUSES }, clientBirthday: { not: null } },
     select: {
       id: true,
       clientFirstName: true,

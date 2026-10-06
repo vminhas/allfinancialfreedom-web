@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { MILESTONE_BY_KEY } from '@/lib/milestones'
+import { isIssued } from '@/lib/new-business-status'
 
 // GET /api/agents/by-code/[code]/card
 //
@@ -181,7 +182,7 @@ export async function GET(
   ]
 
   const totalSubmissions = allSubs.length
-  const issuedClients = allSubs.filter(s => s.status === 'ISSUED').length
+  const issuedClients = allSubs.filter(s => isIssued(s.status)).length
   const totalTargetPremium = allSubs.reduce((sum, s) => sum + s.points, 0)
 
   const milestoneBadges = profile.milestones

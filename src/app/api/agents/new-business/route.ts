@@ -10,6 +10,7 @@ import { resolveAgentIdentity } from '@/lib/agent-identity'
 import { recomputeClimbAchievements } from '@/lib/climb-points'
 import { getAutoAssignee } from '@/lib/auto-assign'
 import type { PolicyType } from '@/generated/prisma/client'
+import { isIssued } from '@/lib/new-business-status'
 
 const VALID_POLICY_TYPES: PolicyType[] = ['TERM', 'WHOLE_LIFE', 'IUL', 'ANNUITY', 'DISABILITY', 'LTC', 'OTHER']
 
@@ -78,7 +79,7 @@ export async function GET(req: NextRequest) {
   const enriched = submissions.map(s => {
     const lane: 'own' | 'shared' = s.agentProfileId === profile.id ? 'own' : 'shared'
     const muted = s.mutes.length > 0
-    if (s.status !== 'ISSUED' || !s.issuedDate) {
+    if (!isIssued(s.status) || !s.issuedDate) {
       return { ...s, lane, muted, daysUntilAnniversary: null, currentStage: null, anniversaryYear: null }
     }
     const w = computeRenewalWindow(s.issuedDate, today)

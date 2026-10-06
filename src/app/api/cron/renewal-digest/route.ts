@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { computeRenewalWindow, todayInEt, STAGE_LABELS } from '@/lib/renewals'
+import { ISSUED_STATUSES } from '@/lib/new-business-status'
 
 // Daily 9am ET digest of upcoming renewals to the admin Discord channel.
 // Does NOT DM agents — that's the LC's call from /vault/renewals.
@@ -11,7 +12,7 @@ export async function GET(req: NextRequest) {
   }
 
   const rows = await db.newBusinessSubmission.findMany({
-    where: { status: 'ISSUED', issuedDate: { not: null } },
+    where: { status: { in: ISSUED_STATUSES }, issuedDate: { not: null } },
     include: {
       agentProfile: { select: { firstName: true, lastName: true, agentCode: true } },
       renewalReminders: { select: { stage: true, anniversaryYear: true } },

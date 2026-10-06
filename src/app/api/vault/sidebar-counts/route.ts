@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/permissions'
 import { computeRenewalWindow, todayInEt } from '@/lib/renewals'
+import { ISSUED_STATUSES } from '@/lib/new-business-status'
 
 // Counts that drive the sidebar notification badges. Each number is the
 // "this needs attention" count for a given vault page. Cheap aggregate
@@ -49,7 +50,7 @@ export async function GET() {
     // bucket here. Keep the projection thin so we're not transferring
     // full submission rows.
     db.newBusinessSubmission.findMany({
-      where: { status: 'ISSUED', issuedDate: { not: null } },
+      where: { status: { in: ISSUED_STATUSES }, issuedDate: { not: null } },
       select: {
         issuedDate: true,
         renewalReminders: { select: { stage: true, anniversaryYear: true } },

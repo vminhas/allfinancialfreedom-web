@@ -8,7 +8,7 @@ import { logSubmissionActivity } from '@/lib/submission-activity'
 import { validatePhone, validateEmail } from '@/lib/contact-validation'
 import type { NewBusinessStatus, PolicyType } from '@/generated/prisma/client'
 
-const VALID_STATUSES: NewBusinessStatus[] = ['PENDING', 'PENDING_CARRIER', 'ISSUED', 'CONDITIONALLY_ISSUED', 'DECLINED', 'LAPSED', 'NOT_TAKEN', 'HOLD']
+const VALID_STATUSES: NewBusinessStatus[] = ['PENDING', 'PENDING_CARRIER', 'ISSUED', 'CONDITIONALLY_ISSUED', 'DECLINED', 'LAPSED', 'NOT_TAKEN', 'HOLD', 'PAID']
 const VALID_POLICY_TYPES: PolicyType[] = ['TERM', 'WHOLE_LIFE', 'IUL', 'ANNUITY', 'DISABILITY', 'LTC', 'OTHER']
 
 const STAFF_EDITABLE = [
@@ -98,7 +98,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   }
 
   // Auto-stamp issuedDate when status flips to ISSUED if not already provided
-  if (data.status === 'ISSUED' && !data.issuedDate && !existing.issuedDate) {
+  if ((data.status === 'ISSUED' || data.status === 'PAID') && !data.issuedDate && !existing.issuedDate) {
     data.issuedDate = new Date()
   }
 

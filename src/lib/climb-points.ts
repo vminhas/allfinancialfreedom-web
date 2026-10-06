@@ -1,5 +1,6 @@
 import { db } from './db'
 import type { ClimbMilestone, AgentProfile } from '@/generated/prisma/client'
+import { ISSUED_STATUSES } from '@/lib/new-business-status'
 
 // ─── Points source ───────────────────────────────────────────────────────────
 //
@@ -21,7 +22,7 @@ export async function lifetimePointsForAgent(agentProfileId: string): Promise<nu
 
   const subs = await db.newBusinessSubmission.findMany({
     where: {
-      status: 'ISSUED',
+      status: { in: ISSUED_STATUSES },
       OR: [
         { agentProfileId },
         { splitWithAgentId: agentProfileId },
@@ -59,7 +60,7 @@ export async function lifetimePointsForAllAgents(): Promise<Map<string, number>>
   if (needsFallback.length > 0) {
     const subs = await db.newBusinessSubmission.findMany({
       where: {
-        status: 'ISSUED',
+        status: { in: ISSUED_STATUSES },
         OR: [
           { agentProfileId: { in: needsFallback } },
           { splitWithAgentId: { in: needsFallback } },

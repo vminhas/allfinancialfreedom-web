@@ -1,0 +1,1 @@
+ALTER TYPE "NewBusinessStatus" ADD VALUE IF NOT EXISTS 'PAID';
