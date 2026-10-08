@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { getSetting, setSetting } from '@/lib/settings'
 import { PHASE_ITEMS } from '@/lib/agent-constants'
+import { visibleChildren } from '@/lib/team-tree'
 import { resolveAgentTitle } from '@/lib/agent-title'
 import { loadTrainerContext, findTraineeProfiles } from '@/lib/trainer-trainees'
 
@@ -140,8 +141,14 @@ export async function GET(req: NextRequest) {
   // de-emphasized group when the agent opts into the full view.
   const includeInactive = new URL(req.url).searchParams.get('includeInactive') === '1'
 
+  // Always load the FULL roster so the recruiter hierarchy is structurally
+  // complete. `includeInactive` now controls DISPLAY only (see
+  // visibleChildrenOf below). Filtering inactive agents out of this query used
+  // to sever the tree: an inactive agent was dropped from the parent->child
+  // map, so the walk never reached their node and every ACTIVE agent beneath
+  // them silently vanished from their upline's team view.
   const allAgents = await db.agentProfile.findMany({
-    where: includeInactive ? {} : { status: 'ACTIVE' },
+    where: {},
     select: {
       id: true,
       agentCode: true,
@@ -252,6 +259,20 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Inactive agents are hidden from the default view, but hiding them must
+  // NOT hide the active people under them. Descend through a hidden agent and
+  // lift their visible descendants up to this level.
+  const isVisible = (a: typeof allAgents[0]) => includeInactive || a.status !== 'INACTIVE'
+
+  const visibleChildrenOf = (code: string) =>
+    visibleChildren(code, childrenOf, a => a.agentCode, isVisible)
+
+  // Expand each agent at most once. In a well-formed tree every agent has
+  // exactly one parent so this never truncates, but a malformed recruiterId
+  // cycle would otherwise recurse forever (more reachable now that inactive
+  // agents are part of the tree).
+  const expandedCodes = new Set<string>()
+
   function computeProgress(a: typeof allAgents[0]): TeamProgress {
     const entry = progressByAgent.get(a.id)
     const perPhase = [1, 2, 3, 4, 5, 6].map(p => {
@@ -304,7 +325,11 @@ export async function GET(req: NextRequest) {
   }
 
   function buildNode(a: typeof allAgents[0]): TeamNode {
-    const kids = childrenOf.get(a.agentCode) ?? []
+    let kids: typeof allAgents = []
+    if (!expandedCodes.has(a.agentCode)) {
+      expandedCodes.add(a.agentCode)
+      kids = visibleChildrenOf(a.agentCode)
+    }
     // INACTIVE profiles take precedence over the password-hash check; we
     // care more that they're no longer producing than that they once
     // logged in. Without this guard an inactive agent who set a password
@@ -352,7 +377,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const myRecruits = childrenOf.get(myAgentCode) ?? []
+  const myRecruits = visibleChildrenOf(myAgentCode)
   const directNodes = myRecruits.map(buildNode)
 
   // Pending referrals: submitted by this agent, not yet approved by admin.
