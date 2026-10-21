@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { getContestParticipants } from '@/lib/contests'
+import { discordPostAllowed } from '@/lib/discord-posting'
 
 // POST /api/admin/contests/[id]/sync-tracker
 //
@@ -53,6 +54,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   // Channel can come from the request (admin sets/updates it on
   // sync) or from a previously-saved value on the contest.
   const channelId = body.channelId?.trim() || contest.discordChannelId
+  // Discord posting is limited to the internal activity feeds (Cadre owns the
+  // public channels now). This posts via a raw fetch, bypassing
+  // sendChannelMessage, so it needs its own guard.
+  if (!discordPostAllowed(channelId)) {
+    return NextResponse.json({ skipped: 'discord posting disabled' })
+  }
   if (!channelId) {
     return NextResponse.json({ error: 'discordChannelId required (set it on the contest or pass channelId in the body)' }, { status: 400 })
   }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { discordPostAllowed } from '@/lib/discord-posting'
 
 // POST /api/cron/blog-notify
 //
@@ -15,6 +16,14 @@ export async function POST(req: NextRequest) {
   if (!secret || !process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  // Discord posting is limited to the internal activity feeds (Cadre owns
+  // the public channels now). This posts to #blog via a raw fetch, so it
+  // bypasses sendChannelMessage and needs its own guard.
+  if (!discordPostAllowed(BLOG_ARTICLES_CHANNEL)) {
+    return NextResponse.json({ skipped: 'discord posting disabled' })
+  }
+
 
   let body: { title?: string; excerpt?: string; slug?: string }
   try {

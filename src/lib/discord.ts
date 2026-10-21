@@ -8,6 +8,8 @@
  * The bot has admin in the AFF server so we don't need to enumerate scopes.
  */
 
+import { discordPostAllowed } from './discord-posting'
+
 const API = 'https://discord.com/api/v10'
 
 function botToken(): string {
@@ -328,6 +330,13 @@ export async function sendChannelMessage(channelId: string, payload: {
   allowedMentions?: { parse?: ('everyone' | 'roles' | 'users')[] }
   attachments?: DiscordAttachment[]
 }): Promise<{ id: string }> {
+  // Single choke point for every Discord post the web app makes. Only the
+  // internal activity feeds are allowed through; public channels and DMs are
+  // silenced (see discord-posting.ts). Returns an empty id so the handful of
+  // callers that capture the result keep working: they either ignore it or
+  // truthy-check it.
+  if (!discordPostAllowed(channelId)) return { id: '' }
+
   const payloadJson: Record<string, unknown> = {
     content: payload.content,
     embeds: payload.embeds,
