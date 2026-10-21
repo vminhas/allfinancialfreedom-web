@@ -7,6 +7,7 @@ import { db } from './db'
 import { getGhlConfig, sendGhlEmail, ghlPost, OPS_MAILBOX } from './ghl'
 import { ensureTeamTagOnContact } from './ghl-team-tag'
 import { buildWelcomeEmailHtml } from './welcome-email'
+import { AGENT_INVITES_ENABLED } from './invite-flags'
 
 export async function sendAgentInviteEmail(agentUserId: string): Promise<{ emailSent: boolean; emailError: string | null }> {
   const agentUser = await db.agentUser.findUnique({
@@ -14,6 +15,10 @@ export async function sendAgentInviteEmail(agentUserId: string): Promise<{ email
     include: { profile: true },
   })
   if (!agentUser || !agentUser.profile) return { emailSent: false, emailError: 'Agent not found' }
+
+  // Invites are off (onboarding moved to Cadre). Return before minting a
+  // token so we don't leave unusable invite links on the account.
+  if (!AGENT_INVITES_ENABLED) return { emailSent: false, emailError: null }
 
   // Don't send invites to synthetic @aff.local addresses (tracking-only profiles).
   if (agentUser.email.endsWith('@aff.local')) return { emailSent: false, emailError: null }

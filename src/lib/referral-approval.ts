@@ -4,6 +4,7 @@ import { getSetting } from './settings'
 import { PHASE_ITEMS, CARRIERS } from './agent-constants'
 import { getGhlConfig, sendGhlEmail, ghlPost, OPS_MAILBOX } from './ghl'
 import { buildWelcomeEmailHtml } from './welcome-email'
+import { AGENT_INVITES_ENABLED } from './invite-flags'
 import { autoAdvanceContactOnAgentCreation } from './ghl-pipeline'
 
 // Shared approval flow used by both the vault PATCH endpoint and the Discord
@@ -208,10 +209,13 @@ export async function approveReferral(input: ApprovalInput): Promise<ApprovalRes
 
   // Send the welcome email via GHL. Non-fatal — agent already exists in the
   // DB, the email can be re-sent from the My Team tab if it fails here.
+  // Skipped entirely while invites are off: the agent record is still created
+  // (that's an ops/data decision), we just don't invite them into this portal.
   let emailSent = false
   try {
-    const config = await getGhlConfig()
-    if (config.apiKey && config.locationId) {
+    // Invites off: skip the GHL contact + welcome email entirely.
+    const config = AGENT_INVITES_ENABLED ? await getGhlConfig() : null
+    if (config?.apiKey && config.locationId) {
       const createRes = await ghlPost('/contacts/', {
         locationId: config.locationId,
         email: referral.email,

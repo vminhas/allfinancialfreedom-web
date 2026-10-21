@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { randomUUID } from 'crypto'
 import { getGhlConfig, sendGhlEmail, ghlPost, OPS_MAILBOX } from '@/lib/ghl'
 import { buildWelcomeEmailHtml } from '@/lib/welcome-email'
+import { AGENT_INVITES_ENABLED } from '@/lib/invite-flags'
 
 // POST /api/agents/team/resend-invite — agent reissues the welcome email
 // for one of their own recruits whose portal hasn't been activated yet.
@@ -13,6 +14,9 @@ import { buildWelcomeEmailHtml } from '@/lib/welcome-email'
 // the calling agent's agentCode). Pending referrals (no AgentUser yet)
 // are rejected — those are still awaiting admin approval.
 export async function POST(req: NextRequest) {
+  if (!AGENT_INVITES_ENABLED) {
+    return NextResponse.json({ error: 'Agent invites are turned off. Onboarding has moved to Cadre.' }, { status: 403 })
+  }
   const session = await getServerSession(authOptions)
   if (!session?.user || (session.user as { role?: string }).role !== 'agent') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

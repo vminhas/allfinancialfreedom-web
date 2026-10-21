@@ -6,6 +6,7 @@ import { randomUUID } from 'crypto'
 import { getGhlConfig, sendGhlEmail, sendGhlSms, ghlPost, OPS_MAILBOX } from '@/lib/ghl'
 import { ensureTeamTagOnContact } from '@/lib/ghl-team-tag'
 import { buildWelcomeEmailHtml } from '@/lib/welcome-email'
+import { AGENT_INVITES_ENABLED } from '@/lib/invite-flags'
 import { requireRole } from '@/lib/permissions'
 
 // POST /api/admin/agents/invite — send/resend the portal invite for an
@@ -13,6 +14,9 @@ import { requireRole } from '@/lib/permissions'
 // where channel is 'email' (default), 'sms', or 'both'. Both admins and
 // licensing coordinators can invite (LC onboards new agents too).
 export async function POST(req: NextRequest) {
+  if (!AGENT_INVITES_ENABLED) {
+    return NextResponse.json({ error: 'Agent invites are turned off. Onboarding has moved to Cadre.' }, { status: 403 })
+  }
   const session = await getServerSession(authOptions)
   const denied = requireRole(session, 'admin', 'licensing_coordinator')
   if (denied) return denied
